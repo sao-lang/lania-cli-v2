@@ -1,0 +1,84 @@
+name: Publish Manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: Path to publish-manifest.json
+        required: true
+        default: .lania/publish/product/npm-package/publish-manifest.json
+        type: string
+      dry_run:
+        description: Run npm publish with --dry-run
+        required: true
+        default: true
+        type: boolean
+      resume:
+        description: Resume from completedSteps in manifest.execution
+        required: true
+        default: false
+        type: boolean
+      max_retries:
+        description: Retry count for transient publish failures
+        required: true
+        default: '2'
+        type: string
+      retry_delay_ms:
+        description: Delay between retries in milliseconds
+        required: true
+        default: '2000'
+        type: string
+      rollback_on_failure:
+        description: Execute npm unpublish commands after partial publish failure
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PUBLISH_MANIFEST: ${{ inputs.manifest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write Registry Auth
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node ./scripts/configure-npm-auth.mjs \
+            --manifest "${PUBLISH_MANIFEST}" \
+            --output ./.lania/tmp/npmrc.publish
+
+      - name: Execute Publish Manifest
+        env:
+          NPM_CONFIG_USERCONFIG: ${{ github.workspace }}/.lania/tmp/npmrc.publish
+        run: |
+          ARGS=(--manifest "${PUBLISH_MANIFEST}" --max-retries "${{ inputs.max_retries }}" --retry-delay-ms "${{ inputs.retry_delay_ms }}")
+          if [[ "${{ inputs.dry_run }}" == 'true' ]]; then
+            ARGS+=(--dry-run)
+          else
+            ARGS+=(--yes)
+          fi
+          if [[ "${{ inputs.resume }}" == 'true' ]]; then
+            ARGS+=(--resume)
+          fi
+          if [[ "${{ inputs.rollback_on_failure }}" == 'true' ]]; then
+            ARGS+=(--rollback-on-failure)
+          fi
+          node ./scripts/publish.mjs "${ARGS[@]}"

@@ -1,0 +1,57 @@
+[workspace]
+members = [
+  "crates/lania-cli",
+  "crates/lania-host",
+  "crates/lania-hooks",
+  "crates/lania-command",
+  "crates/lania-config",
+  "crates/lania-preferences",
+  "crates/lania-prompt",
+  "crates/lania-exec",
+  "crates/lania-task",
+  "crates/lania-progress",
+  "crates/lania-logger",
+  "crates/lania-fs",
+  "crates/lania-format",
+  "crates/lania-validate",
+  "crates/lania-git",
+  "crates/lania-pm",
+  "crates/lania-presentation",
+  "crates/lania-node-bridge",
+  "crates/lania-workflows",
+  "crates/lania-plugins-command-locale",
+  "crates/lania-plugins-command-dev",
+  "crates/lania-plugins-command-build",
+  "crates/lania-plugins-command-lint",
+  "crates/lania-plugins-command-create",
+  "crates/lania-plugins-command-add",
+  "crates/lania-plugins-command-sync",
+  "crates/lania-plugins-command-release",
+  "crates/lania-plugins-command-generate",
+  "crates/lania-plugins-command-template",
+  "crates/lania-plugins-command-tools",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+authors = ["Lania CLI Team"]
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time", "process", "io-util", "sync"] }
+tokio-util = "0.7"
+libc = "0.2"
+ignore = "0.4"
+notify = "6"
+serde_yaml = "0.9"
+shell-words = "1"
+regex = "1"
+tree-sitter = "0.20.10"
+tree-sitter-thrift = "0.3.0"

@@ -1,0 +1,24 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "ignorePatterns": ["node_modules/**", "dist/**", "coverage/**"],
+    "plugins": ["typescript", "oxc", "import"],
+    "env": {
+        "node": true,
+        "es2025": true
+    },
+    "categories": {
+        "correctness": "error",
+        "suspicious": "warn"
+    },
+    "rules": {
+        "eslint/no-unused-vars": "off"
+    },
+    "overrides": [
+        {
+            "files": ["**/*.ts"],
+            "rules": {
+                "typescript/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
+            }
+        }
+    ]
+}

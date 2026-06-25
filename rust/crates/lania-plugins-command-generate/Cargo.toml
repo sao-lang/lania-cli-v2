@@ -1,0 +1,16 @@
+[package]
+name = "lania-plugins-command-generate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+lania-command = { path = "../lania-command" }
+lania-host = { path = "../lania-host" }
+lania-node-bridge = { path = "../lania-node-bridge" }
+lania-prompt = { path = "../lania-prompt" }
+lania-workflows = { path = "../lania-workflows" }
+serde_json.workspace = true

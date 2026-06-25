@@ -1,0 +1,14 @@
+<%
+    const isTS = language === 'ts';
+%>
+import React, { Component } from 'react';
+
+class MyComponent extends Component<% if (isTS) { %><{}, {}><% } %> {
+    render() {
+        return (
+            <div></div>
+        );
+    }
+}
+
+export default MyComponent;

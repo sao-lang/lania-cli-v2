@@ -1,0 +1,219 @@
+name: Publish Product
+
+on:
+  workflow_dispatch:
+    inputs:
+      path:
+        description: Product root path
+        required: true
+        default: .
+        type: string
+      build_dir:
+        description: Output directory for `lan build product`
+        required: true
+        default: .lania/build/product
+        type: string
+      pack_dir:
+        description: Output directory for `lan pack product`
+        required: true
+        default: .lania/pack/product/install-root
+        type: string
+      publish_dir:
+        description: Output directory for `lan publish product`
+        required: true
+        default: .lania/publish/product/npm-package
+        type: string
+      dist_tag:
+        description: Registry dist-tag
+        required: false
+        default: latest
+        type: string
+      channel:
+        description: Release channel
+        required: false
+        default: latest
+        type: string
+      registry:
+        description: Target npm registry
+        required: false
+        default: https://registry.npmjs.org/
+        type: string
+      platform_binary_paths:
+        description: JSON object for injected platform binaries
+        required: false
+        default: ''
+        type: string
+      execute:
+        description: Execute npm publish after manifest generation
+        required: true
+        default: false
+        type: boolean
+      dry_run:
+        description: When executing, run npm publish with --dry-run
+        required: true
+        default: true
+        type: boolean
+      resume:
+        description: Resume from previous manifest execution state
+        required: true
+        default: false
+        type: boolean
+      max_retries:
+        description: Retry count for transient publish failures
+        required: true
+        default: '2'
+        type: string
+      retry_delay_ms:
+        description: Delay between retries in milliseconds
+        required: true
+        default: '2000'
+        type: string
+      rollback_on_failure:
+        description: Execute npm unpublish after partial publish failure
+        required: true
+        default: false
+        type: boolean
+      platform_binaries_dir:
+        description: Optional staging root containing per-platform lania-cli binaries
+        required: false
+        default: ''
+        type: string
+      release_repo:
+        description: Optional GitHub repo slug for downloading prebuilt platform binaries
+        required: false
+        default: ''
+        type: string
+      release_tag_template:
+        description: Optional tag template, e.g. v{version}
+        required: false
+        default: 'v{version}'
+        type: string
+      release_asset_template:
+        description: Optional asset template, e.g. lania-cli-{platform}
+        required: false
+        default: 'lania-cli-{platform}'
+        type: string
+
+jobs:
+  publish-product:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PRODUCT_PATH: ${{ inputs.path }}
+      PRODUCT_BUILD_DIR: ${{ inputs.build_dir }}
+      PRODUCT_PACK_DIR: ${{ inputs.pack_dir }}
+      PRODUCT_PUBLISH_DIR: ${{ inputs.publish_dir }}
+      PRODUCT_DIST_TAG: ${{ inputs.dist_tag }}
+      PRODUCT_CHANNEL: ${{ inputs.channel }}
+      PRODUCT_REGISTRY: ${{ inputs.registry }}
+      PRODUCT_PLATFORM_BINARY_PATHS: ${{ inputs.platform_binary_paths }}
+      PRODUCT_PLATFORM_BINARIES_DIR: ${{ inputs.platform_binaries_dir }}
+      LANIA_CLI_BINARY_RELEASE_REPO: ${{ inputs.release_repo }}
+      LANIA_CLI_BINARY_RELEASE_TAG_TEMPLATE: ${{ inputs.release_tag_template }}
+      LANIA_CLI_BINARY_RELEASE_ASSET_TEMPLATE: ${{ inputs.release_asset_template }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap Workspace
+        run: pnpm bootstrap:ci
+
+      - name: Fetch Platform Binaries (GitHub Releases)
+        if: ${{ inputs.release_repo != '' }}
+        env:
+          LANIA_CLI_PLATFORM_BINARIES_DIR: ${{ github.workspace }}/.lania/platform-binaries
+        run: node ./scripts/fetch-platform-binaries.mjs
+
+      - name: Build TypeScript Packages
+        run: pnpm -C ts build
+
+      - name: Build CLI Binary
+        run: cargo build --manifest-path rust/Cargo.toml -p lania-cli
+
+      - name: Build Product Snapshot
+        run: |
+          ./rust/target/debug/lania-cli build product \
+            --path "${PRODUCT_PATH}" \
+            --output-dir "${PRODUCT_BUILD_DIR}"
+
+      - name: Pack Product Install Root
+        run: |
+          ./rust/target/debug/lania-cli pack product \
+            --path "${PRODUCT_PATH}" \
+            --build-dir "${PRODUCT_BUILD_DIR}" \
+            --output-dir "${PRODUCT_PACK_DIR}"
+
+      - name: Write Registry Auth
+        if: ${{ inputs.execute }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node ./scripts/configure-npm-auth.mjs \
+            --registry "${PRODUCT_REGISTRY}" \
+            --output ./.lania/tmp/npmrc.publish
+
+      - name: Publish Product
+        env:
+          NPM_CONFIG_USERCONFIG: ${{ github.workspace }}/.lania/tmp/npmrc.publish
+        run: |
+          ARGS=(
+            publish product
+            --path "${PRODUCT_PATH}"
+            --pack-dir "${PRODUCT_PACK_DIR}"
+            --output-dir "${PRODUCT_PUBLISH_DIR}"
+            --registry "${PRODUCT_REGISTRY}"
+            --dist-tag "${PRODUCT_DIST_TAG}"
+            --channel "${PRODUCT_CHANNEL}"
+            --max-retries "${{ inputs.max_retries }}"
+            --retry-delay-ms "${{ inputs.retry_delay_ms }}"
+          )
+          if [[ "${{ inputs.release_repo }}" != '' ]]; then
+            ARGS+=(--platform-binaries-dir "${{ github.workspace }}/.lania/platform-binaries")
+          fi
+          if [[ -n "${PRODUCT_PLATFORM_BINARIES_DIR}" ]]; then
+            ARGS+=(--platform-binaries-dir "${PRODUCT_PLATFORM_BINARIES_DIR}")
+          fi
+          if [[ -n "${PRODUCT_PLATFORM_BINARY_PATHS}" ]]; then
+            ARGS+=(--platform-binary-paths "${PRODUCT_PLATFORM_BINARY_PATHS}")
+          fi
+          if [[ "${{ inputs.execute }}" == 'true' ]]; then
+            ARGS+=(--execute)
+            if [[ "${{ inputs.dry_run }}" == 'true' ]]; then
+              ARGS+=(--dry-run)
+            else
+              ARGS+=(--yes)
+            fi
+          fi
+          if [[ "${{ inputs.resume }}" == 'true' ]]; then
+            ARGS+=(--resume --no-clean)
+          fi
+          if [[ "${{ inputs.rollback_on_failure }}" == 'true' ]]; then
+            ARGS+=(--rollback-on-failure)
+          fi
+          ./rust/target/debug/lania-cli "${ARGS[@]}"
+
+      - name: Upload Publish Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-product-artifacts
+          path: |
+            ${{ inputs.publish_dir }}/publish-manifest.json
+            ${{ inputs.publish_dir }}/publish-report.json
+            ${{ inputs.publish_dir }}/*.tgz
+            ${{ inputs.publish_dir }}/bundle
+          if-no-files-found: warn

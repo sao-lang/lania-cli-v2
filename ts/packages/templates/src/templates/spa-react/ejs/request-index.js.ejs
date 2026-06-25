@@ -1,0 +1,14 @@
+import { AxiosWrapperFactory } from '@lania-tools/tools/axios-wrapper';
+import { API_BASE_URL, REQUEST_TIMEOUT, getAccessToken } from './config';
+
+const request = AxiosWrapperFactory.create('app', {
+  baseURL: API_BASE_URL,
+  timeout: REQUEST_TIMEOUT,
+  tokenProvider: getAccessToken,
+  responseHandler: (response) => response.data,
+  onError: (error) => {
+    console.error('[request error]', error);
+  },
+});
+
+export default request;

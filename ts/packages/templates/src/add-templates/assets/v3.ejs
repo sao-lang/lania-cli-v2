@@ -1,0 +1,20 @@
+<%-
+    function toScriptLang(processor) {
+        const map = {
+            css: '',
+            sass: 'scss',
+            stylus: 'styl',
+            less: 'less',
+        };
+        return map[processor] || '';
+    }
+    const langAttr = toLang(cssProcessor);
+-%>
+<template>
+    <div></div>
+</template>
+
+<script setup lang="<%= language %>">
+</script>
+
+<style scoped <% if (langAttr) { %> lang="<%= langAttr %>"<% } %>></style>

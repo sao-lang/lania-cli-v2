@@ -1,0 +1,81 @@
+<%
+    const hasOxlint = lintTools.includes('oxlint');
+    const usePrettierInEslint = lintTools.includes('prettier') && !lintTools.includes('oxfmt');
+%>
+import js from '@eslint/js';
+import * as vuePlugin from 'eslint-plugin-vue';
+import vueParser from 'vue-eslint-parser';
+import globals from 'globals';
+<% if (hasOxlint) { %>
+import oxlint from 'eslint-plugin-oxlint';
+<% } %>
+<% if (useTs) { %>
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import tsParser from '@typescript-eslint/parser';
+<% } %>
+<% if (usePrettierInEslint) { %>
+import prettierPlugin from 'eslint-plugin-prettier';
+import prettierConfig from 'eslint-config-prettier';
+<% } %>
+
+export default [
+    js.configs.recommended,
+    {
+        files: ['**/*.vue'],
+        <% if (useTs) { %>
+        languageOptions: {
+            parser: vueParser,
+            parserOptions: {
+                parser: tsParser,
+                ecmaVersion: 'latest',
+                sourceType: 'module',
+                ecmaFeatures: { jsx: true },
+            },
+        },
+        <% } %>
+        plugins: { vue: vuePlugin },
+        rules: {
+            'no-unused-vars': 'warn',
+            'vue/no-multiple-template-root': 'off',
+            'vue/html-self-closing': ['error', { html: 'never', component: 'always' }],
+        },
+    },
+    <% if (useTs) { %>
+    {
+        files: ['**/*.ts', '**/*.tsx'],
+        languageOptions: {
+            parser: tsParser,
+            parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+        },
+        plugins: { '@typescript-eslint': tsPlugin },
+        rules: {
+            '@typescript-eslint/no-unused-vars': 'warn',
+            'no-unused-vars': 'off',
+            semi: ['error', 'always'],
+        },
+    },
+    <% } %>
+    <% if (usePrettierInEslint) { %>
+    {
+        files: ['**/*.{js,ts,tsx,jsx,vue}'],
+        plugins: { prettier: prettierPlugin },
+        rules: {
+            'prettier/prettier': ['error', { semi: true, singleQuote: true, trailingComma: 'all' }],
+        },
+    },
+    prettierConfig,
+    <% } %>
+    <% if (hasOxlint) { %>
+    ...oxlint.buildFromOxlintConfigFile('./.oxlintrc.json'),
+    <% } %>
+    {
+        ignores: ['node_modules/', 'dist/', 'build/', 'coverage/', '*.lock', '*.min.js'],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+                ...globals.node,
+                ...globals.es2022,
+            },
+        },
+    }
+];

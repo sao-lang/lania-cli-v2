@@ -1,0 +1,101 @@
+<%
+    const devDependencyKeys = Object.keys(devDependencies);
+    const hasHusky = devDependencyKeys.includes('husky');
+    const hasLintStaged = devDependencyKeys.includes('lint-staged');
+    const hasEslint = lintTools.includes('eslint');
+    const hasOxlint = lintTools.includes('oxlint');
+    const hasStylelint = lintTools.includes('stylelint');
+    const hasPrettier = lintTools.includes('prettier');
+    const hasOxfmt = lintTools.includes('oxfmt');
+    const hasCommitlint = lintTools.includes('commitlint');
+    const cssProcessorExtMap = {
+        sass: 'scss',
+        less: 'less',
+        stylus: 'styl',
+    };
+    const stagedCssProcessor = cssProcessorExtMap[cssProcessor];
+    const lintCommands = [];
+    const lintFixCommands = [];
+    if (hasOxlint) {
+        lintCommands.push('oxlint .');
+        lintFixCommands.push('oxlint --fix .');
+    }
+    if (hasEslint) {
+        lintCommands.push('eslint .');
+        lintFixCommands.push('eslint . --fix');
+    }
+    if (hasStylelint) {
+        lintCommands.push('stylelint "**/*.{css,scss,less}"');
+        lintFixCommands.push('stylelint "**/*.{css,scss,less}" --fix');
+    }
+    if (hasOxfmt) {
+        lintCommands.push('oxfmt --check .');
+        lintFixCommands.push('oxfmt .');
+    }
+    if (hasPrettier) {
+        lintCommands.push('prettier --check .');
+        lintFixCommands.push('prettier --write .');
+    }
+%>
+{
+    "name": "<%= name %>",
+    "version": "0.0.1",
+    "main": "index.js",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        <% if (buildTool === 'webpack') { %>"analyzer": "npx webpack-bundle-analyzer ./dist/stats.json",<% } %>
+        "dev": "lan dev",
+        <% if (hasHusky) { %>"prepare": "husky install",<% } %>
+        "build": "lan build --mode production",
+        "lint": <%- JSON.stringify(lintCommands.length > 0 ? lintCommands.join(' && ') : 'echo "No lint tools configured"') %>,
+        "lint:fix": <%- JSON.stringify(lintFixCommands.length > 0 ? lintFixCommands.join(' && ') : 'echo "No lint tools configured"') %>
+    },
+    <% if (hasLintStaged) { %>
+        "lint-staged": {
+            <% if (hasOxlint || hasEslint || hasOxfmt || hasPrettier) { %>
+                "*.{js,jsx<% if (useTs) { %>,ts,tsx<% } %>}": [
+                    <% if (hasOxlint) { %>"oxlint --fix"<% } %>
+                    <% if (hasEslint) { %><% if (hasOxlint) { %>,<% } %>"eslint --fix"<% } %>
+                    <% if (hasOxfmt) { %><% if (hasOxlint || hasEslint) { %>,<% } %>"oxfmt"<% } %>
+                    <% if (hasPrettier && !hasOxfmt) { %><% if (hasOxlint || hasEslint) { %>,<% } %>"prettier --write"<% } %>
+                ],
+            <% } %>
+            <% if (hasStylelint || hasOxfmt || (hasPrettier && !hasOxfmt)) { %>
+                "*.{css<% if (stagedCssProcessor) { %>,<%= stagedCssProcessor %><% } %>}": [
+                    <% if (hasStylelint) { %>"stylelint --fix"<% } %>
+                    <% if (hasOxfmt) { %><% if (hasStylelint) { %>,<% } %>"oxfmt"<% } %>
+                    <% if (hasPrettier && !hasOxfmt) { %><% if (hasStylelint) { %>,<% } %>"prettier --write"<% } %>
+                ],
+            <% } %>
+            <% if (hasOxfmt) { %>
+                "*.{json,md,yml,yaml,html,vue}": "oxfmt"<% if (hasPrettier) { %>,<% } %>
+            <% } %>
+            <% if (hasPrettier) { %>
+                "*": "prettier --ignore-unknown --write"
+            <% } %>
+        },
+    <% } %>
+    <% if (hasCommitlint) { %>
+        "config": {
+            "commitizen": {
+                "path": "./node_modules/cz-customizable"
+            },
+            "cz-customizable": {
+                "config": ".czrc.cjs"
+            }
+        },
+    <% } %>
+    "dependencies": {
+        <% const dependenciesArray = Object.entries(dependencies); %>
+        <% dependenciesArray.forEach(([key, value], index) => { -%>
+            "<%= key %>": "<%= value %>"<% if(dependenciesArray.length - 1 !== index) { %>,<% } -%>
+        <% }) -%>
+    },
+    "devDependencies": {
+        <% const devDependenciesArray = Object.entries(devDependencies); %>
+        <% devDependenciesArray.forEach(([key, value], index) => { -%>
+            "<%= key %>": "<%= value %>"<% if(devDependenciesArray.length - 1 !== index) { %>,<% } -%>
+        <% }) -%>
+    }
+}

@@ -1,0 +1,49 @@
+# OS / editor
+.DS_Store
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+ts/node_modules/
+ts/packages/*/node_modules/
+npm/cli/node_modules/
+npm/cli-darwin-arm64/node_modules/
+
+# Build outputs
+dist/
+coverage/
+*.tsbuildinfo
+
+# Rust
+rust/target/
+target/
+
+# Staged npm payloads / release artifacts
+npm/cli/lib/node-bridge/
+npm/cli/*.tgz
+npm/cli-darwin-arm64/bin/lania-cli
+npm/cli-darwin-arm64/*.tgz
+
+# Package manager / tooling caches
+.pnpm-store/
+.turbo/
+.cache/
+
+# Temporary files
+tmp/
+temp/
+/.tmp*

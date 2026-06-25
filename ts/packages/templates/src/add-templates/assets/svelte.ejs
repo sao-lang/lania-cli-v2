@@ -1,0 +1,17 @@
+<%
+    function toLang(processor) {
+        const map = {
+            css: '',
+            sass: 'scss',
+            stylus: 'styl',
+            less: 'less',
+        };
+        return map[processor] || '';
+    }
+    const styleLang = toLang(cssProcessor);
+%>
+<script<% if (language === 'ts') { %> lang="ts"<% } %>>
+</script>
+
+<style<% if (styleLang) { %> lang="<%= styleLang %>"<% } %>>
+</style>

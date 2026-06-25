@@ -1,0 +1,254 @@
+<%
+    const postProcessors = ['sass', 'less', 'stylus'];
+    const cssProcessorRegMap = {
+        sass: /\.s[ac]ss$/,
+        less: /\.less$/,
+        stylus: /\.styl$/,
+    };
+%>
+const path = require('path');
+const { Configuration } = require('webpack');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
+const TerserWebpackPlugin = require('terser-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin');
+const { VueLoaderPlugin } = require('vue-loader');
+const { DefinePlugin } = require('webpack');
+const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
+const isProduction = process.env.NODE_ENV === 'production';
+
+const getStyleLoaders = preProcessor => {
+    return [
+        isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader',
+        'css-loader',
+        {
+            loader: 'postcss-loader',
+            options: {
+                postcssOptions: {
+                    plugins: ['postcss-preset-env'],
+                },
+            },
+        },
+        preProcessor && {
+            loader: preProcessor,
+        },
+    ].filter(Boolean);
+};
+
+module.exports = {
+    entry: './src/main.<% if (useTs) { %>ts<% } else { %>js<% } %>',
+    output: {
+        path: isProduction ? path.resolve(__dirname, './dist') : undefined,
+        filename: isProduction ? 'static/js/[name].[contenthash:10].js' : 'static/js/[name].js',
+        chunkFilename: isProduction
+            ? 'static/js/[name].[contenthash:10].chunk.js'
+            : 'static/js/[name].chunk.js',
+        assetModuleFilename: 'static/js/[hash:10][ext][query]',
+        clean: true,
+    },
+    module: {
+        rules: [
+            {
+                test: /\.vue$/,
+                loader: 'vue-loader',
+                options: {
+                    // 开启缓存
+                    cacheDirectory: path.resolve(__dirname, 'node_modules/.cache/vue-loader'),
+                },
+            },
+            {
+                test: /\.css$/,
+                use: getStyleLoaders(),
+            },
+            <%if (postProcessors.includes(cssProcessor) ) {%>
+            {
+                test: new RegExp(<%= cssProcessorRegMap[cssProcessor] %>),
+                use: getStyleLoaders('<%= cssProcessor %>-loader'),
+            },
+            <%}%>
+            {
+                test: /\.(png|jpe?g|gif|svg)$/,
+                type: 'asset',
+                parser: {
+                    dataUrlCondition: {
+                        maxSize: 10 * 1024,
+                    },
+                },
+            },
+            {
+                test: /\.(ttf|woff2?)$/,
+                type: 'asset/resource',
+            },
+            {
+                test: /\.js$/,
+                include: path.resolve(__dirname, './src'),
+                use: [
+                    { loader: 'thread-loader' },
+                    {
+                        loader: 'babel-loader',
+                        options: {
+                            cacheDirectory: true,
+                            cacheCompression: false,
+                            plugins: [
+                                // "@babel/plugin-transform-runtime" // presets中包含了
+                            ],
+                            presets: ['@babel/preset-env']
+                        },
+                    }
+                ],
+            },
+            {
+                test: /\.ts$/,
+                use: !isProduction
+                    ? {
+                            loader: 'ts-loader',
+                            options: {
+                                appendTsSuffixTo: [/\.vue$/],
+                                transpileOnly: true,
+                                configFile: path.resolve(__dirname, './tsconfig.json'),
+                            },
+                    }
+                    : [
+                        { loader: 'thread-loader' },
+                        {
+                            loader: 'babel-loader',
+                            options: {
+                                presets: [
+                                    '@babel/preset-env',
+                                    [
+                                        '@babel/preset-typescript',
+                                        {
+                                            // 这个配置是为了处理.vue文件解析后的ts文件
+                                            allExtensions: true,
+                                        },
+                                    ],
+                                ],
+                            },
+                        },
+                    ]
+            },
+            {
+                test: /\.(j|t)sx$/,
+                use: [
+                    { loader: 'thread-loader' },
+                    {
+                        loader: 'babel-loader',
+                        options: {
+                            plugins: [
+                                [
+                                    '@vue/babel-plugin-jsx',
+                                    {
+                                        enableObjectSlots: false,
+                                    },
+                                ],
+                            ],
+                            <% if (useTs) { %>
+                            presets: [
+                                [
+                                    '@babel/preset-typescript',
+                                    {
+                                        isTSX: true,
+                                        allExtensions: true,
+                                    },
+                                ],
+                            ],
+                            <% } %>
+                        },
+                    },
+                ]
+            },
+        ],
+    },
+    plugins: [
+        isProduction && new BundleAnalyzerPlugin({
+            analyzerMode: "disabled",
+            generateStatsFile: true,
+        }),
+        new HtmlWebpackPlugin({
+            template: path.resolve(__dirname, './index.html'),
+        }),
+        new CopyPlugin({
+            patterns: [
+                {
+                    from: path.resolve(__dirname, './public'),
+                    to: path.resolve(__dirname, './dist'),
+                    toType: 'dir',
+                    noErrorOnMissing: true,
+                    globOptions: {
+                        ignore: ['**/index.html'],
+                    },
+                    info: {
+                        minimized: true,
+                    },
+                },
+            ],
+        }),
+        isProduction &&
+            new MiniCssExtractPlugin({
+                filename: 'static/css/[name].[contenthash:10].css',
+                chunkFilename: 'static/css/[name].[contenthash:10].chunk.css',
+            }),
+        new VueLoaderPlugin(),
+        new DefinePlugin({
+            __VUE_OPTIONS_API__: JSON.stringify(true),
+            __VUE_PROD_DEVTOOLS__: JSON.stringify(false),
+            __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false),
+        })
+    ].filter(Boolean),
+    optimization: {
+        minimize: isProduction,
+        // 压缩的操作
+        minimizer: [
+            new CssMinimizerPlugin(),
+            new TerserWebpackPlugin({
+                parallel: true,
+                terserOptions: {
+                    compress: {
+                        drop_console: true,
+                        drop_debugger: true,
+                    }
+                },
+            }),
+        ],
+        splitChunks: {
+            chunks: 'all',
+            cacheGroups: {
+                // 将vue相关的库单独打包，减少node_modules的chunk体积。
+                vue: {
+                    name: 'vue',
+                    test: /[\\/]node_modules[\\/]vue(.*)[\\/]/,
+                    chunks: 'initial',
+                    priority: 20,
+                },
+                libs: {
+                    name: 'chunk-libs',
+                    test: /[\\/]node_modules[\\/]/,
+                    priority: 10, // 权重最低，优先考虑前面内容
+                    chunks: 'initial',
+                },
+            },
+        },
+        runtimeChunk: {
+            name: entrypoint => `runtime~${entrypoint.name}`,
+        },
+    },
+    resolve: {
+        extensions: ['.vue', '.js', '.json', '.ts', '.tsx', '.jsx'],
+        alias: {
+            // 路径别名
+            '@': path.resolve(__dirname, './src'),
+        },
+    },
+    devServer: {
+        open: true,
+        host: '127.0.0.1',
+        port: <%= port  %>,
+        hot: true,
+        compress: true,
+        historyApiFallback: true,
+    },
+    mode: isProduction ? 'production' : 'development',
+    devtool: isProduction ? 'source-map' : 'cheap-module-source-map',
+    performance: false,
+};

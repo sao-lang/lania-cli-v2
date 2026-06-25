@@ -1,0 +1,11 @@
+**/node_modules/**
+**/dist/**
+**/target/**
+
+# generated payload staged into the npm cli package
+npm/cli/lib/node-bridge/**
+
+# templates contain intentionally unformatted examples
+ts/packages/templates/src/templates/**
+ts/packages/templates/dist/templates/**
+

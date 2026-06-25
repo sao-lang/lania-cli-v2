@@ -1,0 +1,28 @@
+{
+  "config_path": "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/lania.module.yaml",
+  "entries": {
+    "user-http": {
+      "input_hash": 15109725194515182234,
+      "ir_hash": 15257666709626609084,
+      "outputs": [
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/dto.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/errors.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/envelope.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/register.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/list_users.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/create_user.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/get_user.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/reset_password.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/users/rebuild_cache.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-http-rest-demo/generated/http/bootstrap.gen.go"
+      ],
+      "source_kind": "thrift",
+      "targets": [
+        "http"
+      ]
+    }
+  },
+  "framework": "lania-g",
+  "shared_outputs": [],
+  "version": 1
+}

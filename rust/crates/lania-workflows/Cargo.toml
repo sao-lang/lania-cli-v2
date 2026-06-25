@@ -1,0 +1,31 @@
+[package]
+name = "lania-workflows"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tokio.workspace = true
+tree-sitter.workspace = true
+tree-sitter-thrift.workspace = true
+protox = "0.9"
+prost-types = "0.14"
+lania-validate = { path = "../lania-validate" }
+lania-format = { path = "../lania-format" }
+lania-config = { path = "../lania-config" }
+lania-command = { path = "../lania-command" }
+lania-exec = { path = "../lania-exec" }
+lania-fs = { path = "../lania-fs" }
+lania-git = { path = "../lania-git" }
+lania-node-bridge = { path = "../lania-node-bridge" }
+lania-logger = { path = "../lania-logger" }
+lania-pm = { path = "../lania-pm" }
+lania-progress = { path = "../lania-progress" }
+lania-prompt = { path = "../lania-prompt" }
+lania-task = { path = "../lania-task" }
+lania-hooks = { path = "../lania-hooks" }

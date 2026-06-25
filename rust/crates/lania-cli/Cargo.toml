@@ -1,0 +1,32 @@
+[package]
+name = "lania-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+lania-command = { path = "../lania-command" }
+lania-config = { path = "../lania-config" }
+lania-host = { path = "../lania-host" }
+lania-logger = { path = "../lania-logger" }
+lania-node-bridge = { path = "../lania-node-bridge" }
+lania-progress = { path = "../lania-progress" }
+lania-workflows = { path = "../lania-workflows" }
+lania-plugins-command-add = { path = "../lania-plugins-command-add" }
+lania-plugins-command-build = { path = "../lania-plugins-command-build" }
+lania-plugins-command-create = { path = "../lania-plugins-command-create" }
+lania-plugins-command-dev = { path = "../lania-plugins-command-dev" }
+lania-plugins-command-generate = { path = "../lania-plugins-command-generate" }
+lania-plugins-command-lint = { path = "../lania-plugins-command-lint" }
+lania-plugins-command-locale = { path = "../lania-plugins-command-locale" }
+lania-plugins-command-release = { path = "../lania-plugins-command-release" }
+lania-plugins-command-sync = { path = "../lania-plugins-command-sync" }
+lania-plugins-command-template = { path = "../lania-plugins-command-template" }
+lania-plugins-command-tools = { path = "../lania-plugins-command-tools" }
+lania-preferences = { path = "../lania-preferences" }

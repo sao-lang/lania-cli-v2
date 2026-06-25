@@ -1,0 +1,21 @@
+<script setup <% if (useTs) { %> lang="ts" <% } %>>
+import { ref } from 'vue';
+const count = ref(0);
+</script>
+
+<template>
+    <h1><%= buildTool  %> + Vue</h1>
+    <div>
+        <button class="button" @click="() => count++">
+            count is {{count}}
+        </button>
+    </div>
+</template>
+
+<%
+    const cssExtNameMap = { sass: 'scss', stylus: 'styl', less: 'less' };
+    const cssExtName = cssExtNameMap[cssProcessor] ?? 'css';
+%>
+<style scoped <% if (cssExtName !== 'css') { %>lang="<%= cssExtName %>"<%}%>>
+@use './App.<%= cssExtName %>';
+</style>

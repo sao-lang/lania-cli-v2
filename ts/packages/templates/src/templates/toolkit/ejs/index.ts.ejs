@@ -1,0 +1,11 @@
+export interface ToolkitInfo {
+  name: string;
+  version: string;
+}
+
+export function getToolkitInfo(): ToolkitInfo {
+  return {
+    name: '<%= projectName %>',
+    version: '0.0.1',
+  };
+}

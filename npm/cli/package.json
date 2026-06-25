@@ -1,0 +1,17 @@
+{
+  "name": "@lania-cli/cli",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "lan": "./bin/lan.mjs"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "optionalDependencies": {
+    "@lania-cli/cli-darwin-arm64": "0.1.0",
+    "@lania-cli/cli-linux-x64": "0.1.0"
+  }
+}

@@ -1,0 +1,11 @@
+export interface ToolkitPackageInfo {
+  name: string;
+  version: string;
+}
+
+export function getToolkitPackageInfo(): ToolkitPackageInfo {
+  return {
+    name: '<%= projectName %>-core',
+    version: '0.0.1',
+  };
+}

@@ -1,0 +1,54 @@
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import vueJsx from '@vitejs/plugin-vue-jsx'; // 新增 TSX 支持
+import path from "path";
+import viteCompression from 'vite-plugin-compression';
+import vueSetupExtend from 'vite-plugin-vue-setup-extend';
+import { visualizer } from 'rollup-plugin-visualizer';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+export const __filename = fileURLToPath(import.meta.url);
+export const __dirname = dirname(__filename);
+
+export default defineConfig({
+    plugins: [
+        vue(),
+        vueJsx(), // 新增：启用 Vue JSX/TSX 支持
+        vueSetupExtend(),
+        visualizer(),
+        // viteCompression({
+        //    verbose: true,
+        //    disable: false,
+        //    threshold: 10240,
+        //    algorithm: 'gzip',
+        //    ext: '.gz',
+        //    deleteOriginFile: true
+        // }),
+    ],
+    server: {
+        host: '127.0.0.1',
+        port: <%= port %>,
+        open: true,
+    },
+    build: {
+        minify: 'terser',
+        terserOptions: {
+            compress: {
+                drop_console: true,
+                drop_debugger: true,
+            },
+        } as any,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    vendor: ['vue', 'vue-router'],
+                },
+            },
+        },
+    },
+    resolve: {
+        alias: {
+            "@": path.resolve(__dirname, "./src"),
+        },
+    },
+})

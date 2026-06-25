@@ -1,0 +1,50 @@
+<%
+    const hasEslint = lintTools.includes('eslint');
+    const hasOxlint = lintTools.includes('oxlint');
+    const hasPrettier = lintTools.includes('prettier');
+    const hasOxfmt = lintTools.includes('oxfmt');
+    const lintCommands = [];
+    const lintFixCommands = [];
+    if (hasOxlint) {
+        lintCommands.push('oxlint .');
+        lintFixCommands.push('oxlint --fix .');
+    }
+    if (hasEslint) {
+        lintCommands.push('eslint .');
+        lintFixCommands.push('eslint . --fix');
+    }
+    if (hasOxfmt) {
+        lintCommands.push('oxfmt --check .');
+        lintFixCommands.push('oxfmt .');
+    }
+    if (hasPrettier) {
+        lintCommands.push('prettier --check .');
+        lintFixCommands.push('prettier --write .');
+    }
+%>
+{
+    "name": "<%= projectName %>-core",
+    "version": "0.0.1",
+    "type": "module",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        }
+    },
+    "scripts": {
+        "dev": "lan dev",
+        "build": "lan build --mode production",
+        "lint": "<%- lintCommands.length > 0 ? lintCommands.join(' && ') : 'echo \\"No lint tools configured\\"' %>",
+        "lint:fix": "<%- lintFixCommands.length > 0 ? lintFixCommands.join(' && ') : 'echo \\"No lint tools configured\\"' %>",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    }
+}

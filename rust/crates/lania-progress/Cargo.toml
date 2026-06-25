@@ -1,0 +1,12 @@
+[package]
+name = "lania-progress"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+indicatif = "0.17"
+serde.workspace = true
+serde_json.workspace = true
+lania-task = { path = "../lania-task" }

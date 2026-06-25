@@ -1,0 +1,6 @@
+{
+  "name": "@lania-product/acme",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module"
+}

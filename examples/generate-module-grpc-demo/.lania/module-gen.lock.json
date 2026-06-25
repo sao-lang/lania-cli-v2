@@ -1,0 +1,27 @@
+{
+  "config_path": "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/lania.module.yaml",
+  "entries": {
+    "user-grpc": {
+      "input_hash": 13107809968262149339,
+      "ir_hash": 4306539651974260413,
+      "outputs": [
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/dto.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/metadata.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/errors.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/register.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/create_user.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/watch_users.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/upload_users.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/user_service/chat_users.gen.go",
+        "/Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/examples/generate-module-grpc-demo/generated/grpc/bootstrap.gen.go"
+      ],
+      "source_kind": "proto",
+      "targets": [
+        "grpc"
+      ]
+    }
+  },
+  "framework": "lania-g",
+  "shared_outputs": [],
+  "version": 1
+}

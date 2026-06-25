@@ -1,0 +1,26 @@
+<script setup <% if (useTs) { %> lang="ts" <% } %>>
+import { computed, ref } from 'vue';
+import { getHealth } from './api/modules/system';
+const count = ref(0);
+const apiReadyText = computed(() =>
+  typeof getHealth === 'function' ? '@lania-tools/tools 已集成' : 'API client unavailable',
+);
+</script>
+
+<template>
+    <h1><%= buildTool  %> + Vue</h1>
+    <div>
+        <button class="button" @click="() => count++">
+            count is {{count}}
+        </button>
+        <p>{{ apiReadyText }}</p>
+    </div>
+</template>
+
+<%
+    const cssExtNameMap = { sass: 'scss', stylus: 'styl', less: 'less' };
+    const cssExtName = cssExtNameMap[cssProcessor] ?? 'css';
+%>
+<style scoped <% if (cssExtName !== 'css') { %>lang="<%= cssExtName %>"<%}%>>
+@use './App.<%= cssExtName %>';
+</style>

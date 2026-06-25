@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "workspaces": {
+    "ts/packages/node-bridge": {
+      "entry": ["src/index.ts", "src/stdio.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "ts/packages/templates": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs"]
+    },
+    "npm/cli": {
+      "entry": ["bin/lan.mjs"]
+    }
+  },
+  "ignore": ["npm/cli/lib/node-bridge/**", "rust/**", "docs/**"]
+}

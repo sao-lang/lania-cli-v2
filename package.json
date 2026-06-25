@@ -1,0 +1,84 @@
+{
+  "name": "lania-cli-v2-root",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.25.0",
+  "devDependencies": {
+    "@changesets/cli": "^2.29.2",
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@eslint/js": "^9.0.0",
+    "commitizen": "^4.3.1",
+    "cz-conventional-changelog": "^3.3.0",
+    "danger": "^13.0.7",
+    "depcheck": "^1.4.7",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "knip": "^5.62.0",
+    "lint-staged": "^15.2.10",
+    "npm-check-updates": "^17.1.15",
+    "prettier": "^3.3.3",
+    "typescript-eslint": "^8.0.0"
+  },
+  "scripts": {
+    "changeset:add": "changeset",
+    "changeset:version": "changeset version && node ./scripts/sync-rust-version.mjs",
+    "prepare": "husky",
+    "commit": "cz",
+    "bootstrap": "pnpm install --no-frozen-lockfile && cargo fetch --manifest-path rust/Cargo.toml",
+    "bootstrap:ci": "pnpm install --frozen-lockfile && cargo fetch --manifest-path rust/Cargo.toml",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm pack",
+    "test": "pnpm -C ts test && cargo test --manifest-path rust/Cargo.toml --workspace",
+    "test:rust": "cargo nextest run --manifest-path rust/Cargo.toml --workspace",
+    "test:rust:std": "cargo test --manifest-path rust/Cargo.toml --workspace",
+    "clean": "node ./scripts/clean.mjs",
+    "lint:staged": "pnpm exec lint-staged",
+    "audit:js": "pnpm audit",
+    "audit:rust": "cargo audit",
+    "audit:all": "pnpm audit:js && pnpm audit:rust",
+    "deps:audit": "cargo deny check",
+    "deps:unused": "pnpm exec knip",
+    "deps:depcheck": "pnpm --filter @lania-cli/node-bridge exec depcheck . && pnpm --filter @lania-cli/templates exec depcheck . && pnpm --filter @lania-cli/cli exec depcheck . && pnpm --filter @lania-cli/cli-darwin-arm64 exec depcheck .",
+    "deps:update:check": "pnpm exec ncu -r",
+    "deps:update": "pnpm exec ncu -r -u",
+    "deps:outdated": "pnpm outdated -r",
+    "format": "prettier -w package.json pnpm-workspace.yaml .changeset .github scripts eslint.config.js prettier.config.cjs commitlint.config.cjs renovate.json knip.json dangerfile.mjs",
+    "format:check": "prettier -c package.json pnpm-workspace.yaml .changeset .github scripts eslint.config.js prettier.config.cjs commitlint.config.cjs renovate.json knip.json dangerfile.mjs",
+    "lint": "pnpm lint:ts && pnpm lint:rust",
+    "lint:ts": "eslint \"ts/packages/**/*.{ts,tsx,js,mjs,cjs}\"",
+    "lint:ts:fix": "eslint \"ts/packages/**/*.{ts,tsx,js,mjs,cjs}\" --fix",
+    "lint:rust": "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+    "typecheck": "pnpm typecheck:ts",
+    "typecheck:ts": "pnpm -C ts typecheck",
+    "format:rust": "cargo fmt --manifest-path rust/Cargo.toml --all",
+    "format:rust:check": "cargo fmt --manifest-path rust/Cargo.toml --all -- --check",
+    "coverage:rust": "cargo llvm-cov --manifest-path rust/Cargo.toml --workspace --lcov --output-path coverage/rust/lcov.info",
+    "deps:rust:unused": "cargo machete --with-metadata --manifest-path rust/Cargo.toml",
+    "tools:install:rust": "cargo install --locked cargo-deny cargo-nextest cargo-audit cargo-machete cargo-llvm-cov",
+    "danger:ci": "danger ci",
+    "docs:md:move": "node ./scripts/move-markdown-to-docs.mjs",
+    "pack": "node ./scripts/pack.mjs",
+    "publish": "node ./scripts/publish.mjs",
+    "publish:npm": "node ./npm/cli/bin/lan.mjs publish product --execute --yes",
+    "publish:auth": "node ./scripts/configure-npm-auth.mjs",
+    "publish:verdaccio": "node ./scripts/verdaccio-smoke.mjs",
+    "version:bump": "node ./scripts/bump-version.mjs",
+    "alias": "alias lan='cargo run --manifest-path /Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/rust/Cargo.toml -p lania-cli --'"
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  },
+  "lint-staged": {
+    "ts/packages/**/*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier -w"
+    ],
+    "**/*.{json,md,yml,yaml}": [
+      "prettier -w"
+    ]
+  }
+}

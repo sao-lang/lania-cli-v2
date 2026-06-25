@@ -1,0 +1,57 @@
+const path = require('path');
+<%
+    const hasPrettier = lintTools.includes('prettier');
+    const extendsArrMap = {
+        sass:  [
+            'stylelint-config-standard-scss',
+            'stylelint-config-standard-vue',
+        ],
+        less: [
+            'stylelint-config-standard-less',
+            'stylelint-config-standard-vue',
+        ]
+    };
+    const extendsArr = extendsArrMap[cssProcessor];
+    extendsArr && hasPrettier && extendsArr.push('stylelint-prettier/recommended')
+    const isSass = cssProcessor === 'sass';
+    const isLess = cssProcessor === 'less';
+%>
+module.exports = {
+    <% if (extendsArr) { %>
+    extends: <%- JSON.stringify(extendsArr) %>,
+    <% } %>
+    rules: {
+        <% if (hasPrettier) { %>
+        'prettier/prettier': true,
+        <% } %>
+        'at-rule-no-unknown': null,
+        <% if (isSass) { %>
+        'scss/at-rule-no-unknown': [
+            true,
+            {
+                ignoreAtRules: ['tailwind', 'apply', 'layer', 'config'],
+            },
+        ],
+        'scss/dollar-variable-pattern': '^[a-z][a-z0-9-]*$',
+        <% } else if (isLess) { %>
+        "less/color-no-invalid-hex": true,
+        "less/no-dynamic-variables": null,
+        <% } %>
+        'selector-class-pattern': null,
+        'no-descending-specificity': null,
+        'alpha-value-notation': 'number',
+        'color-function-notation': 'modern',
+    },
+    overrides: [
+        {
+            files: ['**/*.vue'], // 针对 Vue 文件的特殊规则
+            customSyntax: path.resolve(process.cwd(), 'node_modules/postcss-html/lib/index.js'),
+        },
+        <% if (isLess) { %>
+        {
+            files: ['**/*.less'],
+            customSyntax: path.resolve(process.cwd(), 'node_modules/postcss-less/lib/index.js'), // Less 文件
+        },
+        <% } %>
+    ],
+};

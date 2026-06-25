@@ -1,0 +1,54 @@
+const path = require('path');
+<%
+    const hasPrettier = lintTools.includes('prettier');
+    const extendsArrMap = {
+        sass:  [
+            'stylelint-config-standard-scss',
+        ],
+        less: [
+            "stylelint-config-standard-less",
+        ],
+        stylus: 'styl',
+    };
+    const extendsArr = extendsArrMap[cssProcessor];
+    extendsArr && hasPrettier && extendsArr.push('stylelint-prettier/recommended')
+    const isSass = cssProcessor === 'sass';
+    const isLess = cssProcessor === 'less';
+%>
+module.exports = {
+    <% if (extendsArr) { %>
+    extends: <%= JSON.stringify(extendsArr) %>,
+    <% } %>
+    <% if (isLess) { %>
+    customSyntax: "postcss-less",
+    <% } %>
+    rules: {
+        <% if (hasPrettier) { %>
+        'prettier/prettier': true,
+        <% } %>
+        <% if (isSass) { %>
+        'scss/at-rule-no-unknown': [
+            true,
+            {
+                ignoreAtRules: ['tailwind', 'apply', 'layer', 'config'],
+            },
+        ],
+        'scss/dollar-variable-pattern': '^[a-z][a-z0-9-]*$',
+        <% } else if (isLess) { %>
+        "less/color-no-invalid-hex": true,
+        "less/no-dynamic-variables": null,
+        <% } %>
+        'selector-class-pattern': null,
+        'no-descending-specificity': null,
+        'alpha-value-notation': 'number',
+        'color-function-notation': 'modern',
+    },
+    overrides: [
+        <% if (isLess) { %>
+        {
+            files: ['**/*.less'],
+            customSyntax: path.resolve(process.cwd(), 'node_modules/postcss-less/lib/index.js'), // Less 文件
+        },
+        <% } %>
+    ],
+};

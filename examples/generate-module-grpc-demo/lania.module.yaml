@@ -1,0 +1,25 @@
+version: 1
+
+framework:
+  name: lania-g
+  language: go
+
+inputs:
+  - name: user-grpc
+    source: protobuf
+    path: schemas/proto
+    include:
+      - "**/*.proto"
+    targets:
+      - grpc
+
+output:
+  root: generated/lania
+  moduleDir: generated/lania/modules
+  adapterDir: generated/lania/adapters
+  contractDir: generated/lania/contracts
+  grpcRootDir: generated/grpc
+  manifest: .lania/module-gen.lock.json
+
+inject:
+  enabled: false

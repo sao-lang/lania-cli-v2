@@ -1,0 +1,28 @@
+[package]
+name = "lania-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+lania-command = { path = "../lania-command" }
+lania-config = { path = "../lania-config" }
+lania-hooks = { path = "../lania-hooks" }
+lania-exec = { path = "../lania-exec" }
+lania-fs = { path = "../lania-fs" }
+lania-git = { path = "../lania-git" }
+lania-logger = { path = "../lania-logger" }
+lania-node-bridge = { path = "../lania-node-bridge" }
+lania-pm = { path = "../lania-pm" }
+lania-progress = { path = "../lania-progress" }
+lania-prompt = { path = "../lania-prompt" }
+lania-task = { path = "../lania-task" }
+lania-workflows = { path = "../lania-workflows" }
+lania-preferences = { path = "../lania-preferences" }

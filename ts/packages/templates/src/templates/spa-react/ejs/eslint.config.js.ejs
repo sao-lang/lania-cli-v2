@@ -1,0 +1,115 @@
+<%
+    const hasOxlint = lintTools.includes('oxlint');
+    const usePrettierInEslint = lintTools.includes('prettier') && !lintTools.includes('oxfmt');
+%>
+import js from '@eslint/js';
+import reactPlugin from 'eslint-plugin-react';
+import reactHooksPlugin from 'eslint-plugin-react-hooks';
+<% if (hasOxlint) { %>
+import oxlint from 'eslint-plugin-oxlint';
+<% } %>
+<% if (useTs) { %>
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import tsParser from '@typescript-eslint/parser';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
+<% } %>
+<% if (usePrettierInEslint) { %>
+import prettierPlugin from 'eslint-plugin-prettier';
+import prettierConfig from 'eslint-config-prettier';
+<% } %>
+import globals from 'globals';
+<% if (useTs) { %>
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+<% } %>
+
+export default [
+    js.configs.recommended,
+    <% if (usePrettierInEslint) { %>
+    {
+        plugins: {
+            prettier: prettierPlugin,
+        },
+        rules: {
+            'prettier/prettier': [
+                'error',
+                {
+                    singleQuote: true,
+                    semi: true,
+                },
+            ],
+            'no-unused-vars': 'off',
+        },
+    },
+    <% } %>
+    <% if (useTs) { %>
+    {
+        files: ['**/*.ts', '**/*.tsx'],
+        languageOptions: {
+            parser: tsParser,
+            parserOptions: {
+                project: './tsconfig.json',
+                tsconfigRootDir: __dirname,
+            },
+        },
+        plugins: {
+            '@typescript-eslint': tsPlugin,
+        },
+        rules: {
+            'no-undef': 'error',
+            'no-redeclare': 'error',
+            'no-const-assign': 'error',
+            'no-unused-vars': 'off',
+            '@typescript-eslint/no-unused-vars': 'warn',
+            '@typescript-eslint/ban-ts-ignore': 'off',
+            '@typescript-eslint/explicit-function-return-type': 'off',
+            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-var-requires': 'off',
+            'no-with': 'error',
+            'no-sparse-arrays': 'off',
+            <% if (usePrettierInEslint) { %>
+            'prettier/prettier': [
+                'error',
+                {
+                    singleQuote: true,
+                    semi: true,
+                },
+            ],
+            <% } %>
+        },
+    },
+    <% } %>
+    {
+        files: ['**/*.jsx'<% if (useTs) { %> ,'**/*.tsx'<% } %>],
+        plugins: {
+            react: reactPlugin,
+            'react-hooks': reactHooksPlugin,
+        },
+        settings: {
+            react: {
+                version: 'detect',
+            },
+        },
+        rules: {
+            'react-hooks/rules-of-hooks': 'error',
+            'react-hooks/exhaustive-deps': 'warn',
+        },
+    },
+    <% if (usePrettierInEslint) { %>
+    prettierConfig,
+    <% } %>
+    <% if (hasOxlint) { %>
+    ...oxlint.buildFromOxlintConfigFile('./.oxlintrc.json'),
+    <% } %>
+    {
+        ignores: ['node_modules/', 'dist/', 'build/', 'coverage/', '*.lock', '*.min.js'],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+                ...globals.node,
+                ...globals.es2022,
+            },
+        },
+    }
+];

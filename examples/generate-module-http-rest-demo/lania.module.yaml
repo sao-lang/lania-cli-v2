@@ -1,0 +1,23 @@
+version: 1
+
+framework:
+  name: lania-g
+  language: go
+
+inputs:
+  - name: user-http
+    source: thrift
+    path: schemas/thrift
+    targets:
+      - http
+
+output:
+  root: generated/lania
+  moduleDir: generated/lania/modules
+  adapterDir: generated/lania/adapters
+  contractDir: generated/lania/contracts
+  httpRootDir: generated/http
+  manifest: .lania/module-gen.lock.json
+
+inject:
+  enabled: false

@@ -1,0 +1,25 @@
+import <% if (buildTool === 'webpack'){ %>React, <% } %>{ useMemo, useState } from 'react';
+import { getHealth } from './api/modules/system';
+<% const map = {stylus: 'styl', sass: 'scss', less: 'less', tailwindcss: 'css'}; %>
+import './App.<%= map?.[cssProcessor] ?? 'css' %>';
+
+
+
+function App() {
+    const [count, setCount] = useState(0);
+    const apiReadyText = useMemo(() => {
+        const apiClient = getHealth;
+        return typeof apiClient === 'function' ? '@lania-tools/tools 已集成' : 'API client unavailable';
+    }, []);
+    return (
+        <>
+            <h1><%= buildTool %> + React</h1>
+            <button className="button" onClick={()=> setCount(count => count + 1)}>
+                count is {count}
+            </button>
+            <p>{apiReadyText}</p>
+        </>
+    );
+}
+
+export default App;

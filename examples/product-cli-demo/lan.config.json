@@ -1,0 +1,46 @@
+{
+  "extensions": {
+    "dynamicCommands": true
+  },
+  "ui": {
+    "output": {
+      "mode": "human"
+    }
+  },
+  "tools": {
+    "allow": [
+      "bridge",
+      "result",
+      "log",
+      "text",
+      "fs",
+      "workspace",
+      "path"
+    ],
+    "fs": {
+      "writeRoot": "."
+    },
+    "bridge": {
+      "allowMethods": [
+        "bridge.*",
+        "config.*",
+        "template.*",
+        "product.*"
+      ]
+    }
+  },
+  "product": {
+    "name": "@lania-product/acme",
+    "binaryName": "acme",
+    "displayName": "Acme CLI",
+    "templatesDir": "./product/templates",
+    "compat": {
+      "frameworkVersionRange": ">=0.1.0 <1.0.0",
+      "protocolVersionRange": "0.1.0",
+      "nodeBridgeVersionRange": "0.1.0"
+    }
+  },
+  "schema": {
+    "entry": "./product/lania.schemas.ts"
+  }
+}

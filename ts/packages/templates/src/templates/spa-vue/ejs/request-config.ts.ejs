@@ -1,0 +1,6 @@
+export const API_BASE_URL = '/api';
+export const REQUEST_TIMEOUT = 10000;
+
+export function getAccessToken() {
+  return window.localStorage.getItem('access_token') ?? '';
+}

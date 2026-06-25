@@ -1,0 +1,40 @@
+export default {
+    name: "<%= projectName %>",
+    repository: "<%= repository %>",
+    packageManager: "<%= packageManager %>",
+    lintTools: <%- JSON.stringify(lintTools) %>,
+    buildTool: "<%= buildTool %>",
+    release: {
+        profile: "package",
+        verify: {
+            lint: {
+                enabled: true,
+                command: "<%= packageManager %> run lint"
+            },
+            test: {
+                enabled: true,
+                command: "<%= packageManager %> run test"
+            },
+            build: {
+                enabled: true,
+                command: "<%= packageManager %> run build"
+            }
+        },
+        versioning: {
+            enabled: true,
+            source: "package.json",
+            tagPrefix: "v",
+            command: "<%= packageManager %> version"
+        },
+        changelog: {
+            enabled: true,
+            command: "<%= packageManager %> run changelog"
+        },
+        git: {
+            commit: true,
+            tag: true,
+            push: false,
+            remote: "origin"
+        }
+    }
+};

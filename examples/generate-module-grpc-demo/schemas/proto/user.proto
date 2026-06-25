@@ -1,0 +1,38 @@
+syntax = "proto2";
+
+message Contact {
+  oneof value {
+    string email = 1;
+    string mobile = 2;
+  }
+}
+
+message CreateUserRequest {
+  required string name = 1;
+  optional Contact contact = 2;
+}
+
+message CreateUserResponse {
+  optional string id = 1;
+}
+
+message WatchUsersRequest {
+  optional string keyword = 1;
+}
+
+message UserEvent {
+  optional string text = 1;
+}
+
+service UserService {
+  option deprecated = true;
+
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option deprecated = true;
+    option idempotency_level = IDEMPOTENT;
+  }
+
+  rpc WatchUsers(WatchUsersRequest) returns (stream UserEvent);
+  rpc UploadUsers(stream UserEvent) returns (CreateUserResponse);
+  rpc ChatUsers(stream UserEvent) returns (stream UserEvent);
+}

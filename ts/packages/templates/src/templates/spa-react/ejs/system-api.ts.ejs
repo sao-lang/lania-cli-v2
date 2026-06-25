@@ -1,0 +1,9 @@
+import request from '../../utils/request';
+
+export interface HealthResponse {
+  message: string;
+}
+
+export function getHealth() {
+  return request.get<HealthResponse>('/health');
+}

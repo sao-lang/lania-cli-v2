@@ -1,0 +1,10 @@
+{
+  "name": "demo-app",
+  "schemaVersion": 1,
+  "renderEngine": "node_bridge",
+  "legacyTemplateDir": "product/templates/demo-app",
+  "ownership": "third_party_extension",
+  "useCases": [
+    "create"
+  ]
+}

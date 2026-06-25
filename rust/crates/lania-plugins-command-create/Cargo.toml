@@ -1,0 +1,15 @@
+[package]
+name = "lania-plugins-command-create"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+lania-command = { path = "../lania-command" }
+lania-host = { path = "../lania-host" }
+lania-logger = { path = "../lania-logger" }
+lania-workflows = { path = "../lania-workflows" }
+serde_json.workspace = true
