@@ -5,9 +5,11 @@ import { registerTests as registerHostToolTests } from './dynamic-commands-test/
 import { registerTests as registerInlineHookTests } from './dynamic-commands-test/inline-hooks.js';
 import { registerTests as registerInvokeTests } from './dynamic-commands-test/invoke.js';
 import { registerTests as registerResolveTests } from './dynamic-commands-test/resolve.js';
+import { registerTests as registerSchemaErrorTests } from './dynamic-commands-test/schema-errors.js';
 import { registerTests as registerServiceToolTests } from './dynamic-commands-test/service-tools.js';
 
 registerResolveTests();
+registerSchemaErrorTests();
 registerInvokeTests();
 registerInlineHookTests();
 registerBridgeToolTests();
