@@ -42,4 +42,6 @@ mod product_dev_watch;
 mod tools_run;
 #[path = "phase3_e2e/conflict_and_force.rs"]
 mod conflict_and_force;
+#[path = "phase3_e2e/error_scenarios.rs"]
+mod error_scenarios;
 
