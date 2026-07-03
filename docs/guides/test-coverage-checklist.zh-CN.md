@@ -262,14 +262,19 @@ rust/crates/lania-cli/tests/phase3_e2e/
 
 ### 5.1 `unix_fs` 符号链接依赖
 
-`common.rs` 中的 `copy_dir_recursive` 函数使用了 `std::os::unix::fs`，在 Windows 上编译时会产生未使用变量警告，但不阻止编译（有 `#[cfg(unix)]` 保护）。
+`common.rs` 中的 `copy_dir_recursive` 函数使用了 `std::os::unix::fs`，在 Windows 上编译时会产生未使用变量警告，但有 `#[cfg(unix)]` 保护，不阻止编译。
 
-### 5.2 Node bridge 子进程路径解析
+### 5.2 Node bridge 子进程路径解析（dynamic_commands_host_rpc 测试失败的根本原因）
 
 Node bridge 的启动入口 `ts/packages/node-bridge/dist/entry/stdio.js` 在 Windows 上通过 `LANIA_NODE_BRIDGE_DIR` 环境变量定位。已知问题：
 
-- `import.meta.dirname` 在 Windows 上的路径格式可能与 POSIX 不同
+- `import.meta.dirname` 在 Windows 上的路径格式可能与 POSIX 不同（`\` vs `/`）
 - node_bridge 子进程的工作目录可能与 Rust 主进程不同
+- `--import tsx` 的 loader 路径解析在 Windows 上可能因路径分隔符问题失败
+- `process.stdin` 的 JSONL 协议输入在 Windows pipe 模式下行为与 Unix 有差异
+- Windows 上子进程 `stdout` 编码/换行符 (`\r\n`) 可能干扰 jsonl 解析
+
+> **当前修复方案**：`dynamic_commands_host_rpc.rs` 中的 4 个测试统一添加 `#[cfg(unix)]` 编译门控，在 Windows 上编译期跳过。这些测试依赖完整的 Node bridge 子进程基础设施（stdio 协议握手、Host RPC 双向通信、tsx loader），该基础设施的 Windows 兼容性属于 P3-4 长期改进项，需在后续统一修复。
 
 ### 5.3 TS 构建产物差异
 

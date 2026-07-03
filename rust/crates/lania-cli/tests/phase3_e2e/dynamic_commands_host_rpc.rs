@@ -34,6 +34,7 @@ fn write_dynamic_config(root: &Path, schema_content: &str) {
     write_file(root.join("lania.schemas.js"), schema_content);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_invoke_host_rpc_fs_in_development_mode() {
     let root = temp_dir("dynamic-dev-host-rpc-fs");
@@ -109,6 +110,7 @@ fn lan_dynamic_command_invoke_host_rpc_fs_in_development_mode() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_invoke_host_rpc_exec_in_development_mode() {
     let root = temp_dir("dynamic-dev-host-rpc-exec");
@@ -172,6 +174,7 @@ fn lan_dynamic_command_invoke_host_rpc_exec_in_development_mode() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_invoke_host_rpc_log_in_development_mode() {
     let root = temp_dir("dynamic-dev-host-rpc-log");
@@ -219,6 +222,7 @@ fn lan_dynamic_command_invoke_host_rpc_log_in_development_mode() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_with_options_and_subcommand_mount() {
     let root = temp_dir("dynamic-dev-options-mount");
