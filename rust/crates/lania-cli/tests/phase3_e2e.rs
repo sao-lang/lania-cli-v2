@@ -40,4 +40,6 @@ mod tools_commands;
 mod product_dev_watch;
 #[path = "phase3_e2e/tools_run.rs"]
 mod tools_run;
+#[path = "phase3_e2e/conflict_and_force.rs"]
+mod conflict_and_force;
 
