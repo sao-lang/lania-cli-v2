@@ -38,4 +38,6 @@ mod template_commands;
 mod tools_commands;
 #[path = "phase3_e2e/product_dev_watch.rs"]
 mod product_dev_watch;
+#[path = "phase3_e2e/tools_run.rs"]
+mod tools_run;
 
