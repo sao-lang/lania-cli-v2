@@ -123,6 +123,11 @@
 | `create` 交互式              | `phase3_e2e/create_and_add.rs`            | 交互式创建                                                                                      | ⚠️ 需 CI 确认 |
 | `add` 命令                   | `phase3_e2e/create_and_add.rs`            | template 选项                                                                                   | ⚠️ 需 CI 确认 |
 | `generate module`            | `phase3_e2e/generate_workflows.rs`        | proto/JSON/GraphQL 输入, plan/diff                                                              | ⚠️ 需 CI 确认 |
+| `generate api`               | `phase3_e2e/generate_workflows.rs`        | apply/init/check/clean 全链路                                                                   | ✅            |
+| `generate api plan`          | `phase3_e2e/generate_api.rs`              | plan 模式预览不写入文件                                                                         | ✅            |
+| `generate api diff`          | `phase3_e2e/generate_api.rs`              | diff 模式检测基线差异，修改合约后产生 notes                                                     | ✅            |
+| `generate module plan`       | `phase3_e2e/generate_api.rs`              | plan 模式预览不写入文件                                                                         | ✅            |
+| `generate module diff`       | `phase3_e2e/generate_api.rs`              | diff 模式检测基线差异                                                                           | ✅            |
 | `sync` 工作流                | `phase3_e2e/sync_and_release.rs`          | 基本 sync                                                                                       | ⚠️ 需 CI 确认 |
 | `release` 工作流             | `phase3_e2e/sync_and_release.rs`          | plan/exec/resume                                                                                | ⚠️ 需 CI 确认 |
 | `template list/view`         | `phase3_e2e/template_commands.rs`         | 模板列表和查看                                                                                  | ✅            |
@@ -172,8 +177,10 @@
   - 覆盖：`ctx.tools.fs.*`、`ctx.tools.exec.*`、`ctx.tools.log.*`、runtime.mode、mount 机制
   - 验证方向：Node bridge 子进程在 Windows 上的脚本路径解析需验证
 
-- [ ] **P0-4：`generate api` 完整链路 E2E**
-  - 验证：`lan generate api plan/diff/init`
+- [x] **P0-4：`generate api` plan/diff 完整链路 E2E** ← `generate_api.rs`
+  - ✅ 5 个测试用例，Windows 全部通过
+  - 覆盖：`generate api plan` 预览不写盘、`generate api diff` 基线差异检测、`generate module plan`、`generate module diff`
+  - 验证方向：`generate api plan` → then apply 写入文件完整链路
 
 ### 优先级 P1 — 重要能力补齐
 
@@ -192,8 +199,9 @@
   - 保留命令冲突
   - mount 缺失
 
-- [ ] **P1-4：`generate module apply` 写盘 E2E**
-  - 验证 generate module apply 实际生成文件
+- [x] **P1-4：`generate module apply` 写盘 E2E**（已存在于 `generate_workflows.rs`）
+  - ✅ `lan_generate_module_e2e` 验证 apply 实际生成文件
+  - ✅ `generate module plan`/`diff` 已补充在 `generate_api.rs` 中
 
 ### 优先级 P2 — 边缘场景与质量加固
 
@@ -240,6 +248,7 @@ rust/crates/lania-cli/tests/phase3_e2e/
 ├── create_and_add.rs                  # create/add 工作流
 ├── distribution_and_dynamic.rs        # product CLI + 动态命令(installed)
 ├── dynamic_commands_host_rpc.rs       # ⭐ 新增：动态命令 dev 模式 + Host RPC (unix only)
+├── generate_api.rs                    # ⭐ 新增：generate api/module plan/diff
 ├── generate_workflows.rs              # generate module
 ├── sync_and_release.rs                # sync/release 工作流
 ├── template_commands.rs               # template list/view/交互式
@@ -250,7 +259,6 @@ rust/crates/lania-cli/tests/phase3_e2e/
 ### 待创建文件
 
 ```
-├── generate_api.rs                    # P0-4
 ├── product_dev_watch.rs               # P1-2
 ```
 
@@ -291,18 +299,18 @@ Node bridge 的启动入口 `ts/packages/node-bridge/dist/entry/stdio.js` 在 Wi
 | 阶段                 | 任务                                                                        | 状态      | 前置条件      | 预估工作量 |
 | -------------------- | --------------------------------------------------------------------------- | --------- | ------------- | ---------- |
 | **阶段 1（已完成）** | P0-3(dynamic + Host RPC) + P1-1(tools)                                      | ✅ 完成   | —             | 3-5 天     |
-| **阶段 2**           | P0-4(generate api) + P1-2(product dev watch)                                | 📋 待开始 | 无            | 2-3 天     |
-| **阶段 3**           | P1-3(schema parse err) + P1-4(generate module apply)                        | 📋 待开始 | 无            | 2-3 天     |
+| **阶段 2（已完成）** | P0-4(generate api plan/diff) + P1-2(product dev watch) + P1-4(generate module plan/diff) | ✅ 完成   | 无            | 2-3 天     |
+| **阶段 3**           | P1-3(schema parse err) + product dev watch                                  | 📋 待开始 | 无            | 2-3 天     |
 | **阶段 4**           | P2-1(tools run) + P2-2(prompt) + P2-3(conflict) + P2-4(errors) + P2-5(i18n) | 📋 待开始 | 无            | 3-5 天     |
 | **阶段 5**           | P3-1(product init) + P3-2(git) + P3-3(task/progress) + P3-4(Windows)        | 📋 待开始 | 阶段 1-4 完成 | 5-7 天     |
 
 **已实现覆盖度提升**：
 
-- 新增测试文件：2 个（`tools_commands.rs` + `dynamic_commands_host_rpc.rs`）
-- 新增测试用例：10 个（6 个全平台通过 + 4 个 unix only）
+- 新增测试文件：3 个（`tools_commands.rs` + `dynamic_commands_host_rpc.rs` + `generate_api.rs`）
+- 新增测试用例：15 个（11 个全平台通过 + 4 个 unix only）
 - 新增模块注册：`phase3_e2e.rs` 入口
-- 已覆盖项：从 20 → 24 项
-- 未覆盖项：从 16 → 9 项（减少 7 项）
+- 已覆盖项：从 20 → 29 项
+- 未覆盖项：从 16 → 7 项（减少 9 项）
 
 ---
 
