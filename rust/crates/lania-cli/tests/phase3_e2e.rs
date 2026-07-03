@@ -22,6 +22,8 @@ mod common;
 mod create_and_add;
 #[path = "phase3_e2e/distribution_and_dynamic.rs"]
 mod distribution_and_dynamic;
+#[path = "phase3_e2e/dynamic_commands_host_rpc.rs"]
+mod dynamic_commands_host_rpc;
 #[path = "phase3_e2e/generate_workflows.rs"]
 mod generate_workflows;
 #[path = "phase3_e2e/help_and_config.rs"]
@@ -30,3 +32,5 @@ mod help_and_config;
 mod sync_and_release;
 #[path = "phase3_e2e/template_commands.rs"]
 mod template_commands;
+#[path = "phase3_e2e/tools_commands.rs"]
+mod tools_commands;
