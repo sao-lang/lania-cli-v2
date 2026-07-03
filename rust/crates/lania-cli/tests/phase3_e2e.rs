@@ -44,4 +44,6 @@ mod tools_run;
 mod conflict_and_force;
 #[path = "phase3_e2e/error_scenarios.rs"]
 mod error_scenarios;
+#[path = "phase3_e2e/i18n_runtime.rs"]
+mod i18n_runtime;
 
