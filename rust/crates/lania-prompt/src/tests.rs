@@ -325,3 +325,274 @@ fn expand_resolves_by_short_key_and_label() {
     );
     assert_eq!(expand_short_keys(2), vec!["a".to_string(), "b".to_string()]);
 }
+
+#[test]
+fn supports_serial_goto_chain() {
+    let service = PromptService::default();
+    let flow = PromptFlow::new()
+        .step(
+            PromptStep::new("start", "Start?", "start")
+                .kind(PromptStepKind::Select)
+                .choice("go_details", json!("details"))
+                .choice("go_summary", json!("summary"))
+                .goto("details"),
+        )
+        .step(
+            PromptStep::new("details", "Details?", "detail")
+                .goto("summary"),
+        )
+        .step(
+            PromptStep::new("summary", "Summary?", "summary"),
+        );
+
+    // start -> details -> summary (via goto chain)
+    let state = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([
+                ("start".into(), json!("details")),
+                ("details".into(), json!("deep info")),
+                ("summary".into(), json!("done")),
+            ]),
+        )
+        .expect("goto chain should succeed");
+    assert_eq!(state.answers["start"], json!("details"));
+    assert_eq!(state.answers["detail"], json!("deep info"));
+    assert_eq!(state.answers["summary"], json!("done"));
+}
+
+#[test]
+fn supports_multistep_serial_flow_without_goto() {
+    let service = PromptService::default();
+    let flow = PromptFlow::new()
+        .step(PromptStep::new("step1", "Step 1", "s1"))
+        .step(PromptStep::new("step2", "Step 2", "s2"))
+        .step(PromptStep::new("step3", "Step 3", "s3"));
+
+    let state = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([
+                ("step1".into(), json!("a")),
+                ("step2".into(), json!("b")),
+                ("step3".into(), json!("c")),
+            ]),
+        )
+        .expect("serial flow should succeed");
+    assert_eq!(state.answers["s1"], json!("a"));
+    assert_eq!(state.answers["s2"], json!("b"));
+    assert_eq!(state.answers["s3"], json!("c"));
+}
+
+#[test]
+fn validates_required_field_rejects_empty() {
+    let service = PromptService::default();
+    let flow = PromptFlow::new().step(
+        PromptStep::new("name", "Name", "name")
+            .validate_rule(ValidationRule::Required),
+    );
+
+    let result = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([("name".into(), json!(""))]),
+        );
+    assert!(result.is_err(), "empty value for required field should fail validation");
+}
+
+#[test]
+fn validates_min_length_rejects_short_values() {
+    let service = PromptService::default();
+    let flow = PromptFlow::new().step(
+        PromptStep::new("code", "Code", "code")
+            .validate_rule(ValidationRule::MinLength(5)),
+    );
+
+    let result = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([("code".into(), json!("ab"))]),
+        );
+    assert!(result.is_err(), "short value should fail MinLength validation");
+
+    let ok = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([("code".into(), json!("abcde"))]),
+        );
+    assert!(ok.is_ok(), "long enough value should pass MinLength validation");
+}
+
+#[test]
+fn validates_one_of_rejects_invalid_choice() {
+    let service = PromptService::default();
+    let flow = PromptFlow::new().step(
+        PromptStep::new("env", "Env", "env")
+            .validate_rule(ValidationRule::OneOf(vec!["dev".into(), "prod".into()])),
+    );
+
+    let result = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([("env".into(), json!("staging"))]),
+        );
+    assert!(result.is_err(), "invalid choice should fail OneOf validation");
+
+    let ok = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([("env".into(), json!("dev"))]),
+        );
+    assert!(ok.is_ok(), "valid choice should pass OneOf validation");
+}
+
+#[test]
+fn goto_if_branches_on_context_value() {
+    let service = PromptService::default();
+    // 第一步：询问模式
+    // 如果选择 advanced，on_answered 设置 context 并 goto 到 advanced 分支
+    // 如果选择 basic，略过 advanced 步骤
+    let flow = PromptFlow::new()
+        .step(
+            PromptStep::new("mode", "Mode?", "mode")
+                .kind(PromptStepKind::Select)
+                .choice("basic", json!("basic"))
+                .choice("advanced", json!("advanced"))
+                .on_answered(OnAnsweredAction::SetContextValue {
+                    key: "isAdvanced".into(),
+                    value: json!(true),
+                }),
+        )
+        .step(
+            PromptStep::new("advanced", "Advanced?", "advanced")
+                .when(WhenCondition::Truthy { key: "isAdvanced".into() }),
+        );
+
+    // advanced 路径：必须提供所有步骤的答案（包括被 when 保护但 run_scripted 仍然需要的）
+    let state_advanced = service
+        .run_scripted(
+            &flow,
+            BTreeMap::from([("isAdvanced".into(), json!(true))]),
+            BTreeMap::from([
+                ("mode".into(), json!("advanced")),
+                ("advanced".into(), json!("enabled")),
+            ]),
+        )
+        .expect("advanced flow should succeed");
+    assert_eq!(state_advanced.answers["advanced"], json!("enabled"));
+
+    // basic 路径（run_scripted 需要所有步骤的答案）
+    let state_basic = service
+        .run_scripted(
+            &flow,
+            BTreeMap::new(),
+            BTreeMap::from([
+                ("mode".into(), json!("basic")),
+                ("advanced".into(), json!("")),
+            ]),
+        )
+        .expect("basic flow should succeed");
+    // 由于 when 条件不满足，advanced 步骤的答案应为空字符串（占位值）
+    assert_eq!(state_basic.answers["advanced"], json!(""));
+}
+
+#[test]
+fn returnable_prompt_skips_step_with_default_fallback() {
+    let service = PromptService::default();
+    let flow = PromptFlow::new()
+        .step(PromptStep::new("name", "Name", "name"))
+        .step(PromptStep::new("skip-me", "Skip?", "skipped").returnable().default_value(json!("default")));
+
+    // returnable 步骤使用默认值回落
+    let state = service
+        .run_scripted_with_options(
+            &flow,
+            super::PromptRunOptions {
+                answers: BTreeMap::from([
+                    ("name".into(), json!("lania")),
+                    ("skip-me".into(), json!("default")),
+                ]),
+                fallback: Some(PromptFallbackStrategy::UseDefault),
+                ..super::PromptRunOptions::default()
+            },
+        )
+        .expect("returnable flow with default should succeed");
+    assert_eq!(state.answers["name"], json!("lania"));
+    assert_eq!(state.answers["skipped"], json!("default"));
+}
+
+#[test]
+fn returnable_prompt_triggers_exit_on_escape_value() {
+    let service = PromptService::default();
+    let flow = PromptFlow::new()
+        .step(PromptStep::new("name", "Name", "name"))
+        .step(PromptStep::new("optional", "Optional?", "opt").returnable());
+
+    // 使用 __EXIT__ 触发返回
+    let state = service
+        .run_scripted_with_options(
+            &flow,
+            super::PromptRunOptions {
+                answers: BTreeMap::from([
+                    ("name".into(), json!("lania")),
+                    ("optional".into(), json!("__EXIT__")),
+                ]),
+                fallback: Some(PromptFallbackStrategy::UseDefault),
+                ..super::PromptRunOptions::default()
+            },
+        )
+        .expect("returnable exit should succeed");
+    assert!(state.interrupted, "returnable prompt with __EXIT__ should interrupt");
+    assert_eq!(state.answers["name"], json!("lania"));
+}
+
+#[test]
+fn when_condition_equals_controls_step_visibility() {
+    let condition = WhenCondition::Equals {
+        key: "env".into(),
+        value: json!("prod"),
+    };
+
+    assert!(condition.matches(
+        &BTreeMap::from([("env".into(), json!("prod"))])
+    ));
+    assert!(!condition.matches(
+        &BTreeMap::from([("env".into(), json!("dev"))])
+    ));
+    assert!(!condition.matches(
+        &BTreeMap::new()
+    ));
+}
+
+#[test]
+fn when_condition_truthy_controls_step_visibility() {
+    let condition = WhenCondition::Truthy { key: "enabled".into() };
+
+    assert!(condition.matches(
+        &BTreeMap::from([("enabled".into(), json!(true))])
+    ));
+    assert!(!condition.matches(
+        &BTreeMap::from([("enabled".into(), json!(false))])
+    ));
+    assert!(!condition.matches(&BTreeMap::new()));
+}
+
+#[test]
+fn when_condition_exists_controls_step_visibility() {
+    let condition = WhenCondition::Exists { key: "feature".into() };
+
+    assert!(condition.matches(
+        &BTreeMap::from([("feature".into(), json!(true))])
+    ));
+    assert!(condition.matches(
+        &BTreeMap::from([("feature".into(), json!(null))])
+    ));
+    assert!(!condition.matches(&BTreeMap::new()));
+}
