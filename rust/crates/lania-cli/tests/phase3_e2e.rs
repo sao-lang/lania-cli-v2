@@ -36,3 +36,6 @@ mod sync_and_release;
 mod template_commands;
 #[path = "phase3_e2e/tools_commands.rs"]
 mod tools_commands;
+#[path = "phase3_e2e/product_dev_watch.rs"]
+mod product_dev_watch;
+
