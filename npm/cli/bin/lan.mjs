@@ -22,7 +22,6 @@ const fallbackCliPackageDir = path.resolve(scriptDir, '..');
 const fallbackRepoRoot = path.resolve(fallbackCliPackageDir, '../..');
 
 // 根据当前平台和架构返回对应的 npm 二进制包名。
-// 仅支持 darwin-arm64 和 linux-x64。
 function resolvePlatformBinaryPackage() {
   const platform = process.platform;
   const arch = process.arch;
@@ -31,6 +30,9 @@ function resolvePlatformBinaryPackage() {
   }
   if (platform === 'linux' && arch === 'x64') {
     return '@lania-cli/cli-linux-x64';
+  }
+  if (platform === 'win32' && arch === 'x64') {
+    return '@lania-cli/cli-win32-x64';
   }
   return null;
 }
@@ -62,9 +64,10 @@ function resolveCliPackageDir() {
 // 在开发模式下查找本地编译的 Rust 二进制文件。
 // 优先使用 debug 构建，其次 release 构建。
 function resolveSourceBinaryPath() {
+  const binaryName = process.platform === 'win32' ? 'lania-cli.exe' : 'lania-cli';
   const candidates = [
-    path.join(fallbackRepoRoot, 'rust', 'target', 'debug', 'lania-cli'),
-    path.join(fallbackRepoRoot, 'rust', 'target', 'release', 'lania-cli'),
+    path.join(fallbackRepoRoot, 'rust', 'target', 'debug', binaryName),
+    path.join(fallbackRepoRoot, 'rust', 'target', 'release', binaryName),
   ];
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }

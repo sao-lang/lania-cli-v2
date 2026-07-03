@@ -12,6 +12,7 @@
   ],
   "optionalDependencies": {
     "@lania-cli/cli-darwin-arm64": "0.1.0",
-    "@lania-cli/cli-linux-x64": "0.1.0"
+    "@lania-cli/cli-linux-x64": "0.1.0",
+    "@lania-cli/cli-win32-x64": "0.1.0"
   }
 }
