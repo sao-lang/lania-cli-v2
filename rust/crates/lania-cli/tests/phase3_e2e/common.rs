@@ -1,4 +1,4 @@
-//! phase3 e2e 共享夹具与文件系统辅助。
+﻿//! phase3 e2e 共享夹具与文件系统辅助。
 //!
 //! 保持这些辅助函数集中，便于各子模块共享同一套 CLI/Node bridge 搭建逻辑。
 use super::*;
@@ -92,6 +92,13 @@ pub(crate) fn run_program(
     command.output().expect("cli runs")
 }
 
+#[cfg(not(unix))]
+pub(crate) fn run_program_interactive(_program: &std::path::Path, _cwd: &std::path::Path, _args: &[&str], _answers: &[&str], _extra_env: &[(&str, &str)],
+) -> std::process::Output {
+    panic!("run_program_interactive is only supported on Unix");
+}
+
+#[cfg(unix)]
 pub(crate) fn run_program_interactive(
     program: &Path,
     cwd: &Path,

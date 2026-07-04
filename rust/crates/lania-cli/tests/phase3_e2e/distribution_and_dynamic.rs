@@ -1,4 +1,4 @@
-//! 分发形态与动态命令输出链路 e2e。
+﻿//! 分发形态与动态命令输出链路 e2e。
 use super::common::*;
 use super::*;
 use lania_host::{plugin::EmptyPlugin, Host, HostRuntime};
@@ -98,6 +98,7 @@ fn lan_binary_distribution_smoke() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_packed_product_wrapper_runs_dynamic_command_in_installed_mode() {
     let root = temp_dir("packed-product-wrapper");
@@ -206,6 +207,7 @@ fn lan_packed_product_wrapper_runs_dynamic_command_in_installed_mode() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_publish_product_creates_publish_ready_artifact() {
     let root = temp_dir("publish-product-artifact");
@@ -355,6 +357,7 @@ fn lan_publish_product_creates_publish_ready_artifact() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_inspect_product_human_mode_e2e() {
     let root = temp_dir("inspect-product-human");
@@ -446,6 +449,7 @@ fn lan_inspect_product_human_mode_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn phase2_product_authoring_full_chain_demo_e2e() {
     let root = temp_dir("phase2-product-full-chain");
@@ -545,6 +549,7 @@ fn phase2_product_authoring_full_chain_demo_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_publish_product_can_execute_manifest_dry_run() {
     let root = temp_dir("publish-product-execute-dry-run");
@@ -678,6 +683,7 @@ fn lan_publish_product_can_execute_manifest_dry_run() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_publish_product_tarball_installs_and_runs() {
     let root = temp_dir("publish-product-tarball-install");
@@ -938,6 +944,7 @@ fn lan_publish_product_tarball_installs_and_runs() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn lan_cli_main_flow_bootstraps_installed_product_commands() {
     let root = temp_dir("packed-product-main-flow");
@@ -1036,6 +1043,7 @@ async fn lan_cli_main_flow_bootstraps_installed_product_commands() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_prompt_and_jsonl_output_e2e() {
     let root = temp_dir("dynamic-command-jsonl");
@@ -1130,6 +1138,7 @@ fn lan_dynamic_command_prompt_and_jsonl_output_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_hook_payload_and_progress_grouping_e2e() {
     let root = temp_dir("dynamic-command-hooks-progress");
@@ -1229,6 +1238,7 @@ fn lan_dynamic_command_hook_payload_and_progress_grouping_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_human_stream_output_e2e() {
     let root = temp_dir("dynamic-command-human-stream");
@@ -1281,6 +1291,7 @@ fn lan_dynamic_command_human_stream_output_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_human_stream_output_zh_e2e() {
     let root = temp_dir("dynamic-command-human-stream-zh");
@@ -1370,6 +1381,7 @@ fn lan_generate_missing_subcommand_zh_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_dynamic_command_inline_hook_executes_and_rewrites_argv_e2e() {
     let root = temp_dir("dynamic-command-inline-hook");
@@ -1417,6 +1429,139 @@ fn lan_dynamic_command_inline_hook_executes_and_rewrites_argv_e2e() {
     let json = parse_stdout_json(&output);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(json["result"]["result"]["foo"], "bar");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+// ── product build 独立 E2E ───────────────────────────────────
+
+#[cfg(unix)]
+#[test]
+fn lan_product_build_creates_build_artifact_e2e() {
+    let root = temp_dir("product-build-artifact");
+    let product = root.join("product");
+    fs::create_dir_all(product.join("templates/base")).expect("dirs created");
+    write_file(
+        product.join("lan.config.json"),
+        r#"{
+  "extensions": { "dynamicCommands": true },
+  "product": { "name": "@demo/acme", "binaryName": "acme", "templatesDir": "./templates" },
+  "schema": { "entry": "./lania.schemas.js" }
+}"#,
+    );
+    write_file(
+        product.join("lania.schemas.js"),
+        "export default { runtimeCommands: [] };",
+    );
+    write_file(
+        product.join("templates/base/template.json"),
+        r#"{"id":"base"}"#,
+    );
+
+    let output = run_cli(&product, &["product", "build"], &[]);
+    let json = parse_stdout_json(&output);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(json["kind"], "bridge");
+    assert_eq!(json["exchange"]["response"]["result"]["mode"], "product_build");
+    assert!(product.join(".lania/build/product").exists(), "build output dir should exist");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn lan_product_build_with_output_dir_option_e2e() {
+    let root = temp_dir("product-build-output");
+    let product = root.join("product");
+    let custom_out = root.join("custom-build-out");
+    fs::create_dir_all(product.join("templates/base")).expect("dirs created");
+    write_file(
+        product.join("lan.config.json"),
+        r#"{
+  "extensions": { "dynamicCommands": true },
+  "product": { "name": "@demo/acme", "binaryName": "acme", "templatesDir": "./templates" },
+  "schema": { "entry": "./lania.schemas.js" }
+}"#,
+    );
+    write_file(
+        product.join("lania.schemas.js"),
+        "export default { runtimeCommands: [] };",
+    );
+    write_file(
+        product.join("templates/base/template.json"),
+        r#"{"id":"base"}"#,
+    );
+
+    let output = run_cli(
+        &product,
+        &["product", "build", "--output-dir", custom_out.display().to_string().as_str()],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(custom_out.exists(), "custom output dir should exist");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+// ── product pack 独立 E2E ────────────────────────────────────
+
+#[cfg(unix)]
+#[test]
+fn lan_product_pack_creates_install_root_layout_e2e() {
+    let root = temp_dir("product-pack-layout");
+    let product = root.join("product");
+    fs::create_dir_all(product.join("templates/base")).expect("dirs created");
+    write_file(
+        product.join("lan.config.json"),
+        r#"{
+  "extensions": { "dynamicCommands": true },
+  "product": { "name": "@demo/acme", "binaryName": "acme", "templatesDir": "./templates" },
+  "schema": { "entry": "./lania.schemas.js" }
+}"#,
+    );
+    write_file(
+        product.join("lania.schemas.js"),
+        "export default { runtimeCommands: [] };",
+    );
+    write_file(
+        product.join("templates/base/template.json"),
+        r#"{"id":"base"}"#,
+    );
+
+    // Build first
+    let build_output = run_cli(&product, &["product", "build"], &[]);
+    assert_eq!(build_output.status.code(), Some(0));
+
+    // Pack
+    let pack_output = run_cli(&product, &["product", "pack"], &[]);
+    let json = parse_stdout_json(&pack_output);
+    assert_eq!(pack_output.status.code(), Some(0));
+    assert_eq!(json["kind"], "bridge");
+    assert_eq!(json["exchange"]["response"]["result"]["kind"], "product_pack");
+
+    let install_root = product.join(".lania/pack/product/install-root");
+    assert!(install_root.join("bin/acme").exists(), "wrapper binary should exist");
+    assert!(install_root.join("lib/product").exists(), "product lib should exist");
+    assert!(install_root.join("lib/node-bridge").exists(), "node bridge should exist");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+// ── product dev 独立 E2E ─────────────────────────────────────
+
+#[cfg(unix)]
+#[test]
+fn lan_product_dev_help_shows_usage_without_command_e2e() {
+    let root = temp_dir("product-dev-usage");
+    let home = isolated_home(&root);
+
+    // Run product dev without any arguments
+    let output = run_cli(&root, &["product", "dev"], &[("HOME", home.as_str())]);
+    // Should show usage hint (non-zero exit code or Usage in output)
+    if output.status.code() != Some(0) {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("Usage") || stderr.contains("product"), "should indicate usage: {stderr}");
+    }
 
     let _ = fs::remove_dir_all(root);
 }

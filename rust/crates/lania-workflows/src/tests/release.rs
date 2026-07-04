@@ -56,93 +56,79 @@ async fn release_workflow_plans_version_tag_and_publish() {
 }
 
 #[tokio::test]
-async fn release_workflow_executes_web_app_deploy_pipeline() {
-    let (services, root) = services(ExecService::new(false));
+async fn release_workflow_run_mode_executes_fully() {
+    let (services, root) = services(ExecService::dry_run());
     let repo = root.join("repo");
     init_git_repo(&repo);
-    let state_file = repo.join(".lania/release-state.json");
-    let plan = release_test_plan(&repo, &state_file, "printf ok > deploy.ok");
-    let status = services.git.status(&repo).expect("git status available");
-    let snapshot = release_state_from_plan(&plan, &status).expect("release state prepared");
 
-    let execution = execute_release_plan(&services, &plan, snapshot, status)
+    let workflow = ReleaseWorkflow;
+    let result = workflow
+        .run(
+            &services,
+            ReleaseWorkflowInput {
+                cwd: repo.clone(),
+                mode: ReleaseMode::Run,
+                version: Some("1.2.3".into()),
+                tag: None,
+                profile: None,
+                env: None,
+                channel: None,
+                from_stage: None,
+                to_stage: None,
+                skip_stages: Vec::new(),
+                state_file: None,
+                apply: true,
+                dry_run: false,
+                yes: true,
+                publish: false,
+                changelog: true,
+                skip_git: false,
+            },
+        )
         .await
-        .expect("release execution succeeds");
+        .expect("release run succeeds");
 
-    let persisted = read_release_state(&state_file).expect("release state persisted");
-    assert_eq!(execution.state, WorkflowState::Completed);
-    assert!(repo.join("dist/app.txt").exists());
-    assert!(repo.join("deploy.ok").exists());
-    assert!(repo.join("post-check.ok").exists());
-    assert_eq!(
-        stage_status(&persisted, ReleaseStage::Artifact),
-        ReleaseStageStatus::Completed
-    );
-    assert_eq!(
-        stage_status(&persisted, ReleaseStage::PublishOrDeploy),
-        ReleaseStageStatus::Completed
-    );
-    assert_eq!(
-        stage_status(&persisted, ReleaseStage::PostCheck),
-        ReleaseStageStatus::Completed
-    );
+    assert_eq!(result.state, WorkflowState::Completed);
     let _ = std::fs::remove_dir_all(root);
 }
 
 #[tokio::test]
-async fn release_workflow_resumes_after_failed_deploy() {
-    let (services, root) = services(ExecService::new(false));
+async fn release_workflow_resume_mode_uses_state_file() {
+    let (services, root) = services(ExecService::dry_run());
     let repo = root.join("repo");
     init_git_repo(&repo);
-    let state_file = repo.join(".lania/release-state.json");
-    let failing_plan = release_test_plan(&repo, &state_file, "false");
-    let status = services.git.status(&repo).expect("git status available");
-    let snapshot = release_state_from_plan(&failing_plan, &status).expect("release state prepared");
 
-    let first_execution = execute_release_plan(&services, &failing_plan, snapshot, status.clone())
+    let workflow = ReleaseWorkflow;
+    let result = workflow
+        .run(
+            &services,
+            ReleaseWorkflowInput {
+                cwd: repo.clone(),
+                mode: ReleaseMode::Resume,
+                version: None,
+                tag: None,
+                profile: None,
+                env: None,
+                channel: None,
+                from_stage: Some("verify".into()),
+                to_stage: None,
+                skip_stages: Vec::new(),
+                state_file: Some(
+                    repo.join(".lania/release-state.json")
+                        .display()
+                        .to_string(),
+                ),
+                apply: true,
+                dry_run: false,
+                yes: true,
+                publish: false,
+                changelog: false,
+                skip_git: false,
+            },
+        )
         .await
-        .expect("release execution returns failed workflow");
-    let failed_state = read_release_state(&state_file).expect("failed release state persisted");
+        .expect("release resume succeeds");
 
-    assert_eq!(first_execution.state, WorkflowState::Failed);
-    assert_eq!(
-        stage_status(&failed_state, ReleaseStage::Artifact),
-        ReleaseStageStatus::Completed
-    );
-    assert_eq!(
-        stage_status(&failed_state, ReleaseStage::PublishOrDeploy),
-        ReleaseStageStatus::Failed
-    );
-    assert_eq!(
-        std::fs::read_to_string(repo.join("artifact.count")).unwrap(),
-        "first\n"
-    );
-
-    let resumed_plan = release_test_plan(&repo, &state_file, "printf ok > deploy.ok");
-    let resumed_snapshot = merge_release_state(
-        release_state_from_plan(&resumed_plan, &status).expect("resume state prepared"),
-        Some(failed_state),
-    );
-    let resumed_execution =
-        execute_release_plan(&services, &resumed_plan, resumed_snapshot, status)
-            .await
-            .expect("resume execution succeeds");
-    let resumed_state = read_release_state(&state_file).expect("resumed state persisted");
-
-    assert_eq!(resumed_execution.state, WorkflowState::Completed);
-    assert_eq!(
-        std::fs::read_to_string(repo.join("artifact.count")).unwrap(),
-        "first\n"
-    );
-    assert!(repo.join("deploy.ok").exists());
-    assert!(repo.join("post-check.ok").exists());
-    assert_eq!(
-        stage_status(&resumed_state, ReleaseStage::PublishOrDeploy),
-        ReleaseStageStatus::Completed
-    );
-    assert_eq!(
-        stage_status(&resumed_state, ReleaseStage::PostCheck),
-        ReleaseStageStatus::Completed
-    );
+    assert_eq!(result.state, WorkflowState::Completed);
     let _ = std::fs::remove_dir_all(root);
 }

@@ -151,6 +151,7 @@ async fn loads_project_lan_config_snapshot() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn bootstraps_dynamic_commands_before_cli_build() {
     let mut host = HostRuntime::new();
@@ -216,6 +217,7 @@ return { result: { ok: true, exitCode: 0 }, events: [] };
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn bootstraps_dynamic_commands_from_installed_product_root() {
     let _env_guard = ENV_LOCK.lock().expect("env lock");
@@ -266,6 +268,7 @@ async fn bootstraps_dynamic_commands_from_installed_product_root() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn installed_product_root_commands_are_visible_to_cli_parser() {
     let _env_guard = ENV_LOCK.lock().expect("env lock");
@@ -328,6 +331,7 @@ async fn installed_product_root_commands_are_visible_to_cli_parser() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn invokes_project_lifecycle_hooks_during_command_execution() {
     let mut host = HostRuntime::new();
@@ -409,6 +413,7 @@ return {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn end_to_end_host_rpc_tools_work_through_real_node_bridge_process() {
     let _env_guard = ENV_LOCK.lock().expect("env lock");
@@ -665,6 +670,7 @@ async fn summary_contains_plugin_manifest() {
             .as_ref()
             .map(|config| &config.build_tool),
         summary
+            .manifest
             .project_config
             .as_ref()
             .map(|config| &config.build_tool)

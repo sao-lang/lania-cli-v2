@@ -1,4 +1,4 @@
-//! 模板查询与交互式选择类 e2e。
+﻿//! 模板查询与交互式选择类 e2e。
 use super::common::*;
 use super::*;
 
@@ -25,6 +25,7 @@ fn lan_template_list_command_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_template_detail_command_e2e() {
     let root = temp_dir("template-detail");
@@ -64,6 +65,7 @@ fn lan_template_info_command_is_rejected_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_template_interactive_selects_template_e2e() {
     let root = temp_dir("template-interactive");
@@ -95,6 +97,7 @@ fn lan_template_interactive_selects_template_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_template_interactive_zh_locale_e2e() {
     let root = temp_dir("template-interactive-zh");
@@ -129,6 +132,7 @@ fn lan_template_interactive_zh_locale_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_template_info_human_zh_locale_e2e() {
     let root = temp_dir("template-info-human-zh");

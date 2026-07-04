@@ -1,4 +1,4 @@
-//! generate api/module 工作流 e2e。
+﻿//! generate api/module 工作流 e2e。
 use super::common::*;
 use super::*;
 
@@ -108,6 +108,7 @@ fn lan_generate_module_init_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_generate_module_e2e() {
     let root = temp_dir("generate-module-apply");
@@ -137,6 +138,7 @@ fn lan_generate_module_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_generate_module_check_and_clean_e2e() {
     let root = temp_dir("generate-module-check-clean");
@@ -198,6 +200,7 @@ fn lan_generate_module_graphql_ws_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_generate_module_json_grpc_http_e2e() {
     let root = temp_dir("generate-module-json-http-grpc");

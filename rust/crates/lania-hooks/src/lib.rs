@@ -397,3 +397,6 @@ impl HookRuntime for HookBusImpl {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

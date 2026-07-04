@@ -24,7 +24,11 @@ test('detectCommandOnPath resolves executables from PATH', async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), 'lania-guard-path-'));
   t.after(async () => await rm(root, { recursive: true, force: true }));
 
-  const commandPath = path.join(root, 'demo-command');
+  // On Windows, createCommandCandidates appends PATHEXT extensions (e.g. .CMD)
+  // to the bare command name, so create the file with matching case and search
+  // for bare 'demo-command' — PATHEXT extension will be appended automatically.
+  const fileExt = process.platform === 'win32' ? '.CMD' : '';
+  const commandPath = path.join(root, `demo-command${fileExt}`);
   await writeFile(commandPath, '#!/bin/sh\nexit 0\n', 'utf8');
   await chmod(commandPath, 0o755);
 

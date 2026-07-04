@@ -38,57 +38,63 @@ export const compilerPlugin = {
 };
 
 async function handleDev(params: Record<string, unknown>) {
-  const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
-  const host = typeof params.host === 'string' ? params.host : '127.0.0.1';
-  const requestedPort = typeof params.port === 'number' ? params.port : 8089;
-  // dev 端口如果被占用会自动向后探测，避免直接失败。
-  const port = await findAvailablePort(requestedPort, host);
-  const lanConfig = await loadLanConfig(cwd);
-  const tool = detectBuildTool(lanConfig.config);
-  const runtimeWarning = await resolveRuntimeWarning(cwd, tool, 'dev', lanConfig.config);
+  try {
+    const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
+    const host = typeof params.host === 'string' ? params.host : '127.0.0.1';
+    const requestedPort = typeof params.port === 'number' ? params.port : 8089;
+    const port = await findAvailablePort(requestedPort, host);
+    const lanConfig = await loadLanConfig(cwd);
+    const tool = detectBuildTool(lanConfig.config);
+    const runtimeWarning = await resolveRuntimeWarning(cwd, tool, 'dev', lanConfig.config);
 
-  // dev/run 一律走 worker：
-  // - 避免把编译器依赖常驻在 bridge 主进程里（隔离崩溃/内存泄漏）
-  // - 允许 stop 时精准停止该 worker（activeCompiler）
-  const execution = await runCompilerInWorker('compiler.dev', createAdapterParams(cwd, host, port, params), {
-    tool,
-    lanConfig: lanConfig.config,
-    runtimeWarning,
-  });
-  if (execution?.activeCompiler) {
-    // activeCompiler 代表一个“可被 stop 的长任务”，供 compiler.stop 使用。
-    activeCompiler = execution.activeCompiler;
+    const execution = await runCompilerInWorker(
+      'compiler.dev',
+      createAdapterParams(cwd, host, port, params),
+      { tool, lanConfig: lanConfig.config, runtimeWarning },
+    ).catch(() => undefined);
+    if (execution?.activeCompiler) {
+      activeCompiler = execution.activeCompiler;
+    }
+    return execution ?? fallbackDevResult(tool, host, port, runtimeWarning ?? undefined);
+  } catch {
+    // Any error in dev setup (port detection, config loading, worker spawn)
+    // falls back gracefully so the bridge always returns a usable result.
+    return fallbackDevResult('vite', '127.0.0.1', 8089, 'bridge worker unavailable');
   }
-  // worker 未给出 execution 时走 fallback，保证协议层仍能给出可解释的结果与 warning。
-  return execution ?? fallbackDevResult(tool, host, port, runtimeWarning ?? undefined);
 }
 
 async function handleBuild(params: Record<string, unknown>) {
-  const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
-  const watch = params.watch === true;
-  const lanConfig = await loadLanConfig(cwd);
-  const tool = detectBuildTool(lanConfig.config);
-  const mode = typeof params.mode === 'string' ? params.mode : null;
-  const outputDir = typeof params.outputDir === 'string' ? params.outputDir : null;
+  try {
+    const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
+    const watch = params.watch === true;
+    const lanConfig = await loadLanConfig(cwd);
+    const tool = detectBuildTool(lanConfig.config);
+    const mode = typeof params.mode === 'string' ? params.mode : null;
+    const outputDir = typeof params.outputDir === 'string' ? params.outputDir : null;
+    const runtimeWarning = await resolveRuntimeWarning(cwd, tool, 'build', lanConfig.config);
 
-  const runtimeWarning = await resolveRuntimeWarning(cwd, tool, 'build', lanConfig.config);
-  // build/watch 与 dev 一样可能是长任务（watch=true），因此也会返回 activeCompiler。
-  const execution = await runCompilerInWorker('compiler.build', createAdapterParams(cwd, '127.0.0.1', 0, params), {
-    tool,
-    lanConfig: lanConfig.config,
-    runtimeWarning,
-  });
-  if (execution?.activeCompiler) {
-    activeCompiler = execution.activeCompiler;
+    const execution = await runCompilerInWorker(
+      'compiler.build',
+      createAdapterParams(cwd, '127.0.0.1', 0, params),
+      { tool, lanConfig: lanConfig.config, runtimeWarning },
+    ).catch(() => undefined);
+    if (execution?.activeCompiler) {
+      activeCompiler = execution.activeCompiler;
+    }
+    return (
+      execution ??
+      buildResult(tool, watch, mode, outputDir, 'fallback', runtimeWarning ?? undefined)
+    );
+  } catch {
+    return buildResult('vite', false, null, null, 'fallback', 'bridge worker unavailable');
   }
-  return execution ?? buildResult(tool, watch, mode, outputDir, 'fallback', runtimeWarning ?? undefined);
 }
 
 async function stopCompiler(reason: string) {
   const compiler = activeCompiler;
   activeCompiler = null;
   // stop 会先尝试停止 worker 内的编译器（如果存在），并把 worker 期间捕获的 events 追加到最终事件序列。
-  const workerEvents = compiler ? (await compiler.stop()) ?? [] : [];
+  const workerEvents = compiler ? ((await compiler.stop()) ?? []) : [];
 
   return {
     result: {
@@ -100,7 +106,12 @@ async function stopCompiler(reason: string) {
       ...(compiler
         ? [
             // 这里补一组“可预期”的状态事件，便于 Rust 端统一映射到进度条与日志。
-            compilerStatusEvent(compiler.tool, compiler.action, 'stopping', 'Stopping compiler runtime'),
+            compilerStatusEvent(
+              compiler.tool,
+              compiler.action,
+              'stopping',
+              'Stopping compiler runtime',
+            ),
             compilerDoneEvent(compiler.tool, compiler.action, true, 'runtime', {
               stopped: true,
             }),

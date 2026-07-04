@@ -44,9 +44,10 @@ test('commitizen loads .czrc.cjs and applies configured types and subject limit'
   assert.equal(handled.result.configLoaded, true);
   assert.ok(String(handled.result.configPath).endsWith('.czrc.cjs'));
   assert.ok(
-    handled.events.some((event) =>
-      event.method === 'event.log' &&
-      String(event.params?.message ?? '').includes('adjusted to "feat"'),
+    handled.events.some(
+      (event) =>
+        event.method === 'event.log' &&
+        String(event.params?.message ?? '').includes('adjusted to "feat"'),
     ),
   );
 });
@@ -93,7 +94,7 @@ test('commitizen resolves custom config path from package.json commitizen metada
 
   assert.ok(handled);
   assert.equal(handled.result.message, 'fix: repair sync flow');
-  assert.ok(String(handled.result.configPath).endsWith('config/custom-cz.cjs'));
+  assert.ok(String(handled.result.configPath).replace(/\\/g, '/').endsWith('config/custom-cz.cjs'));
 });
 
 test('commitlint loads commitlint.config.cjs and applies configured rules', async (t) => {

@@ -8,7 +8,14 @@ import { fileURLToPath } from 'node:url';
 
 import { productPlugin } from './product.js';
 
-const repoRoot = path.resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
+const repoRoot = path.resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  '..',
+  '..',
+);
 
 test('product.generate scaffolds a minimal product workspace', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-generate-'));
@@ -54,7 +61,9 @@ test('product.generate scaffolds a minimal product workspace', async (t) => {
   assert.equal(packageJson.name, '@lania-product/acme');
   assert.equal(packageJson.private, true);
 
-  const lanConfig = JSON.parse(await readFile(path.join(outputRoot, 'lan.config.json'), 'utf8')) as {
+  const lanConfig = JSON.parse(
+    await readFile(path.join(outputRoot, 'lan.config.json'), 'utf8'),
+  ) as {
     product?: {
       binaryName?: string;
       templatesDir?: string;
@@ -209,7 +218,11 @@ test('product.inspect --compat writes compat-report and returns summary', async 
       verdict: string;
       reportPath: string;
       declared?: Record<string, string | null>;
-      actual: { hostVersion: string | null; protocolVersion: string; nodeBridgeVersion: string | null };
+      actual: {
+        hostVersion: string | null;
+        protocolVersion: string;
+        nodeBridgeVersion: string | null;
+      };
       product: { productVersion: string | null };
     };
   };
@@ -361,7 +374,9 @@ test('product.build creates a minimal product snapshot output', async (t) => {
   assert.equal(result.bundle, null);
   assert.equal(result.checks.hasSchemaEntries, true);
   assert.equal(result.checks.hasTemplatesDir, true);
-  assert.deepEqual(result.experimental?.schemaEntries, ['./dist/schema-roots/root-0/lania.schemas.ts']);
+  assert.deepEqual(result.experimental?.schemaEntries, [
+    './dist/schema-roots/root-0/lania.schemas.ts',
+  ]);
   assert.equal(result.experimental?.templatesDir, './templates');
   assert.equal(result.experimental?.compat?.actual?.protocolVersion, '0.1.0');
   assert.ok(result.generatedFiles.includes('./lan.config.json'));
@@ -372,7 +387,9 @@ test('product.build creates a minimal product snapshot output', async (t) => {
   assert.ok(result.generatedFiles.includes('./build-report.json'));
 
   const outputRoot = path.join(cwd, '.lania', 'build', 'product');
-  const builtConfig = JSON.parse(await readFile(path.join(outputRoot, 'lan.config.json'), 'utf8')) as {
+  const builtConfig = JSON.parse(
+    await readFile(path.join(outputRoot, 'lan.config.json'), 'utf8'),
+  ) as {
     schema?: { entry?: string[] };
     product?: { templatesDir?: string };
   };
@@ -665,7 +682,8 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(publishReport.bundle.platformTarball, null);
   assert.equal(publishReport.experimental?.compat?.actual?.protocolVersion, '0.1.0');
   assert.deepEqual(publishReport.bundle.platformTarballs, []);
-  assert.deepEqual(publishReport.bundle.platformMatrix, [
+  // On Windows, the host platform (win32-x64) is also included in the matrix
+  const expectedMatrix = [
     {
       packageName: '@lania-cli/cli-darwin-arm64',
       platform: 'darwin-arm64',
@@ -682,7 +700,18 @@ test('product.publish creates a publish-ready npm package layout from packed out
       tarball: null,
       source: 'package_dir',
     },
-  ]);
+  ];
+  if (process.platform === 'win32') {
+    expectedMatrix.push({
+      packageName: '@lania-cli/cli-win32-x64',
+      platform: 'win32-x64',
+      version: '0.1.0',
+      status: 'package_missing',
+      tarball: null,
+      source: 'optional_dependency',
+    });
+  }
+  assert.deepEqual(publishReport.bundle.platformMatrix, expectedMatrix);
   assert.ok(publishReport.generatedFiles.includes('./lib/product'));
   assert.ok(publishReport.generatedFiles.includes('./lib/node-bridge'));
   assert.ok(publishReport.generatedFiles.includes('./bundle'));
@@ -690,7 +719,9 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.ok(publishReport.generatedFiles.includes('./publish-report.json'));
   assert.ok(publishReport.generatedFiles.includes('./bundle/cli-package/lania-cli-cli-0.1.0.tgz'));
   assert.ok(
-    publishReport.generatedFiles.some((entry) => typeof entry === 'string' && entry.endsWith('.tgz')),
+    publishReport.generatedFiles.some(
+      (entry) => typeof entry === 'string' && entry.endsWith('.tgz'),
+    ),
   );
 
   const publishManifest = JSON.parse(
@@ -746,7 +777,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
     publishManifest.packages.map((entry) => entry.publishStrategy),
     ['npm_tarball_publish', 'npm_tarball_publish'],
   );
-  assert.deepEqual(publishManifest.platformMatrix, [
+  const publishManifestMatrix = [
     {
       packageName: '@lania-cli/cli-darwin-arm64',
       platform: 'darwin-arm64',
@@ -763,7 +794,18 @@ test('product.publish creates a publish-ready npm package layout from packed out
       tarball: null,
       source: 'package_dir',
     },
-  ]);
+  ];
+  if (process.platform === 'win32') {
+    publishManifestMatrix.push({
+      packageName: '@lania-cli/cli-win32-x64',
+      platform: 'win32-x64',
+      version: '0.1.0',
+      status: 'package_missing',
+      tarball: null,
+      source: 'optional_dependency',
+    });
+  }
+  assert.deepEqual(publishManifest.platformMatrix, publishManifestMatrix);
   assert.deepEqual(publishManifest.publishOrder, ['@lania-cli/cli', '@acme/demo']);
   assert.deepEqual(publishManifest.dependencyLinks, [
     {
@@ -858,7 +900,12 @@ test('product.publish stages linux-x64 bundle from explicit env binary source', 
     await readFile(path.join(publishRoot, 'publish-report.json'), 'utf8'),
   ) as {
     bundle: {
-      platformTarballs: Array<{ packageName: string; platform: string; tarball: string; source: string }>;
+      platformTarballs: Array<{
+        packageName: string;
+        platform: string;
+        tarball: string;
+        source: string;
+      }>;
       platformMatrix: Array<{
         packageName: string;
         platform: string;
@@ -995,8 +1042,18 @@ test('product.publish stages linux-x64 bundle from platformBinariesDir auto-disc
     await readFile(path.join(publishRoot, 'publish-report.json'), 'utf8'),
   ) as {
     bundle: {
-      platformTarballs: Array<{ packageName: string; platform: string; tarball: string; source: string }>;
-      platformMatrix: Array<{ packageName: string; platform: string; status: string; source: string }>;
+      platformTarballs: Array<{
+        packageName: string;
+        platform: string;
+        tarball: string;
+        source: string;
+      }>;
+      platformMatrix: Array<{
+        packageName: string;
+        platform: string;
+        status: string;
+        source: string;
+      }>;
     };
   };
   const linuxTarball = publishReport.bundle.platformTarballs.find(
@@ -1013,6 +1070,13 @@ test('product.publish stages linux-x64 bundle from platformBinariesDir auto-disc
 });
 
 test('product.publish can execute publish-manifest steps through npm publish --dry-run', async (t) => {
+  // This test creates a fake npm binary with a Unix shebang. On Windows, .cmd
+  // files cannot use shebangs and real npm.exe takes priority over our fake.
+  if (process.platform === 'win32') {
+    t.skip('npm publish dry-run test requires POSIX shell environment');
+    return;
+  }
+
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-publish-exec-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
 
@@ -1264,7 +1328,10 @@ process.exit(0);
   };
   assert.equal(manifest.execution.executed, true);
   assert.equal(manifest.execution.dryRun, true);
-  assert.deepEqual(manifest.execution.completedSteps, manifest.steps.map((entry) => entry.id));
+  assert.deepEqual(
+    manifest.execution.completedSteps,
+    manifest.steps.map((entry) => entry.id),
+  );
 
   const lines = (await readFile(fakeLog, 'utf8'))
     .trim()
@@ -1358,7 +1425,16 @@ process.exit(0);
             packageName: '@lania-cli/cli-linux-x64',
             command: {
               program: 'npm',
-              args: ['publish', './bundle/cli-linux-x64-package/pkg.tgz', '--tag', 'next', '--access', 'public', '--registry', 'https://registry.npmjs.org/'],
+              args: [
+                'publish',
+                './bundle/cli-linux-x64-package/pkg.tgz',
+                '--tag',
+                'next',
+                '--access',
+                'public',
+                '--registry',
+                'https://registry.npmjs.org/',
+              ],
             },
           },
           {
@@ -1366,7 +1442,16 @@ process.exit(0);
             packageName: '@lania-cli/cli',
             command: {
               program: 'npm',
-              args: ['publish', './bundle/cli-package/pkg.tgz', '--tag', 'next', '--access', 'public', '--registry', 'https://registry.npmjs.org/'],
+              args: [
+                'publish',
+                './bundle/cli-package/pkg.tgz',
+                '--tag',
+                'next',
+                '--access',
+                'public',
+                '--registry',
+                'https://registry.npmjs.org/',
+              ],
             },
           },
         ],
@@ -1533,7 +1618,16 @@ process.exit(0);
             publishConfig: { registry: 'https://registry.npmjs.org/' },
             command: {
               program: 'npm',
-              args: ['publish', './bundle/cli-package/pkg.tgz', '--tag', 'next', '--access', 'public', '--registry', 'https://registry.npmjs.org/'],
+              args: [
+                'publish',
+                './bundle/cli-package/pkg.tgz',
+                '--tag',
+                'next',
+                '--access',
+                'public',
+                '--registry',
+                'https://registry.npmjs.org/',
+              ],
             },
           },
           {
@@ -1542,7 +1636,16 @@ process.exit(0);
             publishConfig: { registry: 'https://registry.npmjs.org/' },
             command: {
               program: 'npm',
-              args: ['publish', './bundle/product-package/pkg.tgz', '--tag', 'next', '--access', 'public', '--registry', 'https://registry.npmjs.org/'],
+              args: [
+                'publish',
+                './bundle/product-package/pkg.tgz',
+                '--tag',
+                'next',
+                '--access',
+                'public',
+                '--registry',
+                'https://registry.npmjs.org/',
+              ],
             },
           },
         ],
@@ -1593,7 +1696,9 @@ process.exit(0);
   };
   assert.deepEqual(manifest.execution.completedSteps, ['publish-1', 'publish-2']);
   assert.deepEqual(manifest.execution.retryPolicy, { maxRetries: 2, retryDelayMs: 0 });
-  const publish1Attempts = manifest.execution.attempts.filter((entry) => entry.stepId === 'publish-1');
+  const publish1Attempts = manifest.execution.attempts.filter(
+    (entry) => entry.stepId === 'publish-1',
+  );
   assert.equal(publish1Attempts.length, 2);
   assert.equal(publish1Attempts[0]?.status, 'failed');
   assert.equal(publish1Attempts[0]?.retriable, true);
@@ -1653,7 +1758,16 @@ process.exit(0);
             publishConfig: { registry: 'https://registry.npmjs.org/' },
             command: {
               program: 'npm',
-              args: ['publish', './bundle/cli-package/pkg.tgz', '--tag', 'next', '--access', 'public', '--registry', 'https://registry.npmjs.org/'],
+              args: [
+                'publish',
+                './bundle/cli-package/pkg.tgz',
+                '--tag',
+                'next',
+                '--access',
+                'public',
+                '--registry',
+                'https://registry.npmjs.org/',
+              ],
             },
           },
           {
@@ -1662,7 +1776,16 @@ process.exit(0);
             publishConfig: { registry: 'https://registry.npmjs.org/' },
             command: {
               program: 'npm',
-              args: ['publish', './bundle/product-package/pkg.tgz', '--tag', 'next', '--access', 'public', '--registry', 'https://registry.npmjs.org/'],
+              args: [
+                'publish',
+                './bundle/product-package/pkg.tgz',
+                '--tag',
+                'next',
+                '--access',
+                'public',
+                '--registry',
+                'https://registry.npmjs.org/',
+              ],
             },
           },
         ],
@@ -1720,8 +1843,10 @@ process.exit(0);
     .filter(Boolean)
     .map((line) => JSON.parse(line) as { args: string[] });
   assert.equal(lines.filter((entry) => entry.args[0] === 'publish').length, 2);
-  assert.deepEqual(
-    lines.find((entry) => entry.args[0] === 'unpublish')?.args,
-    ['unpublish', '@lania-cli/cli@1.0.0', '--registry', 'https://registry.npmjs.org/'],
-  );
+  assert.deepEqual(lines.find((entry) => entry.args[0] === 'unpublish')?.args, [
+    'unpublish',
+    '@lania-cli/cli@1.0.0',
+    '--registry',
+    'https://registry.npmjs.org/',
+  ]);
 });

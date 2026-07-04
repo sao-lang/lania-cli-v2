@@ -1,4 +1,4 @@
-//! 帮助与全局配置类 e2e。
+﻿//! 帮助与全局配置类 e2e。
 use super::common::*;
 use super::*;
 
@@ -323,6 +323,7 @@ fn lan_config_get_locale_human_mode_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_config_get_root_human_mode_e2e() {
     let root = temp_dir("config-root-human");

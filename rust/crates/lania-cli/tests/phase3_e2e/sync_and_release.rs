@@ -1,4 +1,4 @@
-//! sync/release git 工作流 e2e。
+﻿//! sync/release git 工作流 e2e。
 use super::common::*;
 use super::*;
 
@@ -193,6 +193,7 @@ fn lan_release_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_release_web_app_run_e2e() {
     let root = temp_dir("release-web-app");

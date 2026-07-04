@@ -1,4 +1,4 @@
-//! dev/build/lint 编译链路 e2e。
+﻿//! dev/build/lint 编译链路 e2e。
 use super::common::*;
 use super::*;
 

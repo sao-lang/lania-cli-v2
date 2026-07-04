@@ -98,3 +98,6 @@ pub fn save_preferences(prefs: &UserPreferences) -> Result<()> {
     fs::write(path, format!("{json}\n"))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

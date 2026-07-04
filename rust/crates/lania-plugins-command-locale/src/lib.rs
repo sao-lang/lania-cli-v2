@@ -280,3 +280,139 @@ impl CommandHandler for ConfigSetHandler {
         Ok(ctx.complete_template_info(output, 0))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ConfigCommandPlugin;
+    use lania_preferences::UserPreferences;
+
+    // ── is_zh ─────────────────────────────────────────────────
+
+    #[test]
+    fn is_zh_returns_true_for_zh() {
+        assert!(ConfigCommandPlugin::is_zh("zh"));
+    }
+
+    #[test]
+    fn is_zh_returns_false_for_en() {
+        assert!(!ConfigCommandPlugin::is_zh("en"));
+    }
+
+    // ── localized ─────────────────────────────────────────────
+
+    #[test]
+    fn localized_returns_zh_when_locale_is_zh() {
+        assert_eq!(ConfigCommandPlugin::localized("zh", "hello", "你好"), "你好");
+    }
+
+    #[test]
+    fn localized_returns_en_when_locale_is_not_zh() {
+        assert_eq!(ConfigCommandPlugin::localized("en", "hello", "你好"), "hello");
+    }
+
+    // ── normalize_key ─────────────────────────────────────────
+
+    #[test]
+    fn normalize_key_returns_known_keys() {
+        assert_eq!(ConfigCommandPlugin::normalize_key("locale"), Some("locale"));
+        assert_eq!(ConfigCommandPlugin::normalize_key("log.timestamps"), Some("log.timestamps"));
+        assert_eq!(ConfigCommandPlugin::normalize_key("log.timestamp"), Some("log.timestamps"));
+        assert_eq!(ConfigCommandPlugin::normalize_key("output.mode"), Some("output.mode"));
+        assert_eq!(ConfigCommandPlugin::normalize_key("output"), Some("output.mode"));
+    }
+
+    #[test]
+    fn normalize_key_returns_none_for_unknown() {
+        assert_eq!(ConfigCommandPlugin::normalize_key("unknown"), None);
+        assert_eq!(ConfigCommandPlugin::normalize_key(""), None);
+        assert_eq!(ConfigCommandPlugin::normalize_key("  "), None);
+    }
+
+    // ── parse_bool ────────────────────────────────────────────
+
+    #[test]
+    fn parse_bool_accepts_true_values() {
+        assert!(ConfigCommandPlugin::parse_bool("en", "true").unwrap());
+        assert!(ConfigCommandPlugin::parse_bool("en", "1").unwrap());
+        assert!(ConfigCommandPlugin::parse_bool("zh", "yes").unwrap());
+        assert!(ConfigCommandPlugin::parse_bool("en", "on").unwrap());
+    }
+
+    #[test]
+    fn parse_bool_accepts_false_values() {
+        assert!(!ConfigCommandPlugin::parse_bool("en", "false").unwrap());
+        assert!(!ConfigCommandPlugin::parse_bool("en", "0").unwrap());
+        assert!(!ConfigCommandPlugin::parse_bool("zh", "no").unwrap());
+        assert!(!ConfigCommandPlugin::parse_bool("en", "off").unwrap());
+    }
+
+    #[test]
+    fn parse_bool_rejects_invalid_values() {
+        assert!(ConfigCommandPlugin::parse_bool("en", "maybe").is_err());
+        assert!(ConfigCommandPlugin::parse_bool("en", "").is_err());
+    }
+
+    // ── apply_config_value ────────────────────────────────────
+
+    #[test]
+    fn apply_config_value_sets_locale() {
+        let mut prefs = UserPreferences::default();
+        ConfigCommandPlugin::apply_config_value("en", &mut prefs, "locale", "zh-CN").unwrap();
+        assert_eq!(prefs.locale, "zh");
+    }
+
+    #[test]
+    fn apply_config_value_sets_log_timestamps() {
+        let mut prefs = UserPreferences::default();
+        ConfigCommandPlugin::apply_config_value("en", &mut prefs, "log.timestamps", "true").unwrap();
+        assert!(prefs.log_timestamps);
+    }
+
+    #[test]
+    fn apply_config_value_sets_output_mode() {
+        let mut prefs = UserPreferences::default();
+        ConfigCommandPlugin::apply_config_value("en", &mut prefs, "output.mode", "human").unwrap();
+        assert_eq!(prefs.output_mode, "human");
+    }
+
+    #[test]
+    fn apply_config_value_rejects_unknown_key() {
+        let mut prefs = UserPreferences::default();
+        let result = ConfigCommandPlugin::apply_config_value("en", &mut prefs, "unknown", "val");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn apply_config_value_rejects_invalid_bool() {
+        let mut prefs = UserPreferences::default();
+        let result = ConfigCommandPlugin::apply_config_value("en", &mut prefs, "log.timestamps", "bad");
+        assert!(result.is_err());
+    }
+
+    // ── invalid_key_error ─────────────────────────────────────
+
+    #[test]
+    fn invalid_key_error_includes_key_name() {
+        let err = ConfigCommandPlugin::invalid_key_error("en", "foo");
+        let msg = format!("{err}");
+        assert!(msg.contains("foo"));
+    }
+
+    #[test]
+    fn invalid_key_error_is_localized_in_zh() {
+        let err = ConfigCommandPlugin::invalid_key_error("zh", "foo");
+        let msg = format!("{err}");
+        assert!(msg.contains("未知配置项"));
+    }
+
+    // ── config_output ─────────────────────────────────────────
+
+    #[test]
+    fn config_output_contains_config_section() {
+        let prefs = UserPreferences::default();
+        let output = ConfigCommandPlugin::config_output(&prefs);
+        assert_eq!(output["kind"], "config");
+        assert_eq!(output["config"]["locale"], "en");
+        assert_eq!(output["config"]["output"]["mode"], "json");
+    }
+}

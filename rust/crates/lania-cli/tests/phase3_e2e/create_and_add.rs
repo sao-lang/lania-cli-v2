@@ -1,7 +1,8 @@
-//! create/add 工作流 e2e。
+﻿//! create/add 工作流 e2e。
 use super::common::*;
 use super::*;
 
+#[cfg(unix)]
 #[test]
 fn lan_create_e2e() {
     let root = temp_dir("create");
@@ -33,6 +34,7 @@ fn lan_create_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_create_with_template_options_e2e() {
     let root = temp_dir("create-vue");
@@ -63,6 +65,7 @@ fn lan_create_with_template_options_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_create_preview_e2e() {
     let root = temp_dir("create-preview");
@@ -97,6 +100,7 @@ fn lan_create_preview_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_create_interactive_e2e() {
     let root = temp_dir("create-interactive");
@@ -126,6 +130,7 @@ fn lan_create_interactive_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_create_multiselect_interactive_e2e() {
     let root = temp_dir("create-multiselect-interactive");
@@ -158,6 +163,7 @@ fn lan_create_multiselect_interactive_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_create_current_directory_interactive_e2e() {
     let root = temp_dir("create-current-dir-interactive");
@@ -255,6 +261,7 @@ fn lan_add_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[cfg(unix)]
 #[test]
 fn lan_add_interactive_e2e() {
     let root = temp_dir("add-interactive");

@@ -454,7 +454,13 @@ pub(super) fn bridge_launch_spec_for_dir(package_dir: &Path) -> Result<BridgeLau
 fn resolve_tsx_import(package_dir: &Path) -> String {
     let bundled_loader = package_dir.join("node_modules/tsx/dist/loader.mjs");
     if bundled_loader.exists() {
-        return bundled_loader.display().to_string();
+        let path = bundled_loader.display().to_string();
+        // On Windows, Node.js --import requires a file:// URL, not a raw
+        // path with a drive letter (e.g. "E:\..." is interpreted as protocol "e:").
+        if cfg!(windows) {
+            return format!("file:///{}", path.replace('\\', "/"));
+        }
+        return path;
     }
     "tsx".into()
 }

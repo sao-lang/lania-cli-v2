@@ -1,4 +1,5 @@
 // 执行类用例，覆盖 manifest handler 调用和 schema handler 的工具注入。
+import path from 'node:path';
 import test from 'node:test';
 
 import {
@@ -215,16 +216,13 @@ export function registerTests() {
     assert.equal(result?.result.product?.binaryName, 'acme');
     assert.equal(result?.result.product?.displayName, 'Acme CLI');
     assert.equal(result?.result.product?.version, '1.2.3');
-    assert.equal(
-      result?.result.product?.templatesDir,
-      `${cwd}/templates`,
-    );
+    assert.equal(result?.result.product?.templatesDir, path.join(cwd, 'templates'));
     assert.equal(result?.result.runtime?.mode, 'development');
     assert.equal(result?.result.runtime?.traceId, 'trace-context');
     assert.equal(result?.result.runtime?.invocationCwd, cwd);
     assert.equal(result?.result.runtime?.workspaceRoot, cwd);
     assert.equal(result?.result.runtime?.productRoot, cwd);
-    assert.equal(result?.result.runtime?.schemaRoot, `${cwd}/config`);
+    assert.equal(result?.result.runtime?.schemaRoot, path.join(cwd, 'config'));
   });
 
   test('command.invokeDynamic distinguishes installed mode productRoot and workspaceRoot', async (t) => {
@@ -339,10 +337,10 @@ export function registerTests() {
     assert.equal(result?.result.runtime?.invocationCwd, cwd);
     assert.equal(result?.result.runtime?.workspaceRoot, cwd);
     assert.equal(result?.result.runtime?.productRoot, installRoot);
-    assert.equal(result?.result.runtime?.schemaRoot, `${installRoot}/config`);
+    assert.equal(result?.result.runtime?.schemaRoot, path.join(installRoot, 'config'));
     assert.equal(result?.result.product?.productRoot, installRoot);
-    assert.equal(result?.result.product?.schemaRoot, `${installRoot}/config`);
-    assert.equal(result?.result.product?.templatesDir, `${installRoot}/templates`);
+    assert.equal(result?.result.product?.schemaRoot, path.join(installRoot, 'config'));
+    assert.equal(result?.result.product?.templatesDir, path.join(installRoot, 'templates'));
   });
 
   test('command.invokeDynamic resolves ctx.product.version from package.json versionStrategy', async (t) => {
@@ -598,8 +596,7 @@ export function registerTests() {
       | undefined;
     const handler = resolveResult?.handlers.find(
       (entry) =>
-        entry.target.kind === 'manifest_command' &&
-        entry.target.path?.join(' ') === 'create-admin',
+        entry.target.kind === 'manifest_command' && entry.target.path?.join(' ') === 'create-admin',
     );
     assert.ok(handler, 'expected create-admin handler');
 
@@ -862,13 +859,9 @@ export function registerTests() {
       'ts-base',
       'feature-auth',
     ]);
-    assert.deepEqual(result?.result.rendered?.templates, [
-      'base-app',
-      'ts-base',
-      'feature-auth',
-    ]);
+    assert.deepEqual(result?.result.rendered?.templates, ['base-app', 'ts-base', 'feature-auth']);
     assert.deepEqual(
-      result?.result.rendered?.files?.map((file) => file.path).sort(),
+      result?.result.rendered?.files?.map((file) => file.path.replace(/\\/g, '/')).sort(),
       ['package.json', 'src/auth.ts', 'tsconfig.json'],
     );
     assert.deepEqual(result?.result.rendered?.collisions, []);
@@ -974,11 +967,19 @@ export function registerTests() {
 
     installHostRpcTransport({
       write: async (envelope) => {
-        const payload = envelope.payload as { id: string; method: string; params: Record<string, unknown> };
+        const payload = envelope.payload as {
+          id: string;
+          method: string;
+          params: Record<string, unknown>;
+        };
         const respond = createHostRpcResponder(payload);
         const method = payload.method;
         if (method === 'host.fs.exists') {
-          const path = `${String(payload.params.cwd ?? '')}/${String(payload.params.path ?? '')}`.replace(/\/+/g, '/');
+          const path =
+            `${String(payload.params.cwd ?? '')}/${String(payload.params.path ?? '')}`.replace(
+              /\/+/g,
+              '/',
+            );
           try {
             await readFile(path, 'utf8');
             respond({ exists: true });
@@ -988,12 +989,20 @@ export function registerTests() {
           return;
         }
         if (method === 'host.fs.read') {
-          const path = `${String(payload.params.cwd ?? '')}/${String(payload.params.path ?? '')}`.replace(/\/+/g, '/');
+          const path =
+            `${String(payload.params.cwd ?? '')}/${String(payload.params.path ?? '')}`.replace(
+              /\/+/g,
+              '/',
+            );
           respond({ content: await readFile(path, 'utf8') });
           return;
         }
         if (method === 'host.fs.write') {
-          const path = `${String(payload.params.cwd ?? '')}/${String(payload.params.path ?? '')}`.replace(/\/+/g, '/');
+          const path =
+            `${String(payload.params.cwd ?? '')}/${String(payload.params.path ?? '')}`.replace(
+              /\/+/g,
+              '/',
+            );
           await writeFile(path, String(payload.params.content ?? ''));
           respond({ ok: true });
           return;
@@ -1004,7 +1013,8 @@ export function registerTests() {
         }
         if (method === 'host.exec.runChecked') {
           execCalls.push({
-            program: typeof payload.params.program === 'string' ? payload.params.program : undefined,
+            program:
+              typeof payload.params.program === 'string' ? payload.params.program : undefined,
             args: Array.isArray(payload.params.args)
               ? payload.params.args.map((entry) => String(entry))
               : undefined,
@@ -1284,9 +1294,9 @@ export function registerTests() {
     assert.deepEqual(result?.result.steps?.[2]?.data?.features, ['typescript']);
     assert.deepEqual(result?.result.steps?.[3]?.data?.templates, ['base-app', 'ts-base']);
     assert.deepEqual(
-      (result?.result.steps?.[3]?.data?.files as Array<{ path: string }> | undefined)?.map(
-        (file) => file.path,
-      ).sort(),
+      (result?.result.steps?.[3]?.data?.files as Array<{ path: string }> | undefined)
+        ?.map((file) => file.path)
+        .sort(),
       ['package.json', 'tsconfig.json'],
     );
     assert.deepEqual(
@@ -1324,12 +1334,16 @@ export function registerTests() {
     );
     assert.equal(result?.result.steps?.[8]?.data?.source, 'scaffold.postActions');
     assert.equal(
-      (result?.result.steps?.[8]?.data?.actions as Array<{ executed?: boolean; skipped?: boolean }> | undefined)?.[0]
-        ?.executed,
+      (
+        result?.result.steps?.[8]?.data?.actions as
+          | Array<{ executed?: boolean; skipped?: boolean }>
+          | undefined
+      )?.[0]?.executed,
       false,
     );
     assert.equal(
-      (result?.result.steps?.[8]?.data?.actions as Array<{ status?: string }> | undefined)?.[1]?.status,
+      (result?.result.steps?.[8]?.data?.actions as Array<{ status?: string }> | undefined)?.[1]
+        ?.status,
       'already_initialized',
     );
     assert.match(
@@ -1365,9 +1379,9 @@ export function registerTests() {
       /nextSteps: pnpm install, pnpm run dev/,
     );
     assert.deepEqual(
-      (result?.result.steps?.[9]?.data?.mergedFiles as
+      result?.result.steps?.[9]?.data?.mergedFiles as
         | Array<{ path: string; change: string; strategy: string; source: string }>
-        | undefined),
+        | undefined,
       [
         {
           path: 'package.json',
@@ -1384,16 +1398,23 @@ export function registerTests() {
       ],
     );
     assert.deepEqual(
-      (result?.result.steps?.[9]?.data?.postActions as
-        | Array<{ name: string; type: string; status?: string; executed?: boolean; skipped?: boolean }>
-        | undefined)
-        ?.map((action) => ({
-          name: action.name,
-          type: action.type,
-          status: action.status,
-          executed: action.executed,
-          skipped: action.skipped,
-        })),
+      (
+        result?.result.steps?.[9]?.data?.postActions as
+          | Array<{
+              name: string;
+              type: string;
+              status?: string;
+              executed?: boolean;
+              skipped?: boolean;
+            }>
+          | undefined
+      )?.map((action) => ({
+        name: action.name,
+        type: action.type,
+        status: action.status,
+        executed: action.executed,
+        skipped: action.skipped,
+      })),
       [
         {
           name: 'install-if-enabled',
@@ -1445,21 +1466,23 @@ export function registerTests() {
     assert.deepEqual(
       execCalls.filter((call) => call.program === 'pnpm'),
       [
-      {
-        program: 'pnpm',
-        args: ['install', '--strict-peer-dependencies=false', 'react'],
-        cwd,
-      },
-      {
-        program: 'pnpm',
-        args: ['install', '--strict-peer-dependencies=false', '--save-dev', 'typescript'],
-        cwd,
-      },
+        {
+          program: 'pnpm',
+          args: ['install', '--strict-peer-dependencies=false', 'react'],
+          cwd,
+        },
+        {
+          program: 'pnpm',
+          args: ['install', '--strict-peer-dependencies=false', '--save-dev', 'typescript'],
+          cwd,
+        },
       ],
     );
     assert.equal(gitInitialized, true);
     assert.ok(logMessages.some((message) => message.includes('runtime: development')));
-    assert.ok(logMessages.some((message) => message.includes('writtenFiles: package.json, tsconfig.json')));
+    assert.ok(
+      logMessages.some((message) => message.includes('writtenFiles: package.json, tsconfig.json')),
+    );
   });
 
   test('command.invokeDynamic supports plugin handlers declared in schema plugins', async (t) => {
@@ -1502,8 +1525,8 @@ export function registerTests() {
           name: 'existing-app',
           private: true,
           scripts: {
-            lint: 'eslint .'
-          }
+            lint: 'eslint .',
+          },
         },
         null,
         2,
@@ -1520,8 +1543,7 @@ export function registerTests() {
       | undefined;
     const handler = resolveResult?.handlers.find(
       (entry) =>
-        entry.target.kind === 'manifest_command' &&
-        entry.target.path?.join(' ') === 'plugin-run',
+        entry.target.kind === 'manifest_command' && entry.target.path?.join(' ') === 'plugin-run',
     );
     assert.ok(handler, 'expected schema plugin handler');
 

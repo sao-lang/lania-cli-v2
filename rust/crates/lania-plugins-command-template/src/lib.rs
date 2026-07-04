@@ -389,3 +389,162 @@ impl CommandHandler for TemplateCommandHandler {
         Ok(ctx.complete_template_info(output, EXIT_SUCCESS))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::TemplateCommandPlugin;
+
+    // ── is_zh_locale / localized ─────────────────────────────
+
+    #[test]
+    fn is_zh_locale_returns_true_for_zh() {
+        assert!(TemplateCommandPlugin::is_zh_locale("zh"));
+    }
+
+    #[test]
+    fn is_zh_locale_returns_false_for_en() {
+        assert!(!TemplateCommandPlugin::is_zh_locale("en"));
+    }
+
+    #[test]
+    fn localized_returns_zh_when_locale_is_zh() {
+        assert_eq!(TemplateCommandPlugin::localized("zh", "hello", "你好"), "你好");
+    }
+
+    // ── localized_label ──────────────────────────────────────
+
+    #[test]
+    fn localized_label_returns_english_by_default() {
+        assert_eq!(TemplateCommandPlugin::localized_label("template", "en"), "Template");
+        assert_eq!(TemplateCommandPlugin::localized_label("summary", "en"), "Summary");
+        assert_eq!(TemplateCommandPlugin::localized_label("highlights", "en"), "Highlights");
+    }
+
+    #[test]
+    fn localized_label_returns_chinese_when_locale_is_zh() {
+        assert_eq!(TemplateCommandPlugin::localized_label("template", "zh"), "模板");
+        assert_eq!(TemplateCommandPlugin::localized_label("summary", "zh"), "简介");
+        assert_eq!(TemplateCommandPlugin::localized_label("highlights", "zh"), "关键特征");
+    }
+
+    // ── template_summary ─────────────────────────────────────
+
+    #[test]
+    fn template_summary_returns_english_for_spa_react() {
+        let summary = TemplateCommandPlugin::template_summary("spa-react", "en");
+        assert!(summary.contains("React"));
+    }
+
+    #[test]
+    fn template_summary_returns_chinese_for_spa_react() {
+        let summary = TemplateCommandPlugin::template_summary("spa-react", "zh");
+        assert!(summary.contains("React"));
+    }
+
+    #[test]
+    fn template_summary_returns_chinese_for_toolkit_monorepo() {
+        let summary = TemplateCommandPlugin::template_summary("toolkit-monorepo", "zh");
+        assert!(summary.contains("monorepo"));
+    }
+
+    #[test]
+    fn template_summary_falls_back_to_name_for_unknown() {
+        let summary = TemplateCommandPlugin::template_summary("custom", "en");
+        assert_eq!(summary, "custom");
+    }
+
+    // ── template_highlights ──────────────────────────────────
+
+    #[test]
+    fn template_highlights_returns_four_items_for_spa_react() {
+        let highlights = TemplateCommandPlugin::template_highlights("spa-react", "en");
+        assert_eq!(highlights.len(), 4);
+        assert!(highlights[0].contains("React"));
+    }
+
+    #[test]
+    fn template_highlights_returns_chinese_for_zh_locale() {
+        let highlights = TemplateCommandPlugin::template_highlights("spa-react", "zh");
+        assert_eq!(highlights.len(), 4);
+        assert!(highlights[0].contains("React"));
+    }
+
+    #[test]
+    fn template_highlights_returns_empty_for_unknown() {
+        let highlights = TemplateCommandPlugin::template_highlights("unknown", "en");
+        assert!(highlights.is_empty());
+    }
+
+    // ── render_template_detail ───────────────────────────────
+
+    #[test]
+    fn render_template_detail_contains_name_and_summary() {
+        let detail = serde_json::json!({
+            "name": "spa-react",
+            "summary": "React SPA"
+        });
+        let rendered = TemplateCommandPlugin::render_template_detail(&detail, "en");
+        assert!(rendered.contains("spa-react"));
+        assert!(rendered.contains("Summary"));
+        assert!(rendered.contains("React"));
+    }
+
+    #[test]
+    fn render_template_detail_renders_highlights_section() {
+        let detail = serde_json::json!({
+            "name": "toolkit",
+        });
+        let rendered = TemplateCommandPlugin::render_template_detail(&detail, "zh");
+        assert!(rendered.contains("关键特征"));
+        assert!(rendered.contains("工具库"));
+    }
+
+    // ── template_choice_label ────────────────────────────────
+
+    #[test]
+    fn template_choice_label_extracts_name() {
+        let meta = serde_json::json!({"name": "spa-react", "version": "1.0"});
+        assert_eq!(TemplateCommandPlugin::template_choice_label(&meta, "en"), "spa-react");
+    }
+
+    #[test]
+    fn template_choice_label_falls_back_to_unknown() {
+        let meta = serde_json::json!({"version": "1.0"});
+        assert_eq!(TemplateCommandPlugin::template_choice_label(&meta, "en"), "unknown");
+    }
+
+    // ── resolve_template_name ────────────────────────────────
+
+    #[test]
+    fn resolve_template_name_returns_none_when_no_name() {
+        let context = lania_command::CommandContext {
+            handler_id: "command.template".into(),
+            argv: lania_command::ParsedArgv {
+                args: std::collections::BTreeMap::new(),
+                options: std::collections::BTreeMap::new(),
+            },
+            cwd: "/tmp".into(),
+            trace_id: "test".into(),
+        };
+        assert_eq!(TemplateCommandPlugin::resolve_template_name(&context), None);
+    }
+
+    #[test]
+    fn resolve_template_name_reads_from_args() {
+        let mut args = std::collections::BTreeMap::new();
+        args.insert("name".into(), serde_json::json!("toolkit"));
+        let context = lania_command::CommandContext {
+            handler_id: "command.template".into(),
+            argv: lania_command::ParsedArgv {
+                args,
+                options: std::collections::BTreeMap::new(),
+            },
+            cwd: "/tmp".into(),
+            trace_id: "test".into(),
+        };
+        assert_eq!(
+            TemplateCommandPlugin::resolve_template_name(&context),
+            Some("toolkit".into())
+        );
+    }
+}

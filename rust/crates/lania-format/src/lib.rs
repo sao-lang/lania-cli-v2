@@ -304,9 +304,124 @@ fn format_json(input: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FormatMode, FormatOptions, FormatService};
+    use super::{
+        file_ext, format_json, ok, skipped, FormatFileResult, FormatMode, FormatOptions,
+        FormatReport, FormatService, FormatStatus,
+    };
     use lania_exec::ExecService;
     use lania_fs::PlannedFile;
+    use std::path::Path;
+
+    // ── FormatReport ──────────────────────────────────────────────
+
+    #[test]
+    fn format_report_counts_formatted() {
+        let report = FormatReport {
+            results: vec![
+                FormatFileResult {
+                    path: "a.json".into(),
+                    status: FormatStatus::Formatted,
+                    tool: None,
+                    message: None,
+                },
+                FormatFileResult {
+                    path: "b.json".into(),
+                    status: FormatStatus::Skipped,
+                    tool: None,
+                    message: None,
+                },
+                FormatFileResult {
+                    path: "c.json".into(),
+                    status: FormatStatus::Formatted,
+                    tool: None,
+                    message: None,
+                },
+            ],
+        };
+        assert_eq!(report.formatted_count(), 2);
+        assert_eq!(report.skipped_count(), 1);
+        assert_eq!(report.failed_count(), 0);
+    }
+
+    // ── FormatOptions::default ────────────────────────────────────
+
+    #[test]
+    fn format_options_default_is_enabled_best_effort() {
+        let opts = FormatOptions::default();
+        assert_eq!(opts.enabled, true);
+        assert_eq!(opts.mode, FormatMode::BestEffort);
+        assert_eq!(opts.root_dir, None);
+    }
+
+    // ── format_json ───────────────────────────────────────────────
+
+    #[test]
+    fn format_json_sorts_keys_and_indents() {
+        let result = format_json("{\"b\":1,\"a\":2}");
+        assert_eq!(result, Some("{\n  \"a\": 2,\n  \"b\": 1\n}\n".into()));
+    }
+
+    #[test]
+    fn format_json_handles_empty_object() {
+        // serde_json keeps empty objects compact
+        let result = format_json("{}");
+        assert_eq!(result, Some("{}\n".into()));
+    }
+
+    #[test]
+    fn format_json_handles_nested_json() {
+        let input = "{\"outer\":{\"inner\":1}}";
+        let result = format_json(input);
+        assert!(result.is_some());
+        let out = result.unwrap();
+        assert!(out.contains("\"outer\""));
+        assert!(out.contains("\"inner\""));
+    }
+
+    #[test]
+    fn format_json_returns_none_for_invalid_input() {
+        assert_eq!(format_json("not json"), None);
+        assert_eq!(format_json(""), None);
+    }
+
+    #[test]
+    fn format_json_preserves_already_pretty_json() {
+        let pretty = "{\n  \"a\": 1\n}\n";
+        let result = format_json(pretty);
+        // Should still produce valid pretty output
+        assert!(result.is_some());
+    }
+
+    // ── file_ext ──────────────────────────────────────────────────
+
+    #[test]
+    fn file_ext_returns_extension_lowercase() {
+        assert_eq!(file_ext(Path::new("test.JSON")), Some("json".into()));
+        assert_eq!(file_ext(Path::new("test.ts")), Some("ts".into()));
+    }
+
+    #[test]
+    fn file_ext_returns_none_when_no_extension() {
+        assert_eq!(file_ext(Path::new("Makefile")), None);
+    }
+
+    // ── ok / skipped helpers ──────────────────────────────────────
+
+    #[test]
+    fn ok_creates_formatted_result() {
+        let r = ok(Path::new("f.json"), Some("prettier".into()));
+        assert_eq!(r.status, FormatStatus::Formatted);
+        assert_eq!(r.tool, Some("prettier".into()));
+    }
+
+    #[test]
+    fn skipped_creates_skipped_result_with_message() {
+        let r = skipped(Path::new("f.json"), None, "unsupported");
+        assert_eq!(r.status, FormatStatus::Skipped);
+        assert_eq!(r.message, Some("unsupported".into()));
+    }
+
+    // ── FormatService integration ─────────────────────────────────
 
     #[test]
     fn formats_json_in_process() {
@@ -328,6 +443,75 @@ mod tests {
             )
             .expect("format succeeds");
         assert_eq!(report.formatted_count(), 1);
+        assert_eq!(report.failed_count(), 0);
         assert_eq!(files[0].content, "{\n  \"a\": 2,\n  \"b\": 1\n}\n");
+    }
+
+    #[test]
+    fn format_disabled_returns_empty_report() {
+        let exec = ExecService::dry_run();
+        let service = FormatService;
+        let mut files = vec![PlannedFile {
+            path: "demo.json".into(),
+            content: "{}".into(),
+        }];
+        let report = service
+            .format_planned_files(
+                &exec,
+                &mut files,
+                &FormatOptions {
+                    enabled: false,
+                    mode: FormatMode::BestEffort,
+                    root_dir: None,
+                },
+            )
+            .expect("format disabled");
+        assert_eq!(report.formatted_count(), 0);
+        assert_eq!(report.skipped_count(), 0);
+        // Content unchanged when disabled
+        assert_eq!(files[0].content, "{}");
+    }
+
+    #[test]
+    fn format_skips_unsupported_file_types() {
+        let exec = ExecService::dry_run();
+        let service = FormatService;
+        let mut files = vec![PlannedFile {
+            path: "readme.txt".into(),
+            content: "Hello".into(),
+        }];
+        let report = service
+            .format_planned_files(
+                &exec,
+                &mut files,
+                &FormatOptions::default(),
+            )
+            .expect("format skips unsupported");
+        assert_eq!(report.formatted_count(), 0);
+        assert_eq!(report.skipped_count(), 1);
+        assert!(report.results[0].message.as_deref().unwrap_or("").contains("unsupported file type"));
+    }
+
+    #[test]
+    fn format_best_effort_does_not_fail_on_missing_formatter() {
+        let exec = ExecService::dry_run();
+        let service = FormatService;
+        let mut files = vec![PlannedFile {
+            path: "script.ts".into(),
+            content: "let x=1".into(),
+        }];
+        // BestEffort mode: missing external formatter should skip, not fail
+        let report = service
+            .format_planned_files(
+                &exec,
+                &mut files,
+                &FormatOptions {
+                    enabled: true,
+                    mode: FormatMode::BestEffort,
+                    root_dir: None,
+                },
+            )
+            .expect("best effort should not fail");
+        assert_eq!(report.failed_count(), 0);
     }
 }

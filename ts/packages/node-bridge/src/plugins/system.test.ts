@@ -24,7 +24,7 @@ test('system.listCommands enumerates PATH executables and dedupes by command nam
   await writeFile(path.join(binB, 'README.md'), '# not executable\n');
 
   const previousPath = process.env.PATH;
-  process.env.PATH = `${binA}:${binB}`;
+  process.env.PATH = `${binA}${path.delimiter}${binB}`;
 
   try {
     const handled = await systemPlugin.handle(
@@ -45,14 +45,16 @@ test('system.listCommands enumerates PATH executables and dedupes by command nam
     assert.equal(result.summary.unique, 3);
     assert.equal(result.summary.duplicates, 1);
     assert.equal(result.summary.shellBuiltins, 0);
+    // On Windows, PATHEXT adds .cmd extension to command names
+    const cmdExt = process.platform === 'win32' ? '.cmd' : '';
     assert.deepEqual(
       result.commands.map((command) => command.name),
-      ['node', 'npm', 'tsc'],
+      [`node${cmdExt}`, `npm${cmdExt}`, `tsc${cmdExt}`],
     );
     assert.deepEqual(result.duplicates, [
       {
-        name: 'node',
-        paths: [path.join(binA, 'node'), path.join(binB, 'node')],
+        name: `node${cmdExt}`,
+        paths: [path.join(binA, `node${cmdExt}`), path.join(binB, `node${cmdExt}`)],
       },
     ]);
   } finally {
@@ -77,7 +79,7 @@ test('system.listCommands supports filter, limit, and allMatches', async (t) => 
     'system.listCommands',
     {
       cwd: root,
-      path: `${binA}:${binB}`,
+      path: `${binA}${path.delimiter}${binB}`,
       filter: 'ts',
       limit: 2,
       allMatches: true,
@@ -91,11 +93,13 @@ test('system.listCommands supports filter, limit, and allMatches', async (t) => 
     summary: { returned: number };
     commands: Array<{ name: string; path: string }>;
   };
+  // On Windows, PATHEXT adds .cmd extension to command names
+  const cmdExt = process.platform === 'win32' ? '.cmd' : '';
   assert.deepEqual(
     result.commands.map((command) => [command.name, command.path]),
     [
-      ['tsc', path.join(binA, 'tsc')],
-      ['tsc', path.join(binB, 'tsc')],
+      [`tsc${cmdExt}`, path.join(binA, `tsc${cmdExt}`)],
+      [`tsc${cmdExt}`, path.join(binB, `tsc${cmdExt}`)],
     ],
   );
   assert.equal(result.summary.returned, 2);
@@ -123,7 +127,9 @@ take
 });
 
 async function writeExecutable(directory: string, name: string) {
-  const filePath = path.join(directory, name);
+  // On Windows, PATHEXT requires an executable extension (.cmd, .exe, etc.)
+  const ext = process.platform === 'win32' ? '.cmd' : '';
+  const filePath = path.join(directory, `${name}${ext}`);
   await writeFile(filePath, '#!/usr/bin/env node\n');
   await chmod(filePath, 0o755);
 }
