@@ -137,15 +137,6 @@ function stageNodeBridgePayload() {
   );
   copyDir(bridgeDist, path.join(payloadRoot, 'dist'));
 
-  // Templates runtime assets placed under node_modules so the bridge can import it by specifier.
-  const templatesTarget = path.join(payloadRoot, 'node_modules/@lania-cli/templates');
-  ensureDir(templatesTarget);
-  copyFile(
-    path.join(repoRoot, 'ts/packages/templates/package.json'),
-    path.join(templatesTarget, 'package.json'),
-  );
-  copyDir(templatesDist, path.join(templatesTarget, 'dist'));
-
   // Install runtime deps into payloadRoot/node_modules so:
   // - `node --import tsx ...` resolves `tsx` from payloadRoot
   // - `@lania-cli/templates` can resolve `ejs`
@@ -167,6 +158,16 @@ function stageNodeBridgePayload() {
   run('npm', ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
     cwd: payloadRoot,
   });
+
+  // Templates runtime assets placed under node_modules so the bridge can import it by specifier.
+  // Must happen AFTER npm install, otherwise npm install may clean up the manually placed directory.
+  const templatesTarget = path.join(payloadRoot, 'node_modules/@lania-cli/templates');
+  ensureDir(templatesTarget);
+  copyFile(
+    path.join(repoRoot, 'ts/packages/templates/package.json'),
+    path.join(templatesTarget, 'package.json'),
+  );
+  copyDir(templatesDist, path.join(templatesTarget, 'dist'));
 
   // Clean up files not needed at runtime.
   rmIfExists(path.join(payloadRoot, 'package-lock.json'));
@@ -262,7 +263,8 @@ function stagePlatformBinary(descriptor, releaseBinaryPath, source) {
 }
 
 function stagePlatformBinaries() {
-  const src = path.join(repoRoot, 'rust/target/release/lania-cli');
+  const binaryName = process.platform === 'win32' ? 'lania-cli.exe' : 'lania-cli';
+  const src = path.join(repoRoot, 'rust/target/release', binaryName);
   if (!fs.existsSync(src)) {
     throw new Error('Missing Rust release binary. Run cargo build --release first.');
   }

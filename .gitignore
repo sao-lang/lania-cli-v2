@@ -47,3 +47,7 @@ npm/cli-darwin-arm64/*.tgz
 tmp/
 temp/
 /.tmp*
+
+.lania
+
+lania-cli

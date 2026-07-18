@@ -1,6 +1,11 @@
 import { delimiter, resolve } from 'node:path';
 
-import type { DiscoveredCommand, ListCommandOptions, ShellDiscoverySnapshot, CommandSource } from './types.js';
+import type {
+  DiscoveredCommand,
+  ListCommandOptions,
+  ShellDiscoverySnapshot,
+  CommandSource,
+} from './types.js';
 
 // 这一层只负责把外部请求参数归一化成稳定的 `ListCommandOptions`，
 // 同时提供后续发现流程会复用的小型纯函数工具。
@@ -9,18 +14,24 @@ export function normalizeOptions(
   contextCwd?: string,
 ): ListCommandOptions {
   const cwd =
-    typeof params.cwd === 'string' ? params.cwd : contextCwd && contextCwd.length ? contextCwd : process.cwd();
+    typeof params.cwd === 'string'
+      ? params.cwd
+      : contextCwd && contextCwd.length
+        ? contextCwd
+        : process.cwd();
   const filter =
-    typeof params.filter === 'string' && params.filter.trim().length > 0 ? params.filter.trim() : null;
+    typeof params.filter === 'string' && params.filter.trim().length > 0
+      ? params.filter.trim()
+      : null;
   const limit =
     typeof params.limit === 'number' && Number.isFinite(params.limit) && params.limit > 0
       ? Math.trunc(params.limit)
       : null;
-  const pathValue = typeof params.path === 'string' ? params.path : process.env.PATH ?? '';
+  const pathValue = typeof params.path === 'string' ? params.path : (process.env.PATH ?? '');
   const shellExecutable =
     typeof params.shell === 'string' && params.shell.trim().length > 0
       ? params.shell.trim()
-      : process.env.SHELL ?? null;
+      : (process.env.SHELL ?? null);
 
   return {
     cwd,
@@ -37,18 +48,28 @@ export function normalizeOptions(
 // 放在这里是因为它只依赖选项与 shell 快照，不应混入 service 主流程。
 export function buildNotes(includeShell: boolean, shellSnapshot: ShellDiscoverySnapshot): string[] {
   if (!includeShell) {
-    return ['Only PATH-resolved executables are included because shell command discovery is disabled.'];
+    return [
+      'Only PATH-resolved executables are included because shell command discovery is disabled.',
+    ];
   }
   if (!shellSnapshot.executable) {
-    return ['PATH executables are included; shell builtin/alias/function discovery is unavailable because SHELL is not set.'];
+    return [
+      'PATH executables are included; shell builtin/alias/function discovery is unavailable because SHELL is not set.',
+    ];
   }
   if (!shellSnapshot.supported) {
-    return ['PATH executables are included; shell builtin/alias/function discovery currently supports zsh and bash only.'];
+    return [
+      'PATH executables are included; shell builtin/alias/function discovery currently supports zsh and bash only.',
+    ];
   }
   if (!shellSnapshot.loaded) {
-    return ['PATH executables are included; shell builtin/alias/function discovery failed for the current shell session.'];
+    return [
+      'PATH executables are included; shell builtin/alias/function discovery failed for the current shell session.',
+    ];
   }
-  return ['Includes PATH executables plus shell builtins, aliases, and functions from the current shell.'];
+  return [
+    'Includes PATH executables plus shell builtins, aliases, and functions from the current shell.',
+  ];
 }
 
 // PATH 中可能出现相对路径、空白项和重复目录，这里统一归一化与去重。
@@ -93,10 +114,9 @@ export function compareCommands(left: DiscoveredCommand, right: DiscoveredComman
 }
 
 function sourceRank(source: CommandSource) {
-// PATH 命令通常是用户最直观理解的“可执行命令”，因此优先级最高；
-// shell 内建、alias、function 依次排后，避免同名时结果顺序难以理解。
+  // PATH 命令通常是用户最直观理解的“可执行命令”，因此优先级最高；
+  // shell 内建、alias、function 依次排后，避免同名时结果顺序难以理解。
   switch (source) {
-    case 'PATH':
     case 'PATH':
       return 0;
     case 'shell_builtin':

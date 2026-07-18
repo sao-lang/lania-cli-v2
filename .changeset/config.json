@@ -1,11 +1,13 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
-  "changelog": false,
+  "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [
     [
       "@lania-cli/cli",
       "@lania-cli/cli-darwin-arm64",
+      "@lania-cli/cli-linux-x64",
+      "@lania-cli/cli-win32-x64",
       "@lania-cli/node-bridge",
       "@lania-cli/templates"
     ]
