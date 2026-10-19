@@ -52,10 +52,12 @@ export function registerTests() {
     assert.equal(resolved.response.error, undefined);
     const result = resolved.response.result as any;
     const handler = result.handlers.find((h: any) => h.target?.kind === 'manifest_command');
-    const inlineId = handler?.target?.hooks?.onArgsParsed?.find(
+    const inlineBinding = handler?.target?.hooks?.onArgsParsed?.find(
       (b: any) => b.type === 'inline',
-    )?.id;
+    );
+    const inlineId = inlineBinding?.id;
     assert.equal(typeof inlineId, 'string');
+    assert.equal(inlineBinding?.kind, 'waterfall');
 
     const invoked = await handleExchange({
       id: 'req-inline-2',

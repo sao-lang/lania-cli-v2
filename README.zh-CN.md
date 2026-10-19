@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./docs-site/public/logo.svg" width="96" height="96" alt="Lania CLI logo">
+</p>
+
 # Lania CLI v2
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
@@ -9,6 +13,7 @@
 ## 文档导航
 
 - [文档索引](./docs/README.zh-CN.md)：整理后的总入口，按用途区分阅读顺序。
+- [VitePress 学习文档站](./docs-site/index.md)：面向使用者的系统化学习文档，包含指南、命令参考、架构与实战。
 - [学习地图](./docs/guides/learning-map.zh-CN.md)：面向首次接手仓库的开发者，解释目录结构、模块协作和关键链路。
 - [命令与运行时 Roadmap](./docs/guides/command-runtime-roadmap.zh-CN.md)：按命令族梳理入口、handler、workflow / bridge / local 分支，以及关键函数追踪切口。
 - [符号索引](./docs/README.zh-CN.md#guides)：补充 `create`、`generate module`、`release` 三条重链路的结构体、字段、函数和上下游调用索引。
@@ -113,15 +118,15 @@ lan release plan --profile package --version 1.2.3
 规划一次产品包发布：
 
 ```bash
-lan build product
-lan pack product
-lan publish product --dist-tag next --channel next
+lan product build
+lan product pack
+lan product publish --dist-tag next --channel next
 ```
 
 执行 `publish-manifest` 的 dry-run：
 
 ```bash
-lan publish product --execute --dry-run
+lan product publish --execute --dry-run
 ```
 
 说明：
@@ -129,7 +134,7 @@ lan publish product --execute --dry-run
 - 这一步会先对 `publish-manifest.json` 做发布前校验，而不仅仅是“本地模拟执行”。
 - 当前默认校验包含 `npm whoami` 与版本冲突检查，因此即使是 `--dry-run`，也需要目标 registry 可访问，且当前环境已经完成 npm 登录。
 - 如果本机尚未登录 npm，建议先执行认证配置，或直接走本地 registry 演练：`pnpm publish:verdaccio`。
-- 如果你的目标只是验证“产品 CLI 是否已经成功产出发布物”，执行 `lan publish product` 即可；它会生成 tarball、wrapper、`publish-report.json` 和 `publish-manifest.json`，但不会真正执行 registry publish。
+- 如果你的目标只是验证“产品 CLI 是否已经成功产出发布物”，执行 `lan product publish` 即可；它会生成 tarball、wrapper、`publish-report.json` 和 `publish-manifest.json`，但不会真正执行 registry publish。
 
 对真实 registry 执行发布：
 
@@ -154,7 +159,7 @@ pnpm publish:verdaccio
 
 如果要走 GitHub Actions 的一体化流水线：
 
-- `Publish Product`：串联 `lan build product`、`lan pack product`、`lan publish product`
+- `Publish Product`：串联 `lan product build`、`lan product pack`、`lan product publish`
 - `Publish Manifest`：对已有 `publish-manifest.json` 做受控执行
 - `Publish Verdaccio Smoke`：自动跑 Verdaccio 发布演练
 
@@ -206,20 +211,20 @@ cargo run -p lania-cli -- create --preview --name demo-app
 
 ## 命令总览
 
-| 命令 | 类型 | 作用 |
-| --- | --- | --- |
-| `dev` | Bridge | 启动当前项目的开发流程 |
-| `build` | Bridge | 触发构建或 watch 构建 |
-| `lint` | Bridge | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复 |
-| `tools` | 混合命令 | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件 |
-| `create` | Workflow | 以模板创建新项目 |
-| `add` | Workflow | 向现有仓库补充局部模板、配置或代码片段 |
-| `template` | Bridge 查询 | 列出模板或查看模板详情 |
-| `generate api` | Workflow | 从 `lania.contract.yaml` 生成契约 DTO 与传输层代码 |
-| `generate module` | Workflow | 从 `lania.module.yaml` 生成 `lania-g` 相关模块与注入代码 |
-| `release` | Workflow | 规划、执行、恢复或查询一次发布流程 |
-| `sync` | Workflow | 暂存、提交、推送当前工作区变更 |
-| `config` | Workflow | 读取或更新 CLI 全局偏好，例如语言和输出模式 |
+| 命令              | 类型        | 作用                                                                                                     |
+| ----------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
+| `dev`             | Bridge      | 启动当前项目的开发流程                                                                                   |
+| `build`           | Bridge      | 触发构建或 watch 构建                                                                                    |
+| `lint`            | Bridge      | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复                                                  |
+| `tools`           | 混合命令    | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件 |
+| `create`          | Workflow    | 以模板创建新项目                                                                                         |
+| `add`             | Workflow    | 向现有仓库补充局部模板、配置或代码片段                                                                   |
+| `template`        | Bridge 查询 | 列出模板或查看模板详情                                                                                   |
+| `generate api`    | Workflow    | 从 `lania.contract.yaml` 生成契约 DTO 与传输层代码                                                       |
+| `generate module` | Workflow    | 从 `lania.module.yaml` 生成 `lania-g` 相关模块与注入代码                                                 |
+| `release`         | Workflow    | 规划、执行、恢复或查询一次发布流程                                                                       |
+| `sync`            | Workflow    | 暂存、提交、推送当前工作区变更                                                                           |
+| `config`          | Workflow    | 读取或更新 CLI 全局偏好，例如语言和输出模式                                                              |
 
 ## 关键链路
 
@@ -408,9 +413,7 @@ export default {
         {
           name: 'ping',
           about: 'Ping endpoint',
-          options: [
-            { long: 'endpoint', valueKind: 'string', help: 'Endpoint', required: true },
-          ],
+          options: [{ long: 'endpoint', valueKind: 'string', help: 'Endpoint', required: true }],
           prompt: [
             {
               field: 'endpoint',
@@ -823,19 +826,19 @@ handler: async (ctx) => {
 
 当前运行时重点消费以下字段：
 
-| 字段 | 作用 |
-| --- | --- |
-| `buildTool` / `buildAdaptors` | 构建工具选择与适配器配置 |
-| `lintTools` / `lintAdaptors` | Lint 工具与适配器配置 |
-| `plugins` | 项目级插件声明 |
-| `release` | 发布默认配置 |
-| `extensions.dynamicCommands` | 是否启用运行时动态命令 |
-| `schemaDiscovery` | 动态命令 manifest 的发现策略 |
-| `hooks` | 全局 Hook 绑定 |
-| `ui.output` | 输出模式与事件输出策略 |
-| `ui.progress` | 进度展示模式 |
-| `ui.interaction` | 交互模式、超时和默认值策略 |
-| `pluginAllowlist` / `pluginMethodAllowlist` 等 | 插件安全边界 |
+| 字段                                           | 作用                         |
+| ---------------------------------------------- | ---------------------------- |
+| `buildTool` / `buildAdaptors`                  | 构建工具选择与适配器配置     |
+| `lintTools` / `lintAdaptors`                   | Lint 工具与适配器配置        |
+| `plugins`                                      | 项目级插件声明               |
+| `release`                                      | 发布默认配置                 |
+| `extensions.dynamicCommands`                   | 是否启用运行时动态命令       |
+| `schemaDiscovery`                              | 动态命令 manifest 的发现策略 |
+| `hooks`                                        | 全局 Hook 绑定               |
+| `ui.output`                                    | 输出模式与事件输出策略       |
+| `ui.progress`                                  | 进度展示模式                 |
+| `ui.interaction`                               | 交互模式、超时和默认值策略   |
+| `pluginAllowlist` / `pluginMethodAllowlist` 等 | 插件安全边界                 |
 
 动态命令相关的默认发现规则：
 
@@ -855,13 +858,13 @@ handler: async (ctx) => {
 
 ### 生成与状态文件
 
-| 文件 | 用途 |
-| --- | --- |
-| `lania.contract.yaml` | `generate api` 的输入配置 |
-| `lania.module.yaml` | `generate module` 的输入配置 |
-| `.lania/contracts.lock.json` | 契约生成输出跟踪 |
-| `.lania/module-gen.lock.json` | 模块生成输出跟踪 |
-| `.lania/release-state.json` | 发布流程状态快照 |
+| 文件                          | 用途                         |
+| ----------------------------- | ---------------------------- |
+| `lania.contract.yaml`         | `generate api` 的输入配置    |
+| `lania.module.yaml`           | `generate module` 的输入配置 |
+| `.lania/contracts.lock.json`  | 契约生成输出跟踪             |
+| `.lania/module-gen.lock.json` | 模块生成输出跟踪             |
+| `.lania/release-state.json`   | 发布流程状态快照             |
 
 ## 输出与交互
 

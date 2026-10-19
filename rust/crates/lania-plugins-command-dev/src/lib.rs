@@ -60,6 +60,13 @@ mod tests {
     use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
     use serde_json::json;
 
+    fn joined_cwd(path: &str) -> String {
+        std::path::Path::new("/repo")
+            .join(path)
+            .display()
+            .to_string()
+    }
+
     #[test]
     fn registers_dev_command_spec() {
         let plugin = DevCommandPlugin;
@@ -119,7 +126,7 @@ mod tests {
         let request = DevCommandPlugin::build_request(&context, &bridge);
 
         assert_eq!(request.method, "compiler.dev");
-        assert_eq!(request.params["cwd"], "/repo/apps/demo");
+        assert_eq!(request.params["cwd"], joined_cwd("apps/demo"));
         assert_eq!(request.params["port"], 4000);
         assert_eq!(request.params["hmr"], false);
         assert_eq!(request.params["mode"], "development");
@@ -144,7 +151,7 @@ mod tests {
         };
 
         let options = watch::resolve_product_dev_options(&context, "en").expect("options resolve");
-        assert_eq!(options.product_root, "/repo/products/acme");
+        assert_eq!(options.product_root, joined_cwd("products/acme"));
         assert_eq!(options.forwarded_args, vec!["ops", "hello"]);
         assert!(options.watch);
         assert_eq!(options.poll_interval, std::time::Duration::from_millis(120));

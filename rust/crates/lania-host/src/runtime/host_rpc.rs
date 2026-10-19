@@ -528,6 +528,54 @@ mod tests {
     }
 
     #[test]
+    fn host_fs_read_resolves_relative_paths_from_cwd() {
+        let root = std::env::temp_dir().join(format!(
+            "lania-host-rpc-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("note.txt"), "hello").unwrap();
+        let cwd = root.to_string_lossy().to_string();
+
+        let adapter = HostRpcAdapter::new(HostRpcAdapterDeps {
+            exec: ExecService::new(false),
+            git: GitService::default(),
+            package_manager: PackageManagerService,
+            fs: FsService,
+            logger: LoggerService::default(),
+            tasks: TaskService::default(),
+            progress: ProgressService::default(),
+            prompt: PromptService::default(),
+        });
+
+        let (read, _) = adapter
+            .handle("host.fs.read", json!({ "cwd": cwd, "path": "note.txt" }))
+            .expect("relative fs read should resolve from cwd");
+        assert_eq!(read["content"], json!("hello"));
+
+        let (exists, _) = adapter
+            .handle("host.fs.exists", json!({ "cwd": cwd, "path": "note.txt" }))
+            .expect("relative fs exists should resolve from cwd");
+        assert_eq!(exists["exists"], json!(true));
+
+        let (stat, _) = adapter
+            .handle("host.fs.stat", json!({ "cwd": cwd, "path": "note.txt" }))
+            .expect("relative fs stat should resolve from cwd");
+        assert_eq!(stat["isFile"], json!(true));
+
+        let (entries, _) = adapter
+            .handle("host.fs.readdir", json!({ "cwd": cwd, "path": "." }))
+            .expect("relative fs readdir should resolve from cwd");
+        assert_eq!(entries["entries"], json!(["note.txt"]));
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
     fn host_policy_blocks_exec_shell_when_disabled() {
         let adapter = HostRpcAdapter::new(HostRpcAdapterDeps {
             exec: ExecService::new(false),

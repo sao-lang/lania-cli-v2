@@ -7,8 +7,9 @@
 //! - 包含 unsafe 代码，修改前需确认安全假设
 use std::{
     collections::BTreeMap,
+    env,
     future::Future,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Stdio,
     sync::{Arc, Mutex},
     time::Duration,
@@ -442,9 +443,7 @@ impl ExecService {
         let mut process = if command.use_shell {
             shell_process(&command.program)
         } else {
-            let mut process = Command::new(&command.program);
-            process.args(&command.args);
-            process
+            spawn_process(&command.program, &command.args)
         };
         if let Some(cwd) = &command.cwd {
             process.current_dir(PathBuf::from(cwd));
@@ -650,6 +649,96 @@ fn format_command_failure_message(
             exit_code,
             detail
         )
+    }
+}
+
+/// 解析可执行文件在 PATH 中的真实位置。
+///
+/// Windows 下会按 `PATHEXT` 展开 `.exe` / `.cmd` / `.bat` 等扩展名，
+/// 并跳过 npm/pnpm 等工具在 PATH 中留下的无扩展名 Unix shim。
+pub fn resolve_executable(program: &str) -> Option<PathBuf> {
+    let candidate = PathBuf::from(program);
+    if candidate.components().count() > 1 {
+        return resolve_program_candidate(&candidate);
+    }
+    let path_value = env::var_os("PATH")?;
+    env::split_paths(&path_value)
+        .find_map(|directory| resolve_program_candidate(&directory.join(program)))
+}
+
+#[cfg(windows)]
+fn resolve_program_candidate(candidate: &Path) -> Option<PathBuf> {
+    if candidate.extension().is_some() {
+        return candidate.is_file().then(|| candidate.to_path_buf());
+    }
+    // 无扩展名文件在 Windows 上通常是 Unix shell shim，不能直接执行。
+    windows_executable_extensions()
+        .into_iter()
+        .map(|extension| {
+            let mut value = candidate.as_os_str().to_owned();
+            value.push(extension);
+            PathBuf::from(value)
+        })
+        .find(|candidate| candidate.is_file())
+}
+
+#[cfg(not(windows))]
+fn resolve_program_candidate(candidate: &Path) -> Option<PathBuf> {
+    candidate.is_file().then(|| candidate.to_path_buf())
+}
+
+#[cfg(windows)]
+fn windows_executable_extensions() -> Vec<String> {
+    env::var("PATHEXT")
+        .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string())
+        .split(';')
+        .map(str::trim)
+        .filter(|extension| !extension.is_empty())
+        .map(|extension| {
+            if extension.starts_with('.') {
+                extension.to_string()
+            } else {
+                format!(".{extension}")
+            }
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn is_batch_script(program: &Path) -> bool {
+    program
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat")
+        })
+}
+
+#[cfg(not(windows))]
+fn is_batch_script(_program: &Path) -> bool {
+    false
+}
+
+fn spawn_process(program: &str, args: &[String]) -> Command {
+    #[cfg(windows)]
+    {
+        let resolved = resolve_executable(program);
+        let program_path = resolved.as_deref().unwrap_or_else(|| Path::new(program));
+        let mut process = if is_batch_script(program_path) {
+            let mut process = Command::new("cmd");
+            process.arg("/C").arg(program_path);
+            process
+        } else {
+            Command::new(program_path)
+        };
+        process.args(args);
+        process
+    }
+    #[cfg(not(windows))]
+    {
+        let mut process = Command::new(program);
+        process.args(args);
+        process
     }
 }
 

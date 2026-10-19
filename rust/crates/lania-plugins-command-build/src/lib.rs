@@ -73,6 +73,13 @@ mod tests {
     use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
     use serde_json::json;
 
+    fn joined_cwd(path: &str) -> String {
+        std::path::Path::new("/repo")
+            .join(path)
+            .display()
+            .to_string()
+    }
+
     #[test]
     fn registers_build_pack_publish_and_inspect_command_specs() {
         let plugin = BuildCommandPlugin;
@@ -158,7 +165,7 @@ mod tests {
         let request = BuildCommandPlugin::build_request(&context, &bridge);
 
         assert_eq!(request.method, "compiler.build");
-        assert_eq!(request.params["cwd"], "/repo/apps/demo");
+        assert_eq!(request.params["cwd"], joined_cwd("apps/demo"));
         assert_eq!(request.params["watch"], true);
         assert_eq!(request.params["mode"], "development");
         assert_eq!(request.params["outputDir"], "dist-custom");
@@ -185,7 +192,7 @@ mod tests {
         let request = BuildCommandPlugin::build_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.build");
-        assert_eq!(request.params["cwd"], "/repo/products/acme");
+        assert_eq!(request.params["cwd"], joined_cwd("products/acme"));
         assert_eq!(request.params["outputDir"], ".lania/build/product");
         assert_eq!(request.params["clean"], false);
     }
@@ -215,7 +222,7 @@ mod tests {
         let request = BuildCommandPlugin::pack_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.pack");
-        assert_eq!(request.params["cwd"], "/repo/products/acme");
+        assert_eq!(request.params["cwd"], joined_cwd("products/acme"));
         assert_eq!(request.params["buildDir"], ".lania/build/product");
         assert_eq!(
             request.params["outputDir"],
@@ -269,7 +276,7 @@ mod tests {
         let request = BuildCommandPlugin::publish_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.publish");
-        assert_eq!(request.params["cwd"], "/repo/products/acme");
+        assert_eq!(request.params["cwd"], joined_cwd("products/acme"));
         assert_eq!(
             request.params["packDir"],
             ".lania/pack/product/install-root"
@@ -318,7 +325,7 @@ mod tests {
         let request = BuildCommandPlugin::inspect_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.inspect");
-        assert_eq!(request.params["cwd"], "/repo/products/acme");
+        assert_eq!(request.params["cwd"], joined_cwd("products/acme"));
         assert_eq!(request.params["clean"], true);
         assert_eq!(request.params["compat"], true);
         assert_eq!(request.params["hostVersion"], env!("CARGO_PKG_VERSION"));
@@ -339,7 +346,7 @@ mod tests {
         let request = BuildCommandPlugin::doctor_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.inspect");
-        assert_eq!(request.params["cwd"], "/repo/products/acme");
+        assert_eq!(request.params["cwd"], joined_cwd("products/acme"));
         assert_eq!(request.params["clean"], true);
         assert_eq!(request.params["doctor"], true);
         assert_eq!(request.params["compat"], true);

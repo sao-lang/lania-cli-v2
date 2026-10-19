@@ -60,6 +60,8 @@
   - 发布 CI、本地 registry 演练与收尾事项
 - `operations/成熟度地图.zh-CN.md`
   - 当前成熟度判断
+- `operations/lania-cli-v2-任务执行.zh-CN.md`
+  - 当前功能验收、缺陷修复与 VitePress 文档站建设任务执行文档
 - `operations/changesets/README.md`
   - 版本变更记录与 release 版本同步流程
 

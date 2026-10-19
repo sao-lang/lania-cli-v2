@@ -113,9 +113,25 @@ struct RunPlan {
 }
 
 fn display_runtime_name(program: &str) -> String {
-    PathBuf::from(program)
+    let name = PathBuf::from(program)
         .file_name()
         .and_then(|item| item.to_str())
         .unwrap_or(program)
-        .to_string()
+        .to_string();
+    #[cfg(windows)]
+    {
+        // Windows 可执行文件通常带 `.exe` / `.cmd`，展示时不保留这些后缀。
+        let path = PathBuf::from(&name);
+        if let Some(extension) = path.extension().and_then(|item| item.to_str()) {
+            if matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "exe" | "cmd" | "bat" | "com"
+            ) {
+                if let Some(stem) = path.file_stem().and_then(|item| item.to_str()) {
+                    return stem.to_string();
+                }
+            }
+        }
+    }
+    name
 }

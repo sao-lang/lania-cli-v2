@@ -26,9 +26,7 @@ test('template list exposes schema metadata', async () => {
   const result = await loadListResult({});
 
   assert.deepEqual(result.templates, ['spa-react', 'spa-vue', 'toolkit', 'toolkit-monorepo']);
-  assert.ok(
-    result.metadata.every((template) => typeof template.schemaVersion === 'number'),
-  );
+  assert.ok(result.metadata.every((template) => typeof template.schemaVersion === 'number'));
   assert.equal(
     result.metadata.find((template) => template.name === 'spa-react')?.renderEngine,
     'rust_declarative',
@@ -56,16 +54,12 @@ test('template render returns schema version and engine', async () => {
   assert.ok(result.files.some((file) => file.path === 'src/index.ts'));
   assert.ok(
     result.files.some(
-      (file) =>
-        file.path === 'src/index.ts' &&
-        file.content.includes('getToolkitInfo'),
+      (file) => file.path === 'src/index.ts' && file.content.includes('getToolkitInfo'),
     ),
   );
   assert.ok(
     result.files.some(
-      (file) =>
-        file.path === 'package.json' &&
-        file.content.includes('"name": "demo-kit"'),
+      (file) => file.path === 'package.json' && file.content.includes('"name": "demo-kit"'),
     ),
   );
 });
@@ -135,7 +129,9 @@ test('spa-react oxlint+eslint+oxfmt+prettier produces ox configs and avoids pret
     result.files.some(
       (file) =>
         file.path === '.prettierignore' &&
-        !file.content.includes('**/*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,json5,md,mdx,yml,yaml,toml,html,css,scss,less,vue,gql,graphql}'),
+        !file.content.includes(
+          '**/*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,json5,md,mdx,yml,yaml,toml,html,css,scss,less,vue,gql,graphql}',
+        ),
     ),
   );
   assert.ok(
@@ -150,8 +146,12 @@ test('spa-react oxlint+eslint+oxfmt+prettier produces ox configs and avoids pret
     result.files.some(
       (file) =>
         file.path === 'package.json' &&
-        file.content.includes('"lint": "oxlint . && eslint . && oxfmt --check . && prettier --check ."') &&
-        file.content.includes('"lint:fix": "oxlint --fix . && eslint . --fix && oxfmt . && prettier --write ."'),
+        file.content.includes(
+          '"lint": "oxlint . && eslint . && oxfmt --check . && prettier --check ."',
+        ) &&
+        file.content.includes(
+          '"lint:fix": "oxlint --fix . && eslint . --fix && oxfmt . && prettier --write ."',
+        ),
     ),
   );
 });
@@ -254,7 +254,9 @@ test('toolkit template renders the migrated legacy ejs asset set', async () => {
       (file) =>
         file.path === 'package.json' &&
         file.content.includes('"name": "demo-toolkit"') &&
-        file.content.includes('"release": "lan release run --profile package --apply --yes --publish"'),
+        file.content.includes(
+          '"release": "lan release run --profile package --apply --yes --publish"',
+        ),
     ),
   );
   assert.ok(
@@ -354,6 +356,22 @@ test('add template runtime restores legacy add template assets', async () => {
   assert.match(result.content, /const MyComponent/);
 });
 
+test('add template runtime renders vue 3 component with style language', async () => {
+  const result = await renderAddRuntimeTemplate('v3', {
+    context: {
+      projectName: 'demo-kit',
+      language: 'ts',
+      cssProcessor: 'sass',
+    },
+  });
+
+  assert.equal(result.template, 'v3');
+  assert.equal(result.filename, null);
+  assert.equal(result.extname, 'vue');
+  assert.match(result.content, /<script setup lang="ts">/);
+  assert.match(result.content, /<style scoped lang="scss">/);
+});
+
 test('template runtime scans project template directories and normalizes modules', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-template-runtime-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
@@ -364,12 +382,7 @@ test('template runtime scans project template directories and normalizes modules
 
   await writeFile(
     path.join(cwd, 'lan.config.js'),
-    [
-      'export default {',
-      "  templateRuntimeDirs: ['./template-runtime'],",
-      '};',
-      '',
-    ].join('\n'),
+    ['export default {', "  templateRuntimeDirs: ['./template-runtime'],", '};', ''].join('\n'),
   );
   await writeFile(
     path.join(templateDir, 'template.json'),

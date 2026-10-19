@@ -1,6 +1,11 @@
 import { dirname, join, resolve } from 'node:path';
 
-import { asRecord, fileExists, loadLanConfig, loadPackageJsonSnapshot } from '../../../core/runtime.js';
+import {
+  asRecord,
+  fileExists,
+  loadLanConfig,
+  loadPackageJsonSnapshot,
+} from '../../../core/runtime.js';
 import {
   discoverManifestPaths,
   normalizeSchemaDiscovery,
@@ -25,12 +30,14 @@ export async function handleInspect(params: Record<string, unknown>) {
 
   const loaded = await loadLanConfig(cwd);
   if (!loaded.exists || !loaded.configPath) {
-    throw new Error('lan inspect product requires a local lan.config.* file');
+    throw new Error('lan product inspect requires a local lan.config.* file');
   }
 
   const productConfig = asRecord(loaded.config.product);
   const schemaConfig = asRecord(loaded.config.schema);
-  const discovery = normalizeSchemaDiscovery(schemaConfig.discovery ?? loaded.config.schemaDiscovery);
+  const discovery = normalizeSchemaDiscovery(
+    schemaConfig.discovery ?? loaded.config.schemaDiscovery,
+  );
   const configuredEntries = normalizeSchemaEntries(schemaConfig.entry ?? productConfig.schemaEntry);
   const discovered = await discoverManifestPaths(cwd, discovery, configuredEntries);
 
@@ -167,7 +174,9 @@ function buildProductInspectNextSteps(input: {
     steps.push('Run `lan product build` to materialize the local product snapshot.');
   }
   if (input.checks.hasBuildReport && !input.checks.hasPackReport) {
-    steps.push('Run `lan product pack` to prepare the install-root artifact for product validation.');
+    steps.push(
+      'Run `lan product pack` to prepare the install-root artifact for product validation.',
+    );
   }
   if (input.checks.hasPackReport && !input.checks.hasPublishReport) {
     steps.push(

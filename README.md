@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./docs-site/public/logo.svg" width="96" height="96" alt="Lania CLI logo">
+</p>
+
 # Lania CLI v2
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
@@ -7,6 +11,7 @@
 ## Documentation
 
 - [Chinese README](./README.zh-CN.md)
+- [VitePress Learning Docs](./docs-site/index.md)
 - [Docs Index](./docs/README.zh-CN.md)
 - [Learning Guide](./docs/guides/learning-map.zh-CN.md)
 - [Runtime Architecture](./docs/architecture/runtime-architecture.zh-CN.md)
@@ -38,16 +43,16 @@ In practice:
 
 ## Command Categories
 
-| Command Group | Path | Description |
-| --- | --- | --- |
-| `dev`, `build`, `lint` | Rust -> Node Bridge -> compiler/lint plugins | JS toolchain execution |
-| `tools list` | Rust -> Node Bridge -> system plugin | enumerate terminal-resolvable commands from PATH and shell |
-| `tools run`, `tools view` | Rust host utilities | detect runtimes, execute local code files, or display/open local files |
-| `create`, `add` | Rust workflow + template bridge calls | project and partial scaffolding |
-| `generate api`, `generate module` | Rust workflow | file generation, manifests, optional injection |
-| `release`, `sync` | Rust workflow | release orchestration and Git automation |
-| `template` | Rust query -> Node Bridge | template catalog and template detail lookup |
-| dynamic commands | project manifest -> Rust registration -> Node execution | runtime command extension |
+| Command Group                     | Path                                                    | Description                                                            |
+| --------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `dev`, `build`, `lint`            | Rust -> Node Bridge -> compiler/lint plugins            | JS toolchain execution                                                 |
+| `tools list`                      | Rust -> Node Bridge -> system plugin                    | enumerate terminal-resolvable commands from PATH and shell             |
+| `tools run`, `tools view`         | Rust host utilities                                     | detect runtimes, execute local code files, or display/open local files |
+| `create`, `add`                   | Rust workflow + template bridge calls                   | project and partial scaffolding                                        |
+| `generate api`, `generate module` | Rust workflow                                           | file generation, manifests, optional injection                         |
+| `release`, `sync`                 | Rust workflow                                           | release orchestration and Git automation                               |
+| `template`                        | Rust query -> Node Bridge                               | template catalog and template detail lookup                            |
+| dynamic commands                  | project manifest -> Rust registration -> Node execution | runtime command extension                                              |
 
 ## Quick Start
 
@@ -68,15 +73,15 @@ lan release plan --profile package --version 1.2.3
 Plan a product package release:
 
 ```bash
-lan build product
-lan pack product
-lan publish product --dist-tag next --channel next
+lan product build
+lan product pack
+lan product publish --dist-tag next --channel next
 ```
 
 Execute a `publish-manifest` dry run:
 
 ```bash
-lan publish product --execute --dry-run
+lan product publish --execute --dry-run
 ```
 
 Publish to a real registry:
@@ -102,7 +107,7 @@ pnpm publish:verdaccio
 
 GitHub Actions entry points:
 
-- `Publish Product`: runs `lan build product`, `lan pack product`, and `lan publish product`
+- `Publish Product`: runs `lan product build`, `lan product pack`, and `lan product publish`
 - `Publish Manifest`: executes an existing `publish-manifest.json` in a controlled workflow
 - `Publish Verdaccio Smoke`: runs the automated Verdaccio publish rehearsal
 

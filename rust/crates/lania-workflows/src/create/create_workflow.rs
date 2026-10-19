@@ -214,10 +214,12 @@ impl CreateWorkflow {
             &mut dev_dependencies,
         )
         .await?;
+        // 目标目录尚未创建（preview/dry-run 时也不会创建），
+        // 版本查询必须在已存在的工作目录中执行。
         let (resolved_dependencies, resolved_dev_dependencies) = resolve_dependency_versions(
             services,
             manager,
-            &target_dir,
+            &input.cwd,
             &dependencies,
             &dev_dependencies,
         )

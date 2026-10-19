@@ -5,7 +5,30 @@ use std::{
 
 use tokio_util::sync::CancellationToken;
 
-use super::{ExecCommand, ExecError, ExecErrorCode, ExecEvent, ExecRunOptions, ExecService};
+use super::{
+    resolve_executable, ExecCommand, ExecError, ExecErrorCode, ExecEvent, ExecRunOptions,
+    ExecService,
+};
+
+#[test]
+fn resolves_runtime_executable_from_path() {
+    let resolved = resolve_executable("cargo").expect("cargo should be resolvable");
+    assert!(resolved.is_file());
+}
+
+#[cfg(windows)]
+#[test]
+fn resolves_windows_command_shim_to_native_extension() {
+    let resolved = resolve_executable("cmd").expect("cmd should be resolvable");
+    assert!(resolved.is_file());
+    assert!(resolved
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| matches!(
+            extension.to_ascii_lowercase().as_str(),
+            "exe" | "cmd" | "bat" | "com"
+        )));
+}
 
 #[test]
 fn records_dry_run_commands() {

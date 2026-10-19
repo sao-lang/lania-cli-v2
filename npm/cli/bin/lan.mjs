@@ -73,14 +73,13 @@ function resolveSourceBinaryPath() {
 }
 
 // 统一解析运行时所需的所有路径和模式信息。
-// 返回：sourceMode, packageDir, productRoot, bridgeDir, binaryPath。
+// 返回：sourceMode, packageDir, bridgeDir, binaryPath。
 function resolveRuntimeLayout() {
   const { packageDir, sourceMode } = resolveCliPackageDir();
   if (sourceMode) {
     return {
       sourceMode,
       packageDir,
-      productRoot: fallbackRepoRoot,
       bridgeDir: path.join(fallbackRepoRoot, 'ts', 'packages', 'node-bridge'),
       binaryPath: resolveSourceBinaryPath(),
     };
@@ -88,7 +87,6 @@ function resolveRuntimeLayout() {
   return {
     sourceMode,
     packageDir,
-    productRoot: packageDir,
     bridgeDir: path.join(packageDir, 'lib', 'node-bridge'),
     binaryPath: null,
   };
@@ -133,7 +131,9 @@ function main() {
     }
   }
 
-  const productRoot = runtime.productRoot;
+  // 标准 CLI 的 product root 就是用户当前项目，而不是 CLI 包自身目录。
+  // 生成的产品 CLI 会由自己的 wrapper 注入真正的产品根目录。
+  const productRoot = process.cwd();
   const bridgeDir = runtime.bridgeDir;
 
   // 确保二进制文件可执行。

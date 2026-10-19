@@ -30,12 +30,14 @@ export async function handleBuild(params: Record<string, unknown>) {
 
   const loaded = await loadLanConfig(cwd);
   if (!loaded.exists || !loaded.configPath) {
-    throw new Error('lan build product requires a local lan.config.* file');
+    throw new Error('lan product build requires a local lan.config.* file');
   }
 
   const productConfig = asRecord(loaded.config.product);
   const schemaConfig = asRecord(loaded.config.schema);
-  const discovery = normalizeSchemaDiscovery(schemaConfig.discovery ?? loaded.config.schemaDiscovery);
+  const discovery = normalizeSchemaDiscovery(
+    schemaConfig.discovery ?? loaded.config.schemaDiscovery,
+  );
   const configuredEntries = normalizeSchemaEntries(schemaConfig.entry ?? productConfig.schemaEntry);
   const discovered = await discoverManifestPaths(cwd, discovery, configuredEntries);
 
@@ -75,7 +77,11 @@ export async function handleBuild(params: Record<string, unknown>) {
   }
 
   // Rewrite config to reference copied schema entries and templates directory.
-  const rewrittenConfig = rewriteBuiltConfig(loaded.config, copiedSchemaEntries, copiedTemplatesDir);
+  const rewrittenConfig = rewriteBuiltConfig(
+    loaded.config,
+    copiedSchemaEntries,
+    copiedTemplatesDir,
+  );
   await writeJsonFile(join(outputRoot, 'lan.config.json'), rewrittenConfig);
   generatedFiles.push('./lan.config.json');
   await writeJsonFile(join(outputRoot, 'product.config.json'), rewrittenConfig);
@@ -89,11 +95,17 @@ export async function handleBuild(params: Record<string, unknown>) {
     hostVersion: typeof params.hostVersion === 'string' ? params.hostVersion : null,
   });
   if (Object.keys(packageJson).length > 0) {
-    await writeFile(join(outputRoot, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8');
+    await writeFile(
+      join(outputRoot, 'package.json'),
+      `${JSON.stringify(packageJson, null, 2)}\n`,
+      'utf8',
+    );
     generatedFiles.push('./package.json');
   }
 
-  const schemaRootOutputs = [...rootMapping.values()].map((entry) => toPortableRelativePath(outputRoot, entry));
+  const schemaRootOutputs = [...rootMapping.values()].map((entry) =>
+    toPortableRelativePath(outputRoot, entry),
+  );
   generatedFiles.push(...schemaRootOutputs);
 
   const report: ProductDistributionReport = createDistributionReport(
@@ -178,4 +190,3 @@ function rewriteBuiltConfig(
 
   return nextConfig;
 }
-

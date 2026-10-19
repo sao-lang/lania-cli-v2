@@ -3,6 +3,17 @@ import { asRecord } from '../../core/runtime.js';
 import { registerPendingInlineHook, takePendingInlineHook } from './state.js';
 import type { HookBinding, HookBindings, InlineHookFn } from './types.js';
 
+const WATERFALL_HOOK_KEYS = new Set([
+  'onCommandPreInit',
+  'onArgsParsed',
+  'onFilesPrepare',
+  'onConfigGet',
+  'onConfigResolve',
+  'onTemplateParse',
+  'onDependenciesModify',
+  'onInteractionPrompt',
+]);
+
 /**
  * 把 manifest 中的 hook 声明规范化成可序列化结构。
  * plugin hook 可直接序列化；inline function 先写入 pending registry，resolve 完成时再换成 final id。
@@ -26,7 +37,7 @@ export function parseHookBindings(cwd: string, value: unknown): HookBindings | u
         registerPendingInlineHook(cwd, pendingId, entry as InlineHookFn);
         bindings.push({
           type: 'inline',
-          kind: normalizedKey === 'onCommandPreInit' ? 'waterfall' : 'parallel',
+          kind: WATERFALL_HOOK_KEYS.has(normalizedKey) ? 'waterfall' : 'parallel',
           id: pendingId,
         });
         continue;
@@ -105,4 +116,3 @@ export function finalizeInlineHookBindings(
   }
   return result;
 }
-

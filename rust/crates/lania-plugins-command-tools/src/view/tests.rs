@@ -264,9 +264,11 @@ fn tree_filter_preserves_parent_directory_context() {
     )
     .expect("tree listing");
 
-    assert!(tree.text.contains("[dir] src/"));
-    assert!(tree.text.contains("[dir] src/lib/"));
-    assert!(tree.text.contains("[file] src/lib/alpha.rs"));
+    assert!(tree.text.contains(&platform_path("[dir] src")));
+    assert!(tree.text.contains(&platform_path("[dir] src/lib")));
+    assert!(tree
+        .text
+        .contains(&platform_path("[file] src/lib/alpha.rs")));
     assert!(!tree.text.contains("README.md"));
 
     let _ = fs::remove_dir_all(root);
@@ -390,11 +392,17 @@ fn tree_files_only_omits_directory_context_lines() {
     )
     .expect("tree listing");
 
-    assert!(tree.text.contains("[file] src/lib/alpha.rs"));
-    assert!(!tree.text.contains("[dir] src/"));
-    assert!(!tree.text.contains("[dir] src/lib/"));
+    assert!(tree
+        .text
+        .contains(&platform_path("[file] src/lib/alpha.rs")));
+    assert!(!tree.text.contains(&platform_path("[dir] src")));
+    assert!(!tree.text.contains(&platform_path("[dir] src/lib")));
 
     let _ = fs::remove_dir_all(root);
+}
+
+fn platform_path(value: &str) -> String {
+    value.replace('/', std::path::MAIN_SEPARATOR_STR)
 }
 
 fn unique_temp_dir(name: &str) -> std::path::PathBuf {

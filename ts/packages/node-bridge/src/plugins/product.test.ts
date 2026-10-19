@@ -522,16 +522,31 @@ test('product.pack creates a minimal install-root layout from product build outp
 test('product.publish creates a publish-ready npm package layout from packed output', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-publish-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
-  const officialStagingBinary = path.join(repoRoot, 'npm', 'cli-darwin-arm64', 'bin', 'lania-cli');
-  const originalStagingBinary = await readFile(officialStagingBinary).catch(() => null);
-  t.after(async () => {
-    if (originalStagingBinary) {
-      await writeFile(officialStagingBinary, originalStagingBinary);
-      return;
+  const cliPackageJson = JSON.parse(
+    await readFile(path.join(repoRoot, 'npm', 'cli', 'package.json'), 'utf8'),
+  ) as { optionalDependencies?: Record<string, string> };
+  const stagingBinaries = Object.keys(cliPackageJson.optionalDependencies ?? {}).map(
+    (packageName) =>
+      path.join(repoRoot, 'npm', packageName.replace('@lania-cli/', ''), 'bin', 'lania-cli'),
+  );
+  const originalStagingBinaries = new Map<string, Buffer>();
+  for (const stagingBinary of new Set(stagingBinaries)) {
+    const original = await readFile(stagingBinary).catch(() => null);
+    if (original) {
+      originalStagingBinaries.set(stagingBinary, original);
+      await rm(stagingBinary, { force: true });
     }
-    await rm(officialStagingBinary, { force: true });
+  }
+  t.after(async () => {
+    for (const stagingBinary of new Set(stagingBinaries)) {
+      const original = originalStagingBinaries.get(stagingBinary);
+      if (original) {
+        await writeFile(stagingBinary, original);
+        continue;
+      }
+      await rm(stagingBinary, { force: true });
+    }
   });
-  await rm(officialStagingBinary, { force: true });
 
   await mkdir(path.join(cwd, 'product', 'templates', 'base'), { recursive: true });
   await writeFile(
@@ -682,7 +697,6 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(publishReport.bundle.platformTarball, null);
   assert.equal(publishReport.experimental?.compat?.actual?.protocolVersion, '0.1.0');
   assert.deepEqual(publishReport.bundle.platformTarballs, []);
-  // On Windows, the host platform (win32-x64) is also included in the matrix
   const expectedMatrix = [
     {
       packageName: '@lania-cli/cli-darwin-arm64',
@@ -700,17 +714,15 @@ test('product.publish creates a publish-ready npm package layout from packed out
       tarball: null,
       source: 'package_dir',
     },
-  ];
-  if (process.platform === 'win32') {
-    expectedMatrix.push({
+    {
       packageName: '@lania-cli/cli-win32-x64',
       platform: 'win32-x64',
       version: '0.1.0',
-      status: 'package_missing',
+      status: 'binary_missing',
       tarball: null,
-      source: 'optional_dependency',
-    });
-  }
+      source: 'package_dir',
+    },
+  ];
   assert.deepEqual(publishReport.bundle.platformMatrix, expectedMatrix);
   assert.ok(publishReport.generatedFiles.includes('./lib/product'));
   assert.ok(publishReport.generatedFiles.includes('./lib/node-bridge'));
@@ -794,17 +806,15 @@ test('product.publish creates a publish-ready npm package layout from packed out
       tarball: null,
       source: 'package_dir',
     },
-  ];
-  if (process.platform === 'win32') {
-    publishManifestMatrix.push({
+    {
       packageName: '@lania-cli/cli-win32-x64',
       platform: 'win32-x64',
       version: '0.1.0',
-      status: 'package_missing',
+      status: 'binary_missing',
       tarball: null,
-      source: 'optional_dependency',
-    });
-  }
+      source: 'package_dir',
+    },
+  ];
   assert.deepEqual(publishManifest.platformMatrix, publishManifestMatrix);
   assert.deepEqual(publishManifest.publishOrder, ['@lania-cli/cli', '@acme/demo']);
   assert.deepEqual(publishManifest.dependencyLinks, [

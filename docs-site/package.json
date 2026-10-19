@@ -1,0 +1,19 @@
+{
+  "name": "lania-cli-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  },
+  "overrides": {
+    "algoliasearch": "5.30.0"
+  },
+  "dependencies": {
+    "lania-cli-v2-root": "file:.."
+  }
+}

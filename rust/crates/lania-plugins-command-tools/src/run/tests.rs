@@ -86,7 +86,8 @@ fn parses_env_shebang_with_assignments() {
 fn prefers_project_local_runtime_for_typescript() {
     let root = unique_temp_dir("tools-run-local-runtime");
     let script = root.join("src/demo.ts");
-    let local_runtime = root.join("node_modules/.bin/tsx");
+    let runtime_name = if cfg!(windows) { "tsx.cmd" } else { "tsx" };
+    let local_runtime = root.join("node_modules/.bin").join(runtime_name);
     fs::create_dir_all(script.parent().expect("script parent")).expect("script dir created");
     fs::create_dir_all(local_runtime.parent().expect("runtime parent"))
         .expect("runtime dir created");
@@ -98,14 +99,27 @@ fn prefers_project_local_runtime_for_typescript() {
     .expect("script written");
     fs::write(
         &local_runtime,
-        "#!/bin/sh
-",
+        if cfg!(windows) {
+            "@echo off\r\n"
+        } else {
+            "#!/bin/sh
+"
+        },
     )
     .expect("runtime written");
 
     let plan = build_run_plan(&script, &root).expect("run plan resolves");
     assert_eq!(plan.runtime, "tsx");
-    assert_eq!(plan.program, local_runtime.display().to_string());
+    let resolved = std::path::Path::new(&plan.program);
+    assert!(resolved.is_file());
+    assert_eq!(
+        resolved
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+        runtime_name.to_ascii_lowercase()
+    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -132,6 +146,9 @@ fn builds_compiled_plan_for_rust_source() {
 
 #[test]
 fn java_run_command_passes_source_file_once() {
+    if lania_exec::resolve_executable("java").is_none() {
+        return;
+    }
     let root = unique_temp_dir("tools-run-java");
     let script = root.join("Demo.java");
     fs::create_dir_all(&root).expect("root created");

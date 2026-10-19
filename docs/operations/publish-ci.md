@@ -13,7 +13,7 @@
 
 - `.github/workflows/publish-product.yml`
   - 通过 `workflow_dispatch` 手动触发
-  - 依次执行 `lan build product`、`lan pack product`、`lan publish product`
+  - 依次执行 `lan product build`、`lan product pack`、`lan product publish`
   - 可选择只生成 `publish-manifest.json`，也可在同一条流水线里直接执行真实发布
   - 始终上传 `publish-manifest.json`、`publish-report.json` 与 bundle 产物，便于失败后继续恢复
 

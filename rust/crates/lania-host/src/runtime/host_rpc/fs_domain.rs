@@ -21,15 +21,22 @@ pub(super) fn handle_fs_domain(
 ) -> Result<HostRpcResponse> {
     match method {
         "host.fs.exists" => {
+            let cwd = payload_cwd(payload);
             let path = payload_required_str(payload, "path", method)?;
-            Ok((json!({ "exists": adapter.fs.exists(&path) }), Vec::new()))
+            let resolved = resolve_path_from_cwd(cwd, &path);
+            Ok((
+                json!({ "exists": adapter.fs.exists(&resolved) }),
+                Vec::new(),
+            ))
         }
         "host.fs.read" => {
+            let cwd = payload_cwd(payload);
             let path = payload_required_str(payload, "path", method)?;
+            let resolved = resolve_path_from_cwd(cwd, &path);
             // 当前阶段：先保持为纯文本读取（read_to_string），
             // 后续如果要支持二进制/编码探测，再扩展协议字段。
-            let content = fs::read_to_string(&path)
-                .map_err(|error| anyhow!("failed to read {}: {error}", path))?;
+            let content = fs::read_to_string(&resolved)
+                .map_err(|error| anyhow!("failed to read {}: {error}", resolved.display()))?;
             Ok((json!({ "content": content }), Vec::new()))
         }
         "host.fs.write" => {
@@ -107,18 +114,22 @@ pub(super) fn handle_fs_domain(
             Ok((json!({ "ok": true, "removed": true }), Vec::new()))
         }
         "host.fs.readdir" => {
+            let cwd = payload_cwd(payload);
             let path = payload_required_str(payload, "path", method)?;
-            let entries = fs::read_dir(&path)
-                .map_err(|error| anyhow!("failed to read dir {}: {error}", path))?
+            let resolved = resolve_path_from_cwd(cwd, &path);
+            let entries = fs::read_dir(&resolved)
+                .map_err(|error| anyhow!("failed to read dir {}: {error}", resolved.display()))?
                 .filter_map(|entry| entry.ok())
                 .filter_map(|entry| entry.file_name().to_str().map(ToOwned::to_owned))
                 .collect::<Vec<_>>();
             Ok((json!({ "entries": entries }), Vec::new()))
         }
         "host.fs.stat" => {
+            let cwd = payload_cwd(payload);
             let path = payload_required_str(payload, "path", method)?;
-            let metadata =
-                fs::metadata(&path).map_err(|error| anyhow!("failed to stat {}: {error}", path))?;
+            let resolved = resolve_path_from_cwd(cwd, &path);
+            let metadata = fs::metadata(&resolved)
+                .map_err(|error| anyhow!("failed to stat {}: {error}", resolved.display()))?;
             let mtime_ms = metadata
                 .modified()
                 .ok()
