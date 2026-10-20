@@ -12,8 +12,5 @@
   },
   "overrides": {
     "algoliasearch": "5.30.0"
-  },
-  "dependencies": {
-    "lania-cli-v2-root": "file:.."
   }
 }
