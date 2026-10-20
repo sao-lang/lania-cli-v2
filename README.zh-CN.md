@@ -14,6 +14,7 @@
 
 - [文档索引](./docs/README.zh-CN.md)：整理后的总入口，按用途区分阅读顺序。
 - [VitePress 学习文档站](./docs-site/index.md)：面向使用者的系统化学习文档，包含指南、命令参考、架构与实战。
+- [在线文档](https://sao-lang.github.io/lania-cli-v2/)：由 GitHub Actions 自动构建并部署到 GitHub Pages。
 - [学习地图](./docs/guides/learning-map.zh-CN.md)：面向首次接手仓库的开发者，解释目录结构、模块协作和关键链路。
 - [命令与运行时 Roadmap](./docs/guides/command-runtime-roadmap.zh-CN.md)：按命令族梳理入口、handler、workflow / bridge / local 分支，以及关键函数追踪切口。
 - [符号索引](./docs/README.zh-CN.md#guides)：补充 `create`、`generate module`、`release` 三条重链路的结构体、字段、函数和上下游调用索引。

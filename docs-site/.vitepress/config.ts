@@ -1,6 +1,11 @@
 import { defineConfig } from 'vitepress'
 
+// GitHub Pages 部署在 https://<owner>.github.io/<repo>/ 子路径下，构建时通过 DOCS_BASE 指定。
+const rawBase = process.env.DOCS_BASE?.trim() || '/'
+const base = rawBase === '/' ? '/' : `/${rawBase.replace(/^\/+|\/+$/g, '')}/`
+
 export default defineConfig({
+  base,
   lang: 'zh-CN',
   title: 'Lania CLI',
   titleTemplate: ':title · Lania CLI 学习文档',
@@ -8,7 +13,7 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   head: [
-    ['link', { rel: 'icon', href: '/logo.svg' }],
+    ['link', { rel: 'icon', href: `${base}logo.svg` }],
     ['meta', { name: 'theme-color', content: '#42b883' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'Lania CLI 学习文档' }],

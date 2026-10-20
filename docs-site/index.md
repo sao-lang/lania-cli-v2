@@ -45,19 +45,19 @@ features:
 <div class="command-card">
   <div>
     <strong>第一次接触</strong>
-    先读 <a href="/guide/introduction">认识 Lania CLI</a>，建立“安装层 / 宿主层 / Bridge 层 / 资产层”的心智模型。
+    先读 <a href="./guide/introduction">认识 Lania CLI</a>，建立“安装层 / 宿主层 / Bridge 层 / 资产层”的心智模型。
   </div>
   <div>
     <strong>想马上跑起来</strong>
-    跟随 <a href="/guide/getting-started">快速上手</a>，用 5 分钟创建项目并执行 build / lint。
+    跟随 <a href="./guide/getting-started">快速上手</a>，用 5 分钟创建项目并执行 build / lint。
   </div>
   <div>
     <strong>要查具体命令</strong>
-    直接打开 <a href="/reference/cli">CLI 命令参考</a>，按命令族查看语法、选项与示例。
+    直接打开 <a href="./reference/cli">CLI 命令参考</a>，按命令族查看语法、选项与示例。
   </div>
   <div>
     <strong>想理解内部实现</strong>
-    从 <a href="/architecture/overview">整体架构</a> 进入，理解三个进程边界与请求流转。
+    从 <a href="./architecture/overview">整体架构</a> 进入，理解三个进程边界与请求流转。
   </div>
 </div>
 

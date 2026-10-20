@@ -11,7 +11,7 @@
 ## Documentation
 
 - [Chinese README](./README.zh-CN.md)
-- [VitePress Learning Docs](./docs-site/index.md)
+- [VitePress Learning Docs](./docs-site/index.md) · [Online Docs](https://sao-lang.github.io/lania-cli-v2/)
 - [Docs Index](./docs/README.zh-CN.md)
 - [Learning Guide](./docs/guides/learning-map.zh-CN.md)
 - [Runtime Architecture](./docs/architecture/runtime-architecture.zh-CN.md)

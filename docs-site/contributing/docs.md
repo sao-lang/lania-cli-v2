@@ -22,6 +22,23 @@ pnpm docs:build
 pnpm docs:preview
 ```
 
+## 部署
+
+文档站通过 GitHub Actions 自动部署到 GitHub Pages，线上地址：<https://sao-lang.github.io/lania-cli-v2/>。
+
+- 工作流：`.github/workflows/docs.yml`
+- 触发条件：推送 `master` 分支且改动 `docs-site/**`，或在 Actions 页面手动触发
+- 构建命令：`npm ci && npm run build`（工作目录 `docs-site/`）
+- 产物目录：`docs-site/.vitepress/dist`
+
+仓库名位于子路径下，构建时需通过 `DOCS_BASE` 指定 base：
+
+```bash
+DOCS_BASE=/lania-cli-v2/ npm run build
+```
+
+本地开发与预览无需设置，默认使用根路径 `/`。首次部署前需在仓库 Settings → Pages 中将 Source 设为 GitHub Actions。
+
 ## 目录
 
 ```text
