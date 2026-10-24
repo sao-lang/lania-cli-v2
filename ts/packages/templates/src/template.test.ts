@@ -26,7 +26,10 @@ test('template list exposes schema metadata', async () => {
   const result = await loadListResult({});
 
   assert.deepEqual(result.templates, [
+    'dart-cli',
     'go-service',
+    'python-cli',
+    'rust-lib',
     'spa-react',
     'spa-vue',
     'toolkit',
@@ -612,6 +615,26 @@ test('go-service template renders go manifest and defaults skipInstall', async (
       (file) => file.path === 'go.mod' && file.content.includes('module example.com/demo'),
     ),
   );
+});
+
+test('language create templates render their manifests', async () => {
+  const cases: Array<[string, string]> = [
+    ['rust-lib', 'Cargo.toml'],
+    ['python-cli', 'pyproject.toml'],
+    ['dart-cli', 'pubspec.yaml'],
+  ];
+  for (const [name, manifest] of cases) {
+    const rendered = await renderRuntimeTemplate(name, {
+      cwd: null,
+      context: { projectName: 'demo' },
+    });
+    const paths = rendered.files.map((file) => file.path);
+    assert.ok(paths.includes(manifest), `${name} missing ${manifest}`);
+    const questions = await loadTemplateQuestions(name, { cwd: null });
+    assert.ok(
+      questions.some((question) => question.name === 'skipInstall' && question.default === true),
+    );
+  }
 });
 
 async function loadListResult(input: {

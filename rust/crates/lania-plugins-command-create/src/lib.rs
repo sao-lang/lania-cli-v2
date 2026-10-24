@@ -54,6 +54,9 @@ impl CreateCommandPlugin {
                         "toolkit".into(),
                         "toolkit-monorepo".into(),
                         "go-service".into(),
+                        "rust-lib".into(),
+                        "python-cli".into(),
+                        "dart-cli".into(),
                     ],
                     negatable: false,
                 },
@@ -366,14 +369,16 @@ mod tests {
     }
 
     #[test]
-    fn create_spec_lists_go_service_template() {
+    fn create_spec_lists_language_templates() {
         let spec = CreateCommandPlugin::spec();
         let template = spec
             .options
             .iter()
             .find(|option| option.long == "template")
             .expect("template option exists");
-        assert!(template.choices.iter().any(|choice| choice == "go-service"));
+        for name in ["go-service", "rust-lib", "python-cli", "dart-cli"] {
+            assert!(template.choices.iter().any(|choice| choice == name), "missing {name}");
+        }
     }
 
     #[test]
