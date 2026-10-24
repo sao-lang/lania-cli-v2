@@ -60,9 +60,10 @@ jobs:
           src="rust/target/${{ matrix.target }}/release/lania-cli"
           if [ -f "${src}.exe" ]; then src="${src}.exe"; fi
           mkdir -p dist
-          cp "$src" dist/lania-cli
-          chmod +x dist/lania-cli
-          ls -lh dist/lania-cli
+          # 资产名必须带平台后缀，否则三个 job 会互相覆盖同一个 release asset。
+          cp "$src" "dist/lania-cli-${{ matrix.platform }}"
+          chmod +x "dist/lania-cli-${{ matrix.platform }}"
+          ls -lh "dist/lania-cli-${{ matrix.platform }}"
 
       - name: Upload binary to release
         shell: bash
@@ -75,4 +76,4 @@ jobs:
           # 同名 asset 已存在时先删除，便于重跑 workflow。
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "CLI binaries for $TAG"
           gh release delete-asset "$TAG" "$asset" --yes >/dev/null 2>&1 || true
-          gh release upload "$TAG" "dist/lania-cli#${asset}" --clobber
+          gh release upload "$TAG" "dist/$asset" --clobber
