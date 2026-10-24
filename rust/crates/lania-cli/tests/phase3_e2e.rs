@@ -32,8 +32,8 @@ mod env_commands;
 mod generate_workflows;
 #[path = "phase3_e2e/help_and_config.rs"]
 mod help_and_config;
-#[path = "phase3_e2e/sync_and_release.rs"]
-mod sync_and_release;
+#[path = "phase3_e2e/git_and_release.rs"]
+mod git_and_release;
 #[path = "phase3_e2e/template_commands.rs"]
 mod template_commands;
 #[path = "phase3_e2e/tools_commands.rs"]

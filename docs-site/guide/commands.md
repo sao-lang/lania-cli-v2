@@ -17,7 +17,7 @@ Lania CLI 的命令可以按执行路径分为四类：Bridge 型、混合型、
 | `template` | `t`  | Bridge 查询       | 列出模板或查看详情                    |
 | `generate` | `g`  | Workflow          | 契约与模块代码生成                    |
 | `release`  | `r`  | Workflow          | 发布规划、执行、恢复与状态查询        |
-| `sync`     | `s`  | Workflow          | Git 暂存、提交、推送                  |
+| `git`      | `gt` | Workflow          | Git 查询、分支/标签、暂存、提交与推送 |
 | `config`   | —    | Workflow          | 管理全局 CLI 偏好                     |
 | `env`      | —    | 混合 / TUI        | 查看与管理多语言工具链版本            |
 | `product`  | —    | Bridge / Workflow | 产品 CLI 生成、构建、打包、发布与诊断 |
@@ -45,7 +45,7 @@ Rust 解析命令 → Node Bridge → compiler / lint 插件 → JS 工具链
 Rust 解析命令 → lania-workflows → 宿主服务 / Node Bridge 能力
 ```
 
-代表命令：`create`、`add`、`generate`、`release`、`sync`。
+代表命令：`create`、`add`、`generate`、`release`、`git`。
 
 ### 运行时扩展型
 
@@ -111,7 +111,7 @@ lan config set output.progress none
   </div>
   <div>
     <strong>发布</strong>
-    <code>lan release</code> / <code>lan sync</code>
+    <code>lan release</code> / <code>lan git sync</code>
   </div>
   <div>
     <strong>本地工具</strong>

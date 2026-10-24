@@ -8,7 +8,7 @@ Lania CLI 的命令不是写死在 clap 里的，而是由 Rust 插件、Node Br
 
 | 来源           | 注册方                                   | 执行方                              | 典型命令                                                 |
 | -------------- | ---------------------------------------- | ----------------------------------- | -------------------------------------------------------- |
-| 内置 Rust 命令 | Rust 插件 `setup()`                      | Rust handler                        | `create`、`add`、`generate`、`release`、`sync`、`config` |
+| 内置 Rust 命令 | Rust 插件 `setup()`                      | Rust handler                        | `create`、`add`、`generate`、`release`、`git`、`config`  |
 | Bridge 命令    | Rust 插件注册 spec                       | Node Bridge 插件                    | `dev`、`build`、`lint`                                   |
 | 混合命令       | Rust 插件                                | 本地 + Bridge                       | `tools`（`list` 走 Bridge，`run/view` 走本地）           |
 | 查询命令       | Rust 插件                                | Node Bridge 查询                    | `template`                                               |
@@ -29,7 +29,7 @@ HostRuntime::new()
   → register_plugin(AddCommandPlugin)
   → register_plugin(GenerateCommandPlugin)
   → register_plugin(ReleaseCommandPlugin)
-  → register_plugin(SyncCommandPlugin)
+  → register_plugin(GitCommandPlugin)
   → register_plugin(TemplateCommandPlugin)
   → register_plugin(ToolsCommandPlugin)
   → register_plugin(ConfigCommandPlugin)
@@ -179,7 +179,7 @@ HostRuntime::execute_command(context)
 | `generate`     | `g`        |
 | `generate api` | `contract` |
 | `release`      | `r`        |
-| `sync`         | `s`        |
+| `git`          | `gt`       |
 | `template`     | `t`        |
 
 > `lan.config.commands.aliases` 与 `commands.shortcuts` 目前会被解析并校验，但没有接入实际命令解析流程。不要依赖它们改变 CLI 行为。

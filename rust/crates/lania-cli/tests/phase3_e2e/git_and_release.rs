@@ -1,9 +1,9 @@
-//! sync/release git 工作流 e2e。
+//! `git` / `release` 命令的 e2e。
 use super::common::*;
 use super::*;
 
 #[test]
-fn lan_sync_e2e() {
+fn lan_git_sync_e2e() {
     let root = temp_dir("sync");
     run_command(&root, "git", &["init"]);
     run_command(&root, "git", &["config", "user.name", "Lania Test"]);
@@ -38,11 +38,7 @@ fn lan_sync_e2e() {
     run_command(&root, "git", &["push", "-u", "origin", &branch]);
     write_file(root.join("README.md"), "hello sync\n");
 
-    let output = run_cli(
-        &root,
-        &["sync", "--push", "--message", "chore(sync): e2e"],
-        &[],
-    );
+    let output = run_cli(&root, &["git", "sync", "--push", "--message", "chore(sync): e2e"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
@@ -61,8 +57,8 @@ fn lan_sync_e2e() {
 }
 
 #[test]
-fn lan_sync_status_e2e() {
-    let root = temp_dir("sync-status");
+fn lan_git_status_e2e() {
+    let root = temp_dir("git-status");
     run_command(&root, "git", &["init"]);
     run_command(&root, "git", &["config", "user.name", "Lania Test"]);
     run_command(&root, "git", &["config", "user.email", "lania@example.com"]);
@@ -71,12 +67,15 @@ fn lan_sync_status_e2e() {
     run_command(&root, "git", &["commit", "-m", "init"]);
     write_file(root.join("README.md"), "hello status\n");
 
-    let output = run_cli(&root, &["sync", "status"], &[]);
+    let output = run_cli(&root, &["git", "status"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["workflow"], "git");
     assert_eq!(json["result"]["prompts"]["mode"], "status");
+    assert_eq!(json["result"]["prompts"]["changedFiles"], 1);
+    assert_eq!(json["result"]["prompts"]["clean"], false);
     assert_eq!(
         json["result"]["command_plans"]
             .as_array()
@@ -84,13 +83,101 @@ fn lan_sync_status_e2e() {
             .len(),
         0
     );
+    assert!(json["result"]["notes"]
+        .as_array()
+        .expect("notes")
+        .iter()
+        .any(|note| note.as_str().unwrap_or_default().starts_with("status:")));
 
     let _ = fs::remove_dir_all(root);
 }
 
 #[test]
-fn lan_sync_invalid_commit_message_exits_non_zero() {
-    let root = temp_dir("sync-invalid-message");
+fn lan_git_log_and_diff_e2e() {
+    let root = temp_dir("git-log-diff");
+    run_command(&root, "git", &["init"]);
+    run_command(&root, "git", &["config", "user.name", "Lania Test"]);
+    run_command(&root, "git", &["config", "user.email", "lania@example.com"]);
+    write_file(root.join("README.md"), "hello\n");
+    run_command(&root, "git", &["add", "."]);
+    run_command(&root, "git", &["commit", "-m", "feat: init"]);
+    write_file(root.join("README.md"), "hello world\n");
+
+    let log = run_cli(&root, &["git", "log", "--limit", "1"], &[]);
+    let log_json = parse_stdout_json(&log);
+    assert_eq!(log.status.code(), Some(0));
+    assert_eq!(log_json["result"]["prompts"]["commitCount"], 1);
+    assert!(log_json["result"]["notes"]
+        .as_array()
+        .expect("notes")
+        .iter()
+        .any(|note| note.as_str().unwrap_or_default().contains("feat: init")));
+
+    let diff = run_cli(&root, &["git", "diff"], &[]);
+    let diff_json = parse_stdout_json(&diff);
+    assert_eq!(diff.status.code(), Some(0));
+    assert_eq!(diff_json["result"]["prompts"]["hasDiff"], true);
+    assert!(diff_json["result"]["notes"]
+        .as_array()
+        .expect("notes")
+        .iter()
+        .any(|note| note
+            .as_str()
+            .unwrap_or_default()
+            .contains("+hello world")));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_git_branch_and_tag_e2e() {
+    let root = temp_dir("git-branch-tag");
+    run_command(&root, "git", &["init"]);
+    run_command(&root, "git", &["config", "user.name", "Lania Test"]);
+    run_command(&root, "git", &["config", "user.email", "lania@example.com"]);
+    write_file(root.join("README.md"), "hello\n");
+    run_command(&root, "git", &["add", "."]);
+    run_command(&root, "git", &["commit", "-m", "init"]);
+
+    let list = run_cli(&root, &["git", "branch", "list"], &[]);
+    let list_json = parse_stdout_json(&list);
+    assert_eq!(list.status.code(), Some(0));
+    assert!(list_json["result"]["prompts"]["localCount"]
+        .as_i64()
+        .unwrap_or_default()
+        >= 1);
+
+    let created = run_cli(&root, &["git", "branch", "create", "feature/x"], &[]);
+    assert_eq!(created.status.code(), Some(0));
+    assert!(git_branch_exists(&root, "feature/x"));
+
+    let tag = run_cli(&root, &["git", "tag", "create", "v0.1.0"], &[]);
+    assert_eq!(tag.status.code(), Some(0));
+    let tag_list = run_cli(&root, &["git", "tag", "list"], &[]);
+    let tag_json = parse_stdout_json(&tag_list);
+    assert!(tag_json["result"]["notes"]
+        .as_array()
+        .expect("notes")
+        .iter()
+        .any(|note| note.as_str().unwrap_or_default().contains("v0.1.0")));
+
+    // 删除是破坏性操作：不带 --yes 时只输出计划。
+    let planned = run_cli(&root, &["git", "tag", "delete", "v0.1.0"], &[]);
+    let planned_json = parse_stdout_json(&planned);
+    assert_eq!(planned.status.code(), Some(0));
+    assert_eq!(planned_json["result"]["prompts"]["dryRun"], true);
+    assert!(git_tag_exists(&root, "v0.1.0"));
+
+    let deleted = run_cli(&root, &["git", "tag", "delete", "v0.1.0", "--yes"], &[]);
+    assert_eq!(deleted.status.code(), Some(0));
+    assert!(!git_tag_exists(&root, "v0.1.0"));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_git_invalid_commit_message_exits_non_zero() {
+    let root = temp_dir("git-invalid-message");
     run_command(&root, "git", &["init"]);
     run_command(&root, "git", &["config", "user.name", "Lania Test"]);
     run_command(&root, "git", &["config", "user.email", "lania@example.com"]);
@@ -101,7 +188,7 @@ fn lan_sync_invalid_commit_message_exits_non_zero() {
 
     let output = run_cli(
         &root,
-        &["sync", "commit", "--message", "invalid message"],
+        &["git", "commit", "--message", "invalid message"],
         &[],
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -113,8 +200,8 @@ fn lan_sync_invalid_commit_message_exits_non_zero() {
 }
 
 #[test]
-fn lan_sync_requires_git_repo_zh_e2e() {
-    let root = temp_dir("sync-no-git-zh");
+fn lan_git_requires_repo_zh_e2e() {
+    let root = temp_dir("git-no-repo-zh");
     let home = isolated_home(&root);
     write_file(
         Path::new(&home).join(".lania").join("preferences.json"),
@@ -126,15 +213,32 @@ fn lan_sync_requires_git_repo_zh_e2e() {
 "#,
     );
 
-    let output = run_cli(&root, &["sync"], &[("HOME", home.as_str())]);
+    let output = run_cli(&root, &["git", "status"], &[("HOME", home.as_str())]);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert_eq!(output.status.code(), Some(2));
-    assert!(stderr.contains("Git 仓库未就绪"));
-    assert!(stdout.contains("Git 仓库未就绪"));
+    assert!(stdout.contains("Git 仓库未就绪") || stderr.contains("Git 仓库未就绪"));
 
     let _ = fs::remove_dir_all(root);
+}
+
+fn git_branch_exists(root: &Path, branch: &str) -> bool {
+    Command::new("git")
+        .args(["rev-parse", "--verify", "--quiet", branch])
+        .current_dir(root)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn git_tag_exists(root: &Path, tag: &str) -> bool {
+    Command::new("git")
+        .args(["rev-parse", "--verify", "--quiet", &format!("refs/tags/{tag}")])
+        .current_dir(root)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
 }
 
 #[test]

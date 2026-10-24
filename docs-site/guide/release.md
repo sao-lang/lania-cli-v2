@@ -1,7 +1,7 @@
 # 发布与同步
 
 <div class="lead">
-release 负责发布规划、执行、恢复与状态查询；sync 负责 Git 暂存、提交与推送。两者都由 Rust 工作流执行，并通过宿主服务完成 Git、进程、配置与状态持久化。
+release 负责发布规划、执行、恢复与状态查询；git 负责 Git 查询、分支/标签、暂存、提交与推送。两者都由 Rust 工作流执行，并通过宿主服务完成 Git、进程、配置与状态持久化。
 </div>
 
 ## release
@@ -80,15 +80,30 @@ release run
 - 版本、profile、环境、通道
 - 已执行的命令与结果
 
-## sync
+## git
+
+`lan git` 是 Git 的统一入口：只读查询、分支/标签管理、暂存与提交推送都在同一个命令族下。
+`sync` / `commit` / `push` 沿用原 `lan sync` 的语义与选项。
 
 ### 命令结构
 
 ```text
-lan sync [options] [command]
-  status  查看同步状态
-  commit  暂存并提交
-  push    推送当前分支
+lan git <command>
+  status           查看工作区状态
+  log [-n 10]      查看最近提交
+  diff             查看差异（--staged 只看暂存区）
+  branch list      列出本地与远程分支
+  branch create    创建分支
+  branch switch    切换分支
+  branch delete    删除分支（需 --yes）
+  tag list         列出标签
+  tag create       创建标签（-m 生成附注标签）
+  tag delete       删除标签（需 --yes）
+  add              暂存全部修改
+  restore          丢弃修改（需 --yes）
+  sync             暂存 + 提交 + 推送
+  commit           暂存 + 提交
+  push             推送当前分支
 ```
 
 ### 常用选项
@@ -107,16 +122,29 @@ lan sync [options] [command]
 ### 示例
 
 ```bash
-lan sync status
-lan sync --dry-run --message "chore(sync): verify"
-lan sync --message "feat: add user api"
-lan sync commit --message "fix: handle empty input"
-lan sync push
+lan git status
+lan git log -n 5
+lan git diff --staged
+lan git branch create feature/login
+lan git branch switch feature/login
+lan git --dry-run sync --message "chore(sync): verify"
+lan git sync --message "feat: add user api"
+lan git commit --message "fix: handle empty input" --no-push
+lan git push
+```
+
+### 破坏性操作
+
+`branch delete` / `tag delete` / `restore` 默认**只输出命令计划**，加 `--yes` 才会真正执行：
+
+```bash
+lan git tag delete v0.1.0           # 只打印计划
+lan git tag delete v0.1.0 --yes     # 真正删除
 ```
 
 ### commitlint
 
-`sync` 在提交前会通过 Node Bridge 调用 commitlint：
+`sync` / `commit` 在提交前会通过 Node Bridge 调用 commitlint：
 
 - 如果项目存在 commitlint 配置，会按配置校验。
 - 没有配置时使用默认规则。
@@ -124,7 +152,7 @@ lan sync push
 
 ## 命令计划与安全
 
-release 和 sync 都会在执行前生成命令计划：
+git 写操作和 release 都会在执行前生成命令计划：
 
 ```text
 git status --porcelain

@@ -7,10 +7,10 @@ use lania_plugins_command_build::BuildCommandPlugin;
 use lania_plugins_command_create::CreateCommandPlugin;
 use lania_plugins_command_dev::DevCommandPlugin;
 use lania_plugins_command_generate::GenerateCommandPlugin;
+use lania_plugins_command_git::GitCommandPlugin;
 use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_plugins_command_release::ReleaseCommandPlugin;
-use lania_plugins_command_sync::SyncCommandPlugin;
 use lania_plugins_command_template::TemplateCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
 
@@ -31,8 +31,8 @@ fn register_cli_plugins(host: &mut HostRuntime) {
         .expect("generate plugin registers");
     host.register_plugin(Box::new(ReleaseCommandPlugin))
         .expect("release plugin registers");
-    host.register_plugin(Box::new(SyncCommandPlugin))
-        .expect("sync plugin registers");
+    host.register_plugin(Box::new(GitCommandPlugin))
+        .expect("git plugin registers");
     host.register_plugin(Box::new(TemplateCommandPlugin))
         .expect("template plugin registers");
     host.register_plugin(Box::new(ToolsCommandPlugin))

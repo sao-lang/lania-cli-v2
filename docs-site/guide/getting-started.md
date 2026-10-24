@@ -6,12 +6,12 @@
 
 ## 前置要求
 
-| 工具    | 建议版本     | 用途                         |
-| ------- | ------------ | ---------------------------- |
-| Node.js | 20+          | Node Bridge、前端工具链      |
-| pnpm    | 10.x         | 仓库依赖与脚本               |
-| Rust    | 1.80+        | 编译 CLI 宿主                |
-| Git     | 任意较新版本 | `sync`、`release` 与版本管理 |
+| 工具    | 建议版本     | 用途                        |
+| ------- | ------------ | --------------------------- |
+| Node.js | 20+          | Node Bridge、前端工具链     |
+| pnpm    | 10.x         | 仓库依赖与脚本              |
+| Rust    | 1.80+        | 编译 CLI 宿主               |
+| Git     | 任意较新版本 | `git`、`release` 与版本管理 |
 
 验证环境：
 
@@ -79,7 +79,7 @@ Commands:
   add       Add generated content into an existing workspace [aliases: a]
   generate  Generate project artifacts [aliases: g]
   release   Project release orchestration [aliases: r]
-  sync      Quickly sync local code to git [aliases: s]
+  git       Inspect and sync git state [aliases: gt]
   template  List templates or inspect a template detail [aliases: t]
   tools     List commands, run files by type, or view local files
   config    Manage global CLI preferences

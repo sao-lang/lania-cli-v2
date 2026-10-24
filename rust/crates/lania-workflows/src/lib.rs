@@ -1,6 +1,7 @@
 //! 跨命令共享的 workflow 入口与公共数据模型导出。
 mod create;
 mod generate;
+mod git;
 mod models;
 mod release;
 mod sync;
@@ -16,12 +17,13 @@ pub(crate) use generate::module_prepare as generate_module_prepare;
 pub(crate) use generate::module_render as generate_module_render;
 pub(crate) use generate::schema as generate_schema;
 pub(crate) use generate::types as generate_types;
+pub use git::{is_destructive, is_read_only};
 
 pub use models::{
     AddWorkflow, AddWorkflowInput, CreateWorkflow, CreateWorkflowInput, GenerateApiMode,
     GenerateApiWorkflow, GenerateApiWorkflowInput, GenerateModuleMode, GenerateModuleWorkflow,
-    GenerateModuleWorkflowInput, ReleaseMode, ReleaseStage, ReleaseStageSnapshot,
-    ReleaseStageStatus, ReleaseStateSnapshot, ReleaseWorkflow, ReleaseWorkflowInput, SyncMode,
-    SyncWorkflow, SyncWorkflowInput, TemplateCapability, WorkflowBridgeStep, WorkflowExecution,
-    WorkflowServices, WorkflowState,
+    GenerateModuleWorkflowInput, GitWorkflow, GitWorkflowInput, GitWorkflowMode, ReleaseMode,
+    ReleaseStage, ReleaseStageSnapshot, ReleaseStageStatus, ReleaseStateSnapshot, ReleaseWorkflow,
+    ReleaseWorkflowInput, SyncMode, SyncWorkflow, SyncWorkflowInput, TemplateCapability,
+    WorkflowBridgeStep, WorkflowExecution, WorkflowServices, WorkflowState,
 };

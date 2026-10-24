@@ -26,12 +26,12 @@
 
 ## 当前能力
 
-- 内置命令覆盖 `dev`、`build`、`lint`、`tools`、`env`、`create`、`add`、`template`、`generate api`、`generate module`、`release`、`sync`、`config`。
+- 内置命令覆盖 `dev`、`build`、`lint`、`tools`、`env`、`create`、`add`、`template`、`generate api`、`generate module`、`release`、`git`、`config`。
 - 支持三类执行路径：
   - Bridge 型命令：`dev`、`build`、`lint`
   - 混合型命令：`tools`，其中 `tools list` 走 Node Bridge，`tools run/view` 走本地宿主能力
   - 混合型命令：`env`，探测走本地宿主能力，变更操作默认 dry-run；`env ui` 提供终端 TUI 双栏界面
-  - Workflow 型命令：`create`、`add`、`generate`、`release`、`sync`
+  - Workflow 型命令：`create`、`add`、`generate`、`release`、`git`
   - 运行时扩展命令：由项目通过 `lan.config.*` 和 `lania.schemas.*` 动态注入
 - 支持项目级插件与方法白名单、来源约束、签名策略等安全机制。
 - 支持 `json`、`human` 两种输出模式，以及 `spinner`、`bar`、`none` 三种进度渲染策略。
@@ -240,7 +240,7 @@ cargo run -p lania-cli -- create --preview --name demo-app
 | `generate api`    | Workflow    | 从 `lania.contract.yaml` 生成契约 DTO 与传输层代码                                                       |
 | `generate module` | Workflow    | 从 `lania.module.yaml` 生成 `lania-g` 相关模块与注入代码                                                 |
 | `release`         | Workflow    | 规划、执行、恢复或查询一次发布流程                                                                       |
-| `sync`            | Workflow    | 暂存、提交、推送当前工作区变更                                                                           |
+| `git`             | Workflow    | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                 |
 | `config`          | Workflow    | 读取或更新 CLI 全局偏好，例如语言和输出模式                                                              |
 
 ## 关键链路
@@ -416,11 +416,13 @@ Node 框架项目通过 `lan.config.js` 的 `buildTool` 选择构建工具：`ne
   - `json/yaml`：扩展字段 `x-lania-operations`
   - 详细规范见 [模块设计与通信总览](./docs/architecture/模块设计与通信总览.zh-CN.md) 与 [专题设计与对账](./docs/design/专题设计与对账.zh-CN.md)
 
-### `release` / `sync`
+### `release` / `git`
 
 - 统一由 Rust 工作流执行。
 - 通过 `lania-config`、`lania-git`、`lania-exec`、`lania-pm`、`lania-task`、`lania-progress` 等服务完成配置解析、Git 查询、命令执行、任务编排与状态持久化。
-- `release` 使用 `.lania/release-state.json` 进行状态恢复；`sync` 支持普通提交、交互式提交和独立推送子命令。
+- `release` 使用 `.lania/release-state.json` 进行状态恢复。
+- `git` 覆盖只读查询（`status` / `log` / `diff` / `branch list` / `tag list`）、分支与标签管理、暂存/恢复，以及原 `lan sync` 的 `sync` / `commit` / `push` 三个动作。
+- 破坏性操作（`branch delete` / `tag delete` / `restore`）默认只输出命令计划，需要 `--yes` 才真正执行。
 
 ### 自定义指令
 

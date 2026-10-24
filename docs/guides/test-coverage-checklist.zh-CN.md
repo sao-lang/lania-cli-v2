@@ -10,19 +10,19 @@
 
 ### 1.1 Rust 内建命令插件（11 个）
 
-| #   | 命令       | 插件                  | 执行方式                     | 子命令                                   |
-| --- | ---------- | --------------------- | ---------------------------- | ---------------------------------------- |
-| 1   | `dev`      | DevCommandPlugin      | Bridge (`compiler.dev`)      | —                                        |
-| 2   | `build`    | BuildCommandPlugin    | Bridge (`compiler.build`)    | —                                        |
-| 3   | `lint`     | LintCommandPlugin     | Bridge (`lint.run`)          | `check`, `fix`                           |
-| 4   | `create`   | CreateCommandPlugin   | Workflow (`CreateWorkflow`)  | —                                        |
-| 5   | `add`      | AddCommandPlugin      | Workflow (`AddWorkflow`)     | —                                        |
-| 6   | `generate` | GenerateCommandPlugin | Workflow / Bridge            | `module`, `api`, `product generate`      |
-| 7   | `release`  | ReleaseCommandPlugin  | Workflow (`ReleaseWorkflow`) | `plan`, `exec`/`run`, `resume`, `status` |
-| 8   | `sync`     | SyncCommandPlugin     | Workflow (`SyncWorkflow`)    | `status`, `commit`, `push`               |
-| 9   | `template` | TemplateCommandPlugin | Bridge (`template.*`)        | `[name]`                                 |
-| 10  | `tools`    | ToolsCommandPlugin    | Bridge / Local               | `list`, `run`, `view`                    |
-| 11  | `config`   | ConfigCommandPlugin   | Local (`lania_preferences`)  | `get`, `set`                             |
+| #   | 命令       | 插件                  | 执行方式                     | 子命令                                                                                   |
+| --- | ---------- | --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | `dev`      | DevCommandPlugin      | Bridge (`compiler.dev`)      | —                                                                                        |
+| 2   | `build`    | BuildCommandPlugin    | Bridge (`compiler.build`)    | —                                                                                        |
+| 3   | `lint`     | LintCommandPlugin     | Bridge (`lint.run`)          | `check`, `fix`                                                                           |
+| 4   | `create`   | CreateCommandPlugin   | Workflow (`CreateWorkflow`)  | —                                                                                        |
+| 5   | `add`      | AddCommandPlugin      | Workflow (`AddWorkflow`)     | —                                                                                        |
+| 6   | `generate` | GenerateCommandPlugin | Workflow / Bridge            | `module`, `api`, `product generate`                                                      |
+| 7   | `release`  | ReleaseCommandPlugin  | Workflow (`ReleaseWorkflow`) | `plan`, `exec`/`run`, `resume`, `status`                                                 |
+| 8   | `git`      | GitCommandPlugin      | Workflow (`GitWorkflow`)     | `status`, `log`, `diff`, `branch *`, `tag *`, `add`, `restore`, `sync`, `commit`, `push` |
+| 9   | `template` | TemplateCommandPlugin | Bridge (`template.*`)        | `[name]`                                                                                 |
+| 10  | `tools`    | ToolsCommandPlugin    | Bridge / Local               | `list`, `run`, `view`                                                                    |
+| 11  | `config`   | ConfigCommandPlugin   | Local (`lania_preferences`)  | `get`, `set`                                                                             |
 
 ### 1.2 内置命令（由 clap 提供）
 
@@ -128,8 +128,8 @@
 | `generate api diff`          | `phase3_e2e/generate_api.rs`              | diff 模式检测基线差异，修改合约后产生 notes                                                     | ✅            |
 | `generate module plan`       | `phase3_e2e/generate_api.rs`              | plan 模式预览不写入文件                                                                         | ✅            |
 | `generate module diff`       | `phase3_e2e/generate_api.rs`              | diff 模式检测基线差异                                                                           | ✅            |
-| `sync` 工作流                | `phase3_e2e/sync_and_release.rs`          | 基本 sync                                                                                       | ⚠️ 需 CI 确认 |
-| `release` 工作流             | `phase3_e2e/sync_and_release.rs`          | plan/exec/resume                                                                                | ⚠️ 需 CI 确认 |
+| `git` 工作流                 | `phase3_e2e/git_and_release.rs`           | sync / status / log / diff / branch / tag / 破坏性操作确认                                      | ✅            |
+| `release` 工作流             | `phase3_e2e/git_and_release.rs`           | plan/exec/resume                                                                                | ⚠️ 需 CI 确认 |
 | `template list/view`         | `phase3_e2e/template_commands.rs`         | 模板列表和查看                                                                                  | ✅            |
 | 产品化分发                   | `phase3_e2e/distribution_and_dynamic.rs`  | 安装布局、二进制分发、build/pack/publish 全链路、inspect/doctor、产品初始化、tarball 安装       | ⚠️ 需 CI 确认 |
 | 动态命令基础(installed)      | `phase3_e2e/distribution_and_dynamic.rs`  | resolveDynamic + invokeDynamic 在 installed 模式下的完整链路                                    | ⚠️ 需 CI 确认 |
@@ -250,7 +250,7 @@ rust/crates/lania-cli/tests/phase3_e2e/
 ├── dynamic_commands_host_rpc.rs       # ⭐ 新增：动态命令 dev 模式 + Host RPC (unix only)
 ├── generate_api.rs                    # ⭐ 新增：generate api/module plan/diff
 ├── generate_workflows.rs              # generate module
-├── sync_and_release.rs                # sync/release 工作流
+├── git_and_release.rs                # sync/release 工作流
 ├── template_commands.rs               # template list/view/交互式
 ├── tools_commands.rs                  # ⭐ 新增：tools list/view/help
 ├── phase3_benchmark.rs                # 性能基准
@@ -296,13 +296,13 @@ Node bridge 的启动入口 `ts/packages/node-bridge/dist/entry/stdio.js` 在 Wi
 
 ## 第六部分：执行顺序建议
 
-| 阶段                 | 任务                                                                        | 状态      | 前置条件      | 预估工作量 |
-| -------------------- | --------------------------------------------------------------------------- | --------- | ------------- | ---------- |
-| **阶段 1（已完成）** | P0-3(dynamic + Host RPC) + P1-1(tools)                                      | ✅ 完成   | —             | 3-5 天     |
+| 阶段                 | 任务                                                                                     | 状态      | 前置条件      | 预估工作量 |
+| -------------------- | ---------------------------------------------------------------------------------------- | --------- | ------------- | ---------- |
+| **阶段 1（已完成）** | P0-3(dynamic + Host RPC) + P1-1(tools)                                                   | ✅ 完成   | —             | 3-5 天     |
 | **阶段 2（已完成）** | P0-4(generate api plan/diff) + P1-2(product dev watch) + P1-4(generate module plan/diff) | ✅ 完成   | 无            | 2-3 天     |
-| **阶段 3**           | P1-3(schema parse err) + product dev watch                                  | 📋 待开始 | 无            | 2-3 天     |
-| **阶段 4**           | P2-1(tools run) + P2-2(prompt) + P2-3(conflict) + P2-4(errors) + P2-5(i18n) | 📋 待开始 | 无            | 3-5 天     |
-| **阶段 5**           | P3-1(product init) + P3-2(git) + P3-3(task/progress) + P3-4(Windows)        | 📋 待开始 | 阶段 1-4 完成 | 5-7 天     |
+| **阶段 3**           | P1-3(schema parse err) + product dev watch                                               | 📋 待开始 | 无            | 2-3 天     |
+| **阶段 4**           | P2-1(tools run) + P2-2(prompt) + P2-3(conflict) + P2-4(errors) + P2-5(i18n)              | 📋 待开始 | 无            | 3-5 天     |
+| **阶段 5**           | P3-1(product init) + P3-2(git) + P3-3(task/progress) + P3-4(Windows)                     | 📋 待开始 | 阶段 1-4 完成 | 5-7 天     |
 
 **已实现覆盖度提升**：
 

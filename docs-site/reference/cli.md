@@ -233,11 +233,25 @@ lan release [options] [plan|run|resume|status]
 | `-d, --dry-run`           | 强制规划                       |
 | `-y, --yes`               | 免确认                         |
 
-## sync
+## git
 
 ```bash
-lan sync [status|commit|push] [options]
+lan git status                 # 工作区状态
+lan git log [-n 10]            # 最近提交
+lan git diff [--staged] [-P path]
+lan git branch list            # 本地 + 远程分支
+lan git branch create <name>
+lan git branch switch <name>
+lan git branch delete <name> [--force] [--yes]
+lan git tag list
+lan git tag create <name> [-m message]
+lan git tag delete <name> [--yes]
+lan git add [--dry-run]
+lan git restore [paths...] [--staged] [--yes]
+lan git sync|commit|push [options]
 ```
+
+`sync` / `commit` / `push` 的选项：
 
 | 选项                      | 说明              |
 | ------------------------- | ----------------- |
@@ -249,6 +263,8 @@ lan sync [status|commit|push] [options]
 | `-d, --dry-run`           | 只规划            |
 | `-i, --interactive`       | commitizen        |
 | `-p, --push`              | 提交后推送        |
+
+> 破坏性操作（`branch delete` / `tag delete` / `restore`）不带 `--yes` 时只输出命令计划，不会真正执行。
 
 ## config
 

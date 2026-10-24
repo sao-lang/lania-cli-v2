@@ -21,7 +21,7 @@
 
 ## Current Capabilities
 
-- Built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `template`, `generate api`, `generate module`, `release`, `sync`, `config`
+- Built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `template`, `generate api`, `generate module`, `release`, `git`, `config`
 - Bridge-backed execution for compiler and lint workflows, plus mixed host/bridge tooling utilities under `tools`
 - Rust workflows for scaffolding, code generation, release orchestration, and Git automation
 - Project-level dynamic commands loaded from manifest files
@@ -50,7 +50,7 @@ In practice:
 | `tools run`, `tools view`         | Rust host utilities                                     | detect runtimes, execute local code files, or display/open local files |
 | `create`, `add`                   | Rust workflow + template bridge calls                   | project and partial scaffolding                                        |
 | `generate api`, `generate module` | Rust workflow                                           | file generation, manifests, optional injection                         |
-| `release`, `sync`                 | Rust workflow                                           | release orchestration and Git automation                               |
+| `release`, `git`                  | Rust workflow                                           | release orchestration and Git automation                               |
 | `template`                        | Rust query -> Node Bridge                               | template catalog and template detail lookup                            |
 | dynamic commands                  | project manifest -> Rust registration -> Node execution | runtime command extension                                              |
 

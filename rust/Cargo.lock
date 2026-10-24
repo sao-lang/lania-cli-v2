@@ -706,10 +706,10 @@ dependencies = [
  "lania-plugins-command-dev",
  "lania-plugins-command-env",
  "lania-plugins-command-generate",
+ "lania-plugins-command-git",
  "lania-plugins-command-lint",
  "lania-plugins-command-locale",
  "lania-plugins-command-release",
- "lania-plugins-command-sync",
  "lania-plugins-command-template",
  "lania-plugins-command-tools",
  "lania-preferences",
@@ -733,10 +733,10 @@ dependencies = [
  "lania-plugins-command-dev",
  "lania-plugins-command-env",
  "lania-plugins-command-generate",
+ "lania-plugins-command-git",
  "lania-plugins-command-lint",
  "lania-plugins-command-locale",
  "lania-plugins-command-release",
- "lania-plugins-command-sync",
  "lania-plugins-command-template",
  "lania-plugins-command-tools",
  "serde",
@@ -943,6 +943,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "lania-plugins-command-git"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "lania-command",
+ "lania-host",
+ "lania-workflows",
+ "serde_json",
+]
+
+[[package]]
 name = "lania-plugins-command-lint"
 version = "0.1.0"
 dependencies = [
@@ -969,18 +981,6 @@ dependencies = [
 
 [[package]]
 name = "lania-plugins-command-release"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "lania-command",
- "lania-host",
- "lania-workflows",
- "serde_json",
-]
-
-[[package]]
-name = "lania-plugins-command-sync"
 version = "0.1.0"
 dependencies = [
  "anyhow",

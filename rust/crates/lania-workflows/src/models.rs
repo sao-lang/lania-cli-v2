@@ -136,6 +136,47 @@ pub enum SyncMode {
 }
 
 #[derive(Debug, Clone)]
+pub struct GitWorkflowInput {
+    pub cwd: PathBuf,
+    pub mode: GitWorkflowMode,
+    pub remote: Option<String>,
+    pub branch: Option<String>,
+    pub tag: Option<String>,
+    pub message: Option<String>,
+    pub push: Option<bool>,
+    pub amend: bool,
+    pub force: bool,
+    pub force_with_lease: bool,
+    pub dry_run: bool,
+    pub interactive: bool,
+    pub staged: bool,
+    pub path: Option<String>,
+    pub paths: Vec<String>,
+    pub limit: Option<usize>,
+}
+
+/// `lan git` 的子命令语义。读写混在一起，是因为它们共享同一套输入结构；
+/// 只读/破坏性判定由 `git::is_read_only` / `git::is_destructive` 提供。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitWorkflowMode {
+    Status,
+    Log,
+    Diff,
+    BranchList,
+    BranchCreate,
+    BranchSwitch,
+    BranchDelete,
+    TagList,
+    TagCreate,
+    TagDelete,
+    Add,
+    Restore,
+    Sync,
+    Commit,
+    Push,
+}
+
+#[derive(Debug, Clone)]
 pub struct ReleaseWorkflowInput {
     pub cwd: PathBuf,
     pub mode: ReleaseMode,
@@ -297,6 +338,9 @@ pub struct AddWorkflow;
 
 #[derive(Debug, Clone, Default)]
 pub struct SyncWorkflow;
+
+#[derive(Debug, Clone, Default)]
+pub struct GitWorkflow;
 
 #[derive(Debug, Clone, Default)]
 pub struct ReleaseWorkflow;

@@ -58,12 +58,12 @@ lan
 
 仓库里的功能，最终都可以归到这四类：
 
-| 类型        | 典型命令                                                         | 主控层 | 执行层                              |
-| ----------- | ---------------------------------------------------------------- | ------ | ----------------------------------- |
-| Bridge 型   | `dev` `build` `lint` `template` `tools list` `product *`         | Rust   | Node bridge                         |
-| Workflow 型 | `create` `add` `generate api` `generate module` `release` `sync` | Rust   | Rust workflow，必要时再调 bridge    |
-| 本地宿主型  | `tools run` `tools view` `config` `product dev`                  | Rust   | Rust 本地服务                       |
-| 动态命令型  | 项目通过 `lan.config.*` / `lania.schemas.*` 注入的命令           | Rust   | 启动时 Node 解析，运行时再回调 Node |
+| 类型        | 典型命令                                                        | 主控层 | 执行层                              |
+| ----------- | --------------------------------------------------------------- | ------ | ----------------------------------- |
+| Bridge 型   | `dev` `build` `lint` `template` `tools list` `product *`        | Rust   | Node bridge                         |
+| Workflow 型 | `create` `add` `generate api` `generate module` `release` `git` | Rust   | Rust workflow，必要时再调 bridge    |
+| 本地宿主型  | `tools run` `tools view` `config` `product dev`                 | Rust   | Rust 本地服务                       |
+| 动态命令型  | 项目通过 `lan.config.*` / `lania.schemas.*` 注入的命令          | Rust   | 启动时 Node 解析，运行时再回调 Node |
 
 理解命令时，先判断它属于哪类，再往下追，不要把所有分支混在一起看。
 
@@ -80,32 +80,32 @@ Rust 命令插件统一在 `rust/crates/lania-cli/src/main.rs` 的 `main()` 里�
 - `AddCommandPlugin`
 - `GenerateCommandPlugin`
 - `ReleaseCommandPlugin`
-- `SyncCommandPlugin`
+- `GitCommandPlugin`
 - `TemplateCommandPlugin`
 - `ToolsCommandPlugin`
 - `ConfigCommandPlugin`
 
 ### 3.2 命令族 -> 落点矩阵
 
-| 命令族                                      | 入口 crate / 文件                            | handler 落点                 | 继续追踪                                             |
-| ------------------------------------------- | -------------------------------------------- | ---------------------------- | ---------------------------------------------------- |
-| `dev`                                       | `rust/crates/lania-plugins-command-dev`      | bridge `compiler.dev`        | `ts/packages/node-bridge/src/plugins/compiler.ts`    |
-| `product dev`                               | `rust/crates/lania-plugins-command-dev`      | 本地 watch / re-exec         | `watch.rs`                                           |
-| `build`                                     | `rust/crates/lania-plugins-command-build`    | bridge `compiler.build`      | `plugins/compiler.ts`                                |
-| `product build/pack/publish/inspect/doctor` | `rust/crates/lania-plugins-command-build`    | bridge `product.*`           | `plugins/product.ts`                                 |
-| `lint`                                      | `rust/crates/lania-plugins-command-lint`     | bridge `lint.run`            | `plugins/lint/plugin.ts`                             |
-| `create`                                    | `rust/crates/lania-plugins-command-create`   | `CreateWorkflow`             | `rust/crates/lania-workflows/src/create/`            |
-| `add`                                       | `rust/crates/lania-plugins-command-add`      | `AddWorkflow`                | `rust/crates/lania-workflows/src/create/`            |
-| `template`                                  | `rust/crates/lania-plugins-command-template` | bridge `template.list`       | `plugins/template.ts`                                |
-| `generate api`                              | `rust/crates/lania-plugins-command-generate` | `GenerateApiWorkflow`        | `rust/crates/lania-workflows/src/generate/api.rs`    |
-| `generate module`                           | `rust/crates/lania-plugins-command-generate` | `GenerateModuleWorkflow`     | `rust/crates/lania-workflows/src/generate/module.rs` |
-| `product generate`                          | `rust/crates/lania-plugins-command-generate` | bridge `product.generate`    | `plugins/product.ts`                                 |
-| `release`                                   | `rust/crates/lania-plugins-command-release`  | `ReleaseWorkflow`            | `rust/crates/lania-workflows/src/release/`           |
-| `sync`                                      | `rust/crates/lania-plugins-command-sync`     | `SyncWorkflow`               | `rust/crates/lania-workflows/src/sync/`              |
-| `tools` / `tools list`                      | `rust/crates/lania-plugins-command-tools`    | bridge `system.listCommands` | `plugins/system.ts`                                  |
-| `tools run`                                 | `rust/crates/lania-plugins-command-tools`    | 本地执行                     | `run.rs`                                             |
-| `tools view`                                | `rust/crates/lania-plugins-command-tools`    | 本地查看 / 系统打开          | `view.rs`                                            |
-| `config`                                    | `rust/crates/lania-plugins-command-locale`   | 本地 preferences             | `lania_preferences`                                  |
+| 命令族                                      | 入口 crate / 文件                            | handler 落点              | 继续追踪                                             |
+| ------------------------------------------- | -------------------------------------------- | ------------------------- | ---------------------------------------------------- | --- | ---------------------- | ----------------------------------------- | ---------------------------- | ------------------- |
+| `dev`                                       | `rust/crates/lania-plugins-command-dev`      | bridge `compiler.dev`     | `ts/packages/node-bridge/src/plugins/compiler.ts`    |
+| `product dev`                               | `rust/crates/lania-plugins-command-dev`      | 本地 watch / re-exec      | `watch.rs`                                           |
+| `build`                                     | `rust/crates/lania-plugins-command-build`    | bridge `compiler.build`   | `plugins/compiler.ts`                                |
+| `product build/pack/publish/inspect/doctor` | `rust/crates/lania-plugins-command-build`    | bridge `product.*`        | `plugins/product.ts`                                 |
+| `lint`                                      | `rust/crates/lania-plugins-command-lint`     | bridge `lint.run`         | `plugins/lint/plugin.ts`                             |
+| `create`                                    | `rust/crates/lania-plugins-command-create`   | `CreateWorkflow`          | `rust/crates/lania-workflows/src/create/`            |
+| `add`                                       | `rust/crates/lania-plugins-command-add`      | `AddWorkflow`             | `rust/crates/lania-workflows/src/create/`            |
+| `template`                                  | `rust/crates/lania-plugins-command-template` | bridge `template.list`    | `plugins/template.ts`                                |
+| `generate api`                              | `rust/crates/lania-plugins-command-generate` | `GenerateApiWorkflow`     | `rust/crates/lania-workflows/src/generate/api.rs`    |
+| `generate module`                           | `rust/crates/lania-plugins-command-generate` | `GenerateModuleWorkflow`  | `rust/crates/lania-workflows/src/generate/module.rs` |
+| `product generate`                          | `rust/crates/lania-plugins-command-generate` | bridge `product.generate` | `plugins/product.ts`                                 |
+| `release`                                   | `rust/crates/lania-plugins-command-release`  | `ReleaseWorkflow`         | `rust/crates/lania-workflows/src/release/`           |
+| `git`                                       | `rust/crates/lania-plugins-command-git`      | `GitWorkflow`             | `rust/crates/lania-workflows/src/git/`               |
+| `git sync` / `commit` / `push`              | `rust/crates/lania-plugins-command-git`      | `SyncWorkflow`            | `rust/crates/lania-workflows/src/sync/`              |     | `tools` / `tools list` | `rust/crates/lania-plugins-command-tools` | bridge `system.listCommands` | `plugins/system.ts` |
+| `tools run`                                 | `rust/crates/lania-plugins-command-tools`    | 本地执行                  | `run.rs`                                             |
+| `tools view`                                | `rust/crates/lania-plugins-command-tools`    | 本地查看 / 系统打开       | `view.rs`                                            |
+| `config`                                    | `rust/crates/lania-plugins-command-locale`   | 本地 preferences          | `lania_preferences`                                  |
 
 ## 4. 每条主功能链路怎么串
 
@@ -380,15 +380,17 @@ lan release <plan|run|resume|status>
 - `rust/crates/lania-workflows/src/release/execution.rs`
 - `rust/crates/lania-workflows/src/release/state.rs`
 
-### 4.13 `lan sync ...`
+### 4.13 `lan git ...`
 
 ```text
-lan sync <status|commit|push>
+lan git <status|log|diff|branch|tag|add|restore|sync|commit|push>
 -> main()
 -> HostRuntime::execute_command()
--> SyncCommandPlugin handler
--> SyncWorkflow::run()
--> build_sync_plan()
+-> GitCommandHandler::execute()
+-> GitWorkflow::run()
+-> 只读：git status / log / diff / branch list / tag list
+-> 写操作：先算 git 参数，--dry-run 只输出计划
+-> sync/commit/push：复用 build_sync_plan()
 -> git status / prompt / commit message
 -> commitizen.run / commitlint.run
 -> git commit / git push
@@ -396,8 +398,9 @@ lan sync <status|commit|push>
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-sync/src/lib.rs`
-- `rust/crates/lania-workflows/src/sync/mod.rs`
+- `rust/crates/lania-plugins-command-git/src/lib.rs`
+- `rust/crates/lania-workflows/src/git/mod.rs`
+- `rust/crates/lania-workflows/src/sync/plan.rs`（sync/commit/push 内核）
 - `ts/packages/node-bridge/src/plugins/commitizen.ts`
 - `ts/packages/node-bridge/src/plugins/commitlint.ts`
 

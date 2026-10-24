@@ -91,7 +91,7 @@ rust/crates/lania-cli
 
 由 Rust 插件注册，随 CLI 一起发布：
 
-`dev`、`build`、`lint`、`tools`、`create`、`add`、`template`、`generate`、`release`、`sync`、`config`、`product`。
+`dev`、`build`、`lint`、`tools`、`create`、`add`、`template`、`generate`、`release`、`git`、`config`、`product`。
 
 ### 动态命令
 

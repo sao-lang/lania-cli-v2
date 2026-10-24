@@ -197,7 +197,7 @@ Node 侧可以从三个文件入手：
 - `add`
 - `generate`
 - `release`
-- `sync`
+- `git`
 - `config`
 
 特点：
@@ -210,7 +210,7 @@ Node 侧可以从三个文件入手：
 
 1. 对应的 `lania-plugins-command-*`
 2. `rust/crates/lania-workflows/src/lib.rs`
-3. 具体模块目录，例如 `create/`、`release/`、`sync/`
+3. 具体模块目录，例如 `create/`、`release/`、`git/`、`sync/`
 4. 相关服务 crate
 
 ### 第三类：查询型命令
@@ -311,19 +311,20 @@ Node 侧可以从三个文件入手：
 - 外部命令调用
 - 输出与失败处理
 
-### 8.7 `sync`
+### 8.7 `git`
 
-`sync` 是最适合理解 Git 服务边界的命令：
+`git` 是最适合理解 Git 服务边界与“先计划后执行”模型的命令：
 
-1. 推断或补问 `remote`、`branch`、`message`
-2. 查询工作区状态
-3. 执行 `add`、`commit`、`push`
-4. 可选走交互式提交链路
+1. 只读子命令（`status` / `log` / `diff` / `branch list` / `tag list`）直接查询 `lania-git`
+2. 写子命令先拼 `git` 参数；`--dry-run` 到此为止
+3. 破坏性操作（删除分支/标签、`restore`）缺 `--yes` 时也退化成计划
+4. `sync` / `commit` / `push` 复用 `sync` 内核：推断或补问 `remote`、`branch`、`message`，再执行 `add`、`commit`、`push`
 
 阅读时重点关注：
 
 - `lania-git`
 - `lania-exec`
+- `rust/crates/lania-workflows/src/git/mod.rs` 与 `sync/plan.rs`
 - prompt 补问逻辑
 
 ## 9. 自定义指令链路要如何理解
@@ -392,9 +393,7 @@ export default {
         {
           name: 'ping',
           about: 'Ping endpoint',
-          options: [
-            { long: 'endpoint', valueKind: 'string', help: 'Endpoint', required: true },
-          ],
+          options: [{ long: 'endpoint', valueKind: 'string', help: 'Endpoint', required: true }],
           prompt: [
             {
               field: 'endpoint',

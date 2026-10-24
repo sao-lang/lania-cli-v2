@@ -91,8 +91,8 @@
 | `lan generate module init`     | ✅ 通过 | 生成模块样例                             | 生成 `lania.module.yaml` 等                          |
 | `lan generate module plan`     | ✅ 通过 | 规划模块生成                             | 11 write，0 conflict                                 |
 | `lan release plan`             | ✅ 通过 | Git 仓库内规划发布                       | 正常输出 `git` / `npm` 命令计划                      |
-| `lan sync status`              | ✅ 通过 | 查看同步状态                             | 正常                                                 |
-| `lan sync --dry-run`           | ✅ 通过 | 规划同步                                 | 规范 commit message 通过 commitlint                  |
+| `lan git status`               | ✅ 通过 | 查看工作区状态                           | 正常                                                 |
+| `lan git sync --dry-run`       | ✅ 通过 | 规划同步                                 | 规范 commit message 通过 commitlint                  |
 | `lan build`                    | ✅ 通过 | 示例项目构建                             | vite fallback 构建成功                               |
 | `lan lint`                     | ✅ 通过 | 示例项目 lint                            | 正常执行，示例文件自身有 1 个 lint error             |
 | `lan dev`                      | ✅ 通过 | 启动开发服务器                           | 服务就绪：`http://127.0.0.1:8123`，验证后已停止      |
@@ -549,7 +549,7 @@ docs-site/
 - [x] `lan tools run` 对未知运行时返回清晰错误。
 - [x] `lan build` / `lan lint` / `lan dev` 正常。
 - [x] `lan generate api` / `lan generate module` 正常。
-- [x] `lan release plan` / `lan sync` 正常。
+- [x] `lan release plan` / `lan git sync` 正常。
 - [x] `lan product inspect/doctor/generate/build/pack/publish` 正常。
 
 ### 测试验收

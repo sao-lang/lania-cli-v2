@@ -28,7 +28,7 @@ members = [
   "crates/lania-plugins-command-lint",
   "crates/lania-plugins-command-create",
   "crates/lania-plugins-command-add",
-  "crates/lania-plugins-command-sync",
+  "crates/lania-plugins-command-git",
   "crates/lania-plugins-command-release",
   "crates/lania-plugins-command-generate",
   "crates/lania-plugins-command-template",

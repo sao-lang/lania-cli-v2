@@ -45,6 +45,20 @@ fn set_example_desc(spec: &mut CommandSpec, command: &str, zh: &str) {
     }
 }
 
+/// `git sync` / `git commit` / `git push` 共享的选项文案。
+fn localize_git_sync_options(spec: &mut CommandSpec, include_push_toggle: bool) {
+    set_option_help(spec, "remote", "远程仓库名称");
+    set_option_help(spec, "branch", "分支名称");
+    set_option_help(spec, "message", "覆盖提交信息");
+    set_option_help(spec, "amend", "amend 最近一次提交");
+    set_option_help(spec, "force-with-lease", "使用 lease 保护进行强推");
+    set_option_help(spec, "dry-run", "仅规划 git 命令，不实际执行");
+    set_option_help(spec, "interactive", "通过 commitizen 生成提交信息");
+    if include_push_toggle {
+        set_option_help(spec, "push", "提交后推送");
+    }
+}
+
 fn localize_release_shared_options(spec: &mut CommandSpec) {
     set_option_help(spec, "version", "发布版本号");
     set_option_help(spec, "tag", "包发布 dist-tag 覆写");
@@ -554,54 +568,101 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "meta-only", "仅显示文件元信息，不打开外部查看器");
         }
 
-        // sync (+ subcommands)
-        "command.sync" => {
-            spec.about = "快速同步本地代码到 git".into();
-            set_option_help(spec, "remote", "远程仓库名称");
-            set_option_help(spec, "branch", "分支名称");
-            set_option_help(spec, "message", "覆盖提交信息");
-            set_option_help(spec, "amend", "amend 最近一次提交");
-            set_option_help(spec, "force-with-lease", "使用 lease 保护进行强推");
-            set_option_help(spec, "dry-run", "仅规划 git 命令，不实际执行");
-            set_option_help(spec, "interactive", "通过 commitizen 生成提交信息");
-            set_option_help(spec, "push", "提交后推送");
+        // git (+ subcommands)
+        "command.git" => {
+            spec.about = "查看与同步 git 状态".into();
+            set_example_desc(spec, "lan git status", "查看工作区状态");
             set_example_desc(
                 spec,
-                "lan sync --message \"chore(sync): update workspace\"",
+                "lan git sync -m \"feat: ship it\"",
+                "暂存、提交并推送当前修改",
+            );
+            set_example_desc(spec, "lan git log --limit 5", "查看最近五条提交");
+        }
+        "command.git.sync" => {
+            spec.about = "暂存、提交并推送当前修改".into();
+            localize_git_sync_options(spec, true);
+            set_example_desc(
+                spec,
+                "lan git sync -m \"chore: update workspace\"",
                 "暂存、提交并推送当前修改",
             );
             set_example_desc(
                 spec,
-                "lan sync --no-push --message \"feat: partial sync\"",
+                "lan git sync --no-push -m \"feat: partial sync\"",
                 "仅本地提交，不推送",
             );
         }
-        "command.sync.status" => {
-            spec.about = "查看 git 同步状态".into();
-            set_option_help(spec, "remote", "远程仓库名称");
-            set_option_help(spec, "branch", "分支名称");
-        }
-        "command.sync.commit" => {
+        "command.git.commit" => {
             spec.about = "暂存并提交修改".into();
-            set_option_help(spec, "remote", "远程仓库名称");
-            set_option_help(spec, "branch", "分支名称");
-            set_option_help(spec, "message", "覆盖提交信息");
-            set_option_help(spec, "amend", "amend 最近一次提交");
-            set_option_help(spec, "force-with-lease", "使用 lease 保护进行强推");
-            set_option_help(spec, "dry-run", "仅规划 git 命令，不实际执行");
-            set_option_help(spec, "interactive", "通过 commitizen 生成提交信息");
-            set_option_help(spec, "push", "提交后推送");
+            localize_git_sync_options(spec, true);
             set_example_desc(
                 spec,
-                "lan sync commit --message \"chore: save work\" --no-push",
+                "lan git commit -m \"chore: save work\" --no-push",
                 "仅创建本地提交",
             );
         }
-        "command.sync.push" => {
+        "command.git.push" => {
             spec.about = "推送当前分支到远程".into();
-            set_option_help(spec, "remote", "远程仓库名称");
-            set_option_help(spec, "branch", "分支名称");
-            set_option_help(spec, "force-with-lease", "使用 lease 保护进行强推");
+            localize_git_sync_options(spec, false);
+        }
+        "command.git.status" => {
+            spec.about = "查看工作区状态".into();
+        }
+        "command.git.log" => {
+            spec.about = "查看最近的提交记录".into();
+            set_option_help(spec, "limit", "显示的提交条数");
+        }
+        "command.git.diff" => {
+            spec.about = "查看工作区或暂存区差异".into();
+            set_option_help(spec, "staged", "仅查看已暂存的修改");
+            set_option_help(spec, "path", "把差异限制在指定路径");
+        }
+        "command.git.branch" => {
+            spec.about = "管理分支".into();
+        }
+        "command.git.branch.list" => {
+            spec.about = "列出本地与远程分支".into();
+            set_example_desc(spec, "lan git branch list", "列出本地与远程分支");
+        }
+        "command.git.branch.create" => {
+            spec.about = "创建分支".into();
+            set_arg_help(spec, "branch", "分支名称");
+        }
+        "command.git.branch.switch" => {
+            spec.about = "切换到指定分支".into();
+            set_arg_help(spec, "branch", "分支名称");
+        }
+        "command.git.branch.delete" => {
+            spec.about = "删除分支".into();
+            set_arg_help(spec, "branch", "分支名称");
+            set_option_help(spec, "yes", "确认执行删除");
+            set_option_help(spec, "force", "即使分支未合并也删除（-D）");
+        }
+        "command.git.tag" => {
+            spec.about = "管理标签".into();
+        }
+        "command.git.tag.list" => {
+            spec.about = "列出标签".into();
+        }
+        "command.git.tag.create" => {
+            spec.about = "创建标签".into();
+            set_arg_help(spec, "tag", "标签名称");
+            set_option_help(spec, "message", "附注标签的说明文字");
+        }
+        "command.git.tag.delete" => {
+            spec.about = "删除标签".into();
+            set_arg_help(spec, "tag", "标签名称");
+            set_option_help(spec, "yes", "确认执行删除");
+        }
+        "command.git.add" => {
+            spec.about = "暂存工作区中的全部修改".into();
+            set_option_help(spec, "dry-run", "仅规划 git 命令，不实际执行");
+        }
+        "command.git.restore" => {
+            spec.about = "丢弃工作区或暂存区的修改".into();
+            set_arg_help(spec, "paths", "要恢复的路径（默认整个工作区）");
+            set_option_help(spec, "staged", "仅取消暂存，保留工作区修改");
             set_option_help(spec, "dry-run", "仅规划 git 命令，不实际执行");
         }
 
@@ -881,10 +942,10 @@ mod tests {
     use lania_plugins_command_dev::DevCommandPlugin;
     use lania_plugins_command_env::EnvCommandPlugin;
     use lania_plugins_command_generate::GenerateCommandPlugin;
+    use lania_plugins_command_git::GitCommandPlugin;
     use lania_plugins_command_lint::LintCommandPlugin;
     use lania_plugins_command_locale::ConfigCommandPlugin;
     use lania_plugins_command_release::ReleaseCommandPlugin;
-    use lania_plugins_command_sync::SyncCommandPlugin;
     use lania_plugins_command_template::TemplateCommandPlugin;
     use lania_plugins_command_tools::ToolsCommandPlugin;
 
@@ -918,7 +979,7 @@ mod tests {
         setup!(AddCommandPlugin);
         setup!(GenerateCommandPlugin);
         setup!(ReleaseCommandPlugin);
-        setup!(SyncCommandPlugin);
+        setup!(GitCommandPlugin);
         setup!(TemplateCommandPlugin);
         setup!(ToolsCommandPlugin);
         setup!(EnvCommandPlugin);
@@ -993,7 +1054,7 @@ mod tests {
     fn zh_localization_covers_every_builtin_command_string() {
         let mut specs = builtin_command_specs();
         for expected in [
-            "dev", "build", "lint", "create", "add", "generate", "release", "sync", "template",
+            "dev", "build", "lint", "create", "add", "generate", "release", "git", "template",
             "tools", "env", "agent", "config",
         ] {
             assert!(

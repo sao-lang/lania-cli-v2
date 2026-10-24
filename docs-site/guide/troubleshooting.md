@@ -168,7 +168,7 @@ commitlint rejected commit message: test sync
 使用 Conventional Commits：
 
 ```bash
-lan sync --message "chore(sync): update workspace"
+lan git sync --message "chore(sync): update workspace"
 ```
 
 ### `product publish --execute --dry-run` 仍失败

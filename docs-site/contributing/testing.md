@@ -48,7 +48,7 @@ lan add --name button --template v3
 lan generate api init
 lan generate module init
 lan release plan --profile package --version 1.2.3
-lan sync status
+lan git status
 ```
 
 ## 跨平台注意

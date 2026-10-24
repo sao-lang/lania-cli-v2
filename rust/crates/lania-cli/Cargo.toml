@@ -26,10 +26,10 @@ lania-plugins-command-create = { path = "../lania-plugins-command-create" }
 lania-plugins-command-dev = { path = "../lania-plugins-command-dev" }
 lania-plugins-command-env = { path = "../lania-plugins-command-env" }
 lania-plugins-command-generate = { path = "../lania-plugins-command-generate" }
+lania-plugins-command-git = { path = "../lania-plugins-command-git" }
 lania-plugins-command-lint = { path = "../lania-plugins-command-lint" }
 lania-plugins-command-locale = { path = "../lania-plugins-command-locale" }
 lania-plugins-command-release = { path = "../lania-plugins-command-release" }
-lania-plugins-command-sync = { path = "../lania-plugins-command-sync" }
 lania-plugins-command-template = { path = "../lania-plugins-command-template" }
 lania-plugins-command-tools = { path = "../lania-plugins-command-tools" }
 lania-preferences = { path = "../lania-preferences" }

@@ -606,7 +606,8 @@ fn legacy_aliases_for_path(path: &[&str]) -> Option<&'static [&'static str]> {
         ["generate"] => Some(&["g"]),
         ["generate", "api"] => Some(&["contract"]),
         ["release"] => Some(&["r"]),
-        ["sync"] => Some(&["s"]),
+        ["git"] => Some(&["gt"]),
+        ["git", "branch"] => Some(&["br"]),
         ["template"] => Some(&["t"]),
         _ => None,
     }
