@@ -2,8 +2,8 @@
 
 > 状态：**待评审**。目标读者：能直接据此开工的 builder。
 > 决策来源：需求方明确要求「lania 自己做版本管理器，不再转发给 nvm/volta 等」，
-> 深度为 `managed-packages`（运行时 + 全局包一起管），覆盖代码中全部 36 种语言，
-> 并 **replace** 现有的探测/转发层。
+> 范围为 **只管理运行时环境**（安装/切换/卸载/列举），**不做全局包管理**，
+> 覆盖代码中全部 36 种语言，并 **replace** 现有的探测/转发层。
 
 ## 1. 意图与动机
 
@@ -18,29 +18,30 @@ lan env install node 20
   → exec 执行
 ```
 
-它自己不下载、不解压、不维护当前版本指针，也不管全局包。
+它自己不下载、不解压、不维护当前版本指针。
 结果是：
 
 - 行为完全取决于用户装了什么管理器，**不可预期**
-- 全局包与版本管理割裂（`npm i -g` 装到版本目录，切版本即丢失）
-- 无法回答「这个版本下装了哪些包」「换版本如何迁移包」这类问题
 - 36 种语言 × 44 个管理器的探测矩阵维护成本极高，且永远覆盖不全
+- 用户必须先自己装好 nvm/pyenv/rustup 才能用 `lan env`
 
 ### 目标
 
-lania 自己成为版本管理器，提供**单一、可预期**的语义：
+lania 自己成为运行时管理器，提供**单一、可预期**的语义：
 
 ```text
 lan env install node 20     → lania 自己从 nodejs.org 下载、解压、登记
 lan env use node 20         → lania 切换 current 指针
 lan env list --installed    → lania 读自己的清单
-lan env pkg add pnpm        → 全局包装在当前版本，切版本自动跟随
+lan env remove node 18      → lania 删除自己的目录
 ```
 
-### 非目标
+### 非目标（明确不做）
 
-- 不实现语言运行时的增量更新/差分下载
-- 不实现运行时源码编译（除 Rust 走 rustup 的二进制下载外，全部用官方预编译产物）
+- **不做全局包管理**：不提供 `lan env pkg`，不接管 `npm i -g` / `pip install` / `cargo install`。
+  全局包仍由各语言工具自身管理，装在版本目录内，行为与原生一致。
+- 不实现运行时增量更新/差分下载
+- 不实现源码编译（全部使用官方预编译产物）
 - 不接管系统级包管理器（apt/brew/winget）安装的运行时
 - 不做跨机器同步/云端清单
 
@@ -48,14 +49,13 @@ lan env pkg add pnpm        → 全局包装在当前版本，切版本自动跟
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│ CLI 层  lan env install/use/list/remove/pkg/doctor  │
+│ CLI 层  lan env install/use/list/remove/doctor      │
 ├─────────────────────────────────────────────────────┤
 │ Service 层                                          │
 │  ├─ CatalogService   语言/版本清单（官方 release API）│
 │  ├─ DownloadService  下载 + 校验和 + 解压            │
 │  ├─ StoreService     版本目录布局 + current 指针     │
-│  ├─ ShimsService     ~/.lania/shims 生成与 PATH 注入 │
-│  └─ PackageService   全局包安装/列举/迁移           │
+│  └─ ShimsService     ~/.lania/shims 生成与 PATH 注入 │
 ├─────────────────────────────────────────────────────┤
 │ Provider 层（每种语言一个实现）                      │
 │  NodeProvider / PythonProvider / RustProvider / ... │
@@ -116,7 +116,7 @@ pub struct Layout {
 │       ├── 20.11.1/
 │       │   ├── bin/node
 │       │   ├── bin/npm -> ../lib/node_modules/npm/bin/npm-cli.js
-│       │   └── lib/node_modules/          # ← 全局包安装在这里
+│       │   └── lib/node_modules/          # 原生 npm 全局包目录（lania 不接管）
 │       ├── 22.21.1/
 │       └── .lania-meta.json               # { "current": "20.11.1", "installed": [...] }
 ├── shims/                                 # 注入 PATH 的目录
@@ -158,45 +158,29 @@ Windows 上为了避免 `lan` 自身依赖 node（鸡生蛋问题），shim 用 
 **这是替代现有 `volta run` shim 方案的关键改动** —— 现在的 `lan.cmd` 是 28 字节的
 `volta run %~n0 %*`，一旦 Volta 不在就完全失效。
 
-## 4. 全局包管理（核心差异化能力）
+## 4. 全局包：明确不做
 
-这是需求方最关心的点。设计要点：**包跟人走，不跟版本走**。
+这一版**不提供** `lan env pkg`，也不接管任何语言的全局包。
 
-```text
-~/.lania/packages/               # 全局包的实际安装位置（与运行时版本解耦）
-├── node/
-│   └── pnpm/20.10.0/
-│       ├── package.json
-│       └── bin/pnpm
-└── python/
-    └── ruff/0.6.0/
-```
+### 4.1 理由
 
-### 4.1 三种落地策略
+- 各语言包模型差异极大（npm 的 `--prefix`、pip 的 `--user`、cargo 的 `CARGO_HOME`、
+  go 的 `GOBIN`），统一抽象会引入大量边界情况
+- 全局包与运行时版本的兼容性无法由 lania 保证（如 Python 3.11 → 3.12 的
+  site-packages 不兼容），强行管理会制造「切版本后包神秘失效」的问题
+- 用户已有的包管理器（npm / pip / cargo）本身工作良好，替换无收益
 
-不同语言的包模型差异太大，需要分级处理：
+### 4.2 行为约定
 
-| 策略                  | 适用                                    | 做法                                                           |
-| --------------------- | --------------------------------------- | -------------------------------------------------------------- |
-| **`--prefix` 重定向** | Node（npm）、Python（pip）              | 安装到 `~/.lania/packages/<lang>/`，再把该目录的 bin 加进 shim |
-| **工具原生隔离**      | Rust（cargo install）、Go（go install） | 设置 `CARGO_HOME` / `GOBIN` 指向 lania 目录                    |
-| **不支持**            | 语言原生无全局包概念                    | 明确报 `unsupported`，不假装支持                               |
+- 全局包仍然装在**对应版本的目录内**（如 `runtimes/node/20.11.1/lib/node_modules`）
+- `lan env use` 切换版本后，全局包随版本变化 —— **与原生 nvm 行为一致**
+- lania 只负责让 `node` / `npm` 等入口指向当前版本，不介入包层
+- `lan env doctor` 会提示某版本的全局包数量，仅作观察，不做管理
 
-### 4.2 命令行
+### 4.3 后续可选
 
-```bash
-lan env pkg add pnpm@10        # 装全局包（当前语言版本）
-lan env pkg list               # 列出全局包
-lan env pkg remove pnpm        # 卸载
-lan env pkg upgrade            # 全部升级
-lan env pkg migrate --from 18 --to 20   # 版本迁移时重装
-```
-
-### 4.3 关键不变量
-
-- 全局包**不受 `lan env use` 影响**（切版本后包还在，且 shim 继续可用）
-- 包与运行时的兼容性由语言自身保证；lania 只负责在**换大版本**时给出警告
-  （例如 Python 3.11 → 3.12 的 site-packages 不兼容）
+如果将来需要，可以新增独立的 `lan pkg` 命令族，与本方案解耦。
+本方案不为其预留接口，避免过度设计。
 
 ## 5. 与现有代码的关系（replace 策略）
 
@@ -220,9 +204,8 @@ lan env pkg migrate --from 18 --to 20   # 版本迁移时重装
 
 ```text
 阶段 1  新增 Provider 层 + StoreService + ShimsService（不动现有命令）
-阶段 2  `lan env install/use/list` 切到新实现，旧路径保留 `--legacy` 开关
-阶段 3  `lan env pkg` 上线
-阶段 4  删除 ManagerKind 与转发逻辑，移除 `--legacy`
+阶段 2  `lan env install/use/list/remove` 切到新实现，旧路径保留 `--legacy` 开关
+阶段 3  删除 ManagerKind 与转发逻辑，移除 `--legacy`
 ```
 
 ## 6. Provider 实现矩阵
@@ -270,13 +253,12 @@ C#/F#、Groovy、R
 | Windows shim 需 Rust 二进制        | 中   | 复用现有 `lania-cli` 加 `lan-shim` 子命令，避免额外产物 |
 | 磁盘占用（多语言多版本）           | 中   | `lan env gc` 清理未使用版本 + 下载缓存上限              |
 | 破坏性变更（删除 44 个管理器支持） | 高   | 阶段 2 提供 `--legacy`；changeset 标 major              |
-| 全局包跨版本兼容                   | 中   | 只在换大版本时警告，不强改                              |
 
 ## 8. 验收标准
 
 - [ ] `lan env install node 20` 在无 nvm/volta 的干净环境可成功
 - [ ] `lan env use node 18` 后 `node -v` 立即变化（不需重开终端）
-- [ ] `lan env pkg add pnpm` 后切版本，`pnpm` 仍可用
+- [ ] `lan env remove node 18` 只删除 lania 自己管理的目录
 - [ ] `lan env list --installed` 只读 lania 自己的清单
 - [ ] 删除 `ManagerKind` 后全仓无残留引用
 - [ ] 现有 `env` e2e 测试全部迁移并通过
@@ -286,4 +268,5 @@ C#/F#、Groovy、R
 1. **第三批语言**是否接受「先只做导入」？否则工期不可控。
 2. `LANIA_HOME` 默认位置：`~/.lania` 还是跟随现有 `.lania/` 项目目录约定？
 3. 是否保留 `--manager` 作为「用外部管理器装，但登记到 lania 清单」的逃生舱？
-4. 全局包模型：`~/.lania/packages` 共享 vs 每版本独立？（本方案选了共享）
+
+> 全局包管理已明确移出本方案（见 §4），不再作为待决策项。
