@@ -103,8 +103,16 @@ pub(crate) fn validate_schema_discovery_config(
         }
     }
 
-    validate_string_array(object_value(object, "files"), "$.schemaDiscovery.files", errors);
-    validate_string_array(object_value(object, "dirs"), "$.schemaDiscovery.dirs", errors);
+    validate_string_array(
+        object_value(object, "files"),
+        "$.schemaDiscovery.files",
+        errors,
+    );
+    validate_string_array(
+        object_value(object, "dirs"),
+        "$.schemaDiscovery.dirs",
+        errors,
+    );
     validate_string_array(
         object_value(object, "allowExtensions"),
         "$.schemaDiscovery.allowExtensions",
@@ -169,13 +177,7 @@ pub(crate) fn validate_ui_output_config(
         return;
     };
 
-    let allowed = [
-        "mode",
-        "events",
-        "pretty",
-        "includeHostState",
-        "includeBridgeExchange",
-    ];
+    let allowed = ["mode"];
     for key in object.keys() {
         if !allowed.contains(&key.as_str()) {
             push_error(
@@ -187,43 +189,18 @@ pub(crate) fn validate_ui_output_config(
         }
     }
 
-    validate_type(
-        object_value(object, "mode"),
-        "$.ui.output.mode",
-        Value::is_string,
-        "string",
-        errors,
-    );
-    validate_type(
-        object_value(object, "events"),
-        "$.ui.output.events",
-        Value::is_string,
-        "string",
-        errors,
-    );
-    validate_type(
-        object_value(object, "pretty"),
-        "$.ui.output.pretty",
-        Value::is_boolean,
-        "boolean",
-        errors,
-    );
-    validate_type(
-        object_value(object, "includeHostState"),
-        "$.ui.output.includeHostState",
-        Value::is_boolean,
-        "boolean",
-        errors,
-    );
-    validate_type(
-        object_value(object, "includeBridgeExchange"),
-        "$.ui.output.includeBridgeExchange",
-        Value::is_boolean,
-        "boolean",
-        errors,
-    );
-    // 这里暂时只校验“类型对不对”，不校验字符串枚举值是否合法。
-    // 更细的语义约束可以后续逐步增强，而不会让当前兼容面骤然收紧。
+    let mode = object_value(object, "mode");
+    validate_type(mode, "$.ui.output.mode", Value::is_string, "string", errors);
+    if let Some(mode) = mode.and_then(Value::as_str) {
+        if !matches!(mode, "json" | "human") {
+            push_error(
+                errors,
+                ConfigValidationErrorCode::InvalidValue,
+                "$.ui.output.mode",
+                "ui.output.mode must be `json` or `human`",
+            );
+        }
+    }
 }
 
 pub(crate) fn validate_ui_progress_config(
@@ -352,8 +329,16 @@ pub(crate) fn validate_commands_config(
         }
     }
 
-    validate_string_object(object_value(object, "aliases"), "$.commands.aliases", errors);
-    validate_string_object(object_value(object, "shortcuts"), "$.commands.shortcuts", errors);
+    validate_string_object(
+        object_value(object, "aliases"),
+        "$.commands.aliases",
+        errors,
+    );
+    validate_string_object(
+        object_value(object, "shortcuts"),
+        "$.commands.shortcuts",
+        errors,
+    );
 }
 
 pub(crate) fn validate_hooks_config(

@@ -411,6 +411,7 @@ mod tests {
     #[test]
     fn builds_tools_bridge_request_from_context() {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),

@@ -13,7 +13,9 @@ use lania_host::{
     plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
 };
 use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
-use lania_prompt::{PromptFallbackStrategy, PromptFlow, PromptRunOptions, PromptStep, PromptStepKind};
+use lania_prompt::{
+    PromptFallbackStrategy, PromptFlow, PromptRunOptions, PromptStep, PromptStepKind,
+};
 use lania_workflows::{GenerateApiWorkflow, GenerateModuleWorkflow};
 use std::io::{stdin, IsTerminal};
 
@@ -266,55 +268,65 @@ impl GenerateCommandPlugin {
             let zh = ctx.locale() == "zh";
             let flow = PromptFlow::new()
                 .step(
-                    PromptStep::new(
-                        "preset",
-                        if zh { "生成预置" } else { "Preset" },
-                        "preset",
-                    )
-                    .kind(PromptStepKind::Select)
-                    .choice("demo", serde_json::json!("demo"))
-                    .choice("minimal", serde_json::json!("minimal"))
-                    .default_value(serde_json::json!(preset.clone())),
+                    PromptStep::new("preset", if zh { "生成预置" } else { "Preset" }, "preset")
+                        .kind(PromptStepKind::Select)
+                        .choice("demo", serde_json::json!("demo"))
+                        .choice("minimal", serde_json::json!("minimal"))
+                        .default_value(serde_json::json!(preset.clone())),
                 )
                 .step(
                     PromptStep::new(
                         "name",
-                        if zh { "产品展示名" } else { "Product display name" },
+                        if zh {
+                            "产品展示名"
+                        } else {
+                            "Product display name"
+                        },
                         "name",
                     )
                     .kind(PromptStepKind::Input)
-                    .default_value(serde_json::json!(
-                        name.clone().unwrap_or_else(|| "Acme CLI".into())
-                    )),
+                    .default_value(serde_json::json!(name
+                        .clone()
+                        .unwrap_or_else(|| "Acme CLI".into()))),
                 )
                 .step(
                     PromptStep::new(
                         "binary-name",
-                        if zh { "命令名（binaryName）" } else { "Binary name" },
+                        if zh {
+                            "命令名（binaryName）"
+                        } else {
+                            "Binary name"
+                        },
                         "binaryName",
                     )
                     .kind(PromptStepKind::Input)
-                    .default_value(serde_json::json!(
-                        binary_name.clone().unwrap_or_else(|| "acme".into())
-                    )),
+                    .default_value(serde_json::json!(binary_name
+                        .clone()
+                        .unwrap_or_else(|| "acme".into()))),
                 )
                 .step(
                     PromptStep::new(
                         "output-dir",
-                        if zh { "输出目录" } else { "Output directory" },
+                        if zh {
+                            "输出目录"
+                        } else {
+                            "Output directory"
+                        },
                         "outputDir",
                     )
                     .kind(PromptStepKind::Input)
-                    .default_value(serde_json::json!(
-                        output_dir
-                            .clone()
-                            .unwrap_or_else(|| "products/acme-cli".into())
-                    )),
+                    .default_value(serde_json::json!(output_dir
+                        .clone()
+                        .unwrap_or_else(|| "products/acme-cli".into()))),
                 )
                 .step(
                     PromptStep::new(
                         "package-name",
-                        if zh { "包名（可选）" } else { "Package name (optional)" },
+                        if zh {
+                            "包名（可选）"
+                        } else {
+                            "Package name (optional)"
+                        },
                         "packageName",
                     )
                     .kind(PromptStepKind::Input)
@@ -384,10 +396,7 @@ impl GenerateCommandPlugin {
             params.insert("force".into(), serde_json::Value::Bool(true));
         }
 
-        Ok(bridge.request(
-            "product.generate",
-            serde_json::Value::Object(params),
-        ))
+        Ok(bridge.request("product.generate", serde_json::Value::Object(params)))
     }
 }
 

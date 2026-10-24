@@ -46,8 +46,8 @@ impl ConfigCommandPlugin {
                     description: "Enable timestamps for human-readable logs".into(),
                 },
                 Example {
-                    command: "lan config set output.mode stream".into(),
-                    description: "Switch terminal output to stream mode".into(),
+                    command: "lan config set output.mode json".into(),
+                    description: "Switch terminal output to JSON mode".into(),
                 },
                 Example {
                     command: "lan config set output.mode human".into(),
@@ -302,12 +302,18 @@ mod tests {
 
     #[test]
     fn localized_returns_zh_when_locale_is_zh() {
-        assert_eq!(ConfigCommandPlugin::localized("zh", "hello", "你好"), "你好");
+        assert_eq!(
+            ConfigCommandPlugin::localized("zh", "hello", "你好"),
+            "你好"
+        );
     }
 
     #[test]
     fn localized_returns_en_when_locale_is_not_zh() {
-        assert_eq!(ConfigCommandPlugin::localized("en", "hello", "你好"), "hello");
+        assert_eq!(
+            ConfigCommandPlugin::localized("en", "hello", "你好"),
+            "hello"
+        );
     }
 
     // ── normalize_key ─────────────────────────────────────────
@@ -315,10 +321,22 @@ mod tests {
     #[test]
     fn normalize_key_returns_known_keys() {
         assert_eq!(ConfigCommandPlugin::normalize_key("locale"), Some("locale"));
-        assert_eq!(ConfigCommandPlugin::normalize_key("log.timestamps"), Some("log.timestamps"));
-        assert_eq!(ConfigCommandPlugin::normalize_key("log.timestamp"), Some("log.timestamps"));
-        assert_eq!(ConfigCommandPlugin::normalize_key("output.mode"), Some("output.mode"));
-        assert_eq!(ConfigCommandPlugin::normalize_key("output"), Some("output.mode"));
+        assert_eq!(
+            ConfigCommandPlugin::normalize_key("log.timestamps"),
+            Some("log.timestamps")
+        );
+        assert_eq!(
+            ConfigCommandPlugin::normalize_key("log.timestamp"),
+            Some("log.timestamps")
+        );
+        assert_eq!(
+            ConfigCommandPlugin::normalize_key("output.mode"),
+            Some("output.mode")
+        );
+        assert_eq!(
+            ConfigCommandPlugin::normalize_key("output"),
+            Some("output.mode")
+        );
     }
 
     #[test]
@@ -364,7 +382,8 @@ mod tests {
     #[test]
     fn apply_config_value_sets_log_timestamps() {
         let mut prefs = UserPreferences::default();
-        ConfigCommandPlugin::apply_config_value("en", &mut prefs, "log.timestamps", "true").unwrap();
+        ConfigCommandPlugin::apply_config_value("en", &mut prefs, "log.timestamps", "true")
+            .unwrap();
         assert!(prefs.log_timestamps);
     }
 
@@ -385,7 +404,8 @@ mod tests {
     #[test]
     fn apply_config_value_rejects_invalid_bool() {
         let mut prefs = UserPreferences::default();
-        let result = ConfigCommandPlugin::apply_config_value("en", &mut prefs, "log.timestamps", "bad");
+        let result =
+            ConfigCommandPlugin::apply_config_value("en", &mut prefs, "log.timestamps", "bad");
         assert!(result.is_err());
     }
 

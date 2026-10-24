@@ -34,7 +34,7 @@
   - Workflow 型命令：`create`、`add`、`generate`、`release`、`sync`
   - 运行时扩展命令：由项目通过 `lan.config.*` 和 `lania.schemas.*` 动态注入
 - 支持项目级插件与方法白名单、来源约束、签名策略等安全机制。
-- 支持 `json`、`jsonl`、`human` 三种输出模式，以及 `spinner`、`bar`、`none` 三种进度渲染策略。
+- 支持 `json`、`human` 两种输出模式，以及 `spinner`、`bar`、`none` 三种进度渲染策略。
 - 支持 `lan.config.js`、`lan.config.cjs`、`lan.config.json`、`lan.config.ts`。
 - 支持模板元信息查询、项目脚手架生成、局部模板补充、契约生成、模块生成、发布状态恢复。
 - 支持项目级动态命令与 Hook 绑定，允许在不修改 Rust 宿主的前提下扩展命令树。
@@ -920,7 +920,7 @@ handler: async (ctx) => {
 | `extensions.dynamicCommands`                   | 是否启用运行时动态命令       |
 | `schemaDiscovery`                              | 动态命令 manifest 的发现策略 |
 | `hooks`                                        | 全局 Hook 绑定               |
-| `ui.output`                                    | 输出模式与事件输出策略       |
+| `ui.output`                                    | 输出模式（`json` / `human`） |
 | `ui.progress`                                  | 进度展示模式                 |
 | `ui.interaction`                               | 交互模式、超时和默认值策略   |
 | `pluginAllowlist` / `pluginMethodAllowlist` 等 | 插件安全边界                 |
@@ -955,7 +955,7 @@ handler: async (ctx) => {
 
 - `stdout` 以结构化结果为核心，适合自动化和二次消费。
 - `stderr` 承担友好错误提示与人类可读日志输出。
-- 可通过 `lan config set output.mode <json|jsonl|human>` 设置默认输出风格。
+- 可通过 `lan config set output.mode <json|human>` 设置默认输出风格；旧的 `stream` / `jsonl` 会归一为 `json`。
 - 交互链路由 Rust PromptService 统一控制；非交互环境可通过默认值策略或脚本化答案运行。
 
 ## 安装与分发

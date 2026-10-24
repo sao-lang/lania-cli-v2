@@ -58,9 +58,9 @@ fn normalize_output_mode_json_is_default() {
 }
 
 #[test]
-fn normalize_output_mode_stream_accepts_aliases() {
-    assert_eq!(normalize_output_mode("stream"), "stream");
-    assert_eq!(normalize_output_mode("jsonl"), "stream");
+fn normalize_output_mode_legacy_stream_aliases_fall_back_to_json() {
+    assert_eq!(normalize_output_mode("stream"), "json");
+    assert_eq!(normalize_output_mode("jsonl"), "json");
 }
 
 #[test]
@@ -187,12 +187,18 @@ fn save_and_load_roundtrip_preserves_normalized_values() {
     save_preferences(&input).expect("save succeeds");
     // Verify file was actually written
     let saved_path = root.join(".lania/preferences.json");
-    assert!(saved_path.exists(), "preferences file should exist after save");
+    assert!(
+        saved_path.exists(),
+        "preferences file should exist after save"
+    );
     let loaded = load_preferences();
     restore_env("HOME", prev);
     // Values should be normalized after round-trip
     assert_eq!(loaded.locale, "zh", "locale should be normalized to zh");
-    assert_eq!(loaded.output_mode, "stream", "output_mode should be normalized to stream");
+    assert_eq!(
+        loaded.output_mode, "json",
+        "output_mode should be normalized to json"
+    );
     assert_eq!(loaded.log_timestamps, true);
     let _ = fs::remove_dir_all(root);
 }

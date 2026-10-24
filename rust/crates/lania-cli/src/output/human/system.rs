@@ -25,7 +25,10 @@ pub(super) fn render_system_commands_human(value: &serde_json::Value, locale: &s
     )
 }
 
-pub(super) fn render_system_command_groups_human(value: &serde_json::Value, locale: &str) -> String {
+pub(super) fn render_system_command_groups_human(
+    value: &serde_json::Value,
+    locale: &str,
+) -> String {
     // groups 结构会按来源分类（PATH / 内建命令 / 别名 / 函数）。
     // 人类可读输出把每个分组单独成块，并用空行分隔，方便用户扫一眼。
     let mut sections = Vec::new();
@@ -62,7 +65,12 @@ pub(super) fn render_system_command_names_human(value: &serde_json::Value, local
     let names = value
         .get("names")
         .and_then(|item| item.as_array())
-        .map(|items| items.iter().filter_map(|item| item.as_str()).collect::<Vec<_>>())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
     human_block(
         cli_text(locale, "Command Names", "命令名列表"),

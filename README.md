@@ -27,7 +27,7 @@
 - Project-level dynamic commands loaded from manifest files
 - Project plugins with source constraints, allowlists, and method restrictions
 - Config support for `lan.config.js`, `lan.config.cjs`, `lan.config.json`, `lan.config.ts`
-- Output modes: `json`, `jsonl`, `human`
+- Output modes: `json`, `human`
 
 ## Architecture
 

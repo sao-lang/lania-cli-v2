@@ -69,13 +69,12 @@ lan --version
 
 ```bash
 lan config set output.mode json
-lan config set output.mode jsonl
 lan config set output.mode human
 ```
 
-- `json`：结构化结果，默认模式。
-- `jsonl`：逐行事件与结果，适合流水线消费。
+- `json`：统一结果 envelope，默认模式。
 - `human`：更适合终端阅读的文本输出。
+- 旧的 `stream` / `jsonl` 写法会归一为 `json`。
 
 ### 语言
 

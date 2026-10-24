@@ -11,16 +11,16 @@ fn lan_template_list_command_e2e() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "template_info");
-    assert!(json["templates"]
+    assert_eq!(json["kind"], "result");
+    assert!(json["result"]["templates"]
         .as_array()
         .expect("templates")
         .iter()
         .any(|item| item == "toolkit"));
-    assert_eq!(json["usage"]["detail"], "lan template <name>");
+    assert_eq!(json["result"]["usage"]["detail"], "lan template <name>");
     assert!(json.get("host_state").is_none());
     assert!(json.get("context").is_none());
-    assert!(stdout.contains("\n    \"kind\": \"template_info\""));
+    assert!(stdout.contains("\"kind\": \"template_info\""));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -34,11 +34,11 @@ fn lan_template_detail_command_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "template_info");
-    assert_eq!(json["template"], "toolkit");
-    assert_eq!(json["metadata"]["name"], "toolkit");
-    assert_eq!(json["metadata"]["renderEngine"], "node_bridge");
-    assert!(json["availableTemplates"]
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["template"], "toolkit");
+    assert_eq!(json["result"]["metadata"]["name"], "toolkit");
+    assert_eq!(json["result"]["metadata"]["renderEngine"], "node_bridge");
+    assert!(json["result"]["availableTemplates"]
         .as_array()
         .expect("available templates")
         .iter()

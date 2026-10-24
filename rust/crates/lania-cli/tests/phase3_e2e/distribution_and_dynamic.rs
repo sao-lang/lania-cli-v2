@@ -1,4 +1,4 @@
-﻿//! 分发形态与动态命令输出链路 e2e。
+//! 分发形态与动态命令输出链路 e2e。
 use super::common::*;
 use super::*;
 use lania_host::{plugin::EmptyPlugin, Host, HostRuntime};
@@ -68,8 +68,8 @@ fn lan_npm_install_layout_smoke() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "vite");
-    assert!(json["exchange"]["response"]["result"]["watch"].is_boolean());
+    assert_eq!(json["result"]["tool"], "vite");
+    assert!(json["result"]["watch"].is_boolean());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -93,7 +93,7 @@ fn lan_binary_distribution_smoke() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "vite");
+    assert_eq!(json["result"]["tool"], "vite");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -182,7 +182,7 @@ fn lan_packed_product_wrapper_runs_dynamic_command_in_installed_mode() {
         String::from_utf8_lossy(&wrapper_output.stderr)
     );
     let json = parse_stdout_json(&wrapper_output);
-    let payload = &json["exchange"]["response"]["result"]["result"]["result"];
+    let payload = &json["result"]["result"]["result"];
     assert_eq!(payload["mode"], "installed");
     let expected_workspace = fs::canonicalize(&workspace)
         .expect("workspace canonicalized")
@@ -333,7 +333,10 @@ fn lan_publish_product_creates_publish_ready_artifact() {
     let matrix_status = publish_report["bundle"]["platformMatrix"][0]["status"]
         .as_str()
         .expect("platform matrix status present");
-    assert!(matches!(matrix_status, "binary_missing" | "package_missing" | "ready"));
+    assert!(matches!(
+        matrix_status,
+        "binary_missing" | "package_missing" | "ready"
+    ));
     let publish_manifest = read_json_file(publish_root.join("publish-manifest.json"));
     assert_eq!(
         publish_manifest["platformMatrix"][0]["status"],
@@ -506,7 +509,9 @@ fn phase2_product_authoring_full_chain_demo_e2e() {
 
     // 4.1) Grouped product commands should work as aliases for the scattered command surface.
     assert_eq!(
-        run_cli(&product, &["product", "inspect"], &[]).status.code(),
+        run_cli(&product, &["product", "inspect"], &[])
+            .status
+            .code(),
         Some(0)
     );
     assert_eq!(
@@ -522,11 +527,15 @@ fn phase2_product_authoring_full_chain_demo_e2e() {
         Some(0)
     );
     assert_eq!(
-        run_cli(&product, &["product", "publish"], &[]).status.code(),
+        run_cli(&product, &["product", "publish"], &[])
+            .status
+            .code(),
         Some(0)
     );
     assert_eq!(
-        run_cli(&product, &["product", "dev", "hello", "--path", "."], &[]).status.code(),
+        run_cli(&product, &["product", "dev", "hello", "--path", "."], &[])
+            .status
+            .code(),
         Some(0)
     );
 
@@ -600,8 +609,14 @@ fn lan_publish_product_can_execute_manifest_dry_run() {
     let linux_binary = product.join("fixtures/lania-cli-linux-x64");
     write_file(&linux_binary, "#!/bin/sh\nexit 0\n");
 
-    assert_eq!(run_cli(&product, &["product", "build"], &[]).status.code(), Some(0));
-    assert_eq!(run_cli(&product, &["product", "pack"], &[]).status.code(), Some(0));
+    assert_eq!(
+        run_cli(&product, &["product", "build"], &[]).status.code(),
+        Some(0)
+    );
+    assert_eq!(
+        run_cli(&product, &["product", "pack"], &[]).status.code(),
+        Some(0)
+    );
 
     let fake_bin_dir = root.join("fake-bin");
     fs::create_dir_all(&fake_bin_dir).expect("fake bin dir created");
@@ -621,8 +636,7 @@ fn lan_publish_product_can_execute_manifest_dry_run() {
         fs::set_permissions(&fake_npm, permissions).expect("fake npm permissions set");
     }
 
-    let platform_binary_paths =
-        format!(r#"{{"linux-x64":"{}"}}"#, linux_binary.display());
+    let platform_binary_paths = format!(r#"{{"linux-x64":"{}"}}"#, linux_binary.display());
     let execute_output = run_cli(
         &product,
         &[
@@ -635,12 +649,10 @@ fn lan_publish_product_can_execute_manifest_dry_run() {
             "--npm-bin",
             fake_npm.to_str().expect("fake npm path"),
         ],
-        &[
-            (
-                "LANIA_FAKE_NPM_LOG",
-                fake_log.to_str().expect("fake log path"),
-            ),
-        ],
+        &[(
+            "LANIA_FAKE_NPM_LOG",
+            fake_log.to_str().expect("fake log path"),
+        )],
     );
     assert_eq!(
         execute_output.status.code(),
@@ -656,7 +668,10 @@ fn lan_publish_product_can_execute_manifest_dry_run() {
     assert_eq!(manifest["execution"]["dryRun"], true);
     assert_eq!(manifest["execution"]["preflight"]["checked"], true);
     assert_eq!(manifest["execution"]["preflight"]["actor"], "fake-user");
-    assert_eq!(manifest["execution"]["failedStepId"], serde_json::Value::Null);
+    assert_eq!(
+        manifest["execution"]["failedStepId"],
+        serde_json::Value::Null
+    );
     assert_eq!(manifest["execution"]["lastError"], serde_json::Value::Null);
     let report = read_json_file(publish_root.join("publish-report.json"));
     assert_eq!(
@@ -670,15 +685,28 @@ fn lan_publish_product_can_execute_manifest_dry_run() {
         .filter(|line| !line.trim().is_empty())
         .map(|line| serde_json::from_str(line).expect("fake npm log entry"))
         .collect();
-    assert!(!log_entries.is_empty(), "publish executor should invoke fake npm");
+    assert!(
+        !log_entries.is_empty(),
+        "publish executor should invoke fake npm"
+    );
     let publish_entries: Vec<&serde_json::Value> = log_entries
         .iter()
-        .filter(|entry| entry["args"].as_array().and_then(|args| args.first()).map(|arg| arg == "publish").unwrap_or(false))
+        .filter(|entry| {
+            entry["args"]
+                .as_array()
+                .and_then(|args| args.first())
+                .map(|arg| arg == "publish")
+                .unwrap_or(false)
+        })
         .collect();
-    assert!(!publish_entries.is_empty(), "publish executor should invoke fake npm publish");
-    assert!(publish_entries
-        .iter()
-        .all(|entry| entry["args"].as_array().map(|args| args.iter().any(|arg| arg == "--dry-run")).unwrap_or(false)));
+    assert!(
+        !publish_entries.is_empty(),
+        "publish executor should invoke fake npm publish"
+    );
+    assert!(publish_entries.iter().all(|entry| entry["args"]
+        .as_array()
+        .map(|args| args.iter().any(|arg| arg == "--dry-run"))
+        .unwrap_or(false)));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -910,7 +938,7 @@ fn lan_publish_product_tarball_installs_and_runs() {
     );
 
     let json = parse_stdout_json(&run_output);
-    let payload = &json["exchange"]["response"]["result"]["result"]["result"];
+    let payload = &json["result"]["result"]["result"];
     assert_eq!(payload["mode"], "installed");
     assert_eq!(
         payload["workspaceRoot"],
@@ -1045,18 +1073,15 @@ async fn lan_cli_main_flow_bootstraps_installed_product_commands() {
 
 #[cfg(unix)]
 #[test]
-fn lan_dynamic_command_prompt_and_jsonl_output_e2e() {
-    let root = temp_dir("dynamic-command-jsonl");
+fn lan_dynamic_command_prompt_and_json_output_e2e() {
+    let root = temp_dir("dynamic-command-json");
     write_file(
         root.join("lan.config.json"),
         r#"{
   "extensions": { "dynamicCommands": true },
   "ui": {
     "output": {
-      "mode": "jsonl",
-      "events": "stream",
-      "includeHostState": false,
-      "includeBridgeExchange": false
+      "mode": "json"
     },
     "interaction": {
       "mode": "auto",
@@ -1108,32 +1133,14 @@ fn lan_dynamic_command_prompt_and_jsonl_output_e2e() {
         &["ops", "ping"],
         &[("LANIA_PROMPT_ANSWERS_JSON", prompt_answers.as_str())],
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let lines = stdout
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .collect::<Vec<_>>();
+    let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert!(
-        lines.len() >= 2,
-        "expected event + result lines, got: {stdout}"
-    );
-
-    let event_line: serde_json::Value =
-        serde_json::from_str(lines[0]).expect("first jsonl event line");
-    let result_line: serde_json::Value =
-        serde_json::from_str(lines.last().expect("result line")).expect("final jsonl result line");
-
-    assert_eq!(event_line["kind"], "event");
-    assert_eq!(result_line["kind"], "result");
-    assert_eq!(result_line["payload"]["kind"], "bridge");
-    assert_eq!(
-        result_line["payload"]["result"]["result"]["endpoint"],
-        "http://127.0.0.1:1"
-    );
-    assert!(result_line["payload"]["host_state"].is_null());
-    assert!(result_line["payload"]["exchange"].is_null());
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["command"]["name"], "ops ping");
+    assert_eq!(json["result"]["result"]["endpoint"], "http://127.0.0.1:1");
+    assert!(json.get("host_state").is_none());
+    assert!(json.get("exchange").is_none());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1148,10 +1155,7 @@ fn lan_dynamic_command_hook_payload_and_progress_grouping_e2e() {
   "extensions": { "dynamicCommands": true },
   "ui": {
     "output": {
-      "mode": "json",
-      "events": "buffered",
-      "includeHostState": true,
-      "includeBridgeExchange": false
+      "mode": "json"
     },
     "interaction": {
       "mode": "auto",
@@ -1203,55 +1207,27 @@ fn lan_dynamic_command_hook_payload_and_progress_grouping_e2e() {
         &[("LANIA_PROMPT_ANSWERS_JSON", prompt_answers.as_str())],
     );
     let json = parse_stdout_json(&output);
-    let hooks = json["host_state"]["hooks"]
-        .as_array()
-        .cloned()
-        .expect("hooks array");
-    let progress = json["host_state"]["progress"]
-        .as_array()
-        .cloned()
-        .expect("progress array");
 
     assert_eq!(output.status.code(), Some(0));
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["command"]["name"], "ops sync-user");
     assert_eq!(json["result"]["result"]["userId"], "u-100");
-    assert!(hooks.iter().any(|item| item["name"] == "onCommandPreInit"));
-    assert!(hooks.iter().any(|item| item["name"] == "onArgsParsed"));
-    assert!(hooks
-        .iter()
-        .any(|item| item["name"] == "onInteractionPrompt"));
-    assert!(hooks.iter().any(|item| item["name"] == "onPluginApiCall"));
-    assert!(hooks.iter().any(|item| item["name"] == "onSuccess"));
-    let prompt_hook = hooks
-        .iter()
-        .rev()
-        .find(|item| item["name"] == "onInteractionPrompt")
-        .expect("onInteractionPrompt present");
-    assert_eq!(
-        prompt_hook["payload"]["prompt"]["answers"]["user-id"],
-        "u-100"
-    );
-    assert_eq!(
-        progress.first().and_then(|item| item["id"].as_str()),
-        Some("fetch-user")
-    );
+    assert!(json.get("host_state").is_none());
 
     let _ = fs::remove_dir_all(root);
 }
 
 #[cfg(unix)]
 #[test]
-fn lan_dynamic_command_human_stream_output_e2e() {
-    let root = temp_dir("dynamic-command-human-stream");
+fn lan_dynamic_command_human_output_e2e() {
+    let root = temp_dir("dynamic-command-human");
     write_file(
         root.join("lan.config.json"),
         r#"{
   "extensions": { "dynamicCommands": true },
   "ui": {
     "output": {
-      "mode": "human",
-      "events": "stream",
-      "includeHostState": false,
-      "includeBridgeExchange": false
+      "mode": "human"
     },
     "progress": { "style": "none" }
   }
@@ -1285,26 +1261,24 @@ fn lan_dynamic_command_human_stream_output_e2e() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert_eq!(output.status.code(), Some(0));
-    assert!(stdout.contains("Bridge Command Completed"));
-    assert!(stderr.contains("[event:command.invokeDynamic] ping invoked"));
+    assert!(stdout.contains("lan ops ping"));
+    assert!(stdout.contains("pong"));
+    assert!(!stderr.contains("[event:"));
 
     let _ = fs::remove_dir_all(root);
 }
 
 #[cfg(unix)]
 #[test]
-fn lan_dynamic_command_human_stream_output_zh_e2e() {
-    let root = temp_dir("dynamic-command-human-stream-zh");
+fn lan_dynamic_command_human_output_zh_e2e() {
+    let root = temp_dir("dynamic-command-human-zh");
     write_file(
         root.join("lan.config.json"),
         r#"{
   "extensions": { "dynamicCommands": true },
   "ui": {
     "output": {
-      "mode": "human",
-      "events": "stream",
-      "includeHostState": false,
-      "includeBridgeExchange": false
+      "mode": "human"
     },
     "progress": { "style": "none" }
   }
@@ -1349,7 +1323,8 @@ fn lan_dynamic_command_human_stream_output_zh_e2e() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(output.status.code(), Some(0));
-    assert!(stdout.contains("桥接命令执行完成"));
+    assert!(stdout.contains("lan ops ping"));
+    assert!(stdout.contains("pong"));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1461,9 +1436,12 @@ fn lan_product_build_creates_build_artifact_e2e() {
     let output = run_cli(&product, &["product", "build"], &[]);
     let json = parse_stdout_json(&output);
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "bridge");
-    assert_eq!(json["exchange"]["response"]["result"]["mode"], "product_build");
-    assert!(product.join(".lania/build/product").exists(), "build output dir should exist");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["mode"], "product_build");
+    assert!(
+        product.join(".lania/build/product").exists(),
+        "build output dir should exist"
+    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1494,7 +1472,12 @@ fn lan_product_build_with_output_dir_option_e2e() {
 
     let output = run_cli(
         &product,
-        &["product", "build", "--output-dir", custom_out.display().to_string().as_str()],
+        &[
+            "product",
+            "build",
+            "--output-dir",
+            custom_out.display().to_string().as_str(),
+        ],
         &[],
     );
     assert_eq!(output.status.code(), Some(0));
@@ -1536,13 +1519,22 @@ fn lan_product_pack_creates_install_root_layout_e2e() {
     let pack_output = run_cli(&product, &["product", "pack"], &[]);
     let json = parse_stdout_json(&pack_output);
     assert_eq!(pack_output.status.code(), Some(0));
-    assert_eq!(json["kind"], "bridge");
-    assert_eq!(json["exchange"]["response"]["result"]["kind"], "product_pack");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["kind"], "product_pack");
 
     let install_root = product.join(".lania/pack/product/install-root");
-    assert!(install_root.join("bin/acme").exists(), "wrapper binary should exist");
-    assert!(install_root.join("lib/product").exists(), "product lib should exist");
-    assert!(install_root.join("lib/node-bridge").exists(), "node bridge should exist");
+    assert!(
+        install_root.join("bin/acme").exists(),
+        "wrapper binary should exist"
+    );
+    assert!(
+        install_root.join("lib/product").exists(),
+        "product lib should exist"
+    );
+    assert!(
+        install_root.join("lib/node-bridge").exists(),
+        "node bridge should exist"
+    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1560,7 +1552,10 @@ fn lan_product_dev_help_shows_usage_without_command_e2e() {
     // Should show usage hint (non-zero exit code or Usage in output)
     if output.status.code() != Some(0) {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains("Usage") || stderr.contains("product"), "should indicate usage: {stderr}");
+        assert!(
+            stderr.contains("Usage") || stderr.contains("product"),
+            "should indicate usage: {stderr}"
+        );
     }
 
     let _ = fs::remove_dir_all(root);

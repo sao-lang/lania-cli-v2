@@ -83,7 +83,7 @@ impl ConfigService {
                     path: "$.ui.output".into(),
                     value_type: ConfigValueType::Object,
                     required: false,
-                    description: "output mode and event streaming strategy".into(),
+                    description: "output mode (json|human)".into(),
                 },
                 ConfigFieldDoc {
                     path: "$.ui.progress".into(),

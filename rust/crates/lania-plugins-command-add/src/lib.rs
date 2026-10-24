@@ -248,6 +248,7 @@ mod tests {
     #[test]
     fn builds_add_input_from_context() {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -274,6 +275,7 @@ mod tests {
     #[test]
     fn prefers_target_and_accepts_legacy_filepath() {
         let filepath_only = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -288,6 +290,7 @@ mod tests {
         assert_eq!(filepath_input.target.as_deref(), Some("/src/components"));
 
         let target_wins = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),

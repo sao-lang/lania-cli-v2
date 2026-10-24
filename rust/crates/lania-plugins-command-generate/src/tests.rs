@@ -1,10 +1,10 @@
+use lania_command::CommandSpec;
 use lania_host::{
     capability::CapabilityContainer,
     plugin::{Plugin, PluginSetupContext},
     registry::{CommandHandlerRegistryImpl, CommandRegistry, CommandRegistryImpl, HandlerRegistry},
     HookBusImpl,
 };
-use lania_command::CommandSpec;
 use lania_workflows::{GenerateApiMode, GenerateModuleMode};
 use serde_json::json;
 
@@ -23,7 +23,11 @@ fn registers_generate_spec() {
     let mut handlers = CommandHandlerRegistryImpl::new();
 
     commands
-        .register(CommandSpec::new("product", "product root", "command.product"))
+        .register(CommandSpec::new(
+            "product",
+            "product root",
+            "command.product",
+        ))
         .expect("product root registered");
 
     plugin
@@ -73,6 +77,7 @@ fn registers_generate_spec() {
 #[test]
 fn builds_generate_product_request_from_context() {
     let context = lania_command::CommandContext {
+        name: String::new(),
         cwd: "/repo".into(),
         argv: lania_command::ParsedArgv {
             args: Default::default(),
@@ -91,9 +96,8 @@ fn builds_generate_product_request_from_context() {
         trace_id: "trace-generate-product".into(),
     };
 
-    let bridge = lania_node_bridge::NodeBridgeClient::new(
-        lania_node_bridge::BridgeClientConfig::default(),
-    );
+    let bridge =
+        lania_node_bridge::NodeBridgeClient::new(lania_node_bridge::BridgeClientConfig::default());
     let request = GenerateCommandPlugin::build_product_request(&context, &bridge);
     assert_eq!(request.method, "product.generate");
     assert_eq!(request.params["cwd"], "/repo");
@@ -108,6 +112,7 @@ fn builds_generate_product_request_from_context() {
 #[test]
 fn builds_generate_api_input_from_context() {
     let context = lania_command::CommandContext {
+        name: String::new(),
         cwd: "/repo".into(),
         argv: lania_command::ParsedArgv {
             args: Default::default(),
@@ -148,6 +153,7 @@ fn builds_generate_api_input_from_context() {
 #[test]
 fn builds_generate_module_input_from_context() {
     let context = lania_command::CommandContext {
+        name: String::new(),
         cwd: "/repo".into(),
         argv: lania_command::ParsedArgv {
             args: Default::default(),
@@ -209,6 +215,7 @@ fn maps_generate_api_subcommand_modes() {
         (API_INIT_HANDLER_ID, GenerateApiMode::Init),
     ] {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv::default(),
             handler_id: (*handler_id).to_string(),
@@ -229,6 +236,7 @@ fn maps_generate_module_subcommand_modes() {
         (MODULE_APPLY_HANDLER_ID, GenerateModuleMode::Apply),
     ] {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv::default(),
             handler_id: (*handler_id).to_string(),

@@ -421,13 +421,17 @@ mod tests {
             "nestjs",
             "express",
         ] {
-            assert!(template.choices.iter().any(|choice| choice == name), "missing {name}");
+            assert!(
+                template.choices.iter().any(|choice| choice == name),
+                "missing {name}"
+            );
         }
     }
 
     #[test]
     fn builds_create_input_from_context() {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -463,6 +467,7 @@ mod tests {
     #[test]
     fn prefers_directory_option_over_dot_path_and_skip_git() {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: [("path".into(), json!("."))].into_iter().collect(),

@@ -95,6 +95,7 @@ pub fn command_context_from_matches(
     // 这样动态命令注入后，只要 `CommandSpec` 变了，这里也能自然跟着工作。
     let handler_id = lookup_handler_id(commands, &path)?;
     Some(CommandContext {
+        name: path.join(" "),
         cwd: cwd.into(),
         argv,
         handler_id,

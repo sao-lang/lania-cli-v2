@@ -44,6 +44,7 @@ fn converts_command_spec_to_clap_and_parses_options() {
     let context = command_context_from_matches(&[spec], &matches, "/repo", "trace-1")
         .expect("subcommand selection exists");
 
+    assert_eq!(context.name, "dev");
     assert_eq!(context.handler_id, "command.dev");
     assert_eq!(context.argv.options["port"], json!(4000));
     assert_eq!(context.argv.options["open"], json!(true));
@@ -66,6 +67,7 @@ fn supports_nested_subcommands() {
     let context = command_context_from_matches(&commands, &matches, "/repo", "trace-2")
         .expect("nested selection exists");
 
+    assert_eq!(context.name, "sync add");
     assert_eq!(context.handler_id, "command.sync.add");
 }
 

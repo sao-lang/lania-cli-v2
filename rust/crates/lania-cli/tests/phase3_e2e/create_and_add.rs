@@ -1,4 +1,4 @@
-﻿//! create/add 工作流 e2e。
+//! create/add 工作流 e2e。
 use super::common::*;
 use super::*;
 
@@ -27,7 +27,7 @@ fn lan_create_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
+    assert_eq!(json["kind"], "result");
     assert!(root.join("demo-app/src/index.ts").exists());
     assert!(root.join("demo-app/package.json").exists());
 
@@ -55,8 +55,8 @@ fn lan_create_with_template_options_e2e() {
 
     assert_eq!(output.status.code(), Some(0));
     assert!(root.join("vue-app/src/main.ts").exists());
-    assert_eq!(json["execution"]["prompts"]["packageManager"], "bun");
-    assert!(json["execution"]["notes"]
+    assert_eq!(json["result"]["prompts"]["packageManager"], "bun");
+    assert!(json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -84,11 +84,11 @@ fn lan_create_preview_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["execution"]["state"], "planned");
-    assert_eq!(json["execution"]["prompts"]["preview"], true);
-    assert_eq!(json["execution"]["prompts"]["dryRun"], true);
+    assert_eq!(json["result"]["state"], "planned");
+    assert_eq!(json["result"]["prompts"]["preview"], true);
+    assert_eq!(json["result"]["prompts"]["dryRun"], true);
     assert!(!root.join("preview-app").exists());
-    assert!(json["execution"]["notes"]
+    assert!(json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -247,9 +247,9 @@ fn lan_add_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
+    assert_eq!(json["kind"], "result");
     assert!(root.join("src/components/Button.tsx").exists());
-    assert!(json["execution"]["notes"]
+    assert!(json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -279,9 +279,9 @@ fn lan_add_interactive_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["prompts"]["template"], "rfc");
-    assert_eq!(json["execution"]["prompts"]["name"], "Button");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["prompts"]["template"], "rfc");
+    assert_eq!(json["result"]["prompts"]["name"], "Button");
     assert!(root.join("src/components/Button.tsx").exists());
     assert!(fs::read_to_string(root.join("src/components/Button.tsx"))
         .expect("generated component readable")

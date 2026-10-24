@@ -50,7 +50,6 @@ pub fn normalize_locale(value: &str) -> String {
 
 pub fn normalize_output_mode(value: &str) -> String {
     match value.trim().to_ascii_lowercase().as_str() {
-        "stream" | "jsonl" => "stream".into(),
         "human" => "human".into(),
         _ => "json".into(),
     }

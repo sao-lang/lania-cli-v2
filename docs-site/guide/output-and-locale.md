@@ -7,7 +7,7 @@ Lania CLI 把“结果”和“日志”分开：stdout 输出结构化结果，
 ## stdout 与 stderr
 
 ```text
-stdout  → 结构化结果 / JSON / JSONL
+stdout  → 统一结果 envelope（JSON）或人类可读结果
 stderr  → 友好错误、日志、进度
 ```
 
@@ -21,17 +21,15 @@ stderr  → 友好错误、日志、进度
 
 ```bash
 lan config set output.mode json
-lan config set output.mode jsonl
 lan config set output.mode human
-lan config set output.mode stream
 ```
 
-| 模式     | 行为                              |
-| -------- | --------------------------------- |
-| `json`   | 一次性输出 pretty JSON            |
-| `jsonl`  | 逐行输出事件与最终结果            |
-| `human`  | 人类可读文本                      |
-| `stream` | 事件流模式，等价于 JSONL 事件输出 |
+| 模式    | 行为                                  |
+| ------- | ------------------------------------- |
+| `json`  | 一次性输出统一 envelope（4 空格缩进） |
+| `human` | 人类可读文本（命令摘要 + 结果）       |
+
+旧的 `stream` / `jsonl` 写法会归一为 `json`，不会再有逐行事件输出。
 
 查看当前配置：
 
@@ -40,23 +38,38 @@ lan config get
 lan config get output.mode
 ```
 
-## 事件模式
+## 统一结果 envelope
 
-项目配置还可以控制事件是 buffered 还是 stream：
+`json` 模式只输出一个 envelope，便于脚本稳定消费：
 
-```ts
-export default {
-  ui: {
-    output: {
-      mode: 'jsonl',
-      events: 'stream',
-    },
-  },
-};
+```json
+{
+  "kind": "result",
+  "command": { "name": "env list", "args": {}, "options": {} },
+  "cwd": "/path/to/project",
+  "exitCode": 0,
+  "result": {},
+  "git": { "branch": "main" }
+}
 ```
 
-- `buffered`：命令结束后统一输出。
-- `stream`：执行过程中持续输出事件。
+- `command.name` 是完整子命令路径（空格拼接）。
+- `error` 仅在失败时出现，内容形如 `{ "message": "..." }`。
+- `git` 仅在 git 仓库且能确定分支时出现。
+- `result` 是命令的业务结果；`template_info` / `workflow` / bridge 调用都收敛到这里。
+
+失败时 stderr 保留友好错误，stdout 输出：
+
+```json
+{
+  "kind": "error",
+  "cwd": "/path/to/project",
+  "exitCode": 2,
+  "error": { "message": "unknown command: `lan app`" }
+}
+```
+
+例外：`config get locale` / `config get output.mode` 这类 `config_value` 结果仍直接输出裸标量，方便 shell 脚本读取。
 
 ## 语言
 
@@ -107,23 +120,6 @@ lan config set log.timestamps false
 
 时间戳只影响人类可读日志，不影响结构化结果。
 
-## 调试信息
-
-项目配置可以控制是否在输出中包含宿主状态或 Bridge 交换信息：
-
-```ts
-export default {
-  ui: {
-    output: {
-      includeHostState: false,
-      includeBridgeExchange: false,
-    },
-  },
-};
-```
-
-排查问题时可临时打开，但不要在生产流水线中长期开启。
-
 ## 推荐组合
 
 ### 本地开发
@@ -139,12 +135,6 @@ lan config set locale zh
 ```bash
 lan config set output.mode json
 lan config set output.progress none
-```
-
-### 流式消费
-
-```bash
-lan config set output.mode jsonl
 ```
 
 ## 下一步

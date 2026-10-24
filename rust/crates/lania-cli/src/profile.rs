@@ -6,10 +6,8 @@
 //! - 命令行默认值（fallback）
 //!
 //! 输出 profile 决定了：
-//! - JSON / JSONL / Human
-//! - events 是 buffered 还是 stream
+//! - JSON / Human
 //! - 是否输出进度条
-//! - 是否包含 host_state / bridge_exchange 等调试信息
 
 use clap::error::ErrorKind as ClapErrorKind;
 use lania_config::LanConfigSnapshot;
@@ -29,14 +27,7 @@ pub(crate) fn normalize_os_args(args: impl IntoIterator<Item = std::ffi::OsStrin
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OutputMode {
     Json,
-    Jsonl,
     Human,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum EventMode {
-    Buffered,
-    Stream,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,10 +40,6 @@ pub(crate) enum ProgressMode {
 #[derive(Debug, Clone)]
 pub(crate) struct OutputProfile {
     pub(crate) mode: OutputMode,
-    pub(crate) events: EventMode,
-    pub(crate) pretty: bool,
-    pub(crate) include_host_state: bool,
-    pub(crate) include_bridge_exchange: bool,
     pub(crate) progress: ProgressMode,
     pub(crate) locale: String,
 }
@@ -61,10 +48,6 @@ impl Default for OutputProfile {
     fn default() -> Self {
         Self {
             mode: OutputMode::Json,
-            events: EventMode::Buffered,
-            pretty: false,
-            include_host_state: true,
-            include_bridge_exchange: true,
             progress: ProgressMode::Spinner,
             locale: "en".into(),
         }
@@ -95,40 +78,17 @@ pub(crate) fn output_profile_from_sources(
 ) -> OutputProfile {
     let mut profile = OutputProfile {
         mode: match preferences.output_mode.as_str() {
-            "stream" => OutputMode::Jsonl,
             "human" => OutputMode::Human,
             _ => OutputMode::Json,
-        },
-        events: if preferences.output_mode == "stream" {
-            EventMode::Stream
-        } else {
-            EventMode::Buffered
         },
         ..OutputProfile::default()
     };
     if let Some(config) = config {
         if config_has_raw_key(&config.ui.output.raw, "mode") {
             profile.mode = match config.ui.output.mode.as_str() {
-                "jsonl" => OutputMode::Jsonl,
                 "human" => OutputMode::Human,
                 _ => OutputMode::Json,
             };
-        }
-        if config_has_raw_key(&config.ui.output.raw, "events") {
-            profile.events = if config.ui.output.events == "stream" {
-                EventMode::Stream
-            } else {
-                EventMode::Buffered
-            };
-        }
-        if config_has_raw_key(&config.ui.output.raw, "pretty") {
-            profile.pretty = config.ui.output.pretty;
-        }
-        if config_has_raw_key(&config.ui.output.raw, "includeHostState") {
-            profile.include_host_state = config.ui.output.include_host_state;
-        }
-        if config_has_raw_key(&config.ui.output.raw, "includeBridgeExchange") {
-            profile.include_bridge_exchange = config.ui.output.include_bridge_exchange;
         }
         if config_has_raw_key(&config.ui.progress.raw, "style") {
             profile.progress = match config.ui.progress.style.as_str() {
@@ -189,6 +149,40 @@ pub(crate) fn localized_user_message(locale: &str, message: &str) -> String {
         return message.to_string();
     }
 
+    // env：计划构建与工具校验错误。
+    if let Some(rest) = message.strip_prefix("install requires a version, e.g. ") {
+        return format!("install 需要指定版本，例如 {rest}");
+    }
+    if message == "use requires a version (or --project to clear the project pin)" {
+        return "use 需要指定版本（或使用 --project 清除项目锁定）".into();
+    }
+    if message == "remove requires a version" {
+        return "remove 需要指定版本".into();
+    }
+    if let Some(rest) = message.strip_prefix("invalid version `") {
+        if let Some((version, _)) = rest.split_once('`') {
+            return format!("版本 `{version}` 非法：只允许字母、数字和 . - _ + @ /");
+        }
+    }
+    if let Some(rest) = message.strip_prefix("unsupported tool `") {
+        if let Some((tool, _)) = rest.split_once('`') {
+            return format!("不支持的工具 `{tool}`");
+        }
+    }
+    if let Some(rest) = message.strip_prefix("no supported version manager found for ") {
+        if let Some((language, managers)) = rest.split_once(". install one of: ") {
+            return format!("未找到可用于 {language} 的版本管理器，请先安装：{managers}");
+        }
+    }
+    if let Some(rest) = message.strip_prefix("no ") {
+        if let Some((action, rest)) = rest.split_once(" steps could be generated for ") {
+            return format!("无法为 {rest} 生成 {action} 步骤");
+        }
+    }
+    if message == "a version is required" {
+        return "必须提供版本号".into();
+    }
+
     if let Some(field) = message
         .strip_prefix("unknown ")
         .and_then(|rest| rest.strip_suffix(" field"))
@@ -236,6 +230,9 @@ pub(crate) fn localized_user_message(locale: &str, message: &str) -> String {
     }
     if message == "lan.config root must be an object" {
         return "lan.config 根节点必须是对象".into();
+    }
+    if message == "ui.output.mode must be `json` or `human`" {
+        return "ui.output.mode 必须是 `json` 或 `human`".into();
     }
     if message == "lintTools must be an array" {
         return "lintTools 必须是数组".into();

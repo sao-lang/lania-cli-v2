@@ -13,8 +13,8 @@ use std::{env, sync::Arc};
 
 use anyhow::Result;
 use clap::error::ErrorKind as ClapErrorKind;
-use lania_host::{plugin::EmptyPlugin, ExecutionError, Host, HostRuntime, EXIT_RUNTIME_ERROR};
 use lania_agent::AgentCommandPlugin;
+use lania_host::{plugin::EmptyPlugin, ExecutionError, Host, HostRuntime, EXIT_RUNTIME_ERROR};
 use lania_logger::{AutoStyledLogRenderer, CliMessageLevel, LogRenderer, StderrLogSink};
 use lania_plugins_command_add::AddCommandPlugin;
 use lania_plugins_command_build::BuildCommandPlugin;
@@ -33,11 +33,11 @@ use lania_progress::TerminalProgressMode;
 mod output;
 mod profile;
 
-use output::{execution_json_value, render_output_value, should_suppress_output};
+use output::{error_json_value, execution_json_value, render_output_value, should_suppress_output};
 use profile::{
     cli_message_renderer, cli_parse_error_message, cli_text, cli_version, localized_user_message,
-    normalize_os_args, output_profile_from_sources, resolve_effective_locale, EventMode,
-    OutputMode, OutputProfile, ProgressMode,
+    normalize_os_args, output_profile_from_sources, resolve_effective_locale, OutputMode,
+    OutputProfile, ProgressMode,
 };
 
 #[tokio::main]
@@ -62,6 +62,14 @@ async fn main() -> Result<()> {
     host.register_plugin(Box::new(ConfigCommandPlugin))?;
     host.initialize().await?;
     let cwd = env::current_dir()?.display().to_string();
+    // 输出 envelope 只关心“当前是否是 git 仓库以及分支名”。
+    // 非仓库/未就绪时保持 None，不要让 git 探测失败影响命令本身。
+    let git_branch = host
+        .git()
+        .status(std::path::Path::new(&cwd))
+        .ok()
+        .filter(|status| status.ready)
+        .and_then(|status| status.branch);
     let project_config = host
         .load_lan_config_snapshot_from_cwd_async(cwd.clone())
         .await
@@ -152,11 +160,7 @@ async fn main() -> Result<()> {
             print!(
                 "{}",
                 render_output_value(
-                    serde_json::json!({
-                        "kind": "error",
-                        "message": message,
-                        "exitCode": exit_code,
-                    }),
+                    error_json_value(None, &cwd, exit_code, &message),
                     &output_profile,
                 )?
             );
@@ -165,34 +169,33 @@ async fn main() -> Result<()> {
         }
     };
 
-    let result = if let Some(context) =
-        lania_command::command_context_from_matches(&commands, &matches, cwd, "trace-1")
-    {
+    let context =
+        lania_command::command_context_from_matches(&commands, &matches, cwd.clone(), "trace-1");
+    let execution = match &context {
         // 解析到了具体命令：交给 HostRuntime 执行（可能走 workflow 或 node-bridge）。
-        host.execute_command(&context).await.map(|execution| {
-            let value = execution_json_value(&execution, &output_profile);
-            // 交互型命令（agent）自己拥有终端：REPL 结束后不再追加任何宿主输出。
-            let output = if should_suppress_output(&value) {
-                Ok(String::new())
-            } else {
-                render_output_value(value, &output_profile)
-            };
-            (output, execution.exit_code())
-        })
-    } else {
-        Ok((Ok(String::new()), 0))
+        Some(context) => Some(host.execute_command(context).await),
+        None => None,
     };
 
     host.shutdown_async().await?;
 
-    match result {
-        Ok((output, exit_code)) => {
-            print!("{}", output?);
+    match execution {
+        Some(Ok(execution)) => {
+            let exit_code = execution.exit_code();
+            let value =
+                execution_json_value(&execution, &output_profile, &cwd, git_branch.as_deref());
+            // 交互型命令（agent）自己拥有终端：REPL 结束后不再追加任何宿主输出。
+            let output = if should_suppress_output(&value) {
+                String::new()
+            } else {
+                render_output_value(value, &output_profile)?
+            };
+            print!("{output}");
             if exit_code != 0 {
                 std::process::exit(exit_code);
             }
         }
-        Err(error) => {
+        Some(Err(error)) => {
             let exit_code = error
                 .downcast_ref::<ExecutionError>()
                 .map(|inner| inner.exit_code)
@@ -209,16 +212,13 @@ async fn main() -> Result<()> {
             print!(
                 "{}",
                 render_output_value(
-                    serde_json::json!({
-                        "kind": "error",
-                        "message": message,
-                        "exitCode": exit_code,
-                    }),
+                    error_json_value(context.as_ref(), &cwd, exit_code, &message),
                     &output_profile,
                 )?
             );
             std::process::exit(exit_code);
         }
+        None => {}
     }
 
     Ok(())

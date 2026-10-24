@@ -2,11 +2,9 @@
 //!
 //! 这类文件通常不长，但非常关键：
 //! - `redact_secret_fields()` 负责保证日志和输出不会泄露敏感值
-//! - `human_event_message()` 把 bridge event 翻译成更适合终端即时展示的人类文案
 //!
 //! 可以把这里理解成“桥接层和输出层之间的适配胶水”。
 
-use lania_node_bridge::{BridgeEvent, BridgeEventMethod};
 use serde_json::{json, Value};
 
 pub(crate) fn redact_secret_fields(value: Value, secret_fields: &[String]) -> Value {
@@ -38,34 +36,5 @@ pub(crate) fn redact_secret_fields(value: Value, secret_fields: &[String]) -> Va
                 .collect(),
         ),
         other => other,
-    }
-}
-
-pub(crate) fn human_event_message(event: &BridgeEvent) -> String {
-    // 这个函数的目标不是覆盖所有 event，而是给“终端即时输出”提供少量高频友好文案。
-    // 对不常见事件保留 Debug 风格字符串，能避免维护一个过大且容易过期的映射表。
-    match event.method {
-        BridgeEventMethod::Log => event.params["message"]
-            .as_str()
-            .unwrap_or("bridge log")
-            .to_string(),
-        BridgeEventMethod::Progress => event.params["message"]
-            .as_str()
-            .unwrap_or("progress update")
-            .to_string(),
-        // 仅对少量常见 event 做“友好消息”转换；
-        // 其它事件保留 Debug 字符串，避免维护不完整的映射表。
-        BridgeEventMethod::DevUrl => format!(
-            "dev url: {}",
-            event.params["url"].as_str().unwrap_or("unknown")
-        ),
-        BridgeEventMethod::Shutdown => format!(
-            "shutdown: {}",
-            event.params["reason"].as_str().unwrap_or("requested")
-        ),
-        // 其余事件直接退回方法名，意味着：
-        // - 至少还能给人一个“发生了哪类事件”的即时提示
-        // - 但不会为了少见事件维护一大堆容易过期的人类文案模板
-        _ => format!("{:?}", event.method),
     }
 }

@@ -292,10 +292,6 @@ pub struct HookBinding {
 #[serde(rename_all = "camelCase")]
 pub struct UiOutputSnapshot {
     pub mode: String,
-    pub events: String,
-    pub pretty: bool,
-    pub include_host_state: bool,
-    pub include_bridge_exchange: bool,
     pub raw: Value,
 }
 
@@ -303,10 +299,6 @@ impl Default for UiOutputSnapshot {
     fn default() -> Self {
         Self {
             mode: "json".into(),
-            events: "buffered".into(),
-            pretty: false,
-            include_host_state: true,
-            include_bridge_exchange: true,
             raw: Value::Null,
         }
     }

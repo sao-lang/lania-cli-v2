@@ -32,7 +32,7 @@ fn lan_error_message_is_localized_in_zh_e2e() {
     // JSON 输出中以 kind: error 响应，消息应包含中文或 "unknown command"
     let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_default();
     assert_eq!(json["kind"], "error");
-    let message = json["message"].as_str().unwrap_or("");
+    let message = json["error"]["message"].as_str().unwrap_or("");
     assert!(
         message.contains("unknown command") || message.contains("未知命令") || stderr.contains("未知命令"),
         "zh error should contain 'unknown command' or '未知命令'.\nstdout:\n{stdout}\nstderr:\n{stderr}"
@@ -120,7 +120,10 @@ fn lan_config_invalid_locale_value_returns_error_e2e() {
     // （具体行为取决于服务端验证：可能报错或接受回退到 en）
     if output.status.code() != Some(0) {
         assert!(
-            stdout.contains("locale") || stderr.contains("locale") || stdout.contains("invalid") || stderr.contains("invalid"),
+            stdout.contains("locale")
+                || stderr.contains("locale")
+                || stdout.contains("invalid")
+                || stderr.contains("invalid"),
             "invalid locale should produce relevant message.\nstdout:\n{stdout}\nstderr:\n{stderr}"
         );
     }

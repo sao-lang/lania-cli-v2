@@ -329,15 +329,10 @@ handleExchange(request)
 | `event.shutdown`              | `reason`                                           | 关闭事件             |
 | `event.heartbeat`             | `ts`                                               | 心跳                 |
 
-### stream 模式
+### 事件输出
 
-当 `ui.output.events = stream`：
-
-- `ui.output.mode = jsonl`：事件写到 stdout
-- `ui.output.mode = human`：事件以文本写到 stderr
-- 其他：事件以 JSONL 写到 stderr
-
-最终 response 输出时会清空已经流式发送过的 events，避免重复。
+`ui.output.events` 已移除：CLI 不再把 bridge 事件实时转发到终端，只在命令结束时输出一次结果。
+事件仍会进入宿主日志/进度等内部状态，但不会出现在最终 stdout/stderr。
 
 ## 7. Host RPC：Node 反调 Rust
 

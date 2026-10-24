@@ -1,14 +1,14 @@
 # 输出与状态文件
 
 <div class="lead">
-本页说明 stdout/stderr 约定、输出 profile、事件流、退出码，以及 .lania 下的状态与报告文件。
+本页说明 stdout/stderr 约定、输出 profile、退出码，以及 .lania 下的状态与报告文件。
 </div>
 
 ## 1. stdout / stderr
 
 ```text
-stdout  → 命令最终结果（JSON / JSONL / 人类可读）
-stderr  → 日志、错误提示、进度、人类可读事件
+stdout  → 命令最终结果（统一 JSON envelope / 人类可读）
+stderr  → 日志、错误提示、进度
 ```
 
 设计目标：
@@ -27,37 +27,29 @@ stderr  → 日志、错误提示、进度、人类可读事件
 
 ### 默认值
 
-| 字段                    | 默认       |
-| ----------------------- | ---------- |
-| `mode`                  | `json`     |
-| `events`                | `buffered` |
-| `pretty`                | false      |
-| `includeHostState`      | true       |
-| `includeBridgeExchange` | true       |
-| `progress`              | `spinner`  |
-| `locale`                | `en`       |
+| 字段       | 默认      |
+| ---------- | --------- |
+| `mode`     | `json`    |
+| `progress` | `spinner` |
+| `locale`   | `en`      |
 
 ### 全局偏好映射
 
-| `outputMode` | 结果                            |
-| ------------ | ------------------------------- |
-| `json`       | `mode=json`, `events=buffered`  |
-| `human`      | `mode=human`, `events=buffered` |
-| `stream`     | `mode=jsonl`, `events=stream`   |
+| `outputMode`     | 结果                                       |
+| ---------------- | ------------------------------------------ |
+| `json`           | `mode=json`                                |
+| `human`          | `mode=human`                               |
+| `stream`/`jsonl` | `mode=json`（旧的流式写法归一为普通 JSON） |
 
 ### 项目覆盖
 
-只有显式出现的字段才会覆盖默认值：
+只有显式出现的字段才会覆盖默认值，且 `mode` 只接受 `json` / `human`：
 
 ```ts
 export default {
   ui: {
     output: {
-      mode: 'jsonl',
-      events: 'stream',
-      pretty: true,
-      includeHostState: false,
-      includeBridgeExchange: false,
+      mode: 'json',
     },
     progress: {
       style: 'bar',
@@ -67,115 +59,50 @@ export default {
 };
 ```
 
-## 3. 三种输出模式
+## 3. 两种输出模式
 
 ### json
 
-一次性输出 JSON；`ui.output.pretty=true` 时缩进：
+一次性输出统一 envelope（固定 4 空格缩进）：
 
 ```bash
 lan config set output.mode json
 lan template
 ```
 
-### jsonl
-
-逐行事件 + 最终结果：
-
-```bash
-lan config set output.mode jsonl
-```
-
-事件 envelope：
-
 ```json
 {
-  "kind": "event",
-  "requestId": "req-1",
-  "method": "compiler.build",
-  "event": {
-    "method": "event.progress",
-    "params": { "current": 1, "total": 2 }
-  }
+  "kind": "result",
+  "command": { "name": "template", "args": {}, "options": {} },
+  "cwd": "/path/to/project",
+  "exitCode": 0,
+  "result": {
+    "templates": ["toolkit"]
+  },
+  "git": { "branch": "main" }
 }
 ```
 
+- `result` 是业务 payload：`template_info` 取模板输出，workflow 取 workflow execution，bridge 取 `response.result`。
+- `error` 仅在失败时出现（`{ "message": "..." }`）；失败 envelope 的 `kind` 为 `error`。
+- `git` 仅在 git 仓库且能确定分支时出现。
+
 ### human
 
-人类可读文本，事件写到 stderr：
+人类可读文本：先输出一行命令摘要（`lan <name>` + args/options），再按 `result.kind` 渲染结果；不会打印 `cwd` / `git` / `exitCode`，也不会 dump `host_state` 或 bridge exchange。
 
 ```bash
 lan config set output.mode human
 ```
 
-### stream
+失败时只输出 `错误: <message>`（英文为 `Error: <message>`）。
 
-`stream` 是全局偏好的写法，等价于 `jsonl + events=stream`：
+### 兼容说明
 
-```bash
-lan config set output.mode stream
-```
+- `stream` / `jsonl` 是历史写法，会统一归一为 `json`，不再输出逐行事件。
+- `config get locale` / `config get output.mode` 这类 `config_value` 结果仍输出裸标量，不包 envelope。
 
-## 4. 事件流
-
-当 `ui.output.events = stream`：
-
-| mode    | 事件输出位置    |
-| ------- | --------------- |
-| `jsonl` | stdout          |
-| `human` | stderr（文本）  |
-| 其他    | stderr（JSONL） |
-
-最终 response 输出时会清空已经流式发送过的 events，避免重复。
-
-## 5. 结果裁剪
-
-### includeHostState
-
-控制是否保留 `host_state`：
-
-```json
-{
-  "includeHostState": false
-}
-```
-
-`host_state` 包含：
-
-- hooks 事件
-- capabilities
-- secret_fields
-- 任务/进度快照
-- 执行上下文
-
-体积可能较大，生产环境建议关闭。
-
-### includeBridgeExchange
-
-控制是否保留完整 bridge 交换：
-
-```json
-{
-  "includeBridgeExchange": false
-}
-```
-
-关闭后：
-
-- 只保留 `result`
-- 移除 `request` / `exchange` / `follow_up`
-- 如果 `events=stream`，同时移除 events
-
-### 信息类结果
-
-以下 `kind` 会额外裁剪掉 `context` / `host_state` / `exit_code`：
-
-- `template_info`
-- `locale`
-- `config_value`
-- `config`
-
-## 6. 退出码
+## 4. 退出码
 
 | 退出码 | 含义                              |
 | ------ | --------------------------------- |
@@ -187,7 +114,7 @@ lan config set output.mode stream
 
 工具链自身的退出码也可能透传，例如 lint 适配器返回 1。
 
-## 7. 状态文件
+## 5. 状态文件
 
 ### 全局偏好
 
@@ -267,7 +194,7 @@ lan config set output.mode stream
 
 这些不是 CLI 的固定协议，由项目自己的动态命令决定。
 
-## 8. 清理建议
+## 6. 清理建议
 
 以下目录通常不应提交：
 

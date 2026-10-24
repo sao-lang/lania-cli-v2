@@ -23,13 +23,15 @@ fn lan_generate_api_plan_e2e() {
     );
 
     // plan 模式应输出 planned 状态且不写入文件
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["state"], "planned");
-    assert_eq!(json["execution"]["prompts"]["mode"], "plan");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["state"], "planned");
+    assert_eq!(json["result"]["prompts"]["mode"], "plan");
 
     // plan 模式不应实际写入文件
     assert!(
-        !root.join("contracts/generated/user_service.contract.gen.go").exists(),
+        !root
+            .join("contracts/generated/user_service.contract.gen.go")
+            .exists(),
         "plan mode should not write files"
     );
 
@@ -55,9 +57,9 @@ fn lan_generate_api_diff_e2e() {
         String::from_utf8_lossy(&diff_output.stdout),
         String::from_utf8_lossy(&diff_output.stderr)
     );
-    assert_eq!(diff_json["kind"], "workflow");
-    assert_eq!(diff_json["execution"]["state"], "planned");
-    assert_eq!(diff_json["execution"]["prompts"]["mode"], "diff");
+    assert_eq!(diff_json["kind"], "result");
+    assert_eq!(diff_json["result"]["state"], "planned");
+    assert_eq!(diff_json["result"]["prompts"]["mode"], "diff");
 
     // 修改合约后 diff 应检测到差异
     write_contract_fixture(&root, &["http"]);
@@ -68,9 +70,9 @@ fn lan_generate_api_diff_e2e() {
         Some(0),
         "diff after contract change should succeed"
     );
-    assert_eq!(diff_after_json["execution"]["prompts"]["mode"], "diff");
+    assert_eq!(diff_after_json["result"]["prompts"]["mode"], "diff");
     // 应该检测到目标变更 -> 预期产生 notes
-    let notes = diff_after_json["execution"]["notes"].as_array();
+    let notes = diff_after_json["result"]["notes"].as_array();
     assert!(
         notes.is_some() && !notes.unwrap().is_empty(),
         "diff after changing targets should produce notes"
@@ -89,7 +91,9 @@ fn lan_generate_api_plan_shows_preview_before_apply_e2e() {
     assert_eq!(plan_output.status.code(), Some(0));
     // 确认没有写入文件
     assert!(
-        !root.join("contracts/generated/user_service.contract.gen.go").exists(),
+        !root
+            .join("contracts/generated/user_service.contract.gen.go")
+            .exists(),
         "plan should not write output files"
     );
 
@@ -97,7 +101,8 @@ fn lan_generate_api_plan_shows_preview_before_apply_e2e() {
     let apply_output = run_cli(&root, &["generate", "api"], &[]);
     assert_eq!(apply_output.status.code(), Some(0));
     assert!(
-        root.join("contracts/generated/user_service.contract.gen.go").exists(),
+        root.join("contracts/generated/user_service.contract.gen.go")
+            .exists(),
         "apply should write output files"
     );
 
@@ -121,13 +126,15 @@ fn lan_generate_module_plan_e2e() {
     );
 
     // plan 模式应输出 planned 状态
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["state"], "planned");
-    assert_eq!(json["execution"]["prompts"]["mode"], "plan");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["state"], "planned");
+    assert_eq!(json["result"]["prompts"]["mode"], "plan");
 
     // plan 模式不应实际写入文件
     assert!(
-        !root.join("generated/lania/contracts/user.contract.gen.go").exists(),
+        !root
+            .join("generated/lania/contracts/user.contract.gen.go")
+            .exists(),
         "plan mode should not write generated files"
     );
 
@@ -151,8 +158,8 @@ fn lan_generate_module_diff_e2e() {
         Some(0),
         "diff after apply should succeed"
     );
-    assert_eq!(diff_json["execution"]["state"], "planned");
-    assert_eq!(diff_json["execution"]["prompts"]["mode"], "diff");
+    assert_eq!(diff_json["result"]["state"], "planned");
+    assert_eq!(diff_json["result"]["prompts"]["mode"], "diff");
 
     // 修改目标后 diff 应检测到差异
     write_module_fixture(&root, &["http"], false);
@@ -163,8 +170,8 @@ fn lan_generate_module_diff_e2e() {
         Some(0),
         "diff after target change should succeed"
     );
-    assert_eq!(diff_after_json["execution"]["prompts"]["mode"], "diff");
-    let notes = diff_after_json["execution"]["notes"].as_array();
+    assert_eq!(diff_after_json["result"]["prompts"]["mode"], "diff");
+    let notes = diff_after_json["result"]["notes"].as_array();
     assert!(
         notes.is_some() && !notes.unwrap().is_empty(),
         "diff after changing targets should produce notes"

@@ -1,4 +1,4 @@
-﻿//! generate api/module 工作流 e2e。
+//! generate api/module 工作流 e2e。
 use super::common::*;
 use super::*;
 
@@ -10,8 +10,8 @@ fn lan_generate_api_init_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["prompts"]["mode"], "init");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["prompts"]["mode"], "init");
     assert!(root.join("lania.contract.yaml").exists());
     assert!(root.join("schemas/proto/greeter.proto").exists());
 
@@ -26,8 +26,8 @@ fn lan_generate_api_init_alias_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["prompts"]["mode"], "init");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["prompts"]["mode"], "init");
     assert!(root.join("lania.contract.yaml").exists());
 
     let _ = fs::remove_dir_all(root);
@@ -42,8 +42,8 @@ fn lan_generate_api_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["workflow"], "generate-api");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["workflow"], "generate-api");
     assert!(root
         .join("contracts/generated/user_service.contract.gen.go")
         .exists());
@@ -63,7 +63,7 @@ fn lan_generate_api_check_and_clean_e2e() {
     let check_output = run_cli(&root, &["generate", "api", "--check"], &[]);
     let check_json = parse_stdout_json(&check_output);
     assert_eq!(check_output.status.code(), Some(1));
-    assert!(check_json["execution"]["notes"]
+    assert!(check_json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -82,7 +82,7 @@ fn lan_generate_api_check_and_clean_e2e() {
     assert!(!root
         .join("transport/generated/grpc/user_service_grpc.gen.go")
         .exists());
-    assert!(clean_json["execution"]["notes"]
+    assert!(clean_json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -99,9 +99,9 @@ fn lan_generate_module_init_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["workflow"], "generate-module");
-    assert_eq!(json["execution"]["prompts"]["mode"], "init");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["workflow"], "generate-module");
+    assert_eq!(json["result"]["prompts"]["mode"], "init");
     assert!(root.join("lania.module.yaml").exists());
     assert!(root.join("schemas/proto/greeter.proto").exists());
 
@@ -118,8 +118,8 @@ fn lan_generate_module_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["workflow"], "generate-module");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["workflow"], "generate-module");
     assert!(root
         .join("generated/lania/contracts/user.contract.gen.go")
         .exists());
@@ -147,7 +147,7 @@ fn lan_generate_module_check_and_clean_e2e() {
     let check_output = run_cli(&root, &["generate", "module", "--check"], &[]);
     let check_json = parse_stdout_json(&check_output);
     assert_eq!(check_output.status.code(), Some(1));
-    assert!(check_json["execution"]["notes"]
+    assert!(check_json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -166,7 +166,7 @@ fn lan_generate_module_check_and_clean_e2e() {
     assert!(!root
         .join("generated/lania/adapters/grpc/user_grpc.gen.go")
         .exists());
-    assert!(clean_json["execution"]["notes"]
+    assert!(clean_json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -184,7 +184,7 @@ fn lan_generate_module_graphql_ws_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["execution"]["workflow"], "generate-module");
+    assert_eq!(json["result"]["workflow"], "generate-module");
     assert!(root
         .join("generated/lania/adapters/graphql/gateway_graphql.gen.go")
         .exists());
@@ -210,7 +210,7 @@ fn lan_generate_module_json_grpc_http_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["execution"]["workflow"], "generate-module");
+    assert_eq!(json["result"]["workflow"], "generate-module");
     assert!(root
         .join("generated/lania/contracts/account.contract.gen.go")
         .exists());

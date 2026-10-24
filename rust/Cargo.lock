@@ -696,6 +696,7 @@ dependencies = [
  "lania-agent",
  "lania-command",
  "lania-config",
+ "lania-git",
  "lania-host",
  "lania-logger",
  "lania-node-bridge",
@@ -724,6 +725,20 @@ name = "lania-command"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "lania-agent",
+ "lania-host",
+ "lania-plugins-command-add",
+ "lania-plugins-command-build",
+ "lania-plugins-command-create",
+ "lania-plugins-command-dev",
+ "lania-plugins-command-env",
+ "lania-plugins-command-generate",
+ "lania-plugins-command-lint",
+ "lania-plugins-command-locale",
+ "lania-plugins-command-release",
+ "lania-plugins-command-sync",
+ "lania-plugins-command-template",
+ "lania-plugins-command-tools",
  "serde",
  "serde_json",
 ]

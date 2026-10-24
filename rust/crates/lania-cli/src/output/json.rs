@@ -1,26 +1,32 @@
-//! JSON 输出准备：把 `lania_host::CommandExecution` 转成 `serde_json::Value`。
+//! JSON 输出准备：把 `lania_host::CommandExecution` 转成统一输出 envelope。
 //!
-//! 这里做的事情都是“结构调整”，不做最终字符串渲染：
-//! - 根据 `OutputProfile` 决定是否包含 `host_state` / `bridge exchange`
-//! - `events=stream` 时剥离已流式输出过的 events，避免重复
-//! - 对输出中出现的可本地化字符串做递归替换（深度遍历 JSON）
+//! 统一 envelope 只携带：
+//! - 命令名与参数（`command`）
+//! - 工作目录（`cwd`）
+//! - 退出码（`exitCode`）
+//! - 业务结果（`result`）
+//! - 可选错误（`error`）与 git 分支（`git`）
+//!
+//! 这里只做“结构调整”和文案本地化，不做最终字符串渲染。
 
-use crate::{EventMode, OutputProfile};
+use lania_command::CommandContext;
+use serde_json::{json, Value};
 
 use crate::profile::localized_user_message;
+use crate::OutputProfile;
 
-fn localize_json_strings(value: &mut serde_json::Value, locale: &str) {
+fn localize_json_strings(value: &mut Value, locale: &str) {
     match value {
         // 约定：需要本地化的用户可见文案会以 string 形式出现，直接替换即可。
-        serde_json::Value::String(text) => {
+        Value::String(text) => {
             *text = localized_user_message(locale, text);
         }
-        serde_json::Value::Array(items) => {
+        Value::Array(items) => {
             for item in items {
                 localize_json_strings(item, locale);
             }
         }
-        serde_json::Value::Object(object) => {
+        Value::Object(object) => {
             for value in object.values_mut() {
                 localize_json_strings(value, locale);
             }
@@ -29,119 +35,117 @@ fn localize_json_strings(value: &mut serde_json::Value, locale: &str) {
     }
 }
 
+fn command_value(context: &CommandContext) -> Value {
+    // 位置参数在解析结果里同时出现在 args/options，输出时只保留在 args。
+    let mut options = context.argv.options.clone();
+    for key in context.argv.args.keys() {
+        options.remove(key);
+    }
+    json!({
+        "name": context.name,
+        "args": context.argv.args,
+        "options": options,
+    })
+}
+
+fn execution_context(execution: &lania_host::CommandExecution) -> &CommandContext {
+    match execution {
+        lania_host::CommandExecution::Bridge { context, .. }
+        | lania_host::CommandExecution::Workflow { context, .. }
+        | lania_host::CommandExecution::TemplateInfo { context, .. } => context,
+    }
+}
+
+fn print_payload(execution: &lania_host::CommandExecution) -> Value {
+    match execution {
+        lania_host::CommandExecution::Bridge { exchange, .. } => exchange
+            .response
+            .result
+            .clone()
+            .unwrap_or(serde_json::Value::Null),
+        lania_host::CommandExecution::Workflow { execution, .. } => {
+            let mut payload =
+                serde_json::to_value(execution).expect("workflow execution serializes");
+            // bridge_steps 是执行期调试信息，不属于必要结果。
+            if let Some(object) = payload.as_object_mut() {
+                object.remove("bridge_steps");
+            }
+            payload
+        }
+        lania_host::CommandExecution::TemplateInfo { output, .. } => {
+            // 模板查询本身不写 `kind`，但旧输出依赖 `kind: template_info` 做渲染分派。
+            // 这里补回该标记，保持 `result` 的结构与历史输出一致。
+            let mut payload = output.clone();
+            if let Some(object) = payload.as_object_mut() {
+                object
+                    .entry("kind")
+                    .or_insert_with(|| json!("template_info"));
+            }
+            payload
+        }
+    }
+}
+
+fn bridge_error_message(execution: &lania_host::CommandExecution) -> Option<String> {
+    match execution {
+        lania_host::CommandExecution::Bridge { exchange, .. } => exchange
+            .response
+            .error
+            .as_ref()
+            .map(|error| error.message.clone()),
+        _ => None,
+    }
+}
+
+fn strip_internal_flags(payload: &mut Value) {
+    if let Some(object) = payload.as_object_mut() {
+        object.remove("_interactiveRendered");
+    }
+}
+
 pub(crate) fn execution_json_value(
     execution: &lania_host::CommandExecution,
     profile: &OutputProfile,
-) -> serde_json::Value {
-    // `CommandExecution` 是 host/runtime 的统一结果 envelope。
-    // 这里先把它完全序列化，再按 profile 做裁剪/本地化，避免在 Rust 侧维护一堆结构体镜像。
-    let mut value = serde_json::to_value(execution).expect("execution serializes");
+    cwd: &str,
+    git_branch: Option<&str>,
+) -> Value {
+    let context = execution_context(execution);
+    let mut payload = print_payload(execution);
+    strip_internal_flags(&mut payload);
 
-    // 这些 kind 属于“纯信息类输出”，需要尽量简洁：
-    // - template_info / locale / config_value / config
-    if is_template_info_value(&value)
-        || is_locale_value(&value)
-        || is_config_value(&value)
-        || is_config_root_value(&value)
-    {
-        strip_summary_debug_fields(&mut value);
-        return value;
+    let mut value = json!({
+        "kind": "result",
+        "command": command_value(context),
+        "cwd": cwd,
+        "exitCode": execution.exit_code(),
+        "result": payload,
+    });
+
+    if let Some(message) = bridge_error_message(execution) {
+        value["error"] = json!({ "message": message });
+    }
+    if let Some(branch) = git_branch {
+        value["git"] = json!({ "branch": branch });
     }
 
-    // host_state 默认不输出，除非 profile 显式打开（便于调试）。
-    if !profile.include_host_state {
-        if let Some(object) = value.as_object_mut() {
-            object.remove("host_state");
-        }
-    }
-
-    // bridge exchange 体积可能很大：request/exchange/follow_up/events 等。
-    // 默认只保留 result；如果 events 是 stream 模式，还要避免重复携带 events。
-    if !profile.include_bridge_exchange {
-        strip_bridge_exchange(&mut value, profile);
-    } else if profile.events == EventMode::Stream {
-        strip_streamed_events(&mut value);
-    }
-
-    // 最后做文案本地化：确保裁剪后的结构不会再被其它逻辑改变。
     localize_json_strings(&mut value, profile.locale.as_str());
     value
 }
 
-fn is_template_info_value(value: &serde_json::Value) -> bool {
-    value.get("kind").and_then(|kind| kind.as_str()) == Some("template_info")
-}
-
-fn is_locale_value(value: &serde_json::Value) -> bool {
-    value.get("kind").and_then(|kind| kind.as_str()) == Some("locale")
-}
-
-fn is_config_value(value: &serde_json::Value) -> bool {
-    value.get("kind").and_then(|kind| kind.as_str()) == Some("config_value")
-}
-
-fn is_config_root_value(value: &serde_json::Value) -> bool {
-    value.get("kind").and_then(|kind| kind.as_str()) == Some("config")
-}
-
-fn strip_summary_debug_fields(value: &mut serde_json::Value) {
-    let Some(object) = value.as_object_mut() else {
-        return;
-    };
-    object.remove("context");
-    object.remove("host_state");
-    object.remove("exit_code");
-}
-
-fn strip_bridge_exchange(value: &mut serde_json::Value, profile: &OutputProfile) {
-    let Some(object) = value.as_object_mut() else {
-        return;
-    };
-    if object.get("kind").and_then(|kind| kind.as_str()) != Some("bridge") {
-        return;
+pub(crate) fn error_json_value(
+    command: Option<&CommandContext>,
+    cwd: &str,
+    exit_code: i32,
+    message: &str,
+) -> Value {
+    let mut value = json!({
+        "kind": "error",
+        "cwd": cwd,
+        "exitCode": exit_code,
+        "error": { "message": message },
+    });
+    if let Some(context) = command {
+        value["command"] = command_value(context);
     }
-
-    // 兼容点：
-    // - host 的 bridge execution 会带上 `request/exchange/follow_up` 等调试字段
-    // - 真正用户关心的结果通常在 `exchange.response.result`
-    // 因此这里把它抬到顶层 `result`，然后移除体积很大的字段，避免 JSON 输出爆炸。
-    if let Some(exchange) = object.get("exchange").cloned() {
-        let response_result = exchange
-            .get("response")
-            .and_then(|response| response.get("result"))
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
-        object.insert("result".into(), response_result);
-    }
-
-    object.remove("request");
-    object.remove("exchange");
-    object.remove("follow_up");
-
-    // events=stream 时，事件已经逐条输出过了；这里再带上会造成重复。
-    if profile.events == EventMode::Stream {
-        object.remove("events");
-    }
-}
-
-fn strip_streamed_events(value: &mut serde_json::Value) {
-    let Some(object) = value.as_object_mut() else {
-        return;
-    };
-
-    // stream 模式下 events 会实时输出：
-    // - 如果最终 result 里还携带一份 events，会造成“重复输出”
-    // - 但为了兼容下游解析器，这里不直接 remove 整个字段，而是置空数组
-    if let Some(exchange) = object
-        .get_mut("exchange")
-        .and_then(|value| value.as_object_mut())
-    {
-        exchange.insert("events".into(), serde_json::Value::Array(vec![]));
-    }
-    if let Some(follow_up) = object
-        .get_mut("follow_up")
-        .and_then(|value| value.as_object_mut())
-    {
-        follow_up.insert("events".into(), serde_json::Value::Array(vec![]));
-    }
+    value
 }

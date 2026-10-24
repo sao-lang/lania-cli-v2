@@ -12,8 +12,8 @@
 
 use anyhow::Result;
 
-use crate::{OutputMode, OutputProfile};
 use crate::profile::localized_user_message;
+use crate::OutputProfile;
 
 pub(super) fn localize_json_strings(value: &mut serde_json::Value, locale: &str) {
     match value {
@@ -46,31 +46,21 @@ pub(super) fn is_config_value(value: &serde_json::Value) -> bool {
 
 pub(super) fn should_suppress_rendered_output(
     value: &serde_json::Value,
-    profile: &OutputProfile,
+    _profile: &OutputProfile,
 ) -> bool {
     // 某些交互式 UI 会在 host 侧“直接渲染”，此时再输出一份会重复。
-    // 约定字段：`_interactiveRendered`（可能在顶层或 execution 下）
-    let interactive_rendered = value
+    // 约定字段：`_interactiveRendered`（业务结果内，或兼容旧结构的顶层）。
+    value
+        .get("result")
+        .unwrap_or(value)
         .get("_interactiveRendered")
         .and_then(|item| item.as_bool())
         .or_else(|| {
             value
-                .get("execution")
-                .and_then(|execution| execution.get("_interactiveRendered"))
+                .get("_interactiveRendered")
                 .and_then(|item| item.as_bool())
         })
-        .unwrap_or(false);
-    if interactive_rendered {
-        return true;
-    }
-
-    // 人类可读输出模式下允许正常输出；其它模式下这里通常不会被调用，
-    // 但我们仍保守返回 false（只要不是 interactiveRendered）。
-    if matches!(profile.mode, OutputMode::Human) {
-        return false;
-    }
-
-    false
+        .unwrap_or(false)
 }
 
 pub(super) fn strip_internal_output_flags(value: &mut serde_json::Value) {
@@ -79,11 +69,11 @@ pub(super) fn strip_internal_output_flags(value: &mut serde_json::Value) {
         return;
     };
     object.remove("_interactiveRendered");
-    if let Some(execution) = object
-        .get_mut("execution")
+    if let Some(payload) = object
+        .get_mut("result")
         .and_then(|value| value.as_object_mut())
     {
-        execution.remove("_interactiveRendered");
+        payload.remove("_interactiveRendered");
     }
 }
 

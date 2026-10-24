@@ -1,4 +1,4 @@
-﻿//! sync/release git 工作流 e2e。
+//! sync/release git 工作流 e2e。
 use super::common::*;
 use super::*;
 
@@ -46,8 +46,8 @@ fn lan_sync_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert!(json["execution"]["command_plans"]
+    assert_eq!(json["kind"], "result");
+    assert!(json["result"]["command_plans"]
         .as_array()
         .expect("command plans")
         .iter()
@@ -75,10 +75,10 @@ fn lan_sync_status_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["prompts"]["mode"], "status");
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["prompts"]["mode"], "status");
     assert_eq!(
-        json["execution"]["command_plans"]
+        json["result"]["command_plans"]
             .as_array()
             .expect("command plans")
             .len(),
@@ -166,12 +166,12 @@ fn lan_release_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["kind"], "workflow");
-    assert_eq!(json["execution"]["workflow"], "release");
-    assert_eq!(json["execution"]["prompts"]["mode"], "plan");
-    assert_eq!(json["execution"]["prompts"]["profile"], "package");
-    assert_eq!(json["execution"]["prompts"]["completed"], false);
-    assert!(json["execution"]["command_plans"]
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["workflow"], "release");
+    assert_eq!(json["result"]["prompts"]["mode"], "plan");
+    assert_eq!(json["result"]["prompts"]["profile"], "package");
+    assert_eq!(json["result"]["prompts"]["completed"], false);
+    assert!(json["result"]["command_plans"]
         .as_array()
         .expect("command plans")
         .iter()
@@ -180,7 +180,7 @@ fn lan_release_e2e() {
                 .map(|items| items.iter().any(|item| item == "publish"))
                 .unwrap_or(false)
         }));
-    assert!(json["execution"]["notes"]
+    assert!(json["result"]["notes"]
         .as_array()
         .expect("notes array")
         .iter()
@@ -231,9 +231,9 @@ fn lan_release_web_app_run_e2e() {
     let state = read_json_file(root.join(".lania/release-state.json"));
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["execution"]["workflow"], "release");
-    assert_eq!(json["execution"]["prompts"]["profile"], "web-app");
-    assert!(json["execution"]["command_plans"]
+    assert_eq!(json["result"]["workflow"], "release");
+    assert_eq!(json["result"]["prompts"]["profile"], "web-app");
+    assert!(json["result"]["command_plans"]
         .as_array()
         .expect("command plans")
         .iter()

@@ -356,10 +356,6 @@ export default {
     locale: 'zh',
     output: {
       mode: 'json',
-      events: 'buffered',
-      pretty: false,
-      includeHostState: true,
-      includeBridgeExchange: true,
     },
     progress: {
       style: 'spinner',
@@ -384,15 +380,11 @@ export default {
 
 ### ui.output
 
-| 字段                    | 可选值                     | 默认       |
-| ----------------------- | -------------------------- | ---------- |
-| `mode`                  | `json` / `jsonl` / `human` | `json`     |
-| `events`                | `buffered` / `stream`      | `buffered` |
-| `pretty`                | bool                       | false      |
-| `includeHostState`      | bool                       | true       |
-| `includeBridgeExchange` | bool                       | true       |
+| 字段   | 可选值           | 默认   |
+| ------ | ---------------- | ------ |
+| `mode` | `json` / `human` | `json` |
 
-> `ui.output.mode = stream` 不是项目配置的合法枚举；`stream` 是全局偏好 `output.mode` 的写法，会被归一成 `jsonl` + `events=stream`。
+> `ui.output.mode` 只接受 `json` / `human`；`stream` / `jsonl` 不是合法取值，其它值按 `json` 处理。全局偏好中的 `stream` / `jsonl` 也会归一为 `json`。
 
 ### ui.progress
 
@@ -606,18 +598,18 @@ export default {
 }
 ```
 
-| 字段            | 可选值                      |
-| --------------- | --------------------------- |
-| `locale`        | `zh` / `en`                 |
-| `outputMode`    | `json` / `stream` / `human` |
-| `logTimestamps` | bool                        |
+| 字段            | 可选值           |
+| --------------- | ---------------- |
+| `locale`        | `zh` / `en`      |
+| `outputMode`    | `json` / `human` |
+| `logTimestamps` | bool             |
 
 归一化：
 
 - `zh-CN` → `zh`
 - `en-US` → `en`
-- `jsonl` → `stream`
-- 非法值 → 默认
+- `stream` / `jsonl` → `json`
+- 非法值 → `json`
 
 > `preferences_path()` 只读取 `HOME`。在 Windows 上如果 `HOME` 未设置，偏好读写会变成 no-op，使用默认值。
 

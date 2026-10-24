@@ -80,7 +80,13 @@ fn lan_dynamic_command_invoke_host_rpc_fs_in_development_mode() {
     let env_refs: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
     let output = run_cli(
         &root,
-        &["write-read-report", "--message", "hello-host-rpc", "--filename", ".lania/test-report.txt"],
+        &[
+            "write-read-report",
+            "--message",
+            "hello-host-rpc",
+            "--filename",
+            ".lania/test-report.txt",
+        ],
         &env_refs,
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -96,16 +102,23 @@ fn lan_dynamic_command_invoke_host_rpc_fs_in_development_mode() {
 
     // 验证文件已通过 Host RPC 写入
     let report_path = root.join(".lania/test-report.txt");
-    assert!(report_path.exists(), "report file should exist: {}", report_path.display());
+    assert!(
+        report_path.exists(),
+        "report file should exist: {}",
+        report_path.display()
+    );
     let report_content = fs::read_to_string(&report_path).expect("report readable");
     assert!(report_content.contains("message: hello-host-rpc"));
     assert!(report_content.contains("mode: development"));
 
     // 验证 stdout JSON 包含结果
     let json = parse_stdout_json(&output);
-    let payload = &json["exchange"]["response"]["result"]["result"]["result"];
+    let payload = &json["result"]["result"]["result"];
     assert_eq!(payload["mode"], "development");
-    assert!(payload["content"].as_str().unwrap_or_default().contains("hello-host-rpc"));
+    assert!(payload["content"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("hello-host-rpc"));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -149,11 +162,7 @@ fn lan_dynamic_command_invoke_host_rpc_exec_in_development_mode() {
     );
 
     let env_refs: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-    let output = run_cli(
-        &root,
-        &["run-echo", "--text", "hello-exec"],
-        &env_refs,
-    );
+    let output = run_cli(&root, &["run-echo", "--text", "hello-exec"], &env_refs);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -166,10 +175,13 @@ fn lan_dynamic_command_invoke_host_rpc_exec_in_development_mode() {
     );
 
     let json = parse_stdout_json(&output);
-    let payload = &json["exchange"]["response"]["result"]["result"]["result"];
+    let payload = &json["result"]["result"]["result"];
     assert_eq!(payload["mode"], "development");
     assert_eq!(payload["exitCode"], 0);
-    assert!(payload["stdout"].as_str().unwrap_or_default().contains("hello-exec"));
+    assert!(payload["stdout"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("hello-exec"));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -210,14 +222,14 @@ fn lan_dynamic_command_invoke_host_rpc_log_in_development_mode() {
     );
 
     let env_refs: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-    let output = run_cli(
-        &root,
-        &["test-log", "--level", "info"],
-        &env_refs,
-    );
+    let output = run_cli(&root, &["test-log", "--level", "info"], &env_refs);
     assert_eq!(output.status.code(), Some(0));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("test info message"), "stderr should contain log message: {}", stderr);
+    assert!(
+        stderr.contains("test info message"),
+        "stderr should contain log message: {}",
+        stderr
+    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -278,7 +290,7 @@ fn lan_dynamic_command_with_options_and_subcommand_mount() {
     );
 
     let json = parse_stdout_json(&output);
-    let greeting = &json["exchange"]["response"]["result"]["result"]["result"]["greeting"];
+    let greeting = &json["result"]["result"]["result"]["greeting"];
     assert_eq!(greeting, "HELLO, LANIA!");
 
     let _ = fs::remove_dir_all(root);

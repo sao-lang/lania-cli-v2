@@ -2,7 +2,13 @@
 import test from 'node:test';
 
 import { loadRuntimeManifest } from '../dynamic-commands/parse-manifest.js';
-import { assert, createDynamicCommandProject, handleExchange, rm, writeProjectFile } from './shared.js';
+import {
+  assert,
+  createDynamicCommandProject,
+  handleExchange,
+  rm,
+  writeProjectFile,
+} from './shared.js';
 
 export function registerTests() {
   test('commands.resolveDynamic discovers manifest runtime commands', async (t) => {
@@ -167,7 +173,10 @@ export function registerTests() {
       | undefined;
 
     assert.equal(exchange.response.error, undefined);
-    assert.equal(result?.commands.some((command) => command.name === 'author-create'), true);
+    assert.equal(
+      result?.commands.some((command) => command.name === 'author-create'),
+      true,
+    );
     assert.equal(
       result?.handlers.some(
         (handler) =>
@@ -315,7 +324,7 @@ export function registerTests() {
       configFileName: 'lan.config.json',
       configContent: JSON.stringify({
         extensions: { dynamicCommands: true },
-        ui: { output: { mode: 'jsonl' } },
+        ui: { output: { mode: 'json' } },
       }),
       manifestContent: `export default {
         runtimeCommands: [

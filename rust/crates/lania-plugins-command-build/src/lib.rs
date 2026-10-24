@@ -17,9 +17,7 @@ mod registry;
 mod request;
 mod spec;
 
-use registry::{
-    register_build_commands,
-};
+use registry::register_build_commands;
 
 pub const HANDLER_ID: &str = "command.build";
 pub const PRODUCT_HANDLER_ID: &str = "command.build.product";
@@ -89,7 +87,11 @@ mod tests {
         let mut handlers = CommandHandlerRegistryImpl::new();
 
         commands
-            .register(CommandSpec::new("product", "product root", "command.product"))
+            .register(CommandSpec::new(
+                "product",
+                "product root",
+                "command.product",
+            ))
             .expect("product root registered");
 
         plugin
@@ -146,6 +148,7 @@ mod tests {
     #[test]
     fn builds_build_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -174,6 +177,7 @@ mod tests {
     #[test]
     fn build_request_forwards_runtime() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -208,6 +212,7 @@ mod tests {
     #[test]
     fn builds_product_build_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -234,6 +239,7 @@ mod tests {
     #[test]
     fn builds_product_pack_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -268,6 +274,7 @@ mod tests {
     #[test]
     fn builds_product_publish_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -345,12 +352,16 @@ mod tests {
     #[test]
     fn builds_product_inspect_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
-                options: [("path".into(), json!("products/acme")), ("compat".into(), json!(true))]
-                    .into_iter()
-                    .collect(),
+                options: [
+                    ("path".into(), json!("products/acme")),
+                    ("compat".into(), json!(true)),
+                ]
+                .into_iter()
+                .collect(),
             },
             handler_id: INSPECT_PRODUCT_HANDLER_ID.into(),
             trace_id: "trace-6".into(),
@@ -368,10 +379,13 @@ mod tests {
     #[test]
     fn builds_product_doctor_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
-                options: [("path".into(), json!("products/acme"))].into_iter().collect(),
+                options: [("path".into(), json!("products/acme"))]
+                    .into_iter()
+                    .collect(),
             },
             handler_id: DOCTOR_PRODUCT_HANDLER_ID.into(),
             trace_id: "trace-7".into(),

@@ -20,10 +20,12 @@ pub struct ParsedArgv {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandContext {
     // `CommandContext` 是“解析完成、准备执行”的命令快照：
+    // - `name`：完整子命令路径（空格拼接，例如 `env ui`）
     // - `cwd`：命令在哪个目录语义下执行
     // - `argv`：解析后的参数
     // - `handler_id`：最终应该调用哪个 handler
     // - `trace_id`：贯穿日志 / hooks / execution 的关联 id
+    pub name: String,
     pub cwd: String,
     pub argv: ParsedArgv,
     pub handler_id: String,

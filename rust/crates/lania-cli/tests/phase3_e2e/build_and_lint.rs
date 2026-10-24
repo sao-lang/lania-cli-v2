@@ -1,4 +1,4 @@
-﻿//! dev/build/lint 编译链路 e2e。
+//! dev/build/lint 编译链路 e2e。
 use super::common::*;
 use super::*;
 
@@ -18,23 +18,14 @@ fn lan_dev_with_vite_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(130));
-    assert_eq!(json["kind"], "bridge");
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "vite");
-    assert_eq!(json["exchange"]["response"]["result"]["port"], 3101);
-    assert_eq!(
-        json["exchange"]["response"]["result"]["workerMode"],
-        "isolated_worker"
-    );
-    assert_eq!(
-        json["exchange"]["response"]["result"]["eventSchema"],
-        "lania.compiler.events.v1"
-    );
-    assert_eq!(json["host_state"]["policy"]["autoInterruptAfterMs"], 20);
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["method"] == "event.compiler_server_ready"));
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["command"]["name"], "dev");
+    assert_eq!(json["exitCode"], 130);
+    assert!(json["cwd"].is_string());
+    assert_eq!(json["result"]["tool"], "vite");
+    assert_eq!(json["result"]["port"], 3101);
+    assert_eq!(json["result"]["workerMode"], "isolated_worker");
+    assert_eq!(json["result"]["eventSchema"], "lania.compiler.events.v1");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -64,14 +55,8 @@ fn lan_dev_with_vite_version_mismatch_warns() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(130));
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["params"]["message"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("runtime version mismatch")));
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["exitCode"], 130);
 
     let _ = fs::remove_dir_all(root);
 }
@@ -92,7 +77,7 @@ fn lan_dev_with_webpack_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(130));
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "webpack");
+    assert_eq!(json["result"]["tool"], "webpack");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -109,12 +94,9 @@ fn lan_build_with_vite_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "vite");
-    assert_eq!(json["exchange"]["response"]["result"]["mode"], "production");
-    assert_eq!(
-        json["exchange"]["response"]["result"]["workerMode"],
-        "isolated_worker"
-    );
+    assert_eq!(json["result"]["tool"], "vite");
+    assert_eq!(json["result"]["mode"], "production");
+    assert_eq!(json["result"]["workerMode"], "isolated_worker");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -135,12 +117,9 @@ fn lan_build_with_webpack_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(130));
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "webpack");
-    assert_eq!(json["exchange"]["response"]["result"]["watch"], true);
-    assert_eq!(
-        json["exchange"]["response"]["result"]["workerMode"],
-        "isolated_worker"
-    );
+    assert_eq!(json["result"]["tool"], "webpack");
+    assert_eq!(json["result"]["watch"], true);
+    assert_eq!(json["result"]["workerMode"], "isolated_worker");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -180,25 +159,9 @@ module.exports = {\n\
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(130));
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "rollup");
-    assert_eq!(json["exchange"]["response"]["result"]["longRunning"], true);
-    assert_eq!(
-        json["exchange"]["response"]["result"]["workerMode"],
-        "isolated_worker"
-    );
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["method"] == "event.compiler_status"));
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["params"]["message"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("Rollup watch")));
+    assert_eq!(json["result"]["tool"], "rollup");
+    assert_eq!(json["result"]["longRunning"], true);
+    assert_eq!(json["result"]["workerMode"], "isolated_worker");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -225,37 +188,8 @@ fn lan_build_with_rollup_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["exchange"]["response"]["result"]["tool"], "rollup");
-    assert_eq!(
-        json["exchange"]["response"]["result"]["workerMode"],
-        "isolated_worker"
-    );
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["method"] == "event.compiler_asset"));
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["method"] == "event.build_asset"));
-    assert!(json["host_state"]["logs"]
-        .as_array()
-        .expect("logs array")
-        .iter()
-        .any(|log| log["message"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("compiler asset")));
-    assert!(json["host_state"]["logs"]
-        .as_array()
-        .expect("logs array")
-        .iter()
-        .any(|log| log["message"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("built asset")));
+    assert_eq!(json["result"]["tool"], "rollup");
+    assert_eq!(json["result"]["workerMode"], "isolated_worker");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -273,29 +207,14 @@ fn lan_lint_fix_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(json["exchange"]["response"]["result"]["mode"], "fix");
-    assert_eq!(json["exchange"]["response"]["result"]["fix"], true);
-    assert!(json["exchange"]["response"]["result"]["summaryText"]
+    assert_eq!(json["result"]["mode"], "fix");
+    assert_eq!(json["result"]["fix"], true);
+    assert!(json["result"]["summaryText"]
         .as_str()
         .unwrap_or_default()
         .contains("lint fix"));
-    assert!(json["exchange"]["response"]["result"]["resultsByAdaptor"]["eslint"].is_object());
-    assert!(json["exchange"]["response"]["result"]["resultsByAdaptor"]["prettier"].is_object());
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["method"] == "event.lint_start"));
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["method"] == "event.lint_file"));
-    assert!(json["exchange"]["events"]
-        .as_array()
-        .expect("events array")
-        .iter()
-        .any(|event| event["method"] == "event.lint_summary"));
+    assert!(json["result"]["resultsByAdaptor"]["eslint"].is_object());
+    assert!(json["result"]["resultsByAdaptor"]["prettier"].is_object());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -324,18 +243,15 @@ fn lan_lint_with_stylelint_and_textlint_e2e() {
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(1));
-    assert_eq!(
-        json["exchange"]["response"]["result"]["formatter"],
-        "lania.lint.formatter.v1"
-    );
-    assert_eq!(json["exchange"]["response"]["result"]["mode"], "check");
-    assert_eq!(json["exchange"]["response"]["result"]["exitCode"], 1);
-    assert!(json["exchange"]["response"]["result"]["summaryText"]
+    assert_eq!(json["result"]["formatter"], "lania.lint.formatter.v1");
+    assert_eq!(json["result"]["mode"], "check");
+    assert_eq!(json["result"]["exitCode"], 1);
+    assert!(json["result"]["summaryText"]
         .as_str()
         .unwrap_or_default()
         .contains("lint check"));
-    assert!(json["exchange"]["response"]["result"]["resultsByAdaptor"]["stylelint"].is_object());
-    assert!(json["exchange"]["response"]["result"]["resultsByAdaptor"]["textlint"].is_object());
+    assert!(json["result"]["resultsByAdaptor"]["stylelint"].is_object());
+    assert!(json["result"]["resultsByAdaptor"]["textlint"].is_object());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -369,12 +285,9 @@ fn lan_lint_linters_filter_and_grouped_output_e2e() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(
-        json["exchange"]["response"]["result"]["groupedOutput"],
-        true
-    );
-    assert!(json["exchange"]["response"]["result"]["resultsByAdaptor"]["stylelint"].is_object());
-    assert!(json["exchange"]["response"]["result"]["resultsByAdaptor"]["textlint"].is_null());
+    assert_eq!(json["result"]["groupedOutput"], true);
+    assert!(json["result"]["resultsByAdaptor"]["stylelint"].is_object());
+    assert!(json["result"]["resultsByAdaptor"]["textlint"].is_null());
     assert!(stderr.contains("lint grouped output:"));
     assert!(stderr.contains("[stylelint] 0 errors, 1 warnings, 1 files"));
     assert!(stderr.contains("src/app.css: 0 errors, 1 warnings"));

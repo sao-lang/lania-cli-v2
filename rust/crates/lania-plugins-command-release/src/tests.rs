@@ -43,6 +43,7 @@ fn registers_release_spec() {
 #[test]
 fn builds_release_input_from_context() {
     let context = lania_command::CommandContext {
+        name: String::new(),
         cwd: "/repo".into(),
         argv: lania_command::ParsedArgv {
             args: Default::default(),
@@ -100,6 +101,7 @@ fn maps_release_subcommand_modes() {
         (STATUS_HANDLER_ID, ReleaseMode::Status),
     ] {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv::default(),
             handler_id: handler_id.to_string(),

@@ -89,6 +89,7 @@ async fn records_plugin_lifecycle_phases() {
 
     host.initialize().await.expect("host initializes");
     host.execute_command(&lania_command::CommandContext {
+        name: String::new(),
         cwd: "/repo".into(),
         argv: lania_command::ParsedArgv::default(),
         handler_id: "lifecycle".into(),
@@ -194,6 +195,7 @@ return { result: { ok: true, exitCode: 0 }, events: [] };
 
     let execution = host
         .execute_command(&lania_command::CommandContext {
+            name: String::new(),
             cwd: root.display().to_string(),
             argv: lania_command::ParsedArgv::default(),
             handler_id: "dynamic.mount.ops".into(),
@@ -226,8 +228,7 @@ async fn bootstraps_dynamic_commands_from_installed_product_root() {
     let workspace = root.join("workspace");
     let product_root = root.join("install/lib/product");
     fs::create_dir_all(&workspace).expect("workspace created");
-    fs::create_dir_all(product_root.join("dist/schema-roots/root-0"))
-        .expect("schema root created");
+    fs::create_dir_all(product_root.join("dist/schema-roots/root-0")).expect("schema root created");
     fs::write(
         product_root.join("lan.config.json"),
         r#"{
@@ -277,8 +278,7 @@ async fn installed_product_root_commands_are_visible_to_cli_parser() {
     let workspace = root.join("workspace");
     let product_root = root.join("install/lib/product");
     fs::create_dir_all(&workspace).expect("workspace created");
-    fs::create_dir_all(product_root.join("dist/schema-roots/root-0"))
-        .expect("schema root created");
+    fs::create_dir_all(product_root.join("dist/schema-roots/root-0")).expect("schema root created");
     fs::write(
         product_root.join("lan.config.json"),
         r#"{
@@ -389,6 +389,7 @@ return {
         .any(|registration| registration.plugin == "./scripts/lania.plugin.js"));
 
     host.execute_command(&lania_command::CommandContext {
+        name: String::new(),
         cwd: root.display().to_string(),
         argv: lania_command::ParsedArgv::default(),
         handler_id: "lifecycle".into(),

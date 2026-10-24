@@ -1,11 +1,9 @@
 //! bridge events 到宿主副作用的映射逻辑。
 
-use std::io::Write;
-
 use lania_logger::LogLevel;
 use lania_node_bridge::{BridgeEvent, BridgeEventMethod, BridgeExchange, BridgeRequest};
 
-use super::super::{context::CommandExecutionContext, utils::human_event_message};
+use super::super::context::CommandExecutionContext;
 
 impl<'a> CommandExecutionContext<'a> {
     pub(in crate::execution) fn apply_bridge_events(
@@ -27,7 +25,6 @@ impl<'a> CommandExecutionContext<'a> {
         event: &BridgeEvent,
     ) {
         {
-            self.maybe_stream_bridge_event(request, event);
             self.log(
                 LogLevel::Trace,
                 "command_execute",
@@ -251,9 +248,8 @@ impl<'a> CommandExecutionContext<'a> {
                     let adaptor = event.params["adaptor"].as_str().unwrap_or("unknown");
                     let errors = event.params["errors"].as_u64().unwrap_or_default();
                     let warnings = event.params["warnings"].as_u64().unwrap_or_default();
-                    let implementation = event.params["implementation"]
-                        .as_str()
-                        .unwrap_or("unknown");
+                    let implementation =
+                        event.params["implementation"].as_str().unwrap_or("unknown");
                     self.log(
                         if errors > 0 {
                             LogLevel::Warn
@@ -319,45 +315,6 @@ impl<'a> CommandExecutionContext<'a> {
                 | BridgeEventMethod::AgentToolEnd
                 | BridgeEventMethod::AgentEnd => {}
                 BridgeEventMethod::Ready => {}
-            }
-        }
-    }
-
-    fn maybe_stream_bridge_event(&self, request: &BridgeRequest, event: &BridgeEvent) {
-        let Some(config) = self.project_config() else {
-            return;
-        };
-        if config.ui.output.events != "stream" {
-            return;
-        }
-        let envelope = serde_json::json!({
-            "kind": "event",
-            "requestId": request.id,
-            "method": request.method,
-            "event": event,
-        });
-        // 这里根据输出模式选择 stdout / stderr / human 文本：
-        // - `jsonl` 走 stdout，适合脚本消费
-        // - `human` 走 stderr，适合人看
-        match config.ui.output.mode.as_str() {
-            "jsonl" => {
-                let mut stdout = std::io::stdout().lock();
-                let _ = writeln!(
-                    stdout,
-                    "{}",
-                    serde_json::to_string(&envelope).expect("stream envelope serializes")
-                );
-            }
-            "human" => {
-                eprintln!("[event:{}] {}", request.method, human_event_message(event));
-            }
-            _ => {
-                let mut stderr = std::io::stderr().lock();
-                let _ = writeln!(
-                    stderr,
-                    "{}",
-                    serde_json::to_string(&envelope).expect("stream envelope serializes")
-                );
             }
         }
     }

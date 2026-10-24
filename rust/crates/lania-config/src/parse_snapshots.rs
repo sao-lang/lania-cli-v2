@@ -76,7 +76,8 @@ pub(crate) fn parse_ui_snapshot(value: Option<&Value>) -> UiSnapshot {
                 .map(ToOwned::to_owned);
             snapshot.output = parse_ui_output_snapshot(object_value(object, "output"));
             snapshot.progress = parse_ui_progress_snapshot(object_value(object, "progress"));
-            snapshot.interaction = parse_ui_interaction_snapshot(object_value(object, "interaction"));
+            snapshot.interaction =
+                parse_ui_interaction_snapshot(object_value(object, "interaction"));
         }
     }
     snapshot
@@ -89,22 +90,6 @@ pub(crate) fn parse_ui_output_snapshot(value: Option<&Value>) -> UiOutputSnapsho
         if let Some(object) = raw.as_object() {
             if let Some(mode) = object_value(object, "mode").and_then(Value::as_str) {
                 snapshot.mode = mode.to_string();
-            }
-            if let Some(events) = object_value(object, "events").and_then(Value::as_str) {
-                snapshot.events = events.to_string();
-            }
-            if let Some(pretty) = object_value(object, "pretty").and_then(Value::as_bool) {
-                snapshot.pretty = pretty;
-            }
-            if let Some(include_host_state) =
-                object_value(object, "includeHostState").and_then(Value::as_bool)
-            {
-                snapshot.include_host_state = include_host_state;
-            }
-            if let Some(include_bridge_exchange) =
-                object_value(object, "includeBridgeExchange").and_then(Value::as_bool)
-            {
-                snapshot.include_bridge_exchange = include_bridge_exchange;
             }
         }
     }
@@ -178,20 +163,20 @@ pub(crate) fn parse_hook_bindings_snapshot(
                 // 而不是让整个 hooks section 解析失败。
                 // 对用户来说，具体问题仍会在 validate 阶段以错误路径报告出来。
                 Some(HookBinding {
-                    r#type: object_value(object, "type").and_then(Value::as_str).and_then(
-                        |value| match value {
+                    r#type: object_value(object, "type")
+                        .and_then(Value::as_str)
+                        .and_then(|value| match value {
                             "plugin" => Some(HookBindingSource::Plugin),
                             "inline" => Some(HookBindingSource::Inline),
                             _ => None,
-                        },
-                    ),
-                    kind: object_value(object, "kind").and_then(Value::as_str).and_then(
-                        |value| match value {
+                        }),
+                    kind: object_value(object, "kind")
+                        .and_then(Value::as_str)
+                        .and_then(|value| match value {
                             "waterfall" => Some(HookBindingKind::Waterfall),
                             "parallel" => Some(HookBindingKind::Parallel),
                             _ => None,
-                        },
-                    ),
+                        }),
                     plugin: object_value(object, "plugin")
                         .and_then(Value::as_str)
                         .map(ToOwned::to_owned),

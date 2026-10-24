@@ -408,23 +408,44 @@ mod tests {
 
     #[test]
     fn localized_returns_zh_when_locale_is_zh() {
-        assert_eq!(TemplateCommandPlugin::localized("zh", "hello", "你好"), "你好");
+        assert_eq!(
+            TemplateCommandPlugin::localized("zh", "hello", "你好"),
+            "你好"
+        );
     }
 
     // ── localized_label ──────────────────────────────────────
 
     #[test]
     fn localized_label_returns_english_by_default() {
-        assert_eq!(TemplateCommandPlugin::localized_label("template", "en"), "Template");
-        assert_eq!(TemplateCommandPlugin::localized_label("summary", "en"), "Summary");
-        assert_eq!(TemplateCommandPlugin::localized_label("highlights", "en"), "Highlights");
+        assert_eq!(
+            TemplateCommandPlugin::localized_label("template", "en"),
+            "Template"
+        );
+        assert_eq!(
+            TemplateCommandPlugin::localized_label("summary", "en"),
+            "Summary"
+        );
+        assert_eq!(
+            TemplateCommandPlugin::localized_label("highlights", "en"),
+            "Highlights"
+        );
     }
 
     #[test]
     fn localized_label_returns_chinese_when_locale_is_zh() {
-        assert_eq!(TemplateCommandPlugin::localized_label("template", "zh"), "模板");
-        assert_eq!(TemplateCommandPlugin::localized_label("summary", "zh"), "简介");
-        assert_eq!(TemplateCommandPlugin::localized_label("highlights", "zh"), "关键特征");
+        assert_eq!(
+            TemplateCommandPlugin::localized_label("template", "zh"),
+            "模板"
+        );
+        assert_eq!(
+            TemplateCommandPlugin::localized_label("summary", "zh"),
+            "简介"
+        );
+        assert_eq!(
+            TemplateCommandPlugin::localized_label("highlights", "zh"),
+            "关键特征"
+        );
     }
 
     // ── template_summary ─────────────────────────────────────
@@ -504,13 +525,19 @@ mod tests {
     #[test]
     fn template_choice_label_extracts_name() {
         let meta = serde_json::json!({"name": "spa-react", "version": "1.0"});
-        assert_eq!(TemplateCommandPlugin::template_choice_label(&meta, "en"), "spa-react");
+        assert_eq!(
+            TemplateCommandPlugin::template_choice_label(&meta, "en"),
+            "spa-react"
+        );
     }
 
     #[test]
     fn template_choice_label_falls_back_to_unknown() {
         let meta = serde_json::json!({"version": "1.0"});
-        assert_eq!(TemplateCommandPlugin::template_choice_label(&meta, "en"), "unknown");
+        assert_eq!(
+            TemplateCommandPlugin::template_choice_label(&meta, "en"),
+            "unknown"
+        );
     }
 
     // ── resolve_template_name ────────────────────────────────
@@ -518,6 +545,7 @@ mod tests {
     #[test]
     fn resolve_template_name_returns_none_when_no_name() {
         let context = lania_command::CommandContext {
+            name: String::new(),
             handler_id: "command.template".into(),
             argv: lania_command::ParsedArgv {
                 args: std::collections::BTreeMap::new(),
@@ -534,6 +562,7 @@ mod tests {
         let mut args = std::collections::BTreeMap::new();
         args.insert("name".into(), serde_json::json!("toolkit"));
         let context = lania_command::CommandContext {
+            name: String::new(),
             handler_id: "command.template".into(),
             argv: lania_command::ParsedArgv {
                 args,

@@ -115,7 +115,7 @@ lania-plugins-command-*        — 各命令插件
 
 - 插件签名验证、方法白名单、来源约束
 - `ctx.tools.allow` 限制动态命令可调用的宿主能力
-- 三类输出模式：human/json/jsonl，支持 spinner/bar/none 三种进度渲染策略
+- 两类输出模式：human/json，支持 spinner/bar/none 三种进度渲染策略
 
 ---
 

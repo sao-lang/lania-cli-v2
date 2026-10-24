@@ -95,7 +95,7 @@ pnpm --filter @lania-cli/templates build
 - 命令行为改动优先补对应 crate / package 测试。
 - Bridge 方法改动同时检查 Rust 请求与 Node 插件。
 - 模板资产改动后同步构建 `dist`。
-- 输出模式改动检查 `json` / `jsonl` / `human`。
+- 输出模式改动检查 `json` / `human`。
 - Windows 兼容改动优先在真实 Windows 环境验证。
 
 ## 下一步

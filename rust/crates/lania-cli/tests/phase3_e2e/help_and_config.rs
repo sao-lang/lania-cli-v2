@@ -351,7 +351,7 @@ fn lan_config_get_root_human_mode_e2e() {
 }
 
 #[test]
-fn lan_config_root_uses_global_stream_mode_without_project_ui_override_e2e() {
+fn lan_config_root_normalizes_legacy_stream_mode_without_project_ui_override_e2e() {
     let root = temp_dir("config-root-stream-global");
     let home = isolated_home(&root);
     write_file(
@@ -365,14 +365,13 @@ fn lan_config_root_uses_global_stream_mode_without_project_ui_override_e2e() {
     );
 
     let output = run_cli(&root, &["config"], &[("HOME", home.as_str())]);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout.trim();
-    let json: serde_json::Value = serde_json::from_str(line).expect("config stream output jsonl");
+    let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(json["kind"], "result");
-    assert_eq!(json["payload"]["kind"], "config");
-    assert_eq!(json["payload"]["config"]["output"]["mode"], "stream");
+    assert_eq!(json["command"]["name"], "config");
+    assert_eq!(json["result"]["kind"], "config");
+    assert_eq!(json["result"]["config"]["output"]["mode"], "json");
 
     let _ = fs::remove_dir_all(root);
 }
@@ -416,9 +415,9 @@ fn lan_config_set_output_mode_returns_raw_value_e2e() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(stdout.trim(), "stream");
+    assert_eq!(stdout.trim(), "json");
     let prefs = read_json_file(Path::new(&home).join(".lania").join("preferences.json"));
-    assert_eq!(prefs["outputMode"], "stream");
+    assert_eq!(prefs["outputMode"], "json");
 
     let _ = fs::remove_dir_all(root);
 }

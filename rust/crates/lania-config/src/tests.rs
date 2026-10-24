@@ -34,11 +34,7 @@ fn parses_lan_config_snapshot() {
             "ui": {
                 "locale": "zh",
                 "output": {
-                    "mode": "jsonl",
-                    "events": "stream",
-                    "pretty": true,
-                    "includeHostState": false,
-                    "includeBridgeExchange": false
+                    "mode": "human"
                 },
                 "progress": {
                     "style": "bar",
@@ -84,7 +80,7 @@ fn parses_lan_config_snapshot() {
     assert!(snapshot.validation_errors.is_empty());
     assert!(snapshot.extensions.dynamic_commands);
     assert_eq!(snapshot.ui.locale.as_deref(), Some("zh"));
-    assert_eq!(snapshot.ui.output.mode, "jsonl");
+    assert_eq!(snapshot.ui.output.mode, "human");
     assert_eq!(snapshot.ui.progress.style, "bar");
     assert_eq!(snapshot.ui.interaction.default_strategy, "fail");
     assert_eq!(snapshot.schema_discovery.files, vec!["lania.schemas.ts"]);
@@ -226,7 +222,7 @@ fn reports_validation_errors_with_codes_and_paths() {
             "pluginTrustedSources": ["package", "invalid"],
             "pluginRequireSignature": "yes",
             "extensions": {"dynamicCommands": "yes", "unknownField": true},
-            "ui": {"output": {"pretty": "yes", "unknownField": true}},
+            "ui": {"output": {"mode": "xml", "unknownField": true}},
             "schemaDiscovery": {"files": [1], "unknownField": true},
             "commands": {"aliases": {"gu": true}, "unknownField": true},
             "hooks": {"onCommandPreInit": [{"plugin": true}]},
@@ -264,10 +260,9 @@ fn reports_validation_errors_with_codes_and_paths() {
         .validation_errors
         .iter()
         .any(|error| error.position.path == "$.extensions.unknownField"));
-    assert!(snapshot
-        .validation_errors
-        .iter()
-        .any(|error| error.position.path == "$.ui.output.pretty"));
+    assert!(snapshot.validation_errors.iter().any(|error| error.code
+        == ConfigValidationErrorCode::InvalidValue
+        && error.position.path == "$.ui.output.mode"));
     assert!(snapshot
         .validation_errors
         .iter()

@@ -300,6 +300,7 @@ mod tests {
     #[test]
     fn builds_lint_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -334,6 +335,7 @@ mod tests {
     #[test]
     fn accepts_language_linters_in_request() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -365,6 +367,7 @@ mod tests {
             (FIX_HANDLER_ID, "fix", true),
         ] {
             let context = CommandContext {
+                name: String::new(),
                 cwd: "/repo".into(),
                 argv: lania_command::ParsedArgv::default(),
                 handler_id: handler_id.to_string(),

@@ -103,7 +103,11 @@ pub(super) fn render_product_inspect_human(value: &serde_json::Value, locale: &s
             let declared_items = [
                 ("frameworkVersionRange", "Framework Range", "框架范围"),
                 ("protocolVersionRange", "Protocol Range", "协议范围"),
-                ("nodeBridgeVersionRange", "Node Bridge Range", "Node Bridge 范围"),
+                (
+                    "nodeBridgeVersionRange",
+                    "Node Bridge Range",
+                    "Node Bridge 范围",
+                ),
                 ("productVersionRange", "Product Range", "产品范围"),
             ];
             let mut printed_declared = false;
@@ -129,7 +133,11 @@ pub(super) fn render_product_inspect_human(value: &serde_json::Value, locale: &s
             let actual_items = [
                 ("hostVersion", "Host Version", "宿主版本"),
                 ("protocolVersion", "Protocol Version", "协议版本"),
-                ("nodeBridgeVersion", "Node Bridge Version", "Node Bridge 版本"),
+                (
+                    "nodeBridgeVersion",
+                    "Node Bridge Version",
+                    "Node Bridge 版本",
+                ),
             ];
             let mut printed_actual = false;
             for (key, en_label, zh_label) in actual_items {
@@ -202,7 +210,11 @@ pub(super) fn render_product_inspect_human(value: &serde_json::Value, locale: &s
             .and_then(|item| item.as_bool())
             .unwrap_or(false);
         let state = if is_zh {
-            if ok { "已就位" } else { "未生成" }
+            if ok {
+                "已就位"
+            } else {
+                "未生成"
+            }
         } else if ok {
             "ready"
         } else {
@@ -213,10 +225,26 @@ pub(super) fn render_product_inspect_human(value: &serde_json::Value, locale: &s
 
     let mut check_items = Vec::new();
     for (key, label_zh, label_en) in [
-        ("hasSchemaEntries", "已发现 schema 入口", "schema entries discovered"),
-        ("hasTemplatesDir", "已发现模板目录", "templates directory detected"),
-        ("hasBuildReport", "build report 已生成", "build report generated"),
-        ("hasPackReport", "pack report 已生成", "pack report generated"),
+        (
+            "hasSchemaEntries",
+            "已发现 schema 入口",
+            "schema entries discovered",
+        ),
+        (
+            "hasTemplatesDir",
+            "已发现模板目录",
+            "templates directory detected",
+        ),
+        (
+            "hasBuildReport",
+            "build report 已生成",
+            "build report generated",
+        ),
+        (
+            "hasPackReport",
+            "pack report 已生成",
+            "pack report generated",
+        ),
         (
             "hasPublishReport",
             "publish report 已生成",
@@ -269,7 +297,11 @@ pub(super) fn render_product_inspect_human(value: &serde_json::Value, locale: &s
 }
 
 fn locale_label<'a>(is_zh: bool, zh: &'a str, en: &'a str) -> &'a str {
-    if is_zh { zh } else { en }
+    if is_zh {
+        zh
+    } else {
+        en
+    }
 }
 
 fn section_title(locale: &str, key: &str) -> String {

@@ -138,7 +138,7 @@ export default {
 };
 ```
 
-输出模式：`json` / `jsonl` / `human`。
+输出模式：`json` / `human`（`stream` / `jsonl` 归一为 `json`）。
 
 进度模式：`spinner` / `bar` / `none`。
 

@@ -271,7 +271,12 @@ impl Plugin for SyncCommandPlugin {
             "command-sync",
             "sync",
             Self::spec(),
-            &[HANDLER_ID, COMMIT_HANDLER_ID, STATUS_HANDLER_ID, PUSH_HANDLER_ID],
+            &[
+                HANDLER_ID,
+                COMMIT_HANDLER_ID,
+                STATUS_HANDLER_ID,
+                PUSH_HANDLER_ID,
+            ],
             || SyncCommandHandler,
         )
     }
@@ -361,6 +366,7 @@ mod tests {
     #[test]
     fn builds_sync_input_from_context() {
         let context = lania_command::CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -402,6 +408,7 @@ mod tests {
             (PUSH_HANDLER_ID, SyncMode::Push),
         ] {
             let context = lania_command::CommandContext {
+                name: String::new(),
                 cwd: "/repo".into(),
                 argv: lania_command::ParsedArgv::default(),
                 handler_id: handler_id.to_string(),

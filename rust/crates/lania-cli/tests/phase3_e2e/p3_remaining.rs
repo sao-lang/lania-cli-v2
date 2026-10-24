@@ -73,8 +73,14 @@ fn lan_product_generate_help_shows_options_e2e() {
     assert_eq!(output.status.code(), Some(0));
     assert!(stdout.contains("--preset"), "help should show --preset");
     assert!(stdout.contains("--name"), "help should show --name");
-    assert!(stdout.contains("--binary-name"), "help should show --binary-name");
-    assert!(stdout.contains("--output-dir"), "help should show --output-dir");
+    assert!(
+        stdout.contains("--binary-name"),
+        "help should show --binary-name"
+    );
+    assert!(
+        stdout.contains("--output-dir"),
+        "help should show --output-dir"
+    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -84,11 +90,7 @@ fn lan_product_generate_help_shows_options_e2e() {
 fn lan_product_generate_without_preset_shows_usage_error_e2e() {
     let root = temp_dir("product-gen-no-preset");
 
-    let output = run_cli(
-        &root,
-        &["product", "generate", "--name", "Test"],
-        &[],
-    );
+    let output = run_cli(&root, &["product", "generate", "--name", "Test"], &[]);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -127,22 +129,19 @@ fn lan_build_progress_reports_completion_e2e() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // JSON 输出应包含执行信息
+    // JSON 输出应包含统一 envelope 与业务结果
     let json = parse_stdout_json(&output);
-    assert_eq!(json["kind"], "bridge");
-    // 验证 exchange 中存在 progress 信息
-    // bridge 调用的 progress 可能在 host_state 中
-    assert!(
-        json.get("exchange").is_some() || json.get("host_state").is_some(),
-        "output should contain execution state"
-    );
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["command"]["name"], "build");
+    assert_eq!(json["exitCode"], 0);
+    assert_eq!(json["result"]["tool"], "vite");
 
     let _ = fs::remove_dir_all(root);
 }
 
-// P3-3: 验证 host_state 中的 progress/task 信息是否可用
+// 统一输出 envelope 不再携带 host_state / exchange 等内部调试信息
 #[test]
-fn lan_execution_host_state_contains_policy_and_logs_e2e() {
+fn lan_output_envelope_omits_internal_state_e2e() {
     let root = temp_dir("execution-host-state");
     let home = isolated_home(&root);
     write_file(
@@ -159,20 +158,9 @@ fn lan_execution_host_state_contains_policy_and_logs_e2e() {
 
     let json = parse_stdout_json(&output);
 
-    // 验证 host_state 基础结构
-    let host_state = &json["host_state"];
-    assert!(
-        host_state.get("policy").is_some() || host_state.get("logs").is_some(),
-        "host_state should contain policy or logs"
-    );
-
-    // 验证 policy 字段存在
-    if let Some(policy) = host_state.get("policy") {
-        assert!(
-            policy.get("timeoutMs").is_some(),
-            "policy should contain timeoutMs"
-        );
-    }
+    assert_eq!(json["kind"], "result");
+    assert!(json.get("host_state").is_none());
+    assert!(json.get("exchange").is_none());
 
     let _ = fs::remove_dir_all(root);
 }

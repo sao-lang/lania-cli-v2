@@ -107,6 +107,7 @@ mod tests {
     #[test]
     fn builds_dev_bridge_request_from_context() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -152,6 +153,7 @@ mod tests {
     #[test]
     fn dev_request_forwards_runtime() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
                 args: Default::default(),
@@ -169,9 +171,12 @@ mod tests {
     #[test]
     fn resolves_product_dev_options_with_watch_settings() {
         let context = CommandContext {
+            name: String::new(),
             cwd: "/repo".into(),
             argv: lania_command::ParsedArgv {
-                args: [("args".into(), json!(["ops", "hello"]))].into_iter().collect(),
+                args: [("args".into(), json!(["ops", "hello"]))]
+                    .into_iter()
+                    .collect(),
                 options: [
                     ("path".into(), json!("products/acme")),
                     ("watch".into(), json!(true)),
@@ -202,8 +207,11 @@ mod tests {
         ));
         std::fs::create_dir_all(root.join("product")).expect("root created");
         std::fs::create_dir_all(root.join(".lania/tmp")).expect("generated dir created");
-        std::fs::write(root.join("product/lania.schemas.ts"), "export default {};\n")
-            .expect("schema written");
+        std::fs::write(
+            root.join("product/lania.schemas.ts"),
+            "export default {};\n",
+        )
+        .expect("schema written");
         let before = watch::compute_product_watch_fingerprint(root.to_str().expect("root str"));
         std::fs::write(root.join(".lania/tmp/report.json"), "{\"ok\":true}\n")
             .expect("generated file written");

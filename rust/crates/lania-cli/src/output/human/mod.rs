@@ -1,4 +1,11 @@
-//! 人类可读输出渲染：把输出 JSON value 渲染成更适合人阅读的文本。
+//! 人类可读输出渲染：把统一输出 envelope 渲染成更适合人阅读的文本。
+//!
+//! 渲染顺序：
+//! 1) 一行命令摘要（`lan <name>` + args/options）
+//! 2) 按 `result.kind` 复用专用渲染器（template/system/tool/product/config 等）
+//! 3) 没有专用渲染器时只 pretty-print `result`
+//!
+//! 失败时只输出 `错误: <message>`；不会 dump envelope、host_state 或 exchange。
 //!
 //! 拆分说明：
 //! - `common.rs`：渲染共用工具（pretty json、block、内部 flag 清理、本地化等）
@@ -14,6 +21,7 @@ mod template;
 mod tools;
 
 use anyhow::Result;
+use serde_json::Value;
 
 use crate::{cli_text, OutputMode, OutputProfile};
 
@@ -24,135 +32,110 @@ use common::{
     render_raw_value, should_suppress_rendered_output, strip_internal_output_flags,
 };
 
-pub(crate) fn render_output_value(
-    mut value: serde_json::Value,
-    profile: &OutputProfile,
-) -> Result<String> {
+pub(crate) fn render_output_value(mut value: Value, profile: &OutputProfile) -> Result<String> {
     if should_suppress_rendered_output(&value, profile) {
         return Ok(String::new());
     }
 
     // 输出前统一清理内部标记、做本地化，避免 downstream 分支漏处理。
-    // 这里做“全局预处理”，可以减少每个 kind renderer 自己重复处理一遍。
     strip_internal_output_flags(&mut value);
     localize_json_strings(&mut value, profile.locale.as_str());
 
-    // locale/config_value 属于“纯文本回显”类，直接输出其 raw 字段即可。
-    if is_locale_value(&value) || is_config_value(&value) {
-        return Ok(format!("{}\n", render_raw_value(&value)));
+    // locale/config_value 属于“纯文本回显”类：脚本兼容要求输出裸标量。
+    let payload = value.get("result").cloned().unwrap_or(Value::Null);
+    if is_locale_value(&payload) || is_config_value(&payload) {
+        return Ok(format!("{}\n", render_raw_value(&payload)));
     }
 
     let rendered = match profile.mode {
         OutputMode::Json => render_pretty_json(&value)?,
-        OutputMode::Jsonl => {
-            // JSONL 约定：每行一个 result 包裹结构（envelope），便于流式消费。
-            let line = serde_json::json!({
-                "kind": "result",
-                "payload": value,
-            });
-            format!("{}\n", serde_json::to_string(&line)?)
-        }
         OutputMode::Human => render_human_output_with_locale(&value, &profile.locale),
     };
 
-    Ok(
-        if matches!(profile.mode, OutputMode::Json | OutputMode::Human) {
-            format!("{rendered}\n")
-        } else {
-            rendered
-        },
-    )
+    Ok(format!("{rendered}\n"))
 }
 
-fn render_human_output_with_locale(value: &serde_json::Value, locale: &str) -> String {
-    let kind = value
-        .get("kind")
-        .and_then(|value| value.as_str())
-        .unwrap_or("summary");
-
-    match kind {
-        "bridge" => render_bridge_human(value, locale),
-        "workflow" => human_block(
-            cli_text(locale, "Workflow Result", "工作流结果"),
-            serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string()),
-        ),
-        "system_commands" => system::render_system_commands_human(value, locale),
-        "system_command_groups" => system::render_system_command_groups_human(value, locale),
-        "system_command_names" => system::render_system_command_names_human(value, locale),
-        "system_command_plain" => system::render_system_command_plain_human(value),
-        "tool_run_result" => tools::render_tool_run_result_human(value, locale),
-        "tool_view_result" => tools::render_tool_view_result_human(value, locale),
-        "tool_open_result" => tools::render_tool_open_result_human(value, locale),
-        "template_info" => template::render_template_info_human(value, locale),
-        "config" => render_config_human(value, locale),
-        "error" => human_block(
-            &format!(
-                "{} (exitCode={})",
-                cli_text(locale, "Error", "错误"),
-                value
-                    .get("exitCode")
-                    .and_then(|item| item.as_i64())
-                    .unwrap_or(2)
-            ),
-            value
-                .get("message")
-                .and_then(|item| item.as_str())
-                .map(|message| localized_user_message(locale, message))
-                .unwrap_or_else(|| cli_text(locale, "unknown error", "未知错误").to_string()),
-        ),
-        _ => human_block(
-            cli_text(locale, "Lania Runtime Summary", "Lania 运行时摘要"),
-            serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string()),
-        ),
+fn render_human_output_with_locale(value: &Value, locale: &str) -> String {
+    if value.get("kind").and_then(Value::as_str) == Some("error") {
+        let message = value
+            .get("error")
+            .and_then(|error| error.get("message"))
+            .and_then(Value::as_str)
+            .map(|message| localized_user_message(locale, message))
+            .unwrap_or_else(|| cli_text(locale, "unknown error", "未知错误").to_string());
+        let line = format!("{}: {message}", cli_text(locale, "Error", "错误"));
+        return match value.get("command") {
+            Some(command) => human_block(&render_command_summary(Some(command)), line),
+            None => line,
+        };
     }
+
+    let payload = value.get("result").cloned().unwrap_or(Value::Null);
+    let kind = payload.get("kind").and_then(Value::as_str);
+    let body = match kind {
+        Some("system_commands") => system::render_system_commands_human(&payload, locale),
+        Some("system_command_groups") => {
+            system::render_system_command_groups_human(&payload, locale)
+        }
+        Some("system_command_names") => system::render_system_command_names_human(&payload, locale),
+        Some("system_command_plain") => system::render_system_command_plain_human(&payload),
+        Some("tool_run_result") => tools::render_tool_run_result_human(&payload, locale),
+        Some("tool_view_result") => tools::render_tool_view_result_human(&payload, locale),
+        Some("tool_open_result") => tools::render_tool_open_result_human(&payload, locale),
+        Some("template_info") => template::render_template_info_human(&payload, locale),
+        Some("config") => render_config_human(&payload, locale),
+        Some("product_inspect") => product::render_product_inspect_human(&payload, locale),
+        _ => render_pretty_json(&payload).unwrap_or_else(|_| payload.to_string()),
+    };
+
+    human_block(&render_command_summary(value.get("command")), body)
 }
 
-fn render_bridge_human(value: &serde_json::Value, locale: &str) -> String {
-    let exit_code = value
-        .get("exit_code")
-        .and_then(|value| value.as_i64())
-        .unwrap_or(0);
-
-    // 某些桥接结果有更友好的专用渲染：
-    // - 比如 product.inspect 输出适合分段展示，而不是直接 dump 大 JSON。
-    if let Some(rendered) = render_known_bridge_result_human(value, locale) {
-        return rendered;
-    }
-
-    // 默认：展示 result（如果存在），否则回退到 exchange。
-    let result = value.get("result").or_else(|| value.get("exchange"));
-    if let Some(result) = result {
-        human_block(
-            &format!(
-                "{} (exitCode={exit_code})",
-                cli_text(locale, "Bridge Command Completed", "桥接命令执行完成")
-            ),
-            serde_json::to_string_pretty(result).unwrap_or_else(|_| result.to_string()),
-        )
+fn render_command_summary(command: Option<&Value>) -> String {
+    let Some(command) = command else {
+        return "lan".to_string();
+    };
+    let name = command.get("name").and_then(Value::as_str).unwrap_or("");
+    let mut line = if name.is_empty() {
+        "lan".to_string()
     } else {
-        format!(
-            "{} (exitCode={exit_code})",
-            cli_text(locale, "Bridge Command Completed", "桥接命令执行完成")
-        )
+        format!("lan {name}")
+    };
+
+    let mut positional = Vec::new();
+    if let Some(args) = command.get("args").and_then(Value::as_object) {
+        for (key, value) in args {
+            line.push(' ');
+            line.push_str(&render_argument(value));
+            positional.push(key.as_str());
+        }
+    }
+    if let Some(options) = command.get("options").and_then(Value::as_object) {
+        for (key, value) in options {
+            // 位置参数在解析结果里会同时出现在 args/options，跳过重复项。
+            if positional.contains(&key.as_str()) {
+                continue;
+            }
+            match value {
+                Value::Bool(true) => line.push_str(&format!(" --{key}")),
+                Value::Bool(false) => {}
+                other => line.push_str(&format!(" --{key}={}", render_argument(other))),
+            }
+        }
+    }
+
+    line
+}
+
+fn render_argument(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        other => other.to_string(),
     }
 }
 
-fn render_known_bridge_result_human(value: &serde_json::Value, locale: &str) -> Option<String> {
-    let result = value
-        .get("exchange")
-        .and_then(|exchange| exchange.get("response"))
-        .and_then(|response| response.get("result"))?;
-    match result.get("kind").and_then(|kind| kind.as_str()) {
-        Some("product_inspect") => Some(product::render_product_inspect_human(result, locale)),
-        _ => None,
-    }
-}
-
-fn render_config_human(value: &serde_json::Value, locale: &str) -> String {
-    let config = value
-        .get("config")
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
+fn render_config_human(value: &Value, locale: &str) -> String {
+    let config = value.get("config").cloned().unwrap_or(Value::Null);
     let title = cli_text(locale, "Global CLI Config", "全局 CLI 配置");
     human_block(
         title,
