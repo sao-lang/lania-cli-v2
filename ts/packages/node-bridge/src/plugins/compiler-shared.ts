@@ -13,6 +13,7 @@
  * - 运行时探测优先贴近用户项目依赖树，而不是 bridge 自身依赖
  * - 事件字段需要同时兼容编译器专属消费方和 bridge 通用事件流
  */
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
@@ -20,7 +21,7 @@ import path from 'node:path';
 import type { BridgeEvent } from '../protocol/events.js';
 import { asRecord, resolveModuleFromCwd } from '../core/runtime.js';
 
-export type BuildTool = 'vite' | 'webpack' | 'rollup';
+export type BuildTool = 'vite' | 'webpack' | 'rollup' | 'nest' | 'tsc';
 export type Runtime = 'web' | 'python' | 'go' | 'rust' | 'dart';
 export const RUNTIMES: readonly Runtime[] = ['web', 'python', 'go', 'rust', 'dart'];
 export function isRuntime(value: unknown): value is Runtime {
@@ -274,9 +275,15 @@ export async function resolveRuntimeWarning(
       ...(asRecord(manifest.dependencies) ?? {}),
       ...(asRecord(manifest.devDependencies) ?? {}),
     };
-    const declared = typeof dependencies[tool] === 'string' ? dependencies[tool] : null;
+    const dependencyName = tool === 'nest' ? '@nestjs/cli' : tool === 'tsc' ? 'typescript' : tool;
+    const declared =
+      typeof dependencies[dependencyName] === 'string' ? dependencies[dependencyName] : null;
     if (!declared) {
-      return `declared dependency \`${tool}\` is missing from package.json`;
+      return `declared dependency \`${dependencyName}\` is missing from package.json`;
+    }
+    // nest/tsc 是 CLI 工具而非运行时模块，不做 require 版本检查。
+    if (tool === 'nest' || tool === 'tsc') {
+      return null;
     }
     const runtime = await resolveModuleFromCwd<any>(cwd, tool);
     // 这里只做“明显不兼容”的大版本检查，避免把复杂 semver 解析逻辑塞进 bridge。
@@ -344,11 +351,19 @@ export async function detectRuntime(
   return 'web';
 }
 
-export function detectBuildTool(config: Record<string, unknown>): BuildTool {
-  // 当前只允许显式切到 webpack/rollup；其它情况一律视为 vite。
+export function detectBuildTool(config: Record<string, unknown>, cwd?: string): BuildTool {
+  // 显式声明优先；然后识别 NestJS 工程；其它情况保持 vite 兼容行为。
   const buildTool = config.buildTool;
-  if (buildTool === 'webpack' || buildTool === 'rollup') {
+  if (
+    buildTool === 'webpack' ||
+    buildTool === 'rollup' ||
+    buildTool === 'nest' ||
+    buildTool === 'tsc'
+  ) {
     return buildTool;
+  }
+  if (cwd && existsSync(path.join(cwd, 'nest-cli.json'))) {
+    return 'nest';
   }
   return 'vite';
 }

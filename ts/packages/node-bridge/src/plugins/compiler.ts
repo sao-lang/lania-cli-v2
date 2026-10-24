@@ -49,7 +49,7 @@ async function handleDev(params: Record<string, unknown>) {
     const port = await findAvailablePort(requestedPort, host);
     const lanConfig = await loadLanConfig(cwd);
     runtime = await detectRuntime(lanConfig.config, cwd, params.runtime);
-    const tool = detectBuildTool(lanConfig.config);
+    const tool = detectBuildTool(lanConfig.config, cwd);
     // 非 web runtime 不读 package.json 依赖，也不伪造 dev server 警告。
     const runtimeWarning =
       runtime === 'web' ? await resolveRuntimeWarning(cwd, tool, 'dev', lanConfig.config) : null;
@@ -83,7 +83,7 @@ async function handleBuild(params: Record<string, unknown>) {
     const watch = params.watch === true;
     const lanConfig = await loadLanConfig(cwd);
     runtime = await detectRuntime(lanConfig.config, cwd, params.runtime);
-    const tool = detectBuildTool(lanConfig.config);
+    const tool = detectBuildTool(lanConfig.config, cwd);
     const mode = typeof params.mode === 'string' ? params.mode : null;
     const outputDir = typeof params.outputDir === 'string' ? params.outputDir : null;
     const runtimeWarning =

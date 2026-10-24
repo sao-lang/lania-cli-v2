@@ -4,6 +4,6 @@ environment:
   sdk: ">=3.0.0 <4.0.0"
 
 dev_dependencies:
-<% if (lintTools.includes('lints')) { %>  lints: ^4.0.0
+<% if (lintTools.includes('dart-analyze')) { %>  lints: ^4.0.0
 <% } %><% if (testTool === 'test') { %>  test: ^1.25.0
 <% } %>

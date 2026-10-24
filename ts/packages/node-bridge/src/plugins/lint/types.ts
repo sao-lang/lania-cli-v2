@@ -15,6 +15,14 @@ export const LINT_ADAPTORS = [
   'oxfmt',
   'stylelint',
   'textlint',
+  'ruff',
+  'black',
+  'mypy',
+  'flake8',
+  'golangci-lint',
+  'go-vet',
+  'clippy',
+  'dart-analyze',
 ] as const;
 
 export type LintAdaptor = (typeof LINT_ADAPTORS)[number];

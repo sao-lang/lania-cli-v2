@@ -57,7 +57,7 @@ impl LintCommandPlugin {
             OptionSpec {
                 long: "linters".into(),
                 short: None,
-                help: "Comma-separated linter adaptors to run (oxlint,eslint,oxfmt,prettier,stylelint,textlint)".into(),
+                help: "Comma-separated linter adaptors to run (eslint,oxlint,prettier,oxfmt,stylelint,textlint,ruff,black,mypy,flake8,golangci-lint,go-vet,clippy,dart-analyze)".into(),
                 value_kind: ValueKind::String,
                 default_value: None,
                 choices: vec![],
@@ -113,7 +113,20 @@ impl LintCommandPlugin {
                     .filter(|item| {
                         matches!(
                             *item,
-                            "oxlint" | "eslint" | "oxfmt" | "prettier" | "stylelint" | "textlint"
+                            "oxlint"
+                                | "eslint"
+                                | "oxfmt"
+                                | "prettier"
+                                | "stylelint"
+                                | "textlint"
+                                | "ruff"
+                                | "black"
+                                | "mypy"
+                                | "flake8"
+                                | "golangci-lint"
+                                | "go-vet"
+                                | "clippy"
+                                | "dart-analyze"
                         )
                     })
                     .map(ToOwned::to_owned)
@@ -316,6 +329,31 @@ mod tests {
             serde_json::json!(["oxfmt", "prettier", "oxlint", "eslint"])
         );
         assert_eq!(request.params["concurrency"], 2);
+    }
+
+    #[test]
+    fn accepts_language_linters_in_request() {
+        let context = CommandContext {
+            cwd: "/repo".into(),
+            argv: lania_command::ParsedArgv {
+                args: Default::default(),
+                options: [(
+                    "linters".into(),
+                    json!("ruff,clippy,dart-analyze,golangci-lint,unknown"),
+                )]
+                .into_iter()
+                .collect(),
+            },
+            handler_id: "command.lint".into(),
+            trace_id: "trace-lang".into(),
+        };
+        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let request = LintCommandPlugin::build_request(&context, &bridge);
+
+        assert_eq!(
+            request.params["linters"],
+            serde_json::json!(["ruff", "clippy", "dart-analyze", "golangci-lint"])
+        );
     }
 
     #[test]

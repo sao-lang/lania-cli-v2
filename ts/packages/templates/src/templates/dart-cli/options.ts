@@ -7,8 +7,8 @@ import {
 export const DART_CHOICES: ChoiceSpec = {
   packageManagers: [{ value: 'pub', label: 'dart pub' }],
   defaultPackageManager: 'pub',
-  lintTools: [{ value: 'lints', label: 'lints' }],
-  defaultLintTools: ['lints'],
+  lintTools: [{ value: 'dart-analyze', label: 'dart analyze' }],
+  defaultLintTools: ['dart-analyze'],
   testTools: [
     { value: 'test', label: 'package:test' },
     { value: 'skip', label: 'skip' },

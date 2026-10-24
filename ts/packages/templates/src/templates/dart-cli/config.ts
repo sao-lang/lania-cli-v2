@@ -17,7 +17,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     file(
       'analysis_options.yaml',
       'ejs/analysis_options.yaml.ejs',
-      normalized.lintTools.includes('lints'),
+      normalized.lintTools.includes('dart-analyze'),
     ),
     file('test/main_test.dart', 'ejs/test/main_test.dart.ejs', normalized.testTool === 'test'),
     file('lan.config.js', 'ejs/lan.config.js.ejs'),

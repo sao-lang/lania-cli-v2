@@ -170,6 +170,34 @@ impl FormatService {
                 }
                 self.format_with_external(exec, path, content, ExternalFormatter::Rustfmt)
             }
+            "py" => {
+                if !allow_external {
+                    return Ok(skipped(path, Some("ruff".into()), "outside root_dir"));
+                }
+                // 优先 ruff format；不可用时回退 black。
+                let result =
+                    self.format_with_external(exec, path, content, ExternalFormatter::Ruff)?;
+                if result.status == FormatStatus::Skipped
+                    && result
+                        .message
+                        .as_deref()
+                        .is_some_and(|message| message.contains("unavailable"))
+                {
+                    return self.format_with_external(
+                        exec,
+                        path,
+                        content,
+                        ExternalFormatter::Black,
+                    );
+                }
+                Ok(result)
+            }
+            "dart" => {
+                if !allow_external {
+                    return Ok(skipped(path, Some("dart".into()), "outside root_dir"));
+                }
+                self.format_with_external(exec, path, content, ExternalFormatter::Dart)
+            }
             _ => Ok(skipped(path, None, "unsupported file type")),
         }
     }
@@ -200,6 +228,15 @@ impl FormatService {
             }
             ExternalFormatter::Rustfmt => {
                 ExecCommand::new("rustfmt").with_args(vec![temp_path_string])
+            }
+            ExternalFormatter::Ruff => {
+                ExecCommand::new("ruff").with_args(vec!["format".to_string(), temp_path_string])
+            }
+            ExternalFormatter::Black => {
+                ExecCommand::new("black").with_args(vec!["--quiet".to_string(), temp_path_string])
+            }
+            ExternalFormatter::Dart => {
+                ExecCommand::new("dart").with_args(vec!["format".to_string(), temp_path_string])
             }
         };
 
@@ -246,6 +283,9 @@ enum ExternalFormatter {
     Prettier,
     Gofmt,
     Rustfmt,
+    Ruff,
+    Black,
+    Dart,
 }
 
 impl ExternalFormatter {
@@ -254,6 +294,9 @@ impl ExternalFormatter {
             Self::Prettier => "prettier",
             Self::Gofmt => "gofmt",
             Self::Rustfmt => "rustfmt",
+            Self::Ruff => "ruff",
+            Self::Black => "black",
+            Self::Dart => "dart",
         }
     }
 }
@@ -512,6 +555,50 @@ mod tests {
                 },
             )
             .expect("best effort should not fail");
+        assert_eq!(report.failed_count(), 0);
+    }
+
+    #[test]
+    fn python_formatting_is_best_effort_with_or_without_ruff() {
+        let exec = ExecService::new(false);
+        let service = FormatService;
+        let mut files = vec![PlannedFile {
+            path: "main.py".into(),
+            content: "x=1".into(),
+        }];
+        let report = service
+            .format_planned_files(
+                &exec,
+                &mut files,
+                &FormatOptions {
+                    enabled: true,
+                    mode: FormatMode::BestEffort,
+                    root_dir: None,
+                },
+            )
+            .expect("python formatting should not hard fail");
+        assert_eq!(report.failed_count(), 0);
+    }
+
+    #[test]
+    fn dart_formatting_is_best_effort_with_or_without_sdk() {
+        let exec = ExecService::new(false);
+        let service = FormatService;
+        let mut files = vec![PlannedFile {
+            path: "bin/main.dart".into(),
+            content: "void main(){print('x');}".into(),
+        }];
+        let report = service
+            .format_planned_files(
+                &exec,
+                &mut files,
+                &FormatOptions {
+                    enabled: true,
+                    mode: FormatMode::BestEffort,
+                    root_dir: None,
+                },
+            )
+            .expect("dart formatting should not hard fail");
         assert_eq!(report.failed_count(), 0);
     }
 }

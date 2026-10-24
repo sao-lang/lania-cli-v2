@@ -1,1 +1,4 @@
-module.exports = { runtime: 'python' };
+module.exports = {
+  runtime: 'python',
+  lintTools: <%- JSON.stringify(lintTools) %>,
+};

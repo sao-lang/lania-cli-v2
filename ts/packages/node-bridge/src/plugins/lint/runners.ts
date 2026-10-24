@@ -10,6 +10,7 @@ import {
   resolvePackageBinaryFromCwd,
   runBinary,
 } from './shared.js';
+import { runLanguageAdaptor } from './language-runners.js';
 import { createLintRunResult, type LintAdaptor, type LintRunResult } from './types.js';
 
 // 各 adaptor 的调用细节集中在这里，`plugin.ts` 只负责请求编排与事件输出。
@@ -19,6 +20,10 @@ export async function runAdaptor(
   lanConfig: Record<string, unknown>,
   fix: boolean,
 ): Promise<LintRunResult> {
+  const language = await runLanguageAdaptor(adaptor, cwd, fix);
+  if (language) {
+    return language;
+  }
   switch (adaptor) {
     case 'eslint':
       return runEslint(cwd, lanConfig, fix);

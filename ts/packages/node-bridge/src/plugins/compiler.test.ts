@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { getCompilerAdapters } from './compiler-adapters/index.js';
+import { getCompilerAdapters, resolveCompilerAdapter } from './compiler-adapters/index.js';
 import { compilerPlugin } from './compiler.js';
 import { findAvailablePort } from './compiler-shared.js';
 
@@ -22,7 +22,7 @@ test('compiler adapters expose vite webpack and rollup', () => {
     getCompilerAdapters()
       .map((adapter) => adapter.tool)
       .sort(),
-    ['rollup', 'vite', 'webpack'],
+    ['nest', 'rollup', 'tsc', 'vite', 'webpack'],
   );
 });
 
@@ -114,11 +114,7 @@ test('vite adapter forwards mode and hmr overrides into createServer config', as
     'package.json',
     JSON.stringify({ name: 'vite-app', dependencies: { vite: '^5.0.0' } }, null, 2),
   );
-  await writeProjectFile(
-    cwd,
-    'lan.config.cjs',
-    `module.exports = { buildTool: 'vite' };`,
-  );
+  await writeProjectFile(cwd, 'lan.config.cjs', `module.exports = { buildTool: 'vite' };`);
   await writeProjectFile(
     cwd,
     'vite.config.cjs',
@@ -169,6 +165,30 @@ test('vite adapter forwards mode and hmr overrides into createServer config', as
   assert.equal(captured?.customKey, 'preserved');
 
   await handled?.activeCompiler?.stop?.();
+});
+
+test('nest and tsc adapters fail fast when local tooling is missing', async (t) => {
+  const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-framework-'));
+  t.after(async () => rm(cwd, { recursive: true, force: true }));
+
+  for (const tool of ['nest', 'tsc'] as const) {
+    const adapter = resolveCompilerAdapter(tool);
+    assert.ok(adapter, tool);
+    const execution = await adapter?.handleBuild(
+      {
+        cwd,
+        host: '127.0.0.1',
+        port: 0,
+        hmr: null,
+        open: false,
+        watch: false,
+        mode: null,
+        outputDir: 'dist',
+      },
+      { tool, runtime: 'web', lanConfig: {}, runtimeWarning: null },
+    );
+    assert.equal(execution?.result.success, false, tool);
+  }
 });
 
 test('findAvailablePort falls back to legacy safe range when 8089 is occupied', async (t) => {
@@ -248,7 +268,9 @@ test('webpack dev reports a real error when webpack-dev-server is missing', asyn
       }
     | undefined;
   const result = handled?.result as Record<string, any> | undefined;
-  const events = handled?.events as Array<{ method: string; params?: Record<string, unknown> }> | undefined;
+  const events = handled?.events as
+    | Array<{ method: string; params?: Record<string, unknown> }>
+    | undefined;
 
   assert.equal(result?.tool, 'webpack');
   assert.equal(result?.action, 'dev');
@@ -345,7 +367,9 @@ test('webpack dev accepts webpack-dev-server default export runtimes', async (t)
       }
     | undefined;
   const result = handled?.result as Record<string, any> | undefined;
-  const events = handled?.events as Array<{ method: string; params?: Record<string, unknown> }> | undefined;
+  const events = handled?.events as
+    | Array<{ method: string; params?: Record<string, unknown> }>
+    | undefined;
   const captured = JSON.parse(await readFile(capturePath, 'utf8'));
 
   assert.equal(result?.implementation, 'runtime');
@@ -442,11 +466,7 @@ test('rollup adapter handles watch semantics', async (t) => {
       }
     };`,
   );
-  await writeProjectFile(
-    cwd,
-    'rollup.config.cjs',
-    'module.exports = { output: { dir: "dist" } };',
-  );
+  await writeProjectFile(cwd, 'rollup.config.cjs', 'module.exports = { output: { dir: "dist" } };');
 
   const handled = (await compilerPlugin.handle('compiler.build', {
     cwd,

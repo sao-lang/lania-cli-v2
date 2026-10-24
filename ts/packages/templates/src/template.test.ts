@@ -670,7 +670,7 @@ test('language templates expose package manager lint and test choices', async ()
     },
     {
       name: 'dart-cli',
-      lint: 'lints',
+      lint: 'dart-analyze',
       test: 'test',
       extraFiles: ['analysis_options.yaml', 'test/main_test.dart'],
       absentFiles: [],
@@ -704,6 +704,9 @@ test('language templates expose package manager lint and test choices', async ()
     for (const absent of item.absentFiles) {
       assert.ok(!paths.includes(absent), `${item.name} should not include ${absent}`);
     }
+    const lanConfig = rendered.files.find((file) => file.path === 'lan.config.js');
+    assert.ok(lanConfig?.content.includes('lintTools'), `${item.name} missing lintTools`);
+    assert.ok(lanConfig?.content.includes(item.lint), `${item.name} missing ${item.lint}`);
   }
 });
 
@@ -744,6 +747,9 @@ test('node framework templates render package manifests and tool configs', async
     assert.ok(paths.includes('test/app.test.ts'), name);
     const packageJson = rendered.files.find((file) => file.path === 'package.json');
     assert.ok(packageJson?.content.includes(`"${dependency}"`), name);
+    const lanConfig = rendered.files.find((file) => file.path === 'lan.config.js');
+    assert.ok(lanConfig?.content.includes('buildTool'), `${name} missing buildTool`);
+    assert.ok(lanConfig?.content.includes('lintTools'), `${name} missing lintTools`);
   }
 });
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { detectRuntime, isRuntime, type Runtime } from './compiler-shared.js';
+import { detectBuildTool, detectRuntime, isRuntime, type Runtime } from './compiler-shared.js';
 
 async function withFeatureFiles(files: string[], run: (cwd: string) => Promise<void>) {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-runtime-detect-'));
@@ -54,6 +54,15 @@ test('detectRuntime applies override, config, feature files, then web fallback',
       assert.equal(await detectRuntime(item.config, cwd, item.override), item.expected, item.name);
     });
   }
+});
+
+test('detectBuildTool honors config and NestJS projects', async () => {
+  await withFeatureFiles(['nest-cli.json'], async (cwd) => {
+    assert.equal(detectBuildTool({}, cwd), 'nest');
+  });
+  assert.equal(detectBuildTool({ buildTool: 'tsc' }), 'tsc');
+  assert.equal(detectBuildTool({ buildTool: 'nest' }), 'nest');
+  assert.equal(detectBuildTool({}, path.join(tmpdir(), 'lania-missing-dir')), 'vite');
 });
 
 test('isRuntime accepts only known runtimes', () => {

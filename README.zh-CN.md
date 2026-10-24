@@ -391,6 +391,16 @@ lan add --name Widget --template rust-module --target src
 
 安装命令按运行时选择：Node 走 `npm/pnpm/yarn/bun install`；Python 走 `pip/uv/poetry`；Go 走 `go mod tidy`；Rust 走 `cargo fetch`；Dart 走 `dart pub get`。语言模板默认 `skipInstall: true`，Node 框架模板默认执行安装。
 
+`lan lint` 已接入语言 linter：`ruff`、`black`、`mypy`、`flake8`、`golangci-lint`、`go-vet`、`clippy`、`dart-analyze`。调用前会先探测项目虚拟环境或 PATH；工具缺失时返回 fallback 结果并通过统一的 `lint_file` / `lint_result` / `lint_summary` 事件输出，不影响其它 adaptor。
+
+```bash
+lan lint --linters ruff,mypy
+lan lint --linters clippy
+lan lint --linters dart-analyze
+```
+
+Node 框架项目通过 `lan.config.js` 的 `buildTool` 选择构建工具：`nest` 调用本地 `@nestjs/cli`，`tsc` 调用本地 `typescript`；工具缺失时 fail-fast。生成模板时写入的 `lintTools` 也会被 `lan lint` 直接使用。Python 的生成文件优先用 `ruff format`，不可用时回退 `black`；Dart 使用 `dart format`。
+
 ### `generate api` / `generate module`
 
 - Rust 工作流读取对应 YAML 配置。

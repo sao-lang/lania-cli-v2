@@ -9,14 +9,14 @@ import {
   createCompilerResult,
   logEvent,
   type CompilerExecution,
+  type Tool,
 } from '../compiler-shared.js';
 import type { SpawnCommand } from './commands.js';
-import type { SpawnRuntime } from './types.js';
 
 const DEV_READY_TIMEOUT_MS = 1000;
 
 export function failureExecution(
-  runtime: SpawnRuntime,
+  runtime: Tool,
   action: 'dev' | 'build',
   message: string,
 ): CompilerExecution {
@@ -69,7 +69,7 @@ function spawnAndWait(
   cwd: string,
   command: SpawnCommand,
   events: BridgeEvent[],
-  runtime: SpawnRuntime,
+  runtime: Tool,
 ): Promise<SpawnOutcome> {
   return new Promise((resolve) => {
     let stderrTail = '';
@@ -99,7 +99,7 @@ function spawnAndWait(
 }
 
 export async function runSpawnBuild(
-  runtime: SpawnRuntime,
+  runtime: Tool,
   command: SpawnCommand,
   cwd: string,
 ): Promise<CompilerExecution> {
@@ -121,7 +121,7 @@ export async function runSpawnBuild(
 }
 
 export async function startSpawnDev(
-  runtime: SpawnRuntime,
+  runtime: Tool,
   command: SpawnCommand,
   cwd: string,
 ): Promise<CompilerExecution> {

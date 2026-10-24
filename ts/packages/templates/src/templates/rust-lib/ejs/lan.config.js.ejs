@@ -1,1 +1,4 @@
-module.exports = { runtime: 'rust' };
+module.exports = {
+  runtime: 'rust',
+  lintTools: <%- JSON.stringify(lintTools.filter(function (tool) { return tool === 'clippy'; })) %>,
+};
