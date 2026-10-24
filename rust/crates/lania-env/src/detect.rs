@@ -173,10 +173,6 @@ impl EnvService {
         read_npm_like_version(&binary_path)
     }
 
-    fn companion_status(&self, language: Language, companion: &str, _cwd: &Path) -> ToolStatus {
-        self.companion_status_with(language, companion, _cwd, true)
-    }
-
     fn companion_status_with(
         &self,
         language: Language,

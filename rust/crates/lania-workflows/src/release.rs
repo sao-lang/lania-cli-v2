@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{anyhow, Result};
 use lania_config::ReleaseProfile;
-use serde_json::{json, Value};
+use serde_json::json;
 
 use crate::models::{
     redact_prompt_answers, ReleaseMode, ReleaseStage, ReleaseStageSnapshot, ReleaseStageStatus,
@@ -22,7 +22,11 @@ impl ReleaseWorkflow {
 
         services.tasks.start(
             "release",
-            if zh { "发布工作流" } else { "Release workflow" },
+            if zh {
+                "发布工作流"
+            } else {
+                "Release workflow"
+            },
         );
         services.progress.begin("release", Some(6));
 
@@ -46,7 +50,7 @@ impl ReleaseWorkflow {
         services.progress.advance("release", 1);
 
         // 3. Build stage plan based on profile
-        let stage_list = build_stage_plan(profile, &input);
+        let stage_list = build_stage_plan(&input);
         let stages: Vec<ReleaseStageSnapshot> = stage_list
             .iter()
             .map(|stage| ReleaseStageSnapshot {
@@ -60,10 +64,8 @@ impl ReleaseWorkflow {
         services.progress.advance("release", 1);
 
         // 4. Build command plans
-        let command_plans: Vec<Vec<String>> = stages
-            .iter()
-            .flat_map(|s| s.commands.clone())
-            .collect();
+        let command_plans: Vec<Vec<String>> =
+            stages.iter().flat_map(|s| s.commands.clone()).collect();
         services.progress.advance("release", 1);
 
         // 5. Collect notes
@@ -77,26 +79,26 @@ impl ReleaseWorkflow {
 
         // 6. Build prompts map for E2E assertions
         let mut prompts = BTreeMap::new();
-        prompts.insert("mode".into(), json!(format!("{:?}", input.mode).to_lowercase()));
+        prompts.insert(
+            "mode".into(),
+            json!(format!("{:?}", input.mode).to_lowercase()),
+        );
         prompts.insert("profile".into(), json!(profile));
         prompts.insert("completed".into(), json!(false));
 
         // Create state file path
-        let state_file = input
-            .state_file
-            .clone()
-            .unwrap_or_else(|| {
-                input
-                    .cwd
-                    .join(".lania")
-                    .join("release-state.json")
-                    .display()
-                    .to_string()
-            });
+        let state_file = input.state_file.clone().unwrap_or_else(|| {
+            input
+                .cwd
+                .join(".lania")
+                .join("release-state.json")
+                .display()
+                .to_string()
+        });
         let state_path = std::path::Path::new(&state_file);
 
         // Execute or plan based on mode
-        let mut execution_state = WorkflowState::Planned;
+        let execution_state: WorkflowState;
 
         match input.mode {
             ReleaseMode::Plan | ReleaseMode::Status => {
@@ -204,8 +206,8 @@ impl ReleaseWorkflow {
     }
 }
 
-/// Build the list of stages for a given release profile.
-fn build_stage_plan(profile: &str, input: &ReleaseWorkflowInput) -> Vec<ReleaseStage> {
+/// Build the list of stages for a release run.
+fn build_stage_plan(input: &ReleaseWorkflowInput) -> Vec<ReleaseStage> {
     let all_stages = vec![
         ReleaseStage::Preflight,
         ReleaseStage::Verify,
@@ -274,15 +276,17 @@ fn build_stage_commands(stage: ReleaseStage, input: &ReleaseWorkflowInput) -> Ve
             let mut cmds = Vec::new();
             cmds.push(vec!["git".into(), "status".into(), "--porcelain".into()]);
             if input.publish {
-                cmds.push(vec![
-                    "npm".into(),
-                    "whoami".into(),
-                ]);
+                cmds.push(vec!["npm".into(), "whoami".into()]);
             }
             cmds
         }
         ReleaseStage::Verify => {
-            vec![vec!["git".into(), "log".into(), "--oneline".into(), "-5".into()]]
+            vec![vec![
+                "git".into(),
+                "log".into(),
+                "--oneline".into(),
+                "-5".into(),
+            ]]
         }
         ReleaseStage::Version => {
             if let Some(version) = &input.version {
@@ -332,16 +336,15 @@ fn build_stage_commands(stage: ReleaseStage, input: &ReleaseWorkflowInput) -> Ve
         ReleaseStage::Finalize => {
             let mut cmds: Vec<Vec<String>> = Vec::new();
             if !input.skip_git {
-                cmds.push(vec![
-                    "git".into(),
-                    "add".into(),
-                    "-A".into(),
-                ]);
+                cmds.push(vec!["git".into(), "add".into(), "-A".into()]);
                 cmds.push(vec![
                     "git".into(),
                     "commit".into(),
                     "-m".into(),
-                    format!("chore(release): version {}", input.version.as_deref().unwrap_or("unknown")),
+                    format!(
+                        "chore(release): version {}",
+                        input.version.as_deref().unwrap_or("unknown")
+                    ),
                 ]);
                 if let Some(tag) = &input.tag {
                     cmds.push(vec!["git".into(), "tag".into(), tag.clone()]);
@@ -380,7 +383,9 @@ fn write_state_file(
             .unwrap()
             .as_millis(),
         stages: stages.to_vec(),
-        completed: stages.iter().all(|s| s.status == ReleaseStageStatus::Completed),
+        completed: stages
+            .iter()
+            .all(|s| s.status == ReleaseStageStatus::Completed),
         summary: vec![],
     };
     let json = serde_json::to_string_pretty(&state)?;

@@ -587,6 +587,9 @@ async fn terminate_child(
     pid: Option<u32>,
     kill_process_tree: bool,
 ) -> Result<()> {
+    #[cfg(not(unix))]
+    let _ = (pid, kill_process_tree);
+
     #[cfg(unix)]
     if kill_process_tree {
         if let Some(pid) = pid {
@@ -777,7 +780,8 @@ fn configure_process_group(process: &mut Command, kill_process_tree: bool) -> Re
         }
     }
 
-    let _ = kill_process_tree;
+    #[cfg(not(unix))]
+    let _ = (process, kill_process_tree);
     Ok(())
 }
 

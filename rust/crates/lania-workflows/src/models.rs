@@ -3,14 +3,13 @@
 //! 主要导出：WorkflowBridgeStep、WorkflowExecution、WorkflowServices、TemplateCapability、CreateWorkflowInput、AddWorkflowInput。
 //! 关键点：
 //! - 包含序列化/反序列化与 JSON 结构约定
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
+use lania_config::ReleaseProfile;
+#[cfg(test)]
 use lania_config::{
-    ReleaseGitConfig, ReleasePostCheckConfig, ReleaseProfile, ReleaseStepConfig,
-    ReleaseVerifyConfig, ReleaseVersioningConfig,
+    ReleaseGitConfig, ReleasePostCheckConfig, ReleaseStepConfig, ReleaseVerifyConfig,
+    ReleaseVersioningConfig,
 };
 use lania_exec::ExecService;
 use lania_fs::FsService;
@@ -18,12 +17,16 @@ use lania_git::{GitService, GitStatus};
 use lania_hooks::HookRuntime;
 use lania_logger::LoggerService;
 use lania_node_bridge::{BridgeExchange, BridgeRequest, NodeBridgeClient};
-use lania_pm::{PackageManager, PackageManagerService};
+#[cfg(test)]
+use lania_pm::PackageManager;
+use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;
 use lania_task::TaskService;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(test)]
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -209,6 +212,7 @@ pub struct ReleaseStateSnapshot {
     pub summary: Vec<String>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone)]
 pub(crate) struct ReleasePlan {
     pub(crate) cwd: PathBuf,
