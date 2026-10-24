@@ -88,8 +88,15 @@ impl DevCommandPlugin {
         request.params["hmr"] = serde_json::json!(hmr);
         request.params["open"] = serde_json::json!(open);
         request.params["mode"] = serde_json::json!(mode);
+        let runtime = context
+            .argv
+            .options
+            .get("runtime")
+            .and_then(|value| value.as_str())
+            .map(ToOwned::to_owned);
         request.params["config"] = serde_json::json!(config_path);
         request.params["path"] = serde_json::json!(path);
+        request.params["runtime"] = serde_json::json!(runtime);
         request
     }
 }

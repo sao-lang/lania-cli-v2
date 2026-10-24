@@ -90,7 +90,7 @@ mod tests {
             .find(|spec| spec.name == "dev")
             .expect("dev spec registered");
         assert_eq!(dev_spec.handler_id, "command.dev");
-        assert_eq!(dev_spec.options.len(), 7);
+        assert_eq!(dev_spec.options.len(), 8);
         assert_eq!(dev_spec.subcommands.len(), 0);
         let product_spec = specs
             .iter()
@@ -130,6 +130,40 @@ mod tests {
         assert_eq!(request.params["port"], 4000);
         assert_eq!(request.params["hmr"], false);
         assert_eq!(request.params["mode"], "development");
+    }
+
+    #[test]
+    fn dev_exit_code_maps_failure_to_runtime_error() {
+        use crate::handlers::resolve_dev_exit_code;
+        use lania_host::{EXIT_RUNTIME_ERROR, EXIT_SUCCESS};
+
+        assert_eq!(
+            resolve_dev_exit_code(Some(&json!({ "success": false }))),
+            EXIT_RUNTIME_ERROR
+        );
+        assert_eq!(
+            resolve_dev_exit_code(Some(&json!({ "success": true }))),
+            EXIT_SUCCESS
+        );
+        assert_eq!(resolve_dev_exit_code(Some(&json!({}))), EXIT_SUCCESS);
+        assert_eq!(resolve_dev_exit_code(None), EXIT_SUCCESS);
+    }
+
+    #[test]
+    fn dev_request_forwards_runtime() {
+        let context = CommandContext {
+            cwd: "/repo".into(),
+            argv: lania_command::ParsedArgv {
+                args: Default::default(),
+                options: [("runtime".into(), json!("go"))].into_iter().collect(),
+            },
+            handler_id: "command.dev".into(),
+            trace_id: "trace-runtime".into(),
+        };
+        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let request = DevCommandPlugin::build_request(&context, &bridge);
+
+        assert_eq!(request.params["runtime"], json!("go"));
     }
 
     #[test]

@@ -16,6 +16,20 @@ use crate::BuildCommandPlugin;
 
 pub(crate) struct BuildCommandHandler;
 pub(crate) struct ProductBuildCommandHandler;
+
+/// 非 web runtime 的 adapter 会在 result 里带 `success` 字段。
+/// 缺失该字段视为成功（保持 web 既有行为）。
+pub(crate) fn resolve_build_exit_code(result: Option<&serde_json::Value>) -> i32 {
+    let success = result
+        .and_then(|value| value.get("success"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true);
+    if success {
+        lania_host::EXIT_SUCCESS
+    } else {
+        lania_host::EXIT_RUNTIME_ERROR
+    }
+}
 pub(crate) struct PackProductCommandHandler;
 pub(crate) struct PublishProductCommandHandler;
 pub(crate) struct InspectProductCommandHandler;
@@ -33,7 +47,8 @@ impl CommandHandler for BuildCommandHandler {
         ctx.require_capability(CapabilityName::NodeBridge)?;
         let request = BuildCommandPlugin::build_request(ctx.command(), ctx.node_bridge());
         let run = ctx.call_bridge(request).await?;
-        Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
+        let exit_code = resolve_build_exit_code(run.exchange.response.result.as_ref());
+        Ok(ctx.complete_bridge(run, exit_code))
     }
 }
 

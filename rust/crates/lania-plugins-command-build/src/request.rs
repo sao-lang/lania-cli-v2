@@ -29,8 +29,10 @@ impl BuildCommandPlugin {
         let output_dir = string_option_value(context, "output-dir");
 
         let mut request = bridge.compiler_build_with_options_request(cwd, watch, mode, output_dir);
+        let runtime = string_option_value(context, "runtime");
         request.params["config"] = serde_json::json!(config_path);
         request.params["path"] = serde_json::json!(path);
+        request.params["runtime"] = serde_json::json!(runtime);
         request
     }
 

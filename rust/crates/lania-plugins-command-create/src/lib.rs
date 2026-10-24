@@ -53,6 +53,10 @@ impl CreateCommandPlugin {
                         "spa-vue".into(),
                         "toolkit".into(),
                         "toolkit-monorepo".into(),
+                        "go-service".into(),
+                        "rust-lib".into(),
+                        "python-cli".into(),
+                        "dart-cli".into(),
                     ],
                     negatable: false,
                 },
@@ -362,6 +366,19 @@ mod tests {
         assert_eq!(spec.handler_id, HANDLER_ID);
         assert_eq!(spec.options.len(), 10);
         assert!(handlers.get(HANDLER_ID).is_some());
+    }
+
+    #[test]
+    fn create_spec_lists_language_templates() {
+        let spec = CreateCommandPlugin::spec();
+        let template = spec
+            .options
+            .iter()
+            .find(|option| option.long == "template")
+            .expect("template option exists");
+        for name in ["go-service", "rust-lib", "python-cli", "dart-cli"] {
+            assert!(template.choices.iter().any(|choice| choice == name), "missing {name}");
+        }
     }
 
     #[test]

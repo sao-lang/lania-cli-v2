@@ -58,6 +58,10 @@ impl AddCommandPlugin {
                     "gitignore".into(),
                     "tsconfig".into(),
                     "commitizen".into(),
+                    "go-handler".into(),
+                    "python-module".into(),
+                    "rust-module".into(),
+                    "dart-class".into(),
                 ],
                 negatable: false,
             },
@@ -223,6 +227,22 @@ mod tests {
         assert_eq!(spec.handler_id, HANDLER_ID);
         assert_eq!(spec.options.len(), 5);
         assert!(handlers.get(HANDLER_ID).is_some());
+    }
+
+    #[test]
+    fn add_spec_lists_language_templates() {
+        let spec = AddCommandPlugin::spec();
+        let template = spec
+            .options
+            .iter()
+            .find(|option| option.long == "template")
+            .expect("template option exists");
+        for name in ["go-handler", "python-module", "rust-module", "dart-class"] {
+            assert!(
+                template.choices.iter().any(|choice| choice == name),
+                "missing {name}"
+            );
+        }
     }
 
     #[test]

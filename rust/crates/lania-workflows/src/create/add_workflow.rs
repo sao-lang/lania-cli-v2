@@ -48,11 +48,16 @@ impl AddWorkflow {
         let normalized_target = normalize_add_target(&target);
         validate_relative_target(&normalized_target)?;
         let config = load_add_template_context(services, &input.cwd).await?;
+        let component_name = prompt_state
+            .get("name")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
         let (rendered_file, render_step) = capability
             .render(
                 &template_name,
                 json!({
                     "projectName": config.project_name,
+                    "componentName": component_name,
                     "language": config.language,
                     "cssProcessor": config.css_processor,
                 }),

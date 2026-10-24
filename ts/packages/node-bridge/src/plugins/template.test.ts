@@ -18,7 +18,16 @@ test('template plugin delegates template listing to templates package', async ()
       }
     | undefined;
 
-  assert.deepEqual(result?.templates, ['spa-react', 'spa-vue', 'toolkit', 'toolkit-monorepo']);
+  assert.deepEqual(result?.templates, [
+    'dart-cli',
+    'go-service',
+    'python-cli',
+    'rust-lib',
+    'spa-react',
+    'spa-vue',
+    'toolkit',
+    'toolkit-monorepo',
+  ]);
   assert.ok(
     result?.metadata.some(
       (template) => template.name === 'toolkit' && template.schemaVersion === 1,
@@ -88,14 +97,9 @@ test('template plugin discovers product.templatesDir and merges schema template 
 
   await writeFile(
     path.join(cwd, 'lan.config.js'),
-    [
-      'export default {',
-      '  product: {',
-      "    templatesDir: './templates',",
-      '  },',
-      '};',
-      '',
-    ].join('\n'),
+    ['export default {', '  product: {', "    templatesDir: './templates',", '  },', '};', ''].join(
+      '\n',
+    ),
   );
   await writeFile(
     path.join(cwd, 'lania.schemas.js'),

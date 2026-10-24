@@ -336,3 +336,30 @@ fn parses_tool_config_snapshot() {
     assert!(snapshot.resolved);
     assert!(snapshot.validation_errors.is_empty());
 }
+
+#[test]
+fn accepts_runtime_and_runtimes_config_fields() {
+    let snapshot = ConfigService::load_lan_snapshot(&json!({
+        "cwd": "/repo",
+        "exists": true,
+        "config": {
+            "runtime": "go",
+            "runtimes": {
+                "go": {
+                    "dev": ["go", "run", "."],
+                    "build": ["go", "build", "-o", "bin/app", "."]
+                }
+            }
+        }
+    }))
+    .expect("snapshot parses");
+
+    assert!(!snapshot
+        .validation_errors
+        .iter()
+        .any(|error| error.position.path == "$.runtime"));
+    assert!(!snapshot
+        .validation_errors
+        .iter()
+        .any(|error| error.position.path == "$.runtimes"));
+}

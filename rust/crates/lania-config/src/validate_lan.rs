@@ -76,6 +76,8 @@ pub(crate) fn validate_lan_config(raw: &Value, schema_version: u32) -> Vec<Confi
     let allowed = [
         "version",
         "buildTool",
+        "runtime",
+        "runtimes",
         "buildAdaptors",
         "lintAdaptors",
         "lintTools",

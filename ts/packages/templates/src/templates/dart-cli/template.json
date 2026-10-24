@@ -1,0 +1,8 @@
+{
+  "name": "dart-cli",
+  "schemaVersion": 1,
+  "renderEngine": "node_bridge",
+  "useCases": ["create"],
+  "ownership": "node_only",
+  "migrationLayer": "runtime_template"
+}

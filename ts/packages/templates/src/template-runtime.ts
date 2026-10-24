@@ -64,27 +64,18 @@ export async function listRuntimeTemplates(input: TemplateRuntimeInput = {}) {
   return await discoverTemplates(input);
 }
 
-export async function getRuntimeTemplate(
-  name: string,
-  input: TemplateRuntimeInput = {},
-) {
+export async function getRuntimeTemplate(name: string, input: TemplateRuntimeInput = {}) {
   const templates = await discoverTemplates(input);
   return templates.find((template) => template.manifest.name === name) ?? null;
 }
 
-export async function loadTemplateQuestions(
-  name: string,
-  input: TemplateRuntimeInput = {},
-) {
+export async function loadTemplateQuestions(name: string, input: TemplateRuntimeInput = {}) {
   const template = await requireTemplate(name, input);
   const evaluated = await evaluateTemplateModule(template.rootDir, 'questions', input);
   return normalizeQuestions(evaluated);
 }
 
-export async function loadTemplateDependencies(
-  name: string,
-  input: TemplateRuntimeInput = {},
-) {
+export async function loadTemplateDependencies(name: string, input: TemplateRuntimeInput = {}) {
   const template = await requireTemplate(name, input);
   const evaluated = await evaluateTemplateModule(template.rootDir, 'dependencies', input);
   const record = asRecord(evaluated);
@@ -94,19 +85,13 @@ export async function loadTemplateDependencies(
   };
 }
 
-export async function loadTemplateOutputTasks(
-  name: string,
-  input: TemplateRuntimeInput = {},
-) {
+export async function loadTemplateOutputTasks(name: string, input: TemplateRuntimeInput = {}) {
   const template = await requireTemplate(name, input);
   const config = await loadTemplateConfig(template, input);
   return config.outputTasks;
 }
 
-export async function renderRuntimeTemplate(
-  name: string,
-  input: TemplateRuntimeInput = {},
-) {
+export async function renderRuntimeTemplate(name: string, input: TemplateRuntimeInput = {}) {
   const template = await requireTemplate(name, input);
   const config = await loadTemplateConfig(template, input);
   const dependencyPayload = await loadTemplateDependencies(name, input);
@@ -162,9 +147,7 @@ async function discoverTemplates(input: TemplateRuntimeInput) {
     }
   }
 
-  return templates.sort((left, right) =>
-    left.manifest.name.localeCompare(right.manifest.name),
-  );
+  return templates.sort((left, right) => left.manifest.name.localeCompare(right.manifest.name));
 }
 
 async function resolveTemplateRoots(cwd: string | null) {
@@ -197,10 +180,7 @@ async function resolveTemplateRoots(cwd: string | null) {
   return [...new Set(roots)];
 }
 
-async function requireTemplate(
-  name: string,
-  input: TemplateRuntimeInput,
-) {
+async function requireTemplate(name: string, input: TemplateRuntimeInput) {
   const template = await getRuntimeTemplate(name, input);
   if (!template) {
     throw new Error(`Unknown template: ${name}`);
@@ -208,10 +188,7 @@ async function requireTemplate(
   return template;
 }
 
-async function loadTemplateConfig(
-  template: TemplateDescriptor,
-  input: TemplateRuntimeInput,
-) {
+async function loadTemplateConfig(template: TemplateDescriptor, input: TemplateRuntimeInput) {
   // config.* 是可执行模块（可能导出函数），用于动态定制要输出的 files/outputTasks。
   // - 若不存在或返回空 files，则回退为扫描 `files/**/*.ejs` 的“文件即模板”模式。
   const evaluated = (await evaluateTemplateModule(template.rootDir, 'config', input)) ?? {};
@@ -219,10 +196,7 @@ async function loadTemplateConfig(
   const files = normalizeTemplateFiles(record.files);
   return {
     outputTasks: normalizeStringList(record.outputTasks),
-    files:
-      files.length > 0
-        ? files
-        : await scanFileBasedTemplateDirectory(template.rootDir),
+    files: files.length > 0 ? files : await scanFileBasedTemplateDirectory(template.rootDir),
   };
 }
 
@@ -251,10 +225,7 @@ async function resolveTemplateModulePath(
   return null;
 }
 
-async function evaluateOptionalModule(
-  modulePath: string,
-  input: TemplateRuntimeInput,
-) {
+async function evaluateOptionalModule(modulePath: string, input: TemplateRuntimeInput) {
   if (!(await fileExists(modulePath))) {
     return null;
   }
@@ -332,22 +303,20 @@ function buildTemplateLocals(
   const lintTools = normalizeStringList(options.lintTools);
   const cssTools = normalizeStringList(options.cssTools);
   const buildTool = typeof options.buildTool === 'string' ? options.buildTool : 'vite';
-  const cssProcessor =
-    typeof options.cssProcessor === 'string' ? options.cssProcessor : 'css';
+  const cssProcessor = typeof options.cssProcessor === 'string' ? options.cssProcessor : 'css';
   const contextPackageManager =
     typeof context.packageManager === 'string' ? context.packageManager : null;
   const packageManager =
     typeof options.packageManager === 'string'
       ? options.packageManager
-      : contextPackageManager ?? 'npm';
+      : (contextPackageManager ?? 'npm');
   const repository =
     typeof options.repository === 'string'
       ? options.repository
       : typeof context.repository === 'string'
         ? context.repository
         : '';
-  const unitTestTool =
-    typeof options.unitTestTool === 'string' ? options.unitTestTool : 'vitest';
+  const unitTestTool = typeof options.unitTestTool === 'string' ? options.unitTestTool : 'vitest';
   const port =
     typeof options.port === 'number' && Number.isFinite(options.port) ? options.port : 3000;
   const resolvedDependencies = normalizeDependencyRecord(options.resolvedDependencies);
@@ -361,7 +330,8 @@ function buildTemplateLocals(
     templateName: template.manifest.name,
     options,
     useTs,
-    language: typeof options.language === 'string' ? options.language : useTs ? 'TypeScript' : 'JavaScript',
+    language:
+      typeof options.language === 'string' ? options.language : useTs ? 'TypeScript' : 'JavaScript',
     lintTools,
     cssTools,
     buildTool,
@@ -402,6 +372,7 @@ function normalizeQuestions(value: unknown) {
       name: String(record.name ?? 'projectName'),
       type: String(record.type ?? 'input'),
       ...(record.message ? { message: String(record.message) } : {}),
+      ...(record.default !== undefined ? { default: record.default } : {}),
       ...(Array.isArray(record.choices)
         ? { choices: record.choices.map((choice) => String(choice)) }
         : {}),
@@ -422,9 +393,7 @@ function normalizePackageList(value: unknown) {
       if (typeof record.name !== 'string') {
         return null;
       }
-      return typeof record.version === 'string'
-        ? `${record.name}@${record.version}`
-        : record.name;
+      return typeof record.version === 'string' ? `${record.name}@${record.version}` : record.name;
     })
     .filter((entry): entry is string => Boolean(entry));
 }
@@ -433,8 +402,7 @@ function normalizeStringList(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value
-    .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
 }
 
 function normalizeTemplateFiles(value: unknown): TemplateFileRule[] {

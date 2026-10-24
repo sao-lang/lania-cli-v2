@@ -8,14 +8,17 @@ import {
   compilerDoneEvent,
   compilerStatusEvent,
   detectBuildTool,
+  detectRuntime,
   fallbackDevResult,
   findAvailablePort,
   resolveRuntimeWarning,
   type ActiveCompiler,
   type CompilerAdapterParams,
+  type Runtime,
 } from './compiler-shared.js';
 import type { BridgeEvent } from '../protocol/events.js';
 import { runCompilerInWorker } from './compiler-worker-client.js';
+import { failureExecution } from './runtime-adapters/spawn.js';
 import { loadLanConfig } from '../core/runtime.js';
 
 let activeCompiler: ActiveCompiler | null = null;
@@ -38,55 +41,72 @@ export const compilerPlugin = {
 };
 
 async function handleDev(params: Record<string, unknown>) {
+  const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
+  const host = typeof params.host === 'string' ? params.host : '127.0.0.1';
+  const requestedPort = typeof params.port === 'number' ? params.port : 8089;
+  let runtime: Runtime = 'web';
   try {
-    const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
-    const host = typeof params.host === 'string' ? params.host : '127.0.0.1';
-    const requestedPort = typeof params.port === 'number' ? params.port : 8089;
     const port = await findAvailablePort(requestedPort, host);
     const lanConfig = await loadLanConfig(cwd);
+    runtime = await detectRuntime(lanConfig.config, cwd, params.runtime);
     const tool = detectBuildTool(lanConfig.config);
-    const runtimeWarning = await resolveRuntimeWarning(cwd, tool, 'dev', lanConfig.config);
+    // 非 web runtime 不读 package.json 依赖，也不伪造 dev server 警告。
+    const runtimeWarning =
+      runtime === 'web' ? await resolveRuntimeWarning(cwd, tool, 'dev', lanConfig.config) : null;
 
     const execution = await runCompilerInWorker(
       'compiler.dev',
       createAdapterParams(cwd, host, port, params),
-      { tool, lanConfig: lanConfig.config, runtimeWarning },
+      { tool, runtime, lanConfig: lanConfig.config, runtimeWarning },
     ).catch(() => undefined);
     if (execution?.activeCompiler) {
       activeCompiler = execution.activeCompiler;
     }
-    return execution ?? fallbackDevResult(tool, host, port, runtimeWarning ?? undefined);
+    if (execution) {
+      return execution;
+    }
+    return runtime === 'web'
+      ? fallbackDevResult(tool, host, port, runtimeWarning ?? undefined)
+      : failureExecution(runtime, 'dev', 'runtime adapter unavailable');
   } catch {
-    // Any error in dev setup (port detection, config loading, worker spawn)
-    // falls back gracefully so the bridge always returns a usable result.
-    return fallbackDevResult('vite', '127.0.0.1', 8089, 'bridge worker unavailable');
+    // web 保持既有兜底；非 web 必须 fail-fast，不能伪造可用的 dev server。
+    return runtime === 'web'
+      ? fallbackDevResult('vite', host, requestedPort, 'bridge worker unavailable')
+      : failureExecution(runtime, 'dev', 'bridge worker unavailable');
   }
 }
 
 async function handleBuild(params: Record<string, unknown>) {
+  const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
+  let runtime: Runtime = 'web';
   try {
-    const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
     const watch = params.watch === true;
     const lanConfig = await loadLanConfig(cwd);
+    runtime = await detectRuntime(lanConfig.config, cwd, params.runtime);
     const tool = detectBuildTool(lanConfig.config);
     const mode = typeof params.mode === 'string' ? params.mode : null;
     const outputDir = typeof params.outputDir === 'string' ? params.outputDir : null;
-    const runtimeWarning = await resolveRuntimeWarning(cwd, tool, 'build', lanConfig.config);
+    const runtimeWarning =
+      runtime === 'web' ? await resolveRuntimeWarning(cwd, tool, 'build', lanConfig.config) : null;
 
     const execution = await runCompilerInWorker(
       'compiler.build',
       createAdapterParams(cwd, '127.0.0.1', 0, params),
-      { tool, lanConfig: lanConfig.config, runtimeWarning },
+      { tool, runtime, lanConfig: lanConfig.config, runtimeWarning },
     ).catch(() => undefined);
     if (execution?.activeCompiler) {
       activeCompiler = execution.activeCompiler;
     }
-    return (
-      execution ??
-      buildResult(tool, watch, mode, outputDir, 'fallback', runtimeWarning ?? undefined)
-    );
+    if (execution) {
+      return execution;
+    }
+    return runtime === 'web'
+      ? buildResult(tool, watch, mode, outputDir, 'fallback', runtimeWarning ?? undefined)
+      : failureExecution(runtime, 'build', 'runtime adapter unavailable');
   } catch {
-    return buildResult('vite', false, null, null, 'fallback', 'bridge worker unavailable');
+    return runtime === 'web'
+      ? buildResult('vite', false, null, null, 'fallback', 'bridge worker unavailable')
+      : failureExecution(runtime, 'build', 'bridge worker unavailable');
   }
 }
 

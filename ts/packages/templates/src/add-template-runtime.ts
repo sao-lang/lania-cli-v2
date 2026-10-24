@@ -99,6 +99,10 @@ const ADD_TEMPLATES: AddTemplateManifest[] = [
     filename: 'cz.config.js',
     schemaVersion: 1,
   },
+  { name: 'go-handler', label: 'Go handler', extname: 'go', schemaVersion: 1 },
+  { name: 'python-module', label: 'Python module', extname: 'py', schemaVersion: 1 },
+  { name: 'rust-module', label: 'Rust module', extname: 'rs', schemaVersion: 1 },
+  { name: 'dart-class', label: 'Dart class', extname: 'dart', schemaVersion: 1 },
 ];
 
 export async function listAddRuntimeTemplates() {
@@ -109,10 +113,7 @@ export async function getAddRuntimeTemplate(name: string) {
   return ADD_TEMPLATES.find((template) => template.name === name) ?? null;
 }
 
-export async function renderAddRuntimeTemplate(
-  name: string,
-  input: AddTemplateRuntimeInput = {},
-) {
+export async function renderAddRuntimeTemplate(name: string, input: AddTemplateRuntimeInput = {}) {
   const template = await getAddRuntimeTemplate(name);
   if (!template) {
     throw new Error(`Unknown add template: ${name}`);
@@ -122,11 +123,13 @@ export async function renderAddRuntimeTemplate(
   // add 模板的 language 只区分 js/ts，用于选择 jsx/tsx 等扩展名以及模板内条件逻辑。
   const language = normalizeLanguage(context.language);
   const templateFilePath = resolveAddTemplateAssetPath(name);
+  const projectName = typeof context.projectName === 'string' ? context.projectName : 'lania-app';
   const content = await ejsRenderer.renderFile(templateFilePath, {
     cssProcessor: typeof context.cssProcessor === 'string' ? context.cssProcessor : 'css',
     language,
-    name: typeof context.projectName === 'string' ? context.projectName : 'lania-app',
-    projectName: typeof context.projectName === 'string' ? context.projectName : 'lania-app',
+    name: projectName,
+    projectName,
+    componentName: typeof context.componentName === 'string' ? context.componentName : projectName,
   });
 
   return {
@@ -142,24 +145,12 @@ export async function renderAddRuntimeTemplate(
 function resolveAddTemplateAssetPath(name: string) {
   const assetName = resolveAssetName(name);
   // 发布态优先读 dist：不依赖 TS 源码与 workspace 目录结构。
-  const distPath = resolve(
-    templatesPackageDir(),
-    'dist',
-    'add-templates',
-    'assets',
-    assetName,
-  );
+  const distPath = resolve(templatesPackageDir(), 'dist', 'add-templates', 'assets', assetName);
   if (existsSync(distPath)) {
     return distPath;
   }
   // 开发态回退到 src，便于在 monorepo/workspace 中直接调试模板资产。
-  return resolve(
-    templatesPackageDir(),
-    'src',
-    'add-templates',
-    'assets',
-    assetName,
-  );
+  return resolve(templatesPackageDir(), 'src', 'add-templates', 'assets', assetName);
 }
 
 function resolveAssetName(name: string) {

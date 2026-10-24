@@ -146,6 +146,22 @@ pub(super) const ADD_TEMPLATE_SPECS: &[AddTemplateSpec] = &[
         name: "commitizen",
         label: "commitizen配置文件",
     },
+    AddTemplateSpec {
+        name: "go-handler",
+        label: "Go handler",
+    },
+    AddTemplateSpec {
+        name: "python-module",
+        label: "Python module",
+    },
+    AddTemplateSpec {
+        name: "rust-module",
+        label: "Rust module",
+    },
+    AddTemplateSpec {
+        name: "dart-class",
+        label: "Dart class",
+    },
 ];
 
 pub(super) fn declared_template(name: &str) -> Option<&'static DeclaredTemplate> {

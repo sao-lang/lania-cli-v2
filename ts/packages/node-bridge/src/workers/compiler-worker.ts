@@ -12,6 +12,8 @@
  */
 import type { BridgeEvent } from '../protocol/events.js';
 import { resolveCompilerAdapter } from '../plugins/compiler-adapters/index.js';
+import { resolveRuntimeAdapter } from '../plugins/runtime-adapters/index.js';
+import { failureExecution } from '../plugins/runtime-adapters/spawn.js';
 import {
   buildResult,
   fallbackDevResult,
@@ -50,7 +52,10 @@ async function handleRun(message: Extract<CompilerWorkerRequest, { type: 'run' }
       ...message.context,
       lanConfig: loadedLanConfig.config,
     };
-    const adapter = resolveCompilerAdapter(message.context.tool);
+    const adapter =
+      message.context.runtime === 'web'
+        ? resolveCompilerAdapter(message.context.tool)
+        : resolveRuntimeAdapter(message.context.runtime);
     const execution =
       message.method === 'compiler.dev'
         ? await adapter?.handleDev(message.params, context)
@@ -95,9 +100,14 @@ async function handleStop() {
   process.exit(0);
 }
 
-function createFallbackExecution(
-  message: Extract<CompilerWorkerRequest, { type: 'run' }>,
-) {
+function createFallbackExecution(message: Extract<CompilerWorkerRequest, { type: 'run' }>) {
+  if (message.context.runtime !== 'web') {
+    return failureExecution(
+      message.context.runtime,
+      message.method === 'compiler.dev' ? 'dev' : 'build',
+      'runtime adapter unavailable',
+    );
+  }
   return message.method === 'compiler.dev'
     ? fallbackDevResult(
         message.context.tool,
