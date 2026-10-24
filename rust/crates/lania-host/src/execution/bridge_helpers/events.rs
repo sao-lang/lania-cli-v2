@@ -240,6 +240,9 @@ impl<'a> CommandExecutionContext<'a> {
                     let adaptor = event.params["adaptor"].as_str().unwrap_or("unknown");
                     let errors = event.params["errors"].as_u64().unwrap_or_default();
                     let warnings = event.params["warnings"].as_u64().unwrap_or_default();
+                    let implementation = event.params["implementation"]
+                        .as_str()
+                        .unwrap_or("unknown");
                     self.log(
                         if errors > 0 {
                             LogLevel::Warn
@@ -248,7 +251,9 @@ impl<'a> CommandExecutionContext<'a> {
                         },
                         "command_execute",
                         Some(request.method.clone()),
-                        format!("{adaptor}: {errors} errors, {warnings} warnings"),
+                        format!(
+                            "{adaptor}: {errors} errors, {warnings} warnings ({implementation})"
+                        ),
                     );
                 }
                 BridgeEventMethod::LintSummary => {

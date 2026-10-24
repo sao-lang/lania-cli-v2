@@ -42,6 +42,8 @@ export type LintRunResult = {
   formatter: typeof LINT_FORMATTER;
   normalizer: typeof LINT_NORMALIZER;
   files: LintRunFile[];
+  /** 工具缺失或运行失败时的可读原因，供终端统一日志展示。 */
+  message?: string;
 };
 
 export type LintSummary = {
@@ -60,6 +62,7 @@ export function createLintRunResult(
   files: LintRunFile[],
   errors = files.reduce((count, file) => count + file.errors, 0),
   warnings = files.reduce((count, file) => count + file.warnings, 0),
+  message?: string,
 ): LintRunResult {
   return {
     adaptor,
@@ -69,5 +72,6 @@ export function createLintRunResult(
     formatter: LINT_FORMATTER,
     normalizer: LINT_NORMALIZER,
     files,
+    ...(message ? { message } : {}),
   };
 }

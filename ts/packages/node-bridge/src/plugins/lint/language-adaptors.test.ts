@@ -16,7 +16,7 @@ import {
   parseRuffOutput,
   runLanguageAdaptor,
 } from './language-runners.js';
-import { resolveLintTools } from './shared.js';
+import { fallbackMissingAdaptor, resolveLintTools } from './shared.js';
 import { LINT_ADAPTORS } from './types.js';
 
 test('language lint adaptors are registered and selectable', () => {
@@ -33,6 +33,7 @@ test('language lint adaptors are registered and selectable', () => {
     assert.ok((LINT_ADAPTORS as readonly string[]).includes(adaptor), adaptor);
   }
   assert.deepEqual(resolveLintTools({ lintTools: ['ruff', 'clippy'] }), ['ruff', 'clippy']);
+  assert.match(fallbackMissingAdaptor('ruff').message ?? '', /not installed/);
 });
 
 test('language lint parsers normalize tool output', () => {
@@ -101,6 +102,9 @@ test('missing language tools fall back instead of throwing', async () => {
     const result = await runLanguageAdaptor('ruff', cwd, false);
     assert.ok(result);
     assert.equal(result?.implementation, available ? 'runtime' : 'fallback');
+    if (!available) {
+      assert.match(result?.message ?? '', /not installed/);
+    }
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

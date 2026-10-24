@@ -95,17 +95,32 @@ export function logEvent(message: string): BridgeEvent {
 }
 
 export function fallbackMissingAdaptor(adaptor: LintAdaptor): LintRunResult {
-  return createLintRunResult(adaptor, 'fallback', [{ filePath: '.', errors: 0, warnings: 1 }]);
+  return createLintRunResult(
+    adaptor,
+    'fallback',
+    [{ filePath: '.', errors: 0, warnings: 1 }],
+    0,
+    1,
+    `${adaptor} is not installed or not found in PATH; skipped`,
+  );
 }
 
 export function failedRuntimeResult(adaptor: LintAdaptor, output: string): LintRunResult {
-  return createLintRunResult(adaptor, 'runtime', [
-    {
-      filePath: output.trim() || '.',
-      errors: 1,
-      warnings: 0,
-    },
-  ]);
+  const message = output.trim().slice(0, 400) || `${adaptor} failed`;
+  return createLintRunResult(
+    adaptor,
+    'runtime',
+    [
+      {
+        filePath: output.trim() || '.',
+        errors: 1,
+        warnings: 0,
+      },
+    ],
+    1,
+    0,
+    message,
+  );
 }
 
 export function fallbackStatusResult(
@@ -113,7 +128,14 @@ export function fallbackStatusResult(
   warnings: number,
   filePath = '.',
 ): LintRunResult {
-  return createLintRunResult(adaptor, 'fallback', [{ filePath, errors: 0, warnings }]);
+  return createLintRunResult(
+    adaptor,
+    'fallback',
+    [{ filePath, errors: 0, warnings }],
+    0,
+    warnings,
+    `${adaptor} is not available; skipped`,
+  );
 }
 
 export function okStatusResult(adaptor: LintAdaptor, implementation: 'runtime' | 'fallback') {

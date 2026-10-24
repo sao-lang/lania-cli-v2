@@ -79,6 +79,9 @@ export const lintPlugin = {
             adaptors: linters,
           },
         } satisfies BridgeEvent,
+        ...results
+          .filter((result) => Boolean(result.message))
+          .map((result) => logEvent(`${result.adaptor}: ${result.message}`)),
         ...results.flatMap((result) =>
           result.files.map(
             (file) =>
