@@ -13,7 +13,7 @@
 //! ```
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{
@@ -29,13 +29,27 @@ use super::theme::{IconSet, Theme};
 pub struct Renderer {
     pub theme: Theme,
     pub icons: IconSet,
+    pub locale: String,
 }
 
 impl Renderer {
-    pub fn new() -> Self {
+    pub fn new(locale: &str) -> Self {
         Self {
             theme: Theme::yazi(),
             icons: IconSet::detect(),
+            locale: locale.to_string(),
+        }
+    }
+
+    fn zh(&self) -> bool {
+        self.locale.starts_with("zh")
+    }
+
+    fn tr(&self, en: &'static str, zh: &'static str) -> &'static str {
+        if self.zh() {
+            zh
+        } else {
+            en
         }
     }
 
@@ -49,14 +63,14 @@ impl Renderer {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1), // 标题栏
+                Constraint::Length(3), // 标题 + 工作目录 / git / 系统
                 Constraint::Min(3),    // 主体
                 Constraint::Length(1), // 快捷键栏
                 Constraint::Length(1), // 状态栏
             ])
             .split(area);
 
-        self.draw_header(frame, chunks[0]);
+        self.draw_header(frame, chunks[0], app);
         self.draw_body(frame, chunks[1], app);
         self.draw_keys(frame, chunks[2]);
         self.draw_status(frame, chunks[3], app);
@@ -73,13 +87,20 @@ impl Renderer {
         let text = vec![
             Line::from(""),
             Line::from(Span::styled(
-                "终端太小",
+                self.tr("Terminal too small", "终端太小"),
                 Style::default()
                     .fg(self.theme.warn)
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::styled(
-                format!("请放大到至少 60x14（当前 {}x{}）", area.width, area.height),
+                if self.zh() {
+                    format!("请放大到至少 60x14（当前 {}x{}）", area.width, area.height)
+                } else {
+                    format!(
+                        "Resize to at least 60x14 (current {}x{})",
+                        area.width, area.height
+                    )
+                },
                 Style::default().fg(self.theme.muted),
             )),
         ];
@@ -88,23 +109,100 @@ impl Renderer {
 
     // ---------------- 标题栏 ----------------
 
-    fn draw_header(&self, frame: &mut Frame<'_>, area: Rect) {
+    fn draw_header(&self, frame: &mut Frame<'_>, area: Rect, app: &App) {
+        let bold = Modifier::BOLD;
         let title = Span::styled(
             " lan env ",
-            Style::default()
-                .fg(self.theme.title)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(self.theme.title).add_modifier(bold),
         );
-        let dot = Span::styled("·", Style::default().fg(self.theme.muted));
-        let name = Span::styled("toolchains", Style::default().fg(self.theme.text));
+        let dot = Span::styled("·", Style::default().fg(self.theme.border_focus));
+        let name = Span::styled(
+            "toolchains",
+            Style::default().fg(self.theme.text).add_modifier(bold),
+        );
+
+        // 第一行：标题 + 设备系统信息（强调色，不使用灰色）。
+        let os_label = Span::styled(
+            "os ",
+            Style::default().fg(self.theme.warn).add_modifier(bold),
+        );
+        let os_value = Span::styled(
+            app.system.clone(),
+            Style::default().fg(self.theme.text).add_modifier(bold),
+        );
+
+        // 第二行：当前工作目录。
+        let cwd = fit_label(
+            &app.cwd.display().to_string(),
+            area.width.saturating_sub(7) as usize,
+        );
+        let cwd_line = Line::from(vec![
+            Span::styled(
+                " cwd ",
+                Style::default().fg(self.theme.title).add_modifier(bold),
+            ),
+            Span::styled(cwd, Style::default().fg(self.theme.text).add_modifier(bold)),
+        ]);
+
+        // 第三行：git 仓库与分支。
+        let git_line = match (&app.repo, &app.git_branch) {
+            (Some(repo), Some(branch)) => Line::from(vec![
+                Span::styled(
+                    " git ",
+                    Style::default().fg(self.theme.accent).add_modifier(bold),
+                ),
+                Span::styled(
+                    repo.clone(),
+                    Style::default().fg(self.theme.text).add_modifier(bold),
+                ),
+                Span::styled(
+                    " @ ",
+                    Style::default()
+                        .fg(self.theme.border_focus)
+                        .add_modifier(bold),
+                ),
+                Span::styled(
+                    branch.clone(),
+                    Style::default().fg(self.theme.ok).add_modifier(bold),
+                ),
+            ]),
+            (Some(repo), None) => Line::from(vec![
+                Span::styled(
+                    " git ",
+                    Style::default().fg(self.theme.accent).add_modifier(bold),
+                ),
+                Span::styled(
+                    repo.clone(),
+                    Style::default().fg(self.theme.text).add_modifier(bold),
+                ),
+            ]),
+            _ => Line::from(vec![
+                Span::styled(
+                    " git ",
+                    Style::default().fg(self.theme.accent).add_modifier(bold),
+                ),
+                Span::styled(
+                    self.tr("no repository", "无仓库"),
+                    Style::default().fg(self.theme.warn).add_modifier(bold),
+                ),
+            ]),
+        };
+
         frame.render_widget(
-            Paragraph::new(Line::from(vec![
-                title,
-                Span::raw(" "),
-                dot,
-                Span::raw(" "),
-                name,
-            ])),
+            Paragraph::new(vec![
+                Line::from(vec![
+                    title,
+                    Span::raw(" "),
+                    dot,
+                    Span::raw(" "),
+                    name,
+                    Span::styled("  ·  ", Style::default().fg(self.theme.border_focus)),
+                    os_label,
+                    os_value,
+                ]),
+                cwd_line,
+                git_line,
+            ]),
             area,
         );
     }
@@ -150,11 +248,12 @@ impl Renderer {
     }
 
     fn draw_list(&self, frame: &mut Frame<'_>, area: Rect, app: &App) {
-        let block = self.panel_block("工具", true);
+        let block = self.panel_block(self.tr("Tools", "工具"), true);
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         let visible = inner.height as usize;
+        let name_width = self.name_column_width(app);
 
         // 把「可显示的行」展开成扁平列表：分组标题行与其后的语言工具行合并为一行。
         let mut display_rows: Vec<Line<'_>> = Vec::new();
@@ -165,7 +264,7 @@ impl Renderer {
                     if let Some(Row::Tool(tool_index)) = app.rows.get(index + 1) {
                         if let Some(tool) = app.tools.get(*tool_index) {
                             let selected = index + 1 == app.cursor;
-                            display_rows.push(self.tool_line(app, tool, selected));
+                            display_rows.push(self.tool_line(tool, selected, name_width));
                             index += 2;
                             continue;
                         }
@@ -175,11 +274,33 @@ impl Renderer {
                 Row::Tool(tool_index) => {
                     if let Some(tool) = app.tools.get(*tool_index) {
                         let selected = index == app.cursor;
-                        display_rows.push(self.tool_line(app, tool, selected));
+                        display_rows.push(self.tool_line(tool, selected, name_width));
                     }
                     index += 1;
                 }
             }
+        }
+
+        if display_rows.is_empty() {
+            // 首帧就画出骨架，避免边框出现后中间空白一段可感知的时间。
+            let lines: Vec<Line<'_>> = (0..visible)
+                .map(|row| {
+                    let text = if app.loading {
+                        if row % 2 == 0 {
+                            "  ░░░░░░░░░░░░  ░░░░░"
+                        } else {
+                            "  ░░░░░░  ░░░░░░░"
+                        }
+                    } else if row == 0 {
+                        self.tr("  No toolchains found", "  没有找到工具链")
+                    } else {
+                        ""
+                    };
+                    Line::from(Span::styled(text, Style::default().fg(self.theme.border)))
+                })
+                .collect();
+            frame.render_widget(Paragraph::new(lines), inner);
+            return;
         }
 
         let total = display_rows.len();
@@ -219,7 +340,36 @@ impl Renderer {
         }
     }
 
-    fn tool_line<'a>(&self, app: &App, tool: &lania_env::ToolStatus, selected: bool) -> Line<'a> {
+    /// 详情面板的一句话简介：语言用内置 summary，附属工具标注为所属语言的包管理器。
+    fn tool_summary(&self, tool: &lania_env::ToolStatus) -> String {
+        if tool.id != tool.language {
+            return format!(
+                "{} {}",
+                language_label(&tool.language),
+                self.tr("package manager", "包管理器")
+            );
+        }
+        lania_env::Language::parse_id(&tool.language)
+            .map(|language| language.summary(self.zh()).to_string())
+            .unwrap_or_default()
+    }
+
+    /// 所有行共用的名称列宽：按最长标签计算并夹在 10..=14，保证版本列对齐。
+    fn name_column_width(&self, app: &App) -> usize {
+        app.tools
+            .iter()
+            .map(|tool| display_width(&tool_label(tool)))
+            .max()
+            .unwrap_or(10)
+            .clamp(10, 14)
+    }
+
+    fn tool_line<'a>(
+        &self,
+        tool: &lania_env::ToolStatus,
+        selected: bool,
+        name_width: usize,
+    ) -> Line<'a> {
         let is_language = tool.id == tool.language;
         // 统一的行格式：`<指针> <图标> <名称(定宽)> <版本>`。
         // 语言与附属工具只在图标/颜色上区分，缩进保持一致，
@@ -244,12 +394,7 @@ impl Renderer {
             Span::styled("· ", Style::default().fg(self.theme.muted))
         };
 
-        let label = if is_language {
-            language_label(&tool.language).to_string()
-        } else {
-            tool.id.clone()
-        };
-        let name_width = 10usize;
+        let label = fit_label(&tool_label(tool), name_width);
         let pad = name_width.saturating_sub(display_width(&label));
         let name = Span::styled(
             format!("{label}{}", " ".repeat(pad)),
@@ -266,7 +411,10 @@ impl Renderer {
             }
             // 懒加载：已安装但还没跑 `--version`，移动光标到该项时会补上。
             (None, true) => Span::styled(" …", Style::default().fg(self.theme.muted)),
-            (None, false) => Span::styled(" 未安装", Style::default().fg(self.theme.err)),
+            (None, false) => Span::styled(
+                self.tr(" not installed", " 未安装"),
+                Style::default().fg(self.theme.err),
+            ),
         };
 
         let line = Line::from(vec![pointer, icon, name, version]);
@@ -279,14 +427,19 @@ impl Renderer {
 
     fn draw_detail<'a>(&self, frame: &mut Frame<'_>, area: Rect, app: &App) {
         let Some(tool) = app.current() else {
-            let block = self.panel_block("详情", false);
+            let block = self.panel_block(self.tr("Details", "详情"), false);
             let inner = block.inner(area);
             frame.render_widget(block, area);
+            let text = if app.loading {
+                self.tr(
+                    "  Scanning toolchains…\n\n  ░░░░░░░░░░░░░░░░\n  ░░░░░░░░░░\n  ░░░░░░░░░░░░░░",
+                    "  正在扫描工具链…\n\n  ░░░░░░░░░░░░░░░░\n  ░░░░░░░░░░\n  ░░░░░░░░░░░░░░",
+                )
+            } else {
+                self.tr("  No tools available", "  没有可用工具")
+            };
             frame.render_widget(
-                Paragraph::new(Span::styled(
-                    "  没有可用工具",
-                    Style::default().fg(self.theme.muted),
-                )),
+                Paragraph::new(Span::styled(text, Style::default().fg(self.theme.muted))),
                 inner,
             );
             return;
@@ -297,15 +450,17 @@ impl Renderer {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let label_width = 20usize;
+        let label_width = 22usize;
         let mut lines: Vec<Line<'_>> = Vec::new();
 
-        // 版本大标题
+        // 版本大标题 + 简介
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::styled("  ", Style::default()),
             Span::styled(
-                tool.version.clone().unwrap_or_else(|| "未安装".into()),
+                tool.version
+                    .clone()
+                    .unwrap_or_else(|| self.tr("not installed", "未安装").into()),
                 Style::default()
                     .fg(if tool.installed {
                         self.theme.ok
@@ -319,12 +474,15 @@ impl Renderer {
                 Style::default().fg(self.theme.muted),
             ),
         ]));
+        lines.push(Line::from(Span::styled(
+            format!("  {}", self.tool_summary(tool)),
+            Style::default().fg(self.theme.muted),
+        )));
         lines.push(Line::from(""));
 
-        let mut kv = |lines: &mut Vec<Line<'a>>, key: &str, value: Span<'a>| {
+        let kv = |lines: &mut Vec<Line<'a>>, key: &str, value: Span<'a>| {
             // 中文字符占 2 个单元格，必须按显示宽度补齐才能对齐。
-            let key_width = display_width(key) + 2;
-            let padding = label_width.saturating_sub(key_width);
+            let padding = label_padding(key, label_width);
             lines.push(Line::from(vec![
                 Span::styled(
                     format!("  {key}{}", " ".repeat(padding)),
@@ -336,7 +494,7 @@ impl Renderer {
 
         kv(
             &mut lines,
-            "可执行文件",
+            self.tr("Executable", "可执行文件"),
             Span::styled(
                 tool.binary_path.clone().unwrap_or_else(|| "—".into()),
                 Style::default().fg(self.theme.text),
@@ -344,31 +502,35 @@ impl Renderer {
         );
         kv(
             &mut lines,
-            "当前来源",
+            self.tr("Current source", "当前来源"),
             match app.effective_manager() {
                 Some(manager) => {
                     Span::styled(manager.id().to_string(), Style::default().fg(self.theme.ok))
                 }
-                None if tool.installed => {
-                    Span::styled("系统安装", Style::default().fg(self.theme.warn))
-                }
+                None if tool.installed => Span::styled(
+                    self.tr("System install", "系统安装"),
+                    Style::default().fg(self.theme.warn),
+                ),
                 None => Span::styled("—", Style::default().fg(self.theme.muted)),
             },
         );
         kv(
             &mut lines,
-            "安装将使用",
+            self.tr("Will install with", "安装将使用"),
             match app.target_manager() {
                 Some(manager) => Span::styled(
                     manager.id().to_string(),
                     Style::default().fg(self.theme.accent),
                 ),
-                None => Span::styled("无可用管理器", Style::default().fg(self.theme.err)),
+                None => Span::styled(
+                    self.tr("No manager available", "无可用管理器"),
+                    Style::default().fg(self.theme.err),
+                ),
             },
         );
         kv(
             &mut lines,
-            "安装根目录",
+            self.tr("Install root", "安装根目录"),
             Span::styled(
                 tool.install_root.clone().unwrap_or_else(|| "—".into()),
                 Style::default().fg(self.theme.text),
@@ -376,13 +538,13 @@ impl Renderer {
         );
         kv(
             &mut lines,
-            "项目版本约束",
+            self.tr("Project constraint", "项目版本约束"),
             match &tool.project_version {
                 Some(pin) => Span::styled(
                     format!("{}  ({})", pin.version, pin.file),
                     Style::default().fg(self.theme.accent),
                 ),
-                None => Span::styled("无", Style::default().fg(self.theme.muted)),
+                None => Span::styled(self.tr("none", "无"), Style::default().fg(self.theme.muted)),
             },
         );
 
@@ -392,7 +554,7 @@ impl Renderer {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::styled(
-                "  已安装版本",
+                self.tr("  Installed versions", "  已安装版本"),
                 Style::default()
                     .fg(self.theme.muted)
                     .add_modifier(Modifier::BOLD),
@@ -405,9 +567,12 @@ impl Renderer {
         if versions.is_empty() {
             lines.push(Line::from(Span::styled(
                 if tool.installed {
-                    "    当前版本不受任何版本管理器管理"
+                    self.tr(
+                        "    Current version is not managed by any version manager",
+                        "    当前版本不受任何版本管理器管理",
+                    )
                 } else {
-                    "    尚未安装"
+                    self.tr("    Not installed yet", "    尚未安装")
                 },
                 Style::default().fg(self.theme.muted),
             )));
@@ -453,7 +618,7 @@ impl Renderer {
         // 版本管理器可用性：按面板实际宽度换行，避免 `npm` 被截成 `n`。
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            "  版本管理器",
+            self.tr("  Version managers", "  版本管理器"),
             Style::default()
                 .fg(self.theme.muted)
                 .add_modifier(Modifier::BOLD),
@@ -489,6 +654,12 @@ impl Renderer {
         }
         if !spans.is_empty() {
             lines.push(Line::from(spans));
+        }
+        if let Some(manager) = app.effective_manager().or_else(|| app.target_manager()) {
+            lines.push(Line::from(Span::styled(
+                format!("    {}", manager.summary(self.zh())),
+                Style::default().fg(self.theme.muted),
+            )));
         }
 
         let content_height = lines.len();
@@ -546,23 +717,23 @@ impl Renderer {
         let spans = vec![
             Span::raw(" "),
             key("i"),
-            label(" install "),
+            label(self.tr(" install ", " 安装 ")),
             key("u"),
-            label(" use "),
+            label(self.tr(" use ", " 切换 ")),
             key("d"),
-            label(" remove "),
+            label(self.tr(" remove ", " 卸载 ")),
             key("m"),
-            label(" manager "),
+            label(self.tr(" manager ", " 管理器 ")),
             key("p"),
-            label(" pin "),
+            label(self.tr(" pin ", " 锁定 ")),
             key("v"),
-            label(" versions "),
+            label(self.tr(" versions ", " 版本 ")),
             key("D"),
-            label(" doctor "),
+            label(self.tr(" doctor ", " 体检 ")),
             key("r"),
-            label(" reload "),
+            label(self.tr(" reload ", " 刷新 ")),
             key("q"),
-            label(" quit"),
+            label(self.tr(" quit", " 退出")),
         ];
         frame.render_widget(Paragraph::new(Line::from(spans)), area);
     }
@@ -592,14 +763,12 @@ impl Renderer {
             format!(" {} ", app.status),
             Style::default().fg(self.theme.text),
         );
-        let path = app.cwd.display().to_string();
         let pin = if app.project_pin {
-            " [项目锁定]"
+            self.tr(" [project pin] ", " [项目锁定] ")
         } else {
             ""
         };
-        let right_text = format!(" {path}{pin} ");
-        let right = Span::styled(right_text, Style::default().fg(self.theme.muted));
+        let right = Span::styled(pin, Style::default().fg(self.theme.muted));
 
         frame.render_widget(
             Paragraph::new(Line::from(vec![left, middle, right]))
@@ -630,7 +799,7 @@ impl Renderer {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.theme.accent))
             .title(Span::styled(
-                format!(" {} 版本 ", kind.label()),
+                format!(" {} {} ", kind.label(self.zh()), self.tr("version", "版本")),
                 Style::default()
                     .fg(self.theme.accent)
                     .add_modifier(Modifier::BOLD),
@@ -645,12 +814,20 @@ impl Renderer {
         let manager = app
             .target_manager()
             .map(|manager| manager.id().to_string())
-            .unwrap_or_else(|| "无".into());
-        let pin = if app.project_pin { "开" } else { "关" };
+            .unwrap_or_else(|| self.tr("none", "无").into());
+        let pin = if app.project_pin {
+            self.tr("on", "开")
+        } else {
+            self.tr("off", "关")
+        };
 
         let lines = vec![
             Line::from(Span::styled(
-                format!("  {tool_name} · 管理器 {manager} · 项目锁定 {pin}"),
+                format!(
+                    "  {tool_name} · {} {manager} · {} {pin}",
+                    self.tr("manager", "管理器"),
+                    self.tr("project pin", "项目锁定")
+                ),
                 Style::default().fg(self.theme.muted),
             )),
             Line::from(""),
@@ -661,7 +838,7 @@ impl Renderer {
             ]),
             Line::from(""),
             Line::from(Span::styled(
-                "  Enter 确认   Esc 取消",
+                self.tr("  Enter confirm   Esc cancel", "  Enter 确认   Esc 取消"),
                 Style::default().fg(self.theme.muted),
             )),
         ];
@@ -682,7 +859,12 @@ impl Renderer {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.theme.warn))
             .title(Span::styled(
-                format!(" 确认{} {} ", action_label(plan.action), plan.tool),
+                format!(
+                    " {} {} {} ",
+                    self.tr("Confirm", "确认"),
+                    action_label(plan.action, self.zh()),
+                    plan.tool
+                ),
                 Style::default()
                     .fg(self.theme.warn)
                     .add_modifier(Modifier::BOLD),
@@ -724,14 +906,20 @@ impl Renderer {
                 "  Enter ",
                 Style::default().fg(self.theme.bg_chip()).bg(self.theme.ok),
             ),
-            Span::styled(" 执行    ", Style::default().fg(self.theme.muted)),
+            Span::styled(
+                self.tr(" Execute    ", " 执行    "),
+                Style::default().fg(self.theme.muted),
+            ),
             Span::styled(
                 " Esc ",
                 Style::default()
                     .fg(self.theme.bg_chip())
                     .bg(self.theme.muted),
             ),
-            Span::styled(" 取消", Style::default().fg(self.theme.muted)),
+            Span::styled(
+                self.tr(" Cancel", " 取消"),
+                Style::default().fg(self.theme.muted),
+            ),
         ]));
 
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
@@ -750,7 +938,7 @@ impl Renderer {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.theme.ok))
             .title(Span::styled(
-                " 输出 ",
+                self.tr(" Output ", " 输出 "),
                 Style::default()
                     .fg(self.theme.ok)
                     .add_modifier(Modifier::BOLD),
@@ -776,7 +964,7 @@ impl Renderer {
             .collect();
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            "  Esc / Enter 关闭",
+            self.tr("  Esc / Enter to close", "  Esc / Enter 关闭"),
             Style::default().fg(self.theme.muted),
         )));
 
@@ -793,13 +981,44 @@ pub fn language_label(id: &str) -> &'static str {
         .unwrap_or("Other")
 }
 
-/// 动作 → 中文标签。
-pub fn action_label(action: lania_env::EnvAction) -> &'static str {
+/// 左侧列表显示名：语言用展示名，附属工具用可执行文件名。
+fn tool_label(tool: &lania_env::ToolStatus) -> String {
+    if tool.id == tool.language {
+        language_label(&tool.language).to_string()
+    } else {
+        tool.id.clone()
+    }
+}
+
+/// 截断到指定显示宽度，超出部分用 `…` 表示，保证版本列起点一致。
+fn fit_label(label: &str, width: usize) -> String {
+    if display_width(label) <= width {
+        return label.to_string();
+    }
+    let mut out = String::new();
+    let mut used = 0usize;
+    for ch in label.chars() {
+        let ch_width = display_width(&ch.to_string());
+        if used + ch_width + 1 > width {
+            break;
+        }
+        out.push(ch);
+        used += ch_width;
+    }
+    out.push('…');
+    out
+}
+
+/// 动作 → 本地化标签。
+pub fn action_label(action: lania_env::EnvAction, zh: bool) -> &'static str {
     use lania_env::EnvAction;
-    match action {
-        EnvAction::Install => "安装",
-        EnvAction::Use => "切换",
-        EnvAction::Remove | EnvAction::UninstallManagerVersion => "卸载",
+    match (action, zh) {
+        (EnvAction::Install, true) => "安装",
+        (EnvAction::Use, true) => "切换",
+        (EnvAction::Remove | EnvAction::UninstallManagerVersion, true) => "卸载",
+        (EnvAction::Install, false) => "install",
+        (EnvAction::Use, false) => "use",
+        (EnvAction::Remove | EnvAction::UninstallManagerVersion, false) => "remove",
     }
 }
 
@@ -813,6 +1032,11 @@ impl Theme {
 /// 强调块（键名、chip）上的深色前景，保证与背景对比度。
 fn chip_fg() -> ratatui::style::Color {
     ratatui::style::Color::Rgb(16, 18, 22)
+}
+
+/// 详情面板 KV 的左侧留白：保证所有 value 从同一列开始。
+fn label_padding(key: &str, label_width: usize) -> usize {
+    label_width.saturating_sub(display_width(key) + 2)
 }
 
 /// 估算字符串的终端显示宽度（CJK / 全角按 2 计）。
@@ -855,6 +1079,104 @@ mod tests {
             assert_ne!(label, "Other", "{} missing label", language.id());
             assert!(!label.is_empty(), "{} has empty label", language.id());
         }
-        assert!(lania_env::Language::all().len() >= 40, "expected 40+ languages");
+        assert!(
+            lania_env::Language::all().len() >= 40,
+            "expected 40+ languages"
+        );
+    }
+
+    #[test]
+    fn detail_values_share_one_column() {
+        let label_width = 22;
+        for key in [
+            "Executable",
+            "Current source",
+            "Will install with",
+            "Install root",
+            "Project constraint",
+            "可执行文件",
+            "安装将使用",
+        ] {
+            // kv 前缀是 2 个空格 + key + padding，结果必须等于 label_width。
+            assert_eq!(
+                2 + display_width(key) + label_padding(key, label_width),
+                label_width,
+                "{key} is misaligned"
+            );
+        }
+    }
+
+    #[test]
+    fn fit_label_truncates_to_column_width() {
+        assert_eq!(fit_label("Node.js", 14), "Node.js");
+        assert_eq!(fit_label("kotlinc-native", 14), "kotlinc-native");
+        let fitted = fit_label("typescript-language-server", 14);
+        assert!(display_width(&fitted) <= 14, "{fitted:?}");
+        assert!(fitted.ends_with('…'), "{fitted:?}");
+    }
+
+    fn tool(id: &str, language: &str) -> lania_env::ToolStatus {
+        lania_env::ToolStatus {
+            id: id.into(),
+            name: id.into(),
+            language: language.into(),
+            installed: true,
+            version: None,
+            binary_path: None,
+            manager: None,
+            candidates: Vec::new(),
+            project_version: None,
+            install_root: None,
+        }
+    }
+
+    #[test]
+    fn name_column_is_shared_and_bounded() {
+        let renderer = Renderer::new("en");
+        let mut app = App::new(std::path::PathBuf::from("."), "en");
+        app.set_tools_for_test(vec![tool("node", "node")]);
+        assert_eq!(renderer.name_column_width(&app), 10);
+
+        app.set_tools_for_test(vec![tool("node", "node"), tool("kotlinc-native", "kotlin")]);
+        assert_eq!(renderer.name_column_width(&app), 14);
+    }
+
+    #[test]
+    fn detail_summaries_cover_languages_and_package_managers() {
+        let renderer = Renderer::new("en");
+        let language = tool("node", "node");
+        assert!(renderer.tool_summary(&language).contains("JavaScript"));
+
+        let companion = tool("npm", "node");
+        assert!(renderer
+            .tool_summary(&companion)
+            .contains("package manager"));
+    }
+
+    #[test]
+    fn loading_frame_renders_skeleton_instead_of_blank() {
+        use ratatui::{backend::TestBackend, Terminal};
+
+        let renderer = Renderer::new("en");
+        let mut app = App::new(std::path::PathBuf::from("."), "en");
+        app.loading = true;
+        app.tools.clear();
+        app.rows.clear();
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 16)).expect("terminal");
+        terminal
+            .draw(|frame| renderer.draw(frame, &mut app))
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        let text: String = (0..16)
+            .map(|y| {
+                (0..80)
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("Scanning toolchains"), "{text}");
+        assert!(text.contains('░'), "{text}");
     }
 }

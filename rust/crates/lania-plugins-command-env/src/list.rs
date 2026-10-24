@@ -287,25 +287,3 @@ fn require_language(ctx: &CommandExecutionContext<'_>, subcommand: &str) -> Resu
         )
     })
 }
-
-fn parse_manager_id(value: &str) -> Option<ManagerKind> {
-    match value {
-        "nvm" => Some(ManagerKind::Nvm),
-        "fnm" => Some(ManagerKind::Fnm),
-        "volta" => Some(ManagerKind::Volta),
-        "n" => Some(ManagerKind::N),
-        "asdf" => Some(ManagerKind::Asdf),
-        "mise" => Some(ManagerKind::Mise),
-        "pyenv" => Some(ManagerKind::Pyenv),
-        "uv" => Some(ManagerKind::Uv),
-        "rustup" => Some(ManagerKind::Rustup),
-        "go-install" => Some(ManagerKind::GoInstall),
-        "fvm" => Some(ManagerKind::Fvm),
-        "sdkman" => Some(ManagerKind::Sdkman),
-        "scoop" => Some(ManagerKind::Scoop),
-        "winget" => Some(ManagerKind::Winget),
-        "brew" => Some(ManagerKind::Brew),
-        "apt" => Some(ManagerKind::Apt),
-        _ => None,
-    }
-}

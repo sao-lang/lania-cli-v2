@@ -48,7 +48,7 @@ lan env ui --snapshot --cols 100 --rows 28         # 非交互：输出一帧纯
 **右侧「已安装版本」默认就会加载**，无需手动按键；它会遍历该语言所有可用的版本管理器，
 因此即使当前 `node` 来自系统安装，也能看到 nvm / volta 里装过的历史版本。
 
-状态栏会显示当前模式（`NORMAL` / `INPUT` / `CONFIRM` / `RESULT`）、提示消息、工作目录与项目锁定状态。
+界面顶部固定展示当前工作目录、git 仓库名与分支、设备系统/主机信息，并用加粗和不同颜色区分；状态栏显示当前模式（`NORMAL` / `INPUT` / `CONFIRM` / `RESULT`）与提示消息。包管理器（npm/pip/cargo 等）会紧跟在其所属语言下方。
 
 ### TUI 快捷键
 
@@ -73,16 +73,16 @@ lan env ui --snapshot --cols 100 --rows 28         # 非交互：输出一帧纯
 
 ### 图标与字体
 
-列表中的语言图标使用 [Nerd Font](https://www.nerdfonts.com/) 私有区字符。程序会自动探测：
+列表中的语言图标使用 [Nerd Font](https://www.nerdfonts.com/) 私有区字符，Deno/Bun 分别使用官方 Devicons `U+E7C0` / `U+E76F`。程序会自动探测：
 
 - Windows Terminal / VS Code 终端等已知支持的环境 → 启用图标
 - 其他环境 → 回退为 `◈`，不会出现方框乱码
 
-也可以显式指定：
+字形大小由所安装的 Nerd Font 决定（Deno 的官方字形在部分字体里偏小）；如果图标缺字或大小不一致，建议安装 Nerd Fonts v3.4+ 的 patched 字体，或使用等宽的纯文本图标：
 
 ```bash
-LANIA_ENV_ICONS=nerd  lan env ui   # 强制图标
-LANIA_ENV_ICONS=ascii lan env ui   # 强制纯文本
+LANIA_ENV_ICONS=nerd  lan env ui   # 强制官方图标
+LANIA_ENV_ICONS=ascii lan env ui   # 强制等宽纯文本 ◈
 ```
 
 ## 支持的语言

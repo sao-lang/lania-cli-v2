@@ -147,11 +147,18 @@ fn execute_ui(ctx: &CommandExecutionContext<'_>, cwd: &std::path::Path) -> Resul
         // `--no-versions` 会被命令行解析器规范化成 `versions: false`，
         // 这里要按规范化后的键读取。
         let wait_versions = option_bool(ctx, "versions").unwrap_or(true);
-        let frame = tui::snapshot_with(cwd.to_path_buf(), cols, rows, down, wait_versions)?;
+        let frame = tui::snapshot_with(
+            cwd.to_path_buf(),
+            cols,
+            rows,
+            down,
+            wait_versions,
+            ctx.locale(),
+        )?;
         return Ok(json!({ "kind": "env_ui_snapshot", "frame": frame, "down": down }));
     }
 
-    tui::run(cwd.to_path_buf())?;
+    tui::run(cwd.to_path_buf(), ctx.locale().to_string())?;
     Ok(json!({ "kind": "env_ui", "status": "closed" }))
 }
 
@@ -214,7 +221,7 @@ fn ui_spec() -> CommandSpec {
             description: "Open the two-pane terminal UI (arrows to move, i/u/d to act)".into(),
         },
         Example {
-            command: "lan env ui --snapshot --plain".into(),
+            command: "lan env ui --snapshot".into(),
             description: "Render one frame without entering interactive mode".into(),
         },
     ])

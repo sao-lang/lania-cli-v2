@@ -61,6 +61,86 @@ fn every_language_has_probes_and_managers() {
 }
 
 #[test]
+fn companions_only_include_package_managers() {
+    // 左侧 TUI 列表只展示环境与包管理器；lint/格式化/LSP/编译器不再混入。
+    let forbidden = [
+        "gofmt",
+        "rustfmt",
+        "clippy",
+        "zls",
+        "kotlinc-native",
+        "javac",
+        "scala-cli",
+        "swiftc",
+        "irb",
+        "luajit",
+        "iex",
+        "erlc",
+        "Rscript",
+        "dune",
+        "bb",
+        "moonc",
+        "moonrun",
+        "moonfmt",
+        "cjc",
+        "cjdb",
+        "hvigorw",
+        "hdc",
+        "cast",
+        "anvil",
+        "dfmt",
+        "neko",
+        "elm-format",
+        "make",
+        "cmake",
+        "ninja",
+        "pkg-config",
+    ];
+    for language in Language::all() {
+        for companion in language.companions() {
+            assert!(
+                !forbidden.contains(&companion),
+                "{} still lists non-package tool {companion}",
+                language.id()
+            );
+        }
+    }
+    assert!(Language::Node.companions().contains(&"npm"));
+    assert!(Language::Rust.companions().contains(&"cargo"));
+    assert!(Language::Python.companions().contains(&"pip"));
+}
+
+#[test]
+fn language_and_manager_summaries_are_bilingual() {
+    for language in Language::all() {
+        let en = language.summary(false);
+        let zh = language.summary(true);
+        assert!(!en.is_empty(), "{} has empty en summary", language.id());
+        assert!(!zh.is_empty(), "{} has empty zh summary", language.id());
+        assert_ne!(en, zh, "{} summary is not localized", language.id());
+    }
+
+    let mut managers = std::collections::HashSet::new();
+    for language in Language::all() {
+        for manager in language.managers() {
+            if !managers.insert(manager.id()) {
+                continue;
+            }
+            assert!(
+                !manager.summary(false).is_empty(),
+                "{} has empty en summary",
+                manager.id()
+            );
+            assert!(
+                !manager.summary(true).is_empty(),
+                "{} has empty zh summary",
+                manager.id()
+            );
+        }
+    }
+}
+
+#[test]
 fn bun_and_deno_are_supported() {
     assert_eq!(Language::parse_id("bun"), Some(Language::Bun));
     assert_eq!(Language::parse_id("deno"), Some(Language::Deno));

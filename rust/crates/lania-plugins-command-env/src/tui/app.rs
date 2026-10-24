@@ -4,7 +4,7 @@
 //! 渲染层只读取这些字段，便于单测。
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use lania_env::{build_plan, EnvAction, EnvPlan, EnvService, Language, ManagerKind, ToolStatus};
 use lania_exec::ExecService;
@@ -34,11 +34,14 @@ impl InputKind {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Install => "安装",
-            Self::Use => "切换",
-            Self::Remove => "卸载",
+    pub fn label(self, zh: bool) -> &'static str {
+        match (self, zh) {
+            (Self::Install, true) => "安装",
+            (Self::Use, true) => "切换",
+            (Self::Remove, true) => "卸载",
+            (Self::Install, false) => "install",
+            (Self::Use, false) => "use",
+            (Self::Remove, false) => "remove",
         }
     }
 }
@@ -54,6 +57,16 @@ pub enum Row {
 
 pub struct App {
     pub cwd: PathBuf,
+    /// 生效的 CLI locale（`en` / `zh`）。
+    pub locale: String,
+    /// 首轮扫描尚未完成时置 true，用于渲染骨架屏而不是空白。
+    pub loading: bool,
+    /// 工作目录所在仓库名（无 git 时为 None）。
+    pub repo: Option<String>,
+    /// 当前 git 分支（detached HEAD 时显示短 hash）。
+    pub git_branch: Option<String>,
+    /// 设备系统信息，如 `Windows x64 · HOSTNAME`。
+    pub system: String,
     pub service: EnvService,
     pub exec: ExecService,
     pub tools: Vec<ToolStatus>,
@@ -96,9 +109,22 @@ pub struct VersionBatch {
 }
 
 impl App {
-    pub fn new(cwd: PathBuf) -> Self {
+    pub fn new(cwd: PathBuf, locale: impl Into<String>) -> Self {
+        let locale = locale.into();
+        let status = if locale.starts_with("zh") {
+            "就绪".to_string()
+        } else {
+            "Ready".to_string()
+        };
+        let (repo, git_branch) = workspace_git(&cwd);
+        let system = system_label();
         Self {
             cwd,
+            locale,
+            loading: true,
+            repo,
+            git_branch,
+            system,
             service: EnvService::new(),
             exec: ExecService::new(false),
             tools: Vec::new(),
@@ -113,12 +139,45 @@ impl App {
             versions_cache: HashMap::new(),
             pending_plan: None,
             log: Vec::new(),
-            status: "就绪".into(),
+            status,
             should_quit: false,
             scroll: 0,
             pending_refresh: false,
             load_versions: true,
         }
+    }
+
+    pub fn zh(&self) -> bool {
+        self.locale.starts_with("zh")
+    }
+
+    /// 选择当前 locale 的文案。
+    pub fn tr(&self, en: &'static str, zh: &'static str) -> &'static str {
+        if self.zh() {
+            zh
+        } else {
+            en
+        }
+    }
+
+    /// 测试专用：dry-run 执行器 + 关闭版本探测，避免改动真实工具链。
+    #[cfg(test)]
+    pub(crate) fn new_dry_run(cwd: PathBuf, locale: &str) -> Self {
+        let mut app = Self::new(cwd, locale);
+        app.exec = ExecService::dry_run();
+        app.load_versions = false;
+        app
+    }
+
+    /// 测试专用：注入固定的工具列表，不依赖本机 PATH。
+    #[cfg(test)]
+    pub(crate) fn set_tools_for_test(&mut self, tools: Vec<ToolStatus>) {
+        self.tools = tools;
+        self.loading = false;
+        self.rebuild_rows();
+        self.cursor = self.rows.len().saturating_sub(1);
+        self.snap_cursor_to_tool();
+        self.ensure_cursor_visible();
     }
 
     /// 在后台线程里启动一次扫描，返回接收端（TUI 用它做非阻塞轮询）。
@@ -250,7 +309,8 @@ impl App {
             .map(|tool| tool.language.clone())
             .collect();
         self.versions_cache.retain(|key, _| languages.contains(key));
-        self.status = format!("{} 个工具", self.tools.len());
+        self.loading = false;
+        self.status = format!("{} {}", self.tools.len(), self.tr("tools", "个工具"));
         self.ensure_cursor_visible();
         // 这里必须保持懒加载：全量跑 `--version` 要 5 秒以上（npm/pnpm/pip 的
         // 启动开销尤其大），不能在主线程做。其余工具的版本由
@@ -260,7 +320,8 @@ impl App {
     }
 
     pub fn refresh(&mut self) {
-        self.status = "扫描环境中…".into();
+        self.loading = true;
+        self.status = self.tr("Scanning toolchains…", "扫描环境中…").into();
         // 先只判断安装状态（不跑 `--version`），让首屏尽快出现。
         self.tools = self.service.scan_with(&self.cwd, false);
         self.rebuild_rows();
@@ -271,7 +332,8 @@ impl App {
             .map(|tool| tool.language.clone())
             .collect();
         self.versions_cache.retain(|key, _| languages.contains(key));
-        self.status = format!("{} 个工具", self.tools.len());
+        self.loading = false;
+        self.status = format!("{} {}", self.tools.len(), self.tr("tools", "个工具"));
         self.ensure_cursor_visible();
         // CLI / snapshot 没有事件循环，只能同步补全；交互路径走
         // [`spawn_version_fill`] 的后台线程，不受这里影响。
@@ -347,15 +409,24 @@ impl App {
         }
     }
 
-    /// 重建左侧列表：语言作为分组标题，其附属工具紧随其后。
+    /// 重建左侧列表：语言作为分组标题，其附属包管理器紧跟在该语言下方。
     fn rebuild_rows(&mut self) {
         let mut rows = Vec::new();
-        let mut seen_groups = std::collections::HashSet::new();
         for (index, tool) in self.tools.iter().enumerate() {
-            if seen_groups.insert(tool.language.clone()) {
-                rows.push(Row::Group(tool.language.clone()));
+            if tool.id != tool.language {
+                continue;
             }
+            rows.push(Row::Group(tool.language.clone()));
             rows.push(Row::Tool(index));
+            // 工具列表里 companions 排在所有语言之后，这里按归属语言重新插入。
+            for (companion_index, companion) in self.tools.iter().enumerate() {
+                if companion.language == tool.language
+                    && companion.id != companion.language
+                    && companion_index != index
+                {
+                    rows.push(Row::Tool(companion_index));
+                }
+            }
         }
         self.rows = rows;
         self.snap_cursor_to_tool();
@@ -483,10 +554,9 @@ impl App {
         display
     }
 
-    /// 右侧详情滚动。
+    /// 右侧详情滚动（到达边界后夹紧）。
     pub fn scroll_detail(&mut self, delta: isize) {
-        let next = self.scroll as isize + delta;
-        self.scroll = next.max(0) as u16;
+        self.scroll = (self.scroll as isize + delta).clamp(0, u16::MAX as isize) as u16;
     }
 
     pub fn effective_manager(&self) -> Option<ManagerKind> {
@@ -531,11 +601,11 @@ impl App {
         match next {
             Some(manager) => {
                 self.manager_choice.insert(id, manager);
-                self.status = format!("管理器 → {}", manager.id());
+                self.status = format!("{} {}", self.tr("Manager →", "管理器 →"), manager.id());
             }
             None => {
                 self.manager_choice.remove(&id);
-                self.status = "管理器 → 自动".into();
+                self.status = self.tr("Manager → auto", "管理器 → 自动").into();
             }
         }
     }
@@ -571,9 +641,15 @@ impl App {
             .map(Vec::len)
             .unwrap_or(0);
         self.status = if count == 0 {
-            format!("{language_id}: 无已安装版本")
+            format!(
+                "{language_id}: {}",
+                self.tr("no installed versions", "无已安装版本")
+            )
         } else {
-            format!("{language_id}: {count} 个已安装版本")
+            format!(
+                "{language_id}: {count} {}",
+                self.tr("installed versions", "个已安装版本")
+            )
         };
     }
 
@@ -598,28 +674,31 @@ impl App {
             .filter(|tool| tool.installed && tool.id == tool.language && tool.manager.is_none())
             .map(|tool| tool.name.clone())
             .collect();
+        let none = self.tr("none", "无").to_string();
         self.log = vec![
-            "体检结果".into(),
+            self.tr("Doctor result", "体检结果").into(),
             String::new(),
             format!(
-                "缺失运行时      {}",
+                "{:<16}{}",
+                self.tr("Missing runtime", "缺失运行时"),
                 if missing.is_empty() {
-                    "无".to_string()
+                    none.clone()
                 } else {
                     missing.join(", ")
                 }
             ),
             format!(
-                "非管理器来源    {}",
+                "{:<16}{}",
+                self.tr("Non-manager", "非管理器来源"),
                 if external.is_empty() {
-                    "无".to_string()
+                    none
                 } else {
                     external.join(", ")
                 }
             ),
         ];
         self.mode = Mode::Result;
-        self.status = "Esc 返回".into();
+        self.status = self.tr("Esc to go back", "Esc 返回").into();
     }
 
     pub fn begin_input(&mut self, kind: InputKind) {
@@ -666,7 +745,7 @@ impl App {
 
         if let Some(error) = plan.error.as_deref() {
             self.log.push(format!("✗ {error}"));
-            self.status = "失败".into();
+            self.status = self.tr("Failed", "失败").into();
             return;
         }
 
@@ -704,10 +783,91 @@ impl App {
         }
         self.log.extend(lines);
         self.status = if failed {
-            "执行失败".into()
+            self.tr("Execution failed", "执行失败").into()
         } else {
-            format!("{} 完成", plan.action.as_str())
+            format!("{} {}", plan.action.as_str(), self.tr("completed", "完成"))
         };
         self.pending_refresh = true;
+    }
+}
+
+/// 从 cwd 向上查找 `.git`，返回 `(仓库名, 分支)`。
+///
+/// 直接读文件而不是调用 `git`，避免 TUI 首屏再启动一个子进程；
+/// worktree 的 `.git` 是文件，内容形如 `gitdir: <path>`，这里一并处理。
+fn workspace_git(cwd: &Path) -> (Option<String>, Option<String>) {
+    let mut dir = if cwd.is_dir() {
+        cwd.to_path_buf()
+    } else {
+        cwd.parent().unwrap_or(cwd).to_path_buf()
+    };
+    loop {
+        let dot_git = dir.join(".git");
+        if dot_git.exists() {
+            let repo = dir
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_string);
+            let git_dir = if dot_git.is_dir() {
+                dot_git
+            } else {
+                std::fs::read_to_string(&dot_git)
+                    .ok()
+                    .and_then(|content| {
+                        content
+                            .trim()
+                            .strip_prefix("gitdir:")
+                            .map(str::trim)
+                            .map(PathBuf::from)
+                    })
+                    .map(|path| {
+                        if path.is_absolute() {
+                            path
+                        } else {
+                            dir.join(path)
+                        }
+                    })
+                    .unwrap_or(dot_git)
+            };
+            let branch = std::fs::read_to_string(git_dir.join("HEAD"))
+                .ok()
+                .and_then(|head| parse_git_head(head.trim()));
+            return (repo, branch);
+        }
+        if !dir.pop() {
+            return (None, None);
+        }
+    }
+}
+
+fn parse_git_head(head: &str) -> Option<String> {
+    if let Some(branch) = head.strip_prefix("ref: refs/heads/") {
+        return Some(branch.to_string());
+    }
+    if head.len() >= 7 {
+        return Some(format!("detached@{}", &head[..7]));
+    }
+    None
+}
+
+fn system_label() -> String {
+    let os = match std::env::consts::OS {
+        "windows" => "Windows",
+        "macos" => "macOS",
+        "linux" => "Linux",
+        other => other,
+    };
+    let arch = match std::env::consts::ARCH {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        other => other,
+    };
+    let host = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .ok()
+        .filter(|host| !host.trim().is_empty());
+    match host {
+        Some(host) => format!("{os} {arch} · {host}"),
+        None => format!("{os} {arch}"),
     }
 }

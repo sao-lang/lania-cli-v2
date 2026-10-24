@@ -114,6 +114,76 @@ impl ManagerKind {
         }
     }
 
+    /// 管理器作用域的一句话说明（TUI 详情面板使用）。
+    pub fn summary(self, zh: bool) -> &'static str {
+        match (self, zh) {
+            (Self::Nvm | Self::Fnm | Self::Volta | Self::N, false) => "Node.js version manager",
+            (Self::Nvm | Self::Fnm | Self::Volta | Self::N, true) => "Node.js 版本管理器",
+            (Self::Bunup, false) => "Bun version manager",
+            (Self::Bunup, true) => "Bun 版本管理器",
+            (Self::Denoup, false) => "Deno version manager",
+            (Self::Denoup, true) => "Deno 版本管理器",
+            (Self::Pyenv | Self::Uv, false) => "Python version manager",
+            (Self::Pyenv | Self::Uv, true) => "Python 版本管理器",
+            (Self::Rustup, false) => "Rust toolchain manager",
+            (Self::Rustup, true) => "Rust 工具链管理器",
+            (Self::GoInstall, false) => "Go version manager",
+            (Self::GoInstall, true) => "Go 版本管理器",
+            (Self::Fvm, false) => "Dart and Flutter version manager",
+            (Self::Fvm, true) => "Dart/Flutter 版本管理器",
+            (Self::Sdkman, false) => "JVM SDK manager",
+            (Self::Sdkman, true) => "JVM SDK 管理器",
+            (Self::ZigVm, false) => "Zig version manager",
+            (Self::ZigVm, true) => "Zig 版本管理器",
+            (Self::Coursier, false) => "Scala and JVM artifact manager",
+            (Self::Coursier, true) => "Scala/JVM 依赖管理器",
+            (Self::Dotnet, false) => ".NET SDK manager",
+            (Self::Dotnet, true) => ".NET SDK 管理器",
+            (Self::Swiftenv, false) => "Swift version manager",
+            (Self::Swiftenv, true) => "Swift 版本管理器",
+            (Self::Rbenv | Self::Rvm, false) => "Ruby version manager",
+            (Self::Rbenv | Self::Rvm, true) => "Ruby 版本管理器",
+            (Self::Phpenv, false) => "PHP version manager",
+            (Self::Phpenv, true) => "PHP 版本管理器",
+            (Self::Plenv, false) => "Perl version manager",
+            (Self::Plenv, true) => "Perl 版本管理器",
+            (Self::Luaver, false) => "Lua version manager",
+            (Self::Luaver, true) => "Lua 版本管理器",
+            (Self::KerL, false) => "Erlang version manager",
+            (Self::KerL, true) => "Erlang 版本管理器",
+            (Self::GhcUp, false) => "Haskell toolchain manager",
+            (Self::GhcUp, true) => "Haskell 工具链管理器",
+            (Self::Juliaup, false) => "Julia version manager",
+            (Self::Juliaup, true) => "Julia 版本管理器",
+            (Self::Rig, false) => "R version manager",
+            (Self::Rig, true) => "R 版本管理器",
+            (Self::Choosenim, false) => "Nim version manager",
+            (Self::Choosenim, true) => "Nim 版本管理器",
+            (Self::Opam, false) => "OCaml package manager",
+            (Self::Opam, true) => "OCaml 包管理器",
+            (Self::Cljup, false) => "Clojure version manager",
+            (Self::Cljup, true) => "Clojure 版本管理器",
+            (Self::Moonup, false) => "MoonBit toolchain manager",
+            (Self::Moonup, true) => "MoonBit 工具链管理器",
+            (Self::Cangjieup, false) => "Cangjie SDK manager",
+            (Self::Cangjieup, true) => "仓颉 SDK 管理器",
+            (Self::Deveco, false) => "HarmonyOS SDK manager",
+            (Self::Deveco, true) => "鸿蒙 SDK 管理器",
+            (Self::Foundryup, false) => "Solidity Foundry toolchain",
+            (Self::Foundryup, true) => "Solidity Foundry 工具链",
+            (Self::Vup, false) => "V version manager",
+            (Self::Vup, true) => "V 版本管理器",
+            (Self::Haxelihx, false) => "Haxe package manager",
+            (Self::Haxelihx, true) => "Haxe 包管理器",
+            (Self::Asdf | Self::Mise, false) => "Multi-language version manager",
+            (Self::Asdf | Self::Mise, true) => "多语言版本管理器",
+            (Self::Scoop | Self::Winget | Self::Brew | Self::Apt, false) => {
+                "Operating-system package manager"
+            }
+            (Self::Scoop | Self::Winget | Self::Brew | Self::Apt, true) => "系统包管理器",
+        }
+    }
+
     /// 该管理器可以管理的语言。
     pub fn languages(self) -> Vec<Language> {
         Language::all()
@@ -557,8 +627,7 @@ fn lookup_in_path_index(binary: &str) -> Option<PathBuf> {
         }
     }
     if cfg!(windows) && Path::new(binary).extension().is_none() {
-        let pathext =
-            std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+        let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
         for ext in pathext.split(';').filter(|value| !value.is_empty()) {
             let key = format!("{}{}", lower, ext.to_ascii_lowercase());
             if let Some(path) = index.get(&key) {

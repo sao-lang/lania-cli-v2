@@ -62,7 +62,7 @@ struct LanguageSpec {
     probes: &'static [&'static str],
     /// 候选版本管理器（顺序即偏好）
     managers: &'static [ManagerKind],
-    /// 附带展示的包管理器 / 构建工具
+    /// 附带展示的包管理器（含依赖/构建工具）；不包含 lint、格式化、LSP、编译器。
     companions: &'static [&'static str],
     /// 项目级版本锁定文件
     version_files: &'static [&'static str],
@@ -75,7 +75,6 @@ macro_rules! managers {
 }
 
 fn spec(language: Language) -> LanguageSpec {
-    use ManagerKind::*;
     match language {
         Language::Node => LanguageSpec {
             id: "node",
@@ -114,7 +113,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Rust",
             probes: &["rustc"],
             managers: managers![Rustup],
-            companions: &["cargo", "rustfmt", "clippy"],
+            companions: &["cargo"],
             version_files: &["rust-toolchain.toml", "rust-toolchain"],
         },
         Language::Go => LanguageSpec {
@@ -122,7 +121,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Go",
             probes: &["go"],
             managers: managers![GoInstall, Asdf, Mise, Scoop, Winget, Brew, Apt],
-            companions: &["gofmt"],
+            companions: &[],
             version_files: &["go.mod"],
         },
         Language::Zig => LanguageSpec {
@@ -130,7 +129,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Zig",
             probes: &["zig"],
             managers: managers![ZigVm, Asdf, Mise, Scoop, Winget, Brew],
-            companions: &["zls"],
+            companions: &[],
             version_files: &[".zigversion"],
         },
         Language::Dart => LanguageSpec {
@@ -138,7 +137,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Dart",
             probes: &["dart"],
             managers: managers![Fvm, Asdf, Scoop, Winget, Brew, Apt],
-            companions: &["flutter", "pub"],
+            companions: &["pub"],
             version_files: &[".fvmrc", "pubspec.yaml"],
         },
         Language::Kotlin => LanguageSpec {
@@ -146,7 +145,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Kotlin",
             probes: &["kotlinc", "kotlin"],
             managers: managers![Sdkman, Asdf, Mise, Scoop, Winget, Brew],
-            companions: &["gradle", "kotlinc-native"],
+            companions: &["gradle"],
             version_files: &[".sdkmanrc"],
         },
         Language::Java => LanguageSpec {
@@ -154,7 +153,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Java",
             probes: &["java"],
             managers: managers![Sdkman, Asdf, Mise, Scoop, Winget, Brew, Apt],
-            companions: &["javac", "mvn", "gradle"],
+            companions: &["mvn", "gradle"],
             version_files: &[".sdkmanrc", ".java-version"],
         },
         Language::Scala => LanguageSpec {
@@ -162,7 +161,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Scala",
             probes: &["scala", "scalac"],
             managers: managers![Sdkman, Coursier, Asdf, Mise, Brew, Apt],
-            companions: &["sbt", "scala-cli"],
+            companions: &["sbt"],
             version_files: &[".sdkmanrc"],
         },
         Language::Groovy => LanguageSpec {
@@ -170,7 +169,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Groovy",
             probes: &["groovy"],
             managers: managers![Sdkman, Asdf, Mise, Scoop, Brew, Apt],
-            companions: &["grails"],
+            companions: &[],
             version_files: &[".sdkmanrc"],
         },
         Language::C => LanguageSpec {
@@ -178,7 +177,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "C",
             probes: &["gcc", "clang", "cc"],
             managers: managers![Scoop, Winget, Brew, Apt],
-            companions: &["make", "cmake", "pkg-config"],
+            companions: &[],
             version_files: &[],
         },
         Language::Cpp => LanguageSpec {
@@ -186,7 +185,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "C++",
             probes: &["g++", "clang++", "c++"],
             managers: managers![Scoop, Winget, Brew, Apt],
-            companions: &["cmake", "ninja"],
+            companions: &[],
             version_files: &[],
         },
         Language::CSharp => LanguageSpec {
@@ -210,7 +209,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Swift",
             probes: &["swift"],
             managers: managers![Swiftenv, Asdf, Mise, Scoop, Winget, Brew],
-            companions: &["swiftc"],
+            companions: &[],
             version_files: &[".swift-version"],
         },
         Language::Ruby => LanguageSpec {
@@ -218,7 +217,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Ruby",
             probes: &["ruby"],
             managers: managers![Rbenv, Rvm, Asdf, Mise, Scoop, Winget, Brew, Apt],
-            companions: &["gem", "bundler", "irb"],
+            companions: &["gem", "bundler"],
             version_files: &[".ruby-version"],
         },
         Language::PHP => LanguageSpec {
@@ -242,7 +241,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Lua",
             probes: &["lua"],
             managers: managers![Luaver, Asdf, Mise, Scoop, Winget, Brew, Apt],
-            companions: &["luarocks", "luajit"],
+            companions: &["luarocks"],
             version_files: &[".lua-version"],
         },
         Language::Elixir => LanguageSpec {
@@ -250,7 +249,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Elixir",
             probes: &["elixir"],
             managers: managers![Asdf, Mise, Scoop, Winget, Brew, Apt],
-            companions: &["mix", "iex"],
+            companions: &["mix"],
             version_files: &[".tool-versions"],
         },
         Language::Erlang => LanguageSpec {
@@ -258,7 +257,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Erlang",
             probes: &["erl"],
             managers: managers![KerL, Asdf, Mise, Scoop, Winget, Brew, Apt],
-            companions: &["erlc", "rebar3"],
+            companions: &["rebar3"],
             version_files: &[".tool-versions"],
         },
         Language::Haskell => LanguageSpec {
@@ -282,7 +281,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "R",
             probes: &["R", "Rscript"],
             managers: managers![Rig, Asdf, Mise, Scoop, Winget, Brew, Apt],
-            companions: &["Rscript"],
+            companions: &[],
             version_files: &[".Rversion"],
         },
         Language::Nim => LanguageSpec {
@@ -306,7 +305,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "OCaml",
             probes: &["ocaml"],
             managers: managers![Opam, Asdf, Mise, Brew, Apt],
-            companions: &["opam", "dune"],
+            companions: &["opam"],
             version_files: &[".ocaml-version"],
         },
         Language::Clojure => LanguageSpec {
@@ -314,7 +313,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Clojure",
             probes: &["clojure", "clj"],
             managers: managers![Cljup, Sdkman, Asdf, Mise, Brew, Apt],
-            companions: &["lein", "bb"],
+            companions: &["lein"],
             version_files: &[".tool-versions"],
         },
         Language::MoonBit => LanguageSpec {
@@ -324,7 +323,7 @@ fn spec(language: Language) -> LanguageSpec {
             // MoonBit 官方工具链自带版本管理（`moon version --all`、
             // `moon toolchain`），没有第三方管理器可对接。
             managers: managers![Moonup],
-            companions: &["moonc", "moonrun", "moonfmt"],
+            companions: &[],
             version_files: &["moon.mod.json"],
         },
         Language::Cangjie => LanguageSpec {
@@ -333,7 +332,7 @@ fn spec(language: Language) -> LanguageSpec {
             probes: &["cjc", "cjpm"],
             // 华为仓颉：官方随 DevEco / Cangjie SDK 分发，无社区管理器。
             managers: managers![Cangjieup],
-            companions: &["cjpm", "cjc", "cjdb"],
+            companions: &["cjpm"],
             version_files: &["cjpm.toml"],
         },
         Language::ArkTs => LanguageSpec {
@@ -342,7 +341,7 @@ fn spec(language: Language) -> LanguageSpec {
             probes: &["ark", "ohpm", "hvigorw"],
             // 鸿蒙（HarmonyOS）应用开发：SDK 随 DevEco Studio 管理。
             managers: managers![Deveco],
-            companions: &["ohpm", "hvigorw", "hdc"],
+            companions: &["ohpm"],
             version_files: &["oh-package.json5", "build-profile.json5"],
         },
         Language::Solidity => LanguageSpec {
@@ -350,7 +349,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Solidity",
             probes: &["solc", "forge"],
             managers: managers![Foundryup, Asdf, Mise, Brew, Apt],
-            companions: &["forge", "cast", "anvil"],
+            companions: &["forge"],
             version_files: &["foundry.toml"],
         },
         Language::Fortran => LanguageSpec {
@@ -366,7 +365,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "D",
             probes: &["dmd", "ldc2", "gdc"],
             managers: managers![Asdf, Mise, Brew, Apt],
-            companions: &["dub", "dfmt"],
+            companions: &["dub"],
             version_files: &["dub.json", "dub.sdl"],
         },
         Language::V => LanguageSpec {
@@ -390,7 +389,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Haxe",
             probes: &["haxe"],
             managers: managers![Haxelihx, Asdf, Mise, Brew, Apt],
-            companions: &["haxelib", "neko"],
+            companions: &["haxelib"],
             version_files: &["haxelib.json"],
         },
         Language::Elm => LanguageSpec {
@@ -398,7 +397,7 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Elm",
             probes: &["elm"],
             managers: managers![Asdf, Mise, Brew, Apt],
-            companions: &["elm-format"],
+            companions: &[],
             version_files: &["elm.json"],
         },
     }
@@ -411,6 +410,92 @@ impl Language {
 
     pub fn display_name(self) -> &'static str {
         spec(self).name
+    }
+
+    /// 语言/运行时的一句话简介（TUI 详情面板使用）。
+    pub fn summary(self, zh: bool) -> &'static str {
+        match (self, zh) {
+            (Self::Node, false) => "JavaScript runtime and package ecosystem",
+            (Self::Node, true) => "JavaScript 运行时与包生态",
+            (Self::Deno, false) => "Secure TypeScript/JavaScript runtime",
+            (Self::Deno, true) => "安全的 TypeScript/JavaScript 运行时",
+            (Self::Bun, false) => "All-in-one JavaScript runtime and toolkit",
+            (Self::Bun, true) => "一体化 JavaScript 运行时与工具链",
+            (Self::Python, false) => "General-purpose scripting and data ecosystem",
+            (Self::Python, true) => "通用脚本语言与数据科学生态",
+            (Self::Rust, false) => "Systems language with Cargo tooling",
+            (Self::Rust, true) => "系统级语言与 Cargo 工具链",
+            (Self::Go, false) => "Concurrency-first compiled language",
+            (Self::Go, true) => "并发优先的编译型语言",
+            (Self::Zig, false) => "Low-level systems toolchain",
+            (Self::Zig, true) => "底层系统编程工具链",
+            (Self::Dart, false) => "UI-focused language with pub packages",
+            (Self::Dart, true) => "面向 UI 的语言与 pub 包管理",
+            (Self::Kotlin, false) => "JVM and multiplatform language",
+            (Self::Kotlin, true) => "JVM 与多平台开发语言",
+            (Self::Java, false) => "JVM enterprise platform",
+            (Self::Java, true) => "JVM 企业级开发平台",
+            (Self::Scala, false) => "Functional language on the JVM",
+            (Self::Scala, true) => "JVM 上的函数式编程语言",
+            (Self::Groovy, false) => "Scripting language on the JVM",
+            (Self::Groovy, true) => "JVM 上的脚本语言",
+            (Self::C, false) => "C compiler and libc toolchain",
+            (Self::C, true) => "C 编译器与 libc 工具链",
+            (Self::Cpp, false) => "C++ compiler and build chain",
+            (Self::Cpp, true) => "C++ 编译器与构建链",
+            (Self::CSharp, false) => "Language on the .NET platform",
+            (Self::CSharp, true) => ".NET 平台开发语言",
+            (Self::FSharp, false) => "Functional language on .NET",
+            (Self::FSharp, true) => ".NET 平台函数式语言",
+            (Self::Swift, false) => "Apple platform development language",
+            (Self::Swift, true) => "Apple 平台开发语言",
+            (Self::Ruby, false) => "Dynamic scripting language",
+            (Self::Ruby, true) => "动态脚本语言",
+            (Self::PHP, false) => "Web scripting language",
+            (Self::PHP, true) => "Web 脚本语言",
+            (Self::Perl, false) => "Text processing language",
+            (Self::Perl, true) => "文本处理脚本语言",
+            (Self::Lua, false) => "Embedded scripting language",
+            (Self::Lua, true) => "嵌入式脚本语言",
+            (Self::Elixir, false) => "Functional language on the BEAM",
+            (Self::Elixir, true) => "BEAM 平台函数式语言",
+            (Self::Erlang, false) => "Concurrent language on the BEAM",
+            (Self::Erlang, true) => "BEAM 高并发语言",
+            (Self::Haskell, false) => "Purely functional language",
+            (Self::Haskell, true) => "纯函数式编程语言",
+            (Self::Julia, false) => "Scientific computing language",
+            (Self::Julia, true) => "科学计算语言",
+            (Self::R, false) => "Statistics and data analysis",
+            (Self::R, true) => "统计与数据分析语言",
+            (Self::Nim, false) => "Compiled systems language",
+            (Self::Nim, true) => "编译型系统编程语言",
+            (Self::Crystal, false) => "Ruby-like compiled language",
+            (Self::Crystal, true) => "类 Ruby 的编译型语言",
+            (Self::OCaml, false) => "Functional language with opam",
+            (Self::OCaml, true) => "函数式语言与 opam 生态",
+            (Self::Clojure, false) => "Lisp dialect on the JVM",
+            (Self::Clojure, true) => "JVM 上的 Lisp 方言",
+            (Self::MoonBit, false) => "Cloud-native language toolchain",
+            (Self::MoonBit, true) => "云原生语言工具链",
+            (Self::Cangjie, false) => "HarmonyOS native development language",
+            (Self::Cangjie, true) => "鸿蒙原生开发语言",
+            (Self::ArkTs, false) => "HarmonyOS application language",
+            (Self::ArkTs, true) => "鸿蒙应用开发语言",
+            (Self::Solidity, false) => "Smart contracts for the EVM",
+            (Self::Solidity, true) => "EVM 智能合约语言",
+            (Self::Fortran, false) => "Scientific computing language",
+            (Self::Fortran, true) => "科学计算语言",
+            (Self::D, false) => "Systems language with dub",
+            (Self::D, true) => "系统编程语言与 dub 生态",
+            (Self::V, false) => "Simple compiled language",
+            (Self::V, true) => "简洁的编译型语言",
+            (Self::Gleam, false) => "Typed language on the BEAM",
+            (Self::Gleam, true) => "BEAM 平台类型化语言",
+            (Self::Haxe, false) => "Cross-platform compiled language",
+            (Self::Haxe, true) => "跨平台编译语言",
+            (Self::Elm, false) => "Functional frontend language",
+            (Self::Elm, true) => "前端函数式语言",
+        }
     }
 
     /// 该语言通常由哪些管理器负责安装。顺序即偏好顺序。

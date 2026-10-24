@@ -28,9 +28,9 @@ use app::{App, InputKind, Mode};
 use ui::Renderer;
 
 /// 启动 TUI，阻塞直到用户退出。
-pub fn run(cwd: PathBuf) -> Result<()> {
-    let mut app = App::new(cwd);
-    let renderer = Renderer::new();
+pub fn run(cwd: PathBuf, locale: String) -> Result<()> {
+    let renderer = Renderer::new(&locale);
+    let mut app = App::new(cwd, locale);
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -66,7 +66,7 @@ fn event_loop(
     loop {
         // 首帧立刻画出来，扫描放到后台线程，避免打开界面就卡住几秒。
         if matches!(scan, ScanState::Idle) {
-            app.status = "扫描环境中…".into();
+            app.status = app.tr("Scanning toolchains…", "扫描环境中…").into();
             scan = ScanState::Running(app.spawn_scan());
         }
 
@@ -78,13 +78,13 @@ fn event_loop(
                 Ok(result) => {
                     app.apply_scan(result);
                     // 安装状态就绪后，接着在后台补版本号。
-                    app.status = "读取版本号…".into();
+                    app.status = app.tr("Reading versions…", "读取版本号…").into();
                     scan = ScanState::Filling(app.spawn_version_fill());
                     continue; // 立即重绘，让结果尽快上屏
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    app.status = "读取版本号…".into();
+                    app.status = app.tr("Reading versions…", "读取版本号…").into();
                     scan = ScanState::Filling(app.spawn_version_fill());
                 }
             },
@@ -97,7 +97,7 @@ fn event_loop(
                     // 通道还开着但暂时没数据；等下一轮。
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    app.status = format!("{} 个工具", app.tools.len());
+                    app.status = format!("{} {}", app.tools.len(), app.tr("tools", "个工具"));
                     scan = ScanState::Done;
                 }
             },
@@ -136,11 +136,7 @@ fn event_loop(
 /// 非交互渲染：把当前画面画到一个离屏 buffer 并转换成纯文本。
 ///
 /// 用于 `--snapshot`（CI / 调试），保证布局逻辑在没有 TTY 时也能被验证。
-pub fn snapshot(cwd: PathBuf, cols: u16, rows: u16) -> Result<String> {
-    snapshot_with(cwd, cols, rows, 0, true)
-}
-
-/// 同 [`snapshot`]，但可以先模拟按 `down_steps` 次方向键，用于验证滚动。
+/// 可以先模拟按 `down_steps` 次方向键，用于验证滚动。
 ///
 /// 如果 `wait_versions` 为 true，会像真实 TUI 那样等待后台补齐版本号，
 /// 这样快照内容与用户实际看到的界面一致（只是阻塞到补齐完成）。
@@ -150,13 +146,15 @@ pub fn snapshot_with(
     rows: u16,
     down_steps: usize,
     wait_versions: bool,
+    locale: &str,
 ) -> Result<String> {
     use ratatui::{backend::TestBackend, Terminal};
 
-    let mut app = App::new(cwd);
+    let renderer = Renderer::new(locale);
+    let mut app = App::new(cwd, locale);
     if wait_versions {
         // 复用交互路径的两段式流程：先拿安装状态，再补版本号。
-        app.status = "扫描环境中…".into();
+        app.status = app.tr("Scanning toolchains…", "扫描环境中…").into();
         let scan = app.spawn_scan();
         if let Ok(result) = scan.recv() {
             app.apply_scan(result);
@@ -165,7 +163,8 @@ pub fn snapshot_with(
         for batch in fill.iter() {
             app.apply_versions(batch);
         }
-        app.status = format!("{} 个工具", app.tools.len());
+        app.loading = false;
+        app.status = format!("{} {}", app.tools.len(), app.tr("tools", "个工具"));
         app.prime_versions();
     } else {
         // 只验证布局：连版本号都不读，保证快速返回。
@@ -175,7 +174,6 @@ pub fn snapshot_with(
 
     let backend = TestBackend::new(cols, rows);
     let mut terminal = Terminal::new(backend)?;
-    let renderer = Renderer::new();
 
     // 先渲染一次，让 App 拿到真实的 list_height（滚动窗口计算依赖它），
     // 再模拟按键，否则 `ensure_cursor_visible` 会用旧的默认高度。
@@ -250,8 +248,8 @@ fn handle_browse(app: &mut App, key: KeyEvent) {
         KeyCode::Home => app.move_cursor(-(app.rows.len() as isize)),
         KeyCode::End => app.move_cursor(app.rows.len() as isize),
         // 右侧详情滚动
-        KeyCode::Char('J') => app.scroll = app.scroll.saturating_add(1),
-        KeyCode::Char('K') => app.scroll = app.scroll.saturating_sub(1),
+        KeyCode::Char('J') => app.scroll_detail(1),
+        KeyCode::Char('K') => app.scroll_detail(-1),
         KeyCode::Char('r') => {
             app.scroll = 0;
             app.refresh();
@@ -262,9 +260,9 @@ fn handle_browse(app: &mut App, key: KeyEvent) {
         KeyCode::Char('p') => {
             app.project_pin = !app.project_pin;
             app.status = if app.project_pin {
-                "项目锁定：开".into()
+                app.tr("Project pin: on", "项目锁定：开").into()
             } else {
-                "项目锁定：关".into()
+                app.tr("Project pin: off", "项目锁定：关").into()
             };
         }
         KeyCode::Char('i') => app.begin_input(InputKind::Install),
@@ -302,7 +300,7 @@ fn handle_confirm(app: &mut App, key: KeyEvent) {
         KeyCode::Esc => {
             app.pending_plan = None;
             app.mode = Mode::Browse;
-            app.status = "已取消".into();
+            app.status = app.tr("Cancelled", "已取消").into();
         }
         _ => {}
     }

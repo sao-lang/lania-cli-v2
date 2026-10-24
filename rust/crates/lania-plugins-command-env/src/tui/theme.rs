@@ -17,8 +17,6 @@ pub struct Theme {
     pub err: Color,
     pub selection_bg: Color,
     pub status_bg: Color,
-    /// 弹窗背景
-    pub popup_bg: Color,
 }
 
 impl Theme {
@@ -36,7 +34,6 @@ impl Theme {
             err: Color::Rgb(230, 110, 110),
             selection_bg: Color::Rgb(38, 46, 58),
             status_bg: Color::Rgb(30, 34, 42),
-            popup_bg: Color::Rgb(24, 28, 35),
         }
     }
 
@@ -103,6 +100,7 @@ impl IconSet {
             (Self::Ascii, "bun") => "◈",
             (Self::Ascii, _) => "◈",
             (Self::Nerd, "node") => "\u{e718}",
+            // 官方 Devicons：Deno U+E7C0、Bun U+E76F。
             (Self::Nerd, "deno") => "\u{e7c0}",
             (Self::Nerd, "bun") => "\u{e76f}",
             (Self::Nerd, "python") => "\u{e73c}",
@@ -181,14 +179,24 @@ mod tests {
     }
 
     #[test]
+    fn deno_and_bun_use_official_devicons() {
+        // Nerd Fonts 中官方 Devicons：denojs U+E7C0、bun U+E76F。
+        // 不要用其它字形替代，否则会变成 TypeScript / 通用图标。
+        let set = IconSet::Nerd;
+        assert_eq!(set.language("deno"), "\u{e7c0}");
+        assert_eq!(set.language("bun"), "\u{e76f}");
+    }
+
+    #[test]
     fn nerd_icons_are_distinct_per_language() {
         let set = IconSet::Nerd;
         // 核心语言必须有专属图标；新兴语言允许复用同族图标
         // （很多语言在 Nerd Font 里根本没有专属字形）。
         let core = [
-            "node", "deno", "bun", "python", "rust", "go", "zig", "dart", "kotlin", "java", "scala",
-            "groovy", "c", "cpp", "csharp", "fsharp", "swift", "ruby", "php", "perl", "lua",
-            "elixir", "erlang", "haskell", "julia", "r", "nim", "crystal", "ocaml", "clojure",
+            "node", "deno", "bun", "python", "rust", "go", "zig", "dart", "kotlin", "java",
+            "scala", "groovy", "c", "cpp", "csharp", "fsharp", "swift", "ruby", "php", "perl",
+            "lua", "elixir", "erlang", "haskell", "julia", "r", "nim", "crystal", "ocaml",
+            "clojure",
         ];
         let mut seen = std::collections::HashSet::new();
         for id in core {
@@ -205,10 +213,11 @@ mod tests {
     fn nerd_icons_stay_within_common_nerd_font_ranges() {
         let set = IconSet::Nerd;
         let ids = [
-            "node", "deno", "bun", "python", "rust", "go", "zig", "dart", "kotlin", "java", "scala",
-            "groovy", "c", "cpp", "csharp", "fsharp", "swift", "ruby", "php", "perl", "lua",
-            "elixir", "erlang", "haskell", "julia", "r", "nim", "crystal", "ocaml", "clojure",
-            "moonbit", "cangjie", "arkts", "solidity", "fortran", "d", "v", "gleam", "haxe", "elm",
+            "node", "deno", "bun", "python", "rust", "go", "zig", "dart", "kotlin", "java",
+            "scala", "groovy", "c", "cpp", "csharp", "fsharp", "swift", "ruby", "php", "perl",
+            "lua", "elixir", "erlang", "haskell", "julia", "r", "nim", "crystal", "ocaml",
+            "clojure", "moonbit", "cangjie", "arkts", "solidity", "fortran", "d", "v", "gleam",
+            "haxe", "elm",
         ];
         for id in ids {
             let icon = set.language(id);
