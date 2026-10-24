@@ -10,6 +10,13 @@ use super::super::{
     context::{CommandExecutionContext, ExecutionError},
     types::{EXIT_RUNTIME_ERROR, EXIT_TIMEOUT},
 };
+use super::long_running::is_long_running_request;
+
+/// 分发结果：长任务会带回活跃句柄，供 response 之后继续消费运行期事件。
+pub(in crate::execution) struct BridgeDispatchResult {
+    pub exchange: BridgeExchange,
+    pub active: Option<BridgeActiveCall>,
+}
 
 impl<'a> CommandExecutionContext<'a> {
     pub(in crate::execution) fn raise_bridge_error(
@@ -44,7 +51,7 @@ impl<'a> CommandExecutionContext<'a> {
     pub(in crate::execution) async fn dispatch_bridge_request(
         &self,
         request: &BridgeRequest,
-    ) -> Result<BridgeExchange> {
+    ) -> Result<BridgeDispatchResult> {
         // 发送请求并在需要时重试。
         for attempt in 0..=self.policy.retry_attempts {
             let result = match self.node_bridge.open_call(request.clone()) {
@@ -62,15 +69,20 @@ impl<'a> CommandExecutionContext<'a> {
                         self.node_bridge.call_async(request.clone()),
                     )
                     .await;
-                    if let Ok(Ok(exchange)) = &result {
-                        self.apply_bridge_events(request, exchange);
-                    }
-                    result
+                    result.map(|result| {
+                        result.map(|exchange| {
+                            self.apply_bridge_events(request, &exchange);
+                            BridgeDispatchResult {
+                                exchange,
+                                active: None,
+                            }
+                        })
+                    })
                 }
             };
             match result {
-                Ok(Ok(exchange)) => {
-                    if exchange.response.error.is_some() && attempt < self.policy.retry_attempts {
+                Ok(Ok(dispatch)) => {
+                    if dispatch.exchange.response.error.is_some() && attempt < self.policy.retry_attempts {
                         self.log(
                             LogLevel::Warn,
                             "command_execute",
@@ -83,7 +95,7 @@ impl<'a> CommandExecutionContext<'a> {
                         );
                         continue;
                     }
-                    return Ok(exchange);
+                    return Ok(dispatch);
                 }
                 Ok(Err(error)) => {
                     self.log(
@@ -144,30 +156,17 @@ impl<'a> CommandExecutionContext<'a> {
         &self,
         request: &BridgeRequest,
         mut call: BridgeActiveCall,
-    ) -> Result<BridgeExchange> {
-        let mut events = Vec::new();
-        while let Some(event) = call.next_event().await {
-            // 流式 events 需要“边到边处理”，否则长任务会让日志/进度滞后。
-            self.apply_bridge_events(
-                request,
-                &BridgeExchange {
-                    response: lania_node_bridge::BridgeResponse {
-                        id: request.id.clone(),
-                        result: None,
-                        error: None,
-                    },
-                    events: vec![event.clone()],
-                },
-            );
-            events.push(event);
-        }
-
-        let mut exchange = call.collect_exchange().await?;
-        if !events.is_empty() {
-            // `collect_exchange` 在不同 bridge 实现下可能不会回放已消费的 events。
-            exchange.events = events;
-        }
-        Ok(exchange)
+    ) -> Result<BridgeDispatchResult> {
+        // 事件一边到达一边渲染，避免构建/启动日志被延迟到命令结束才显示。
+        let exchange = call
+            .collect_until_response(|event| self.apply_bridge_event(request, event))
+            .await?;
+        let active = if is_long_running_request(request, &exchange) {
+            Some(call)
+        } else {
+            None
+        };
+        Ok(BridgeDispatchResult { exchange, active })
     }
 
     pub(in crate::execution) fn log(

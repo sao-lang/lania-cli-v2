@@ -52,24 +52,35 @@ async function handleRun(message: Extract<CompilerWorkerRequest, { type: 'run' }
       ...message.context,
       lanConfig: loadedLanConfig.config,
     };
+    const stream = message.stream === true;
+    const emit = stream
+      ? (event: BridgeEvent) => {
+          process.send?.({ type: 'event', event } as CompilerWorkerMessage);
+        }
+      : undefined;
     const adapter =
       message.context.runtime === 'web'
         ? resolveCompilerAdapter(message.context.tool)
         : resolveRuntimeAdapter(message.context.runtime);
     const execution =
       message.method === 'compiler.dev'
-        ? await adapter?.handleDev(message.params, context)
-        : await adapter?.handleBuild(message.params, context);
+        ? await adapter?.handleDev(message.params, context, emit)
+        : await adapter?.handleBuild(message.params, context, emit);
 
     // adapter 未提供实现时使用 fallback（用于在 worker 环境不可用时仍保持协议兼容）。
-    const fallback = execution ?? createFallbackExecution(message);
+    let fallback = execution ?? createFallbackExecution(message);
+    if (stream) {
+      // spawn adapters already streamed; web adapters return their events here.
+      fallback.events.forEach((event) => emit?.(event));
+      fallback = { ...fallback, events: [] };
+    }
     // 若执行结果携带 activeCompiler，说明是长任务（dev/watch），worker 需要保持存活。
     activeCompiler = fallback.activeCompiler ?? null;
     sendMessage({
       type: 'result',
       execution: markWorkerExecution(stripActiveCompiler(fallback)),
       keepAlive: Boolean(fallback.activeCompiler),
-      tool: message.context.tool,
+      tool: message.context.runtime === 'web' ? message.context.tool : message.context.runtime,
     });
     if (!fallback.activeCompiler) {
       // 非长任务：发送 result 后立即退出，减少僵尸进程概率。

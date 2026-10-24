@@ -10,3 +10,5 @@ mod events;
 mod long_running;
 mod requests;
 mod state;
+
+pub(in crate::execution) use requests::BridgeDispatchResult;

@@ -22,7 +22,7 @@ interface NodeFrameworkSpec {
 export function createNodeFrameworkAdapter(spec: NodeFrameworkSpec): CompilerAdapter {
   return {
     tool: spec.tool,
-    async handleDev(params) {
+    async handleDev(params, _context, emit) {
       const binary = resolvePackageBinaryFromCwd(
         params.cwd,
         spec.dev.packageName,
@@ -33,6 +33,7 @@ export function createNodeFrameworkAdapter(spec: NodeFrameworkSpec): CompilerAda
           spec.tool,
           'dev',
           `${spec.dev.packageName} is not installed; run the package manager install first`,
+          emit,
         );
       }
       const command: SpawnCommand = {
@@ -40,11 +41,16 @@ export function createNodeFrameworkAdapter(spec: NodeFrameworkSpec): CompilerAda
         args: spec.dev.args,
         env: { PORT: String(params.port), HOST: params.host },
       };
-      return await startSpawnDev(spec.tool, command, params.cwd);
+      return await startSpawnDev(spec.tool, command, params.cwd, emit);
     },
-    async handleBuild(params) {
+    async handleBuild(params, _context, emit) {
       if (params.watch) {
-        return failureExecution(spec.tool, 'build', `watch not supported for tool ${spec.tool}`);
+        return failureExecution(
+          spec.tool,
+          'build',
+          `watch not supported for tool ${spec.tool}`,
+          emit,
+        );
       }
       const binary = resolvePackageBinaryFromCwd(
         params.cwd,
@@ -56,6 +62,7 @@ export function createNodeFrameworkAdapter(spec: NodeFrameworkSpec): CompilerAda
           spec.tool,
           'build',
           `${spec.build.packageName} is not installed; run the package manager install first`,
+          emit,
         );
       }
       const command: SpawnCommand = {
@@ -63,7 +70,7 @@ export function createNodeFrameworkAdapter(spec: NodeFrameworkSpec): CompilerAda
         args: spec.build.args,
         env: { OUTPUT_DIR: params.outputDir ?? '' },
       };
-      return await runSpawnBuild(spec.tool, command, params.cwd);
+      return await runSpawnBuild(spec.tool, command, params.cwd, emit);
     },
   };
 }

@@ -137,6 +137,10 @@ struct PendingRequest {
     // - `response_tx`: 接收最终响应（严格只有 1 条）
     event_tx: mpsc::Sender<BridgeEvent>,
     response_tx: oneshot::Sender<BridgeResponse>,
+    /// 请求方法；用于在 `compiler.stop` 完成后清理长任务挂起项。
+    method: String,
+    /// 长任务（dev/watch）在 response 之后仍会继续产出事件。
+    keep_alive: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -280,6 +284,42 @@ impl BridgeActiveCall {
         self.event_rx.recv().await
     }
 
+    /// 收集到 response 为止，并在每条 event 到达时立即回调（用于实时日志）。
+    /// 与 `collect_exchange` 不同，这里不会在 response 后继续排空事件；
+    /// 长任务可以在 response 后继续调用 `next_event()` 接收运行期日志。
+    pub async fn collect_until_response<F>(&mut self, mut on_event: F) -> Result<BridgeExchange>
+    where
+        F: FnMut(&BridgeEvent),
+    {
+        let mut events = Vec::new();
+        let response_rx = &mut self.response_rx;
+        tokio::pin!(response_rx);
+
+        loop {
+            tokio::select! {
+                maybe_event = self.event_rx.recv() => {
+                    match maybe_event {
+                        Some(event) => {
+                            on_event(&event);
+                            events.push(event);
+                        }
+                        None => {
+                            let response = response_rx
+                                .await
+                                .map_err(|_| anyhow!("bridge response channel closed unexpectedly"))?;
+                            return Ok(BridgeExchange { response, events });
+                        }
+                    }
+                }
+                result = &mut response_rx => {
+                    let response = result
+                        .map_err(|_| anyhow!("bridge response channel closed unexpectedly"))?;
+                    return Ok(BridgeExchange { response, events });
+                }
+            }
+        }
+    }
+
     pub async fn collect_exchange(mut self) -> Result<BridgeExchange> {
         let mut events = Vec::new();
         // `oneshot::Receiver` 不是 `Unpin` 友好地可反复借用的 future，
@@ -319,10 +359,21 @@ impl BridgeActiveCall {
                     // 这说明协议层并没有强依赖“event 必须严格早于 response”；
                     // Rust 客户端自己做了一层容错收尾，让上层看到的 `BridgeExchange`
                     // 尽量接近完整事实。
-                    while let Some(event) = self.event_rx.recv().await {
-                        // 这里不再 `select!` 新的 response，是因为 response 已经拿到了；
-                        // 剩下只是在做“尾流排空”。
-                        events.push(event);
+                    //
+                    // 长任务（dev/watch）的 pending 在 response 后会保留，
+                    // 因此这里不能无限等待 channel 关闭：只做一次很短的尾流排空。
+                    let drain_timeout = tokio::time::sleep(Duration::from_millis(50));
+                    tokio::pin!(drain_timeout);
+                    loop {
+                        tokio::select! {
+                            maybe_event = self.event_rx.recv() => {
+                                match maybe_event {
+                                    Some(event) => events.push(event),
+                                    None => break,
+                                }
+                            }
+                            _ = &mut drain_timeout => break,
+                        }
                     }
                     return Ok(BridgeExchange { response, events });
                 }

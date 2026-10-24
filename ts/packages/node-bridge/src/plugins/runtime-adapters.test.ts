@@ -124,6 +124,24 @@ test('go adapter runs build and reports success', async () => {
   }
 });
 
+test('go adapter streams events through emit and returns no duplicate events', async () => {
+  const { cwd, fixture } = await fixtureDir();
+  try {
+    const adapter = resolveRuntimeAdapter('go');
+    const streamed: Array<{ method: string; params: unknown }> = [];
+    const execution = await adapter!.handleBuild(
+      params(cwd),
+      context('go', { runtimes: { go: { build: [process.execPath, fixture] } } }),
+      (event) => streamed.push(event),
+    );
+    assert.ok(streamed.some((event) => event.method === 'event.compiler_start'));
+    assert.ok(streamed.some((event) => event.method === 'event.compiler_done'));
+    assert.deepEqual(execution?.events, []);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test('go adapter reports build failure with error event', async () => {
   const { cwd, fixture } = await fixtureDir();
   try {

@@ -41,6 +41,7 @@ export async function runCompilerInWorker(
   method: CompilerWorkerMethod,
   params: CompilerAdapterParams,
   context: CompilerAdapterContext,
+  onEvent?: (event: BridgeEvent) => void,
 ): Promise<CompilerExecution> {
   // 独立进程执行：
   // - 隔离编译器运行时（崩溃不会带崩 bridge 主进程）
@@ -67,6 +68,11 @@ export async function runCompilerInWorker(
     });
 
     child.on('message', (message: CompilerWorkerMessage) => {
+      if (message.type === 'event') {
+        // 实时事件：即使 result 已经返回（dev 长任务），仍然继续转发运行期日志。
+        onEvent?.(message.event);
+        return;
+      }
       if (message.type === 'error' && !settled) {
         settled = true;
         reject(new Error(message.error.message));
@@ -121,6 +127,7 @@ export async function runCompilerInWorker(
       method,
       params,
       context,
+      stream: Boolean(onEvent),
     };
     child.send(request);
   });

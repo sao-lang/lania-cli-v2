@@ -363,7 +363,7 @@ module.exports = {
 - dev 子进程会收到 `PORT` / `HOST` 环境变量；build 子进程会收到 `OUTPUT_DIR`。
 - 非 web runtime 构建失败会以非零退出码返回；工具链缺失时直接失败，不伪造 dev server。
 - `lan build --watch` 暂不支持非 web runtime，会明确报错。
-- `lan dev` 只保证启动阶段输出可见，不流式转发运行期日志。
+- `lan dev` / `lan build` 的构建日志与运行期 stdout/stderr 实时流式输出，统一为 compiler 事件格式（`▶ start` / `• status` / `✖ issue` / `✔ done`）；Ctrl-C 停止时也会输出收尾日志。
 - `lan create --template <name> --skip-install` 可跳过 npm/pnpm 安装；新语言模板的 `skipInstall` 默认即为 true。
 
 内置模板：

@@ -89,6 +89,8 @@ impl NodeBridgeClient {
                 PendingRequest {
                     event_tx,
                     response_tx,
+                    method: request.method.clone(),
+                    keep_alive: false,
                 },
             );
 

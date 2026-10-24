@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use lania_logger::LogLevel;
-use lania_node_bridge::{BridgeExchange, BridgeRequest};
+use lania_node_bridge::{BridgeActiveCall, BridgeExchange, BridgeRequest};
 use tokio_util::sync::CancellationToken;
 
 use super::super::context::CommandExecutionContext;
@@ -14,6 +14,7 @@ impl<'a> CommandExecutionContext<'a> {
         &self,
         request: &BridgeRequest,
         exchange: &BridgeExchange,
+        mut active: Option<BridgeActiveCall>,
     ) -> Result<(Option<BridgeExchange>, bool)> {
         if !self.is_long_running(request, exchange) {
             return Ok((None, false));
@@ -39,7 +40,25 @@ impl<'a> CommandExecutionContext<'a> {
             })
         });
 
-        cancellation.cancelled().await;
+        // 长任务运行期日志：Ctrl-C 与事件流并行消费，边到边打印。
+        if let Some(call) = active.as_mut() {
+            loop {
+                tokio::select! {
+                    _ = cancellation.cancelled() => break,
+                    maybe_event = call.next_event() => {
+                        match maybe_event {
+                            Some(event) => self.apply_bridge_event(request, &event),
+                            None => {
+                                cancellation.cancelled().await;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            cancellation.cancelled().await;
+        }
 
         signal_task.abort();
         if let Some(task) = auto_interrupt_task {
@@ -61,7 +80,23 @@ impl<'a> CommandExecutionContext<'a> {
         let shutdown = self
             .dispatch_bridge_request(&self.node_bridge.compiler_stop_request())
             .await?;
-        Ok((Some(shutdown), true))
+        // stop 之后把剩余事件排空，确保最后的编译/退出日志可见。
+        if let Some(call) = active.as_mut() {
+            let timeout = tokio::time::sleep(Duration::from_secs(2));
+            tokio::pin!(timeout);
+            loop {
+                tokio::select! {
+                    maybe_event = call.next_event() => {
+                        match maybe_event {
+                            Some(event) => self.apply_bridge_event(request, &event),
+                            None => break,
+                        }
+                    }
+                    _ = &mut timeout => break,
+                }
+            }
+        }
+        Ok((Some(shutdown.exchange), true))
     }
 
     fn is_long_running(&self, request: &BridgeRequest, exchange: &BridgeExchange) -> bool {
@@ -69,7 +104,10 @@ impl<'a> CommandExecutionContext<'a> {
     }
 }
 
-fn is_long_running_request(request: &BridgeRequest, exchange: &BridgeExchange) -> bool {
+pub(in crate::execution) fn is_long_running_request(
+    request: &BridgeRequest,
+    exchange: &BridgeExchange,
+) -> bool {
     // 失败结果（success=false）不是长任务：否则非 web dev 启动失败会一直等 Ctrl-C。
     let result = exchange.response.result.as_ref();
     let failed = result

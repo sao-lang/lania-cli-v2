@@ -1,3 +1,4 @@
+import type { BridgeEvent } from '../../protocol/events.js';
 import type {
   CompilerAdapterContext,
   CompilerAdapterParams,
@@ -12,9 +13,11 @@ export interface RuntimeAdapter {
   handleDev(
     params: CompilerAdapterParams,
     context: CompilerAdapterContext,
+    emit?: (event: BridgeEvent) => void,
   ): Promise<CompilerExecution | null>;
   handleBuild(
     params: CompilerAdapterParams,
     context: CompilerAdapterContext,
+    emit?: (event: BridgeEvent) => void,
   ): Promise<CompilerExecution | null>;
 }

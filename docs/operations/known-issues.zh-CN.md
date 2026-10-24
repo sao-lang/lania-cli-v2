@@ -66,7 +66,7 @@ cargo test --manifest-path rust/Cargo.toml --workspace
 
 以下为设计内行为，记录以免误判：
 
-- `lan dev` 对非 web runtime 只保证**启动阶段**输出可见，不实时流式转发运行期日志。
+- `lan dev` / `lan build` 已实时流式转发启动与运行期日志，统一为 compiler 事件格式（`▶ start` / `• status` / `✖ issue` / `✔ done`）。
 - Python 无通用 dev 命令，必须显式配置 `lan.config.runtimes.python.dev`，否则直接失败。
 - `lan build --watch` 不支持非 web runtime，会明确报错。
 - 非 web 构建失败以非零退出码返回；工具链缺失时 fail-fast，不伪造 dev server。

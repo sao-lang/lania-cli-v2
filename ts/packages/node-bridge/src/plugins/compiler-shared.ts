@@ -70,10 +70,12 @@ export interface CompilerAdapter {
   handleDev(
     params: CompilerAdapterParams,
     context: CompilerAdapterContext,
+    emit?: (event: BridgeEvent) => void,
   ): Promise<CompilerExecution | null>;
   handleBuild(
     params: CompilerAdapterParams,
     context: CompilerAdapterContext,
+    emit?: (event: BridgeEvent) => void,
   ): Promise<CompilerExecution | null>;
 }
 

@@ -15,6 +15,7 @@ use lania_node_bridge::BridgeRequest;
 use lania_workflows::WorkflowExecution;
 use serde_json::json;
 
+use super::bridge_helpers::BridgeDispatchResult;
 use super::context::CommandExecutionContext;
 use super::types::{BridgeCommandRun, CommandExecution, EXIT_CANCELLED};
 
@@ -81,7 +82,8 @@ impl<'a> CommandExecutionContext<'a> {
         }
 
         // 真正发起 bridge 调用（包含 timeout/retry/流式 events 的处理），见 bridge_helpers.rs。
-        let exchange = self.dispatch_bridge_request(&request).await?;
+        let BridgeDispatchResult { exchange, active } =
+            self.dispatch_bridge_request(&request).await?;
         if let Some(error) = exchange.response.error.as_ref() {
             // after hook 使用 parallel：不影响主流程（仅用于观测/上报）。
             // 失败和成功都发 after hook，说明 hook 的职责是“记录这次调用发生了什么”，
@@ -132,7 +134,9 @@ impl<'a> CommandExecutionContext<'a> {
 
         // 对“长任务”做特殊处理：等待用户 Ctrl-C，然后发送 follow-up shutdown 请求。
         // 这让 dev/watch 场景不会“命令立刻返回”，而是保持与用户交互一致。
-        let (follow_up, interrupted) = self.maybe_wait_for_shutdown(&request, &exchange).await?;
+        let (follow_up, interrupted) = self
+            .maybe_wait_for_shutdown(&request, &exchange, active)
+            .await?;
         if let Some(shutdown) = follow_up.as_ref() {
             // follow-up shutdown 本身也可能失败，因此这里同样要经过统一错误映射。
             self.raise_bridge_error(&request, &shutdown.response.error)?;

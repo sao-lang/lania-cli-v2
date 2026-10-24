@@ -16,6 +16,17 @@ impl<'a> CommandExecutionContext<'a> {
         // 事件处理是“副作用优先”：即使最终 response.error 需要上抛，
         // 也应该先把 events 里的诊断信息展示出来。
         for event in &exchange.events {
+            self.apply_bridge_event(request, event);
+        }
+    }
+
+    /// 立即渲染单条事件（用于响应到达前的实时日志，以及 dev 响应后的运行期日志）。
+    pub(in crate::execution) fn apply_bridge_event(
+        &self,
+        request: &BridgeRequest,
+        event: &BridgeEvent,
+    ) {
+        {
             self.maybe_stream_bridge_event(request, event);
             self.log(
                 LogLevel::Trace,
@@ -100,7 +111,7 @@ impl<'a> CommandExecutionContext<'a> {
                         "command_execute",
                         Some(request.method.clone()),
                         format!(
-                            "compiler start: tool={tool}, action={action}, workerMode={}, isolated={}",
+                            "▶ compiler start: tool={tool}, action={action}, workerMode={}, isolated={}",
                             event.params["workerMode"].as_str().unwrap_or("inline_bridge"),
                             event.params["isolated"].as_bool().unwrap_or(false)
                         ),
@@ -121,7 +132,7 @@ impl<'a> CommandExecutionContext<'a> {
                         LogLevel::Info,
                         "command_execute",
                         Some(request.method.clone()),
-                        format!("compiler status [{stage}]: {message}"),
+                        format!("• compiler status [{stage}]: {message}"),
                     );
                 }
                 BridgeEventMethod::CompilerServerReady => {
@@ -134,7 +145,7 @@ impl<'a> CommandExecutionContext<'a> {
                         LogLevel::Info,
                         "command_execute",
                         Some(request.method.clone()),
-                        format!("compiler server ready: {url}"),
+                        format!("▶ compiler server ready: {url}"),
                     );
                 }
                 BridgeEventMethod::CompilerAsset => {
@@ -162,7 +173,7 @@ impl<'a> CommandExecutionContext<'a> {
                         level,
                         "command_execute",
                         Some(request.method.clone()),
-                        format!("compiler issue [{severity}]: {message}"),
+                        format!("✖ compiler issue [{severity}]: {message}"),
                     );
                 }
                 BridgeEventMethod::CompilerWatchChange => {
@@ -198,7 +209,7 @@ impl<'a> CommandExecutionContext<'a> {
                         "command_execute",
                         Some(request.method.clone()),
                         format!(
-                            "compiler done: action={}, success={}, implementation={}",
+                            "✔ compiler done: action={}, success={}, implementation={}",
                             event.params["action"].as_str().unwrap_or("run"),
                             success,
                             event.params["implementation"].as_str().unwrap_or("unknown")

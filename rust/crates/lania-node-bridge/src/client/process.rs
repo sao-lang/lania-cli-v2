@@ -145,6 +145,24 @@ pub(super) fn mock_lan_config_value(cwd: &str) -> serde_json::Value {
     })
 }
 
+fn is_long_running_response(response: &crate::protocol::BridgeResponse) -> bool {
+    response
+        .result
+        .as_ref()
+        .map(|result| {
+            result
+                .get("longRunning")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+                || (result.get("action").and_then(serde_json::Value::as_str) == Some("dev")
+                    && result
+                        .get("success")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(true))
+        })
+        .unwrap_or(false)
+}
+
 pub(super) fn pump_process_events(
     mut stdout: BufReader<ChildStdout>,
     stdin: Arc<Mutex<ChildStdin>>,
@@ -185,6 +203,7 @@ pub(super) fn pump_process_events(
                 // global_events：无论是否属于某个 request，都广播出去（例如 ready/heartbeat）。
                 // per-request events：如果 request_id 命中 pending，则额外投递到该调用方的 event_rx。
                 let _ = global_events.send(payload.clone());
+                let is_shutdown = payload.method == BridgeEventMethod::Shutdown;
                 if let Some(request) = pending
                     .lock()
                     .expect("bridge pending store poisoned")
@@ -195,21 +214,46 @@ pub(super) fn pump_process_events(
                     // 不是 async task；直接用异步 `send().await` 反而不合适。
                     let _ = request.event_tx.blocking_send(payload);
                 }
+                if is_shutdown {
+                    // 只有长任务（dev/watch）的挂起项会在 shutdown 时结束；
+                    // compiler.stop 自身也会返回 shutdown 事件，不能因此丢掉它的 response。
+                    let mut store = pending.lock().expect("bridge pending store poisoned");
+                    if store.get(&request_id).is_some_and(|request| request.keep_alive) {
+                        store.remove(&request_id);
+                    }
+                }
             }
             Ok(BridgeEnvelope::Response { payload }) => {
                 metrics
                     .inner
                     .responses_received
                     .fetch_add(1, Ordering::Relaxed);
-                if let Some(request) = pending
-                    .lock()
-                    .expect("bridge pending store poisoned")
-                    .remove(&payload.id)
-                {
+                let keep_alive = is_long_running_response(&payload);
+                let request_id = payload.id.clone();
+                let mut store = pending.lock().expect("bridge pending store poisoned");
+                if let Some(request) = store.remove(&request_id) {
+                    let method = request.method.clone();
                     // 收到 response 代表请求结束：从 pending 移除并完成 oneshot。
                     // 注意这里是 `remove` 而不是 `get`：
                     // response 是“一次性终局消息”，一旦送达，这个 request 就不再是 in-flight。
                     let _ = request.response_tx.send(payload);
+                    if keep_alive {
+                        // dev/watch 在 response 之后仍会继续产出事件：
+                        // 保留 event_tx，直到 stop 完成或收到 event.shutdown。
+                        let (dummy_tx, _dummy_rx) = tokio::sync::oneshot::channel();
+                        store.insert(
+                            request_id,
+                            PendingRequest {
+                                event_tx: request.event_tx,
+                                response_tx: dummy_tx,
+                                method: method.clone(),
+                                keep_alive: true,
+                            },
+                        );
+                    }
+                    if method == "compiler.stop" {
+                        store.retain(|_, item| !item.keep_alive);
+                    }
                 }
             }
             Ok(BridgeEnvelope::HostRequest { payload }) => {

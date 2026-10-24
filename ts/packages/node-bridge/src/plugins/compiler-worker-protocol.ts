@@ -29,6 +29,8 @@ export type CompilerWorkerRequest =
       method: CompilerWorkerMethod;
       params: CompilerAdapterParams;
       context: CompilerAdapterContext;
+      /** 父进程是否要求实时事件流（true 时 worker 用 event 消息而不是 result.events 回传）。 */
+      stream?: boolean;
     }
   | {
       // 仅对 keepAlive=true 的长任务有意义；短任务 worker 在 result 后已退出。
@@ -36,6 +38,10 @@ export type CompilerWorkerRequest =
     };
 
 export type CompilerWorkerMessage =
+  | {
+      type: 'event';
+      event: BridgeEvent;
+    }
   | {
       type: 'result';
       execution: Omit<CompilerExecution, 'activeCompiler'>;

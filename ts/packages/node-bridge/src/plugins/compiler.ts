@@ -22,16 +22,22 @@ import { failureExecution } from './runtime-adapters/spawn.js';
 import { loadLanConfig } from '../core/runtime.js';
 
 let activeCompiler: ActiveCompiler | null = null;
+// dev 请求的 emit 会保留到进程停止，用于把运行期日志继续写回原请求。
+let activeEmit: ((event: BridgeEvent) => void) | undefined;
 
 export const compilerPlugin = {
   name: 'compiler',
   methods: ['compiler.dev', 'compiler.build', 'compiler.stop'],
-  async handle(method: string, params: Record<string, unknown>) {
+  async handle(
+    method: string,
+    params: Record<string, unknown>,
+    context?: { emit?: (event: BridgeEvent) => void },
+  ) {
     switch (method) {
       case 'compiler.dev':
-        return handleDev(params);
+        return handleDev(params, context);
       case 'compiler.build':
-        return handleBuild(params);
+        return handleBuild(params, context);
       case 'compiler.stop':
         return stopCompiler('requested');
       default:
@@ -40,7 +46,11 @@ export const compilerPlugin = {
   },
 };
 
-async function handleDev(params: Record<string, unknown>) {
+async function handleDev(
+  params: Record<string, unknown>,
+  context?: { emit?: (event: BridgeEvent) => void },
+) {
+  activeEmit = undefined;
   const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
   const host = typeof params.host === 'string' ? params.host : '127.0.0.1';
   const requestedPort = typeof params.port === 'number' ? params.port : 8089;
@@ -58,9 +68,11 @@ async function handleDev(params: Record<string, unknown>) {
       'compiler.dev',
       createAdapterParams(cwd, host, port, params),
       { tool, runtime, lanConfig: lanConfig.config, runtimeWarning },
+      context?.emit,
     ).catch(() => undefined);
     if (execution?.activeCompiler) {
       activeCompiler = execution.activeCompiler;
+      activeEmit = context?.emit;
     }
     if (execution) {
       return execution;
@@ -76,7 +88,10 @@ async function handleDev(params: Record<string, unknown>) {
   }
 }
 
-async function handleBuild(params: Record<string, unknown>) {
+async function handleBuild(
+  params: Record<string, unknown>,
+  context?: { emit?: (event: BridgeEvent) => void },
+) {
   const cwd = typeof params.cwd === 'string' ? params.cwd : process.cwd();
   let runtime: Runtime = 'web';
   try {
@@ -93,6 +108,7 @@ async function handleBuild(params: Record<string, unknown>) {
       'compiler.build',
       createAdapterParams(cwd, '127.0.0.1', 0, params),
       { tool, runtime, lanConfig: lanConfig.config, runtimeWarning },
+      context?.emit,
     ).catch(() => undefined);
     if (execution?.activeCompiler) {
       activeCompiler = execution.activeCompiler;
@@ -112,9 +128,16 @@ async function handleBuild(params: Record<string, unknown>) {
 
 async function stopCompiler(reason: string) {
   const compiler = activeCompiler;
+  const emit = activeEmit;
   activeCompiler = null;
+  activeEmit = undefined;
   // stop 会先尝试停止 worker 内的编译器（如果存在），并把 worker 期间捕获的 events 追加到最终事件序列。
   const workerEvents = compiler ? ((await compiler.stop()) ?? []) : [];
+  // 已流式输出的运行期事件只发一次：有 emit 时走原 dev 请求，否则随 stop response 返回。
+  if (emit) {
+    workerEvents.forEach((event) => emit(event));
+    emit({ method: 'event.shutdown', params: { reason } } as BridgeEvent);
+  }
 
   return {
     result: {
@@ -122,7 +145,7 @@ async function stopCompiler(reason: string) {
       stopped: true,
     },
     events: [
-      ...workerEvents,
+      ...(emit ? [] : workerEvents),
       ...(compiler
         ? [
             // 这里补一组“可预期”的状态事件，便于 Rust 端统一映射到进度条与日志。
@@ -137,13 +160,17 @@ async function stopCompiler(reason: string) {
             }),
           ]
         : []),
-      // shutdown 事件是“桥接层语义”：让 Rust 端知道 stop 已被处理并可以结束长任务等待。
-      {
-        method: 'event.shutdown',
-        params: {
-          reason,
-        },
-      } satisfies BridgeEvent,
+      // shutdown 事件是“桥接层语义”：有流式 emit 时已经发到原 dev 请求，避免重复。
+      ...(emit
+        ? []
+        : [
+            {
+              method: 'event.shutdown',
+              params: {
+                reason,
+              },
+            } satisfies BridgeEvent,
+          ]),
     ],
   };
 }
