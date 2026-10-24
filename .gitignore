@@ -51,3 +51,6 @@ temp/
 .lania
 
 lania-cli
+
+# Superpowers scratch
+.superpowers/
