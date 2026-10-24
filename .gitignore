@@ -37,6 +37,11 @@ npm/cli/lib/node-bridge/
 npm/cli/*.tgz
 npm/cli-darwin-arm64/bin/lania-cli
 npm/cli-darwin-arm64/*.tgz
+npm/cli-linux-x64/bin/lania-cli
+npm/cli-linux-x64/*.tgz
+npm/cli-win32-x64/bin/lania-cli.exe
+npm/cli-win32-x64/*.tgz
+.lania/platform-binaries/
 
 # Package manager / tooling caches
 .pnpm-store/

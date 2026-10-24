@@ -38,10 +38,12 @@ function resolvePlatformBinaryPackage() {
 }
 
 // 解析指定 npm 包中平台二进制文件的绝对路径。
+// Windows 上二进制必须带 `.exe` 后缀，否则 spawn 会直接报 ENOENT。
 function resolveBinaryPath(pkgName) {
   const pkgJson = require.resolve(`${pkgName}/package.json`);
   const pkgDir = path.dirname(pkgJson);
-  return path.join(pkgDir, 'bin', 'lania-cli');
+  const binaryName = process.platform === 'win32' ? 'lania-cli.exe' : 'lania-cli';
+  return path.join(pkgDir, 'bin', binaryName);
 }
 
 // 解析 cli 包的根目录路径，同时判断当前运行模式。

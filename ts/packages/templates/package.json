@@ -1,6 +1,6 @@
 {
   "name": "@lania-cli-v2/templates",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": false,
   "type": "module",
   "exports": {

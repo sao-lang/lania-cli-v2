@@ -65,13 +65,13 @@ importers:
   npm/cli:
     optionalDependencies:
       '@lania-cli-v2/cli-darwin-arm64':
-        specifier: 0.0.1
+        specifier: 0.0.2
         version: link:../cli-darwin-arm64
       '@lania-cli-v2/cli-linux-x64':
-        specifier: 0.0.1
+        specifier: 0.0.2
         version: link:../cli-linux-x64
       '@lania-cli-v2/cli-win32-x64':
-        specifier: 0.0.1
+        specifier: 0.0.2
         version: link:../cli-win32-x64
 
   npm/cli-darwin-arm64: {}

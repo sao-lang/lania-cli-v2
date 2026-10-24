@@ -1,6 +1,6 @@
 {
   "name": "@lania-cli-v2/cli-darwin-arm64",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": false,
   "os": [
     "darwin"

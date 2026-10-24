@@ -245,7 +245,9 @@ function resolveInjectedPlatformBinaryPath(descriptor) {
     const root = platformDir.trim();
     candidates.push(
       path.join(root, descriptor.platform, 'lania-cli'),
+      path.join(root, descriptor.platform, 'lania-cli.exe'),
       path.join(root, descriptor.platform, 'bin', 'lania-cli'),
+      path.join(root, descriptor.platform, 'bin', 'lania-cli.exe'),
       path.join(root, descriptor.packageDirName, 'bin', 'lania-cli'),
       path.join(root, descriptor.packageName, 'bin', 'lania-cli'),
     );
@@ -271,7 +273,9 @@ function stagePlatformBinary(descriptor, releaseBinaryPath, source) {
       source,
     };
   }
-  const dst = path.join(descriptor.packageRoot, 'bin/lania-cli');
+  // Windows 二进制必须带 `.exe`，否则 npm 安装后 spawn 会 ENOENT。
+  const targetName = descriptor.platform.startsWith('win32') ? 'lania-cli.exe' : 'lania-cli';
+  const dst = path.join(descriptor.packageRoot, 'bin', targetName);
   copyFile(releaseBinaryPath, dst, 0o755);
   console.log(`[pack] staged ${descriptor.packageName} for ${descriptor.platform}`);
   return {
