@@ -220,12 +220,56 @@ test('compiler plugin routes a go project build through the runtime adapter', as
   }
 });
 
-test('runtime adapter registry exposes go and excludes web', () => {
+test('python adapter builds and fails fast without dev config', async () => {
+  const { cwd, fixture } = await fixtureDir();
+  try {
+    const adapter = resolveRuntimeAdapter('python');
+    assert.ok(adapter);
+    const build = await adapter!.handleBuild(
+      params(cwd),
+      context('python', { runtimes: { python: { build: [process.execPath, fixture] } } }),
+    );
+    assert.equal(build?.result.success, true);
+
+    const dev = await adapter!.handleDev(params(cwd), context('python', {}));
+    assert.equal(dev?.result.success, false);
+    assert.ok(
+      dev!.events.some(
+        (event) =>
+          event.method === 'event.compiler_issue' &&
+          String((event.params as Record<string, unknown>).message).includes(
+            'dev command is not configured',
+          ),
+      ),
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test('rust and dart adapters expose default commands', () => {
+  const rustBuild = resolveSpawnCommand('rust', 'build', context('rust', {}), params('/repo'));
+  assert.deepEqual(
+    [rustBuild?.command, ...(rustBuild?.args ?? [])],
+    ['cargo', 'build', '--release'],
+  );
+
+  const dartDev = resolveSpawnCommand('dart', 'dev', context('dart', {}), params('/repo'));
+  assert.deepEqual([dartDev?.command, ...(dartDev?.args ?? [])], ['dart', 'run']);
+
+  const dartBuild = resolveSpawnCommand('dart', 'build', context('dart', {}), params('/repo'));
+  assert.deepEqual(
+    [dartBuild?.command, ...(dartBuild?.args ?? [])],
+    ['dart', 'compile', 'exe', 'bin/main.dart'],
+  );
+});
+
+test('runtime adapter registry exposes all spawn runtimes and excludes web', () => {
   assert.deepEqual(
     getRuntimeAdapters()
       .map((adapter) => adapter.runtime)
       .sort(),
-    ['go'],
+    ['dart', 'go', 'python', 'rust'],
   );
   assert.equal(resolveRuntimeAdapter('web'), null);
 });
