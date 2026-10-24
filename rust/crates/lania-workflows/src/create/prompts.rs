@@ -178,7 +178,7 @@ pub(super) fn run_add_prompt(
         template_step = template_step.default_value(json!("rfc"));
     }
     for template in ADD_TEMPLATE_SPECS {
-        template_step = template_step.choice(template.label, json!(template.name));
+        template_step = template_step.choice(template.label(zh), json!(template.name));
     }
     let flow = PromptFlow {
         steps: vec![

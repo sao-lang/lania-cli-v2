@@ -48,7 +48,11 @@ fn set_example_desc(spec: &mut CommandSpec, command: &str, zh: &str) {
 fn localize_release_shared_options(spec: &mut CommandSpec) {
     set_option_help(spec, "version", "发布版本号");
     set_option_help(spec, "tag", "包发布 dist-tag 覆写");
-    set_option_help(spec, "profile", "发布配置：package、web-app、service、custom");
+    set_option_help(
+        spec,
+        "profile",
+        "发布配置：package、web-app、service、custom",
+    );
     set_option_help(spec, "env", "目标发布环境");
     set_option_help(spec, "channel", "发布通道或部署通道");
     set_option_help(spec, "from", "从指定阶段开始发布");
@@ -82,7 +86,11 @@ fn localize_generate_module_options(spec: &mut CommandSpec) {
     set_option_help(spec, "entry", "按 entry 过滤（支持逗号分隔）");
     set_option_help(spec, "main", "覆盖 main.go 注入目标");
     set_option_help(spec, "module-name", "为单个 entry 覆盖生成的模块名");
-    set_option_help(spec, "package", "覆盖生成的 main.go helper 使用的 Go import 路径");
+    set_option_help(
+        spec,
+        "package",
+        "覆盖生成的 main.go helper 使用的 Go import 路径",
+    );
     set_option_help(spec, "manifest", "覆盖 manifest 路径");
     set_option_help(spec, "dry-run", "仅规划生成，不写入文件");
     set_option_help(spec, "check", "校验生成结果，不写入文件");
@@ -93,6 +101,37 @@ fn localize_generate_module_options(spec: &mut CommandSpec) {
 
 fn localize_product_common_options(spec: &mut CommandSpec) {
     set_option_help(spec, "path", "product 根目录路径（默认当前工作目录）");
+}
+
+fn localize_lint_options(spec: &mut CommandSpec) {
+    set_option_help(spec, "fix", "以修复模式运行 lint");
+    set_option_help(
+        spec,
+        "linters",
+        "仅运行指定 linter adaptor（逗号分隔：eslint,oxlint,prettier,oxfmt,stylelint,textlint,ruff,black,mypy,flake8,golangci-lint,go-vet,clippy,dart-analyze）",
+    );
+    set_option_help(spec, "concurrency", "设置 lint adaptor 并发数上限");
+    set_option_help(spec, "grouped-output", "按 adaptor 分组输出 lint 结果");
+}
+
+fn localize_env_options(spec: &mut CommandSpec) {
+    set_option_help(
+        spec,
+        "manager",
+        "强制指定版本管理器（nvm/fnm/volta/pyenv/rustup/...）",
+    );
+}
+
+fn localize_env_mutation(spec: &mut CommandSpec) {
+    localize_env_options(spec);
+    set_arg_help(
+        spec,
+        "tool",
+        "要管理的工具：node/python/rust/go/dart/kotlin/java/c",
+    );
+    set_arg_help(spec, "version", "目标版本，例如 20 / 3.12 / stable");
+    set_option_help(spec, "yes", "真正执行计划（默认仅演练）");
+    set_option_help(spec, "project", "将版本写入项目版本文件");
 }
 
 fn apply_zh_translations(spec: &mut CommandSpec) {
@@ -110,8 +149,8 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             );
             set_example_desc(
                 spec,
-                "lan config set output.mode stream",
-                "切换终端输出为流式模式",
+                "lan config set output.mode json",
+                "切换终端输出为 JSON 模式",
             );
             set_example_desc(
                 spec,
@@ -143,6 +182,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             );
             set_option_help(spec, "open", "开发服务器就绪后打开浏览器");
             set_option_help(spec, "mode", "转发 dev mode 到底层编译器");
+            set_option_help(spec, "runtime", "覆盖运行时（web|python|go|rust|dart）");
             set_example_desc(spec, "lan dev", "运行默认开发工作流");
             set_example_desc(
                 spec,
@@ -159,6 +199,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "watch", "以 watch 模式保持构建进程运行");
             set_option_help(spec, "mode", "转发构建 mode 到底层编译器");
             set_option_help(spec, "output-dir", "覆盖构建输出目录");
+            set_option_help(spec, "runtime", "覆盖运行时（web|python|go|rust|dart）");
             set_example_desc(spec, "lan build", "执行一次生产构建");
             set_example_desc(
                 spec,
@@ -170,14 +211,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         // lint
         "command.lint" => {
             spec.about = "运行项目 lint 检查".into();
-            set_option_help(spec, "fix", "以修复模式运行 lint");
-            set_option_help(
-                spec,
-                "linters",
-                "仅运行指定 linter adaptor（逗号分隔：oxlint,eslint,oxfmt,prettier,stylelint,textlint）",
-            );
-            set_option_help(spec, "concurrency", "设置 lint adaptor 并发数上限");
-            set_option_help(spec, "grouped-output", "按 adaptor 分组输出 lint 结果");
+            localize_lint_options(spec);
             set_example_desc(spec, "lan lint", "运行 lint 检查");
             set_example_desc(
                 spec,
@@ -187,25 +221,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         }
         "command.lint.check" => {
             spec.about = "以检查模式运行 lint".into();
-            set_option_help(spec, "fix", "以修复模式运行 lint");
-            set_option_help(
-                spec,
-                "linters",
-                "仅运行指定 linter adaptor（逗号分隔：oxlint,eslint,oxfmt,prettier,stylelint,textlint）",
-            );
-            set_option_help(spec, "concurrency", "设置 lint adaptor 并发数上限");
-            set_option_help(spec, "grouped-output", "按 adaptor 分组输出 lint 结果");
+            localize_lint_options(spec);
         }
         "command.lint.fix" => {
             spec.about = "以修复模式运行 lint".into();
-            set_option_help(spec, "fix", "以修复模式运行 lint");
-            set_option_help(
-                spec,
-                "linters",
-                "仅运行指定 linter adaptor（逗号分隔：oxlint,eslint,oxfmt,prettier,stylelint,textlint）",
-            );
-            set_option_help(spec, "concurrency", "设置 lint adaptor 并发数上限");
-            set_option_help(spec, "grouped-output", "按 adaptor 分组输出 lint 结果");
+            localize_lint_options(spec);
         }
 
         // create
@@ -220,6 +240,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "skip-git", "兼容参数：旧版 --no-git");
             set_option_help(spec, "skip-install", "跳过包管理器 init/install 步骤");
             set_option_help(spec, "language", "首选语言（透传给模板上下文）");
+            set_option_help(
+                spec,
+                "lint-tools",
+                "逗号分隔的 lint 工具列表（转发给模板上下文）",
+            );
             set_option_help(spec, "dry-run", "仅规划文件写入与安装命令，不实际执行");
             set_option_help(spec, "preview", "预览渲染的模板文件（隐含 dry-run）");
             set_example_desc(spec, "lan create --name demo-app", "创建默认 React 项目");
@@ -283,7 +308,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_arg_help(spec, "args", "product 命令及其参数");
             localize_product_common_options(spec);
             set_option_help(spec, "watch", "监听 product 文件变化并在变更后重启转发命令");
-            set_option_help(spec, "poll-interval-ms", "product watch 模式的轮询间隔（毫秒）");
+            set_option_help(
+                spec,
+                "poll-interval-ms",
+                "product watch 模式的轮询间隔（毫秒）",
+            );
             set_example_desc(
                 spec,
                 "lan product dev --watch ops hello --path ./products/acme-cli",
@@ -339,7 +368,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "platform-binary-paths",
                 "将平台标识映射到注入二进制路径的 JSON 对象",
             );
-            set_option_help(spec, "execute", "根据生成的 publish manifest 执行 npm publish 步骤");
+            set_option_help(
+                spec,
+                "execute",
+                "根据生成的 publish manifest 执行 npm publish 步骤",
+            );
             set_option_help(spec, "dry-run", "以 npm --dry-run 执行发布步骤");
             set_option_help(spec, "yes", "非 --dry-run 情况下确认真实 npm publish 执行");
             set_option_help(spec, "resume", "从已完成的 manifest 步骤继续发布执行");
@@ -679,7 +712,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         "command.generate.module" => {
             spec.about = "生成 lania-g 模块与 main.go 注入产物".into();
             localize_generate_module_options(spec);
-            set_example_desc(spec, "lan generate module", "生成所有已配置的 lania-g 模块产物");
+            set_example_desc(
+                spec,
+                "lan generate module",
+                "生成所有已配置的 lania-g 模块产物",
+            );
             set_example_desc(
                 spec,
                 "lan generate module --entry user --target grpc --check",
@@ -706,6 +743,277 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             localize_generate_module_options(spec);
         }
 
+        // env
+        "command.env" => {
+            spec.about = "查看并管理多语言工具链（node/python/rust/go/dart/kotlin/java/c）".into();
+            localize_env_options(spec);
+            set_example_desc(
+                spec,
+                "lan env list",
+                "显示所有受支持的工具链及其探测到的版本",
+            );
+            set_example_desc(
+                spec,
+                "lan env info node",
+                "查看 node：可执行文件路径、管理器、项目固定版本与候选版本",
+            );
+            set_example_desc(
+                spec,
+                "lan env versions node",
+                "列出 nvm/fnm/... 等管理器已安装的 node 版本",
+            );
+            set_example_desc(
+                spec,
+                "lan env install node 20 --yes",
+                "通过探测到的管理器安装 node 20",
+            );
+            set_example_desc(
+                spec,
+                "lan env use python 3.12 --project",
+                "将 python 3.12 固定到本项目的 .python-version",
+            );
+            set_example_desc(spec, "lan env remove node 18 --yes", "卸载 node 18");
+            set_example_desc(spec, "lan env doctor", "报告缺失的工具链与 PATH 冲突");
+            set_example_desc(spec, "lan env ui", "打开本地界面以可视化管理工具链");
+        }
+        "command.env.list" => {
+            spec.about = "显示所有受支持的工具链及版本".into();
+            localize_env_options(spec);
+        }
+        "command.env.info" => {
+            spec.about = "查看单个工具链的详情".into();
+            localize_env_options(spec);
+            set_arg_help(
+                spec,
+                "tool",
+                "要查看的工具：node/python/rust/go/dart/kotlin/java/c",
+            );
+        }
+        "command.env.versions" => {
+            spec.about = "列出某个工具链已安装的版本".into();
+            localize_env_options(spec);
+            set_arg_help(
+                spec,
+                "tool",
+                "要列出工具：node/python/rust/go/dart/kotlin/java/c",
+            );
+        }
+        "command.env.install" => {
+            spec.about = "安装指定版本的工具链".into();
+            localize_env_mutation(spec);
+        }
+        "command.env.use" => {
+            spec.about = "切换或固定工具链版本".into();
+            localize_env_mutation(spec);
+        }
+        "command.env.remove" => {
+            spec.about = "卸载指定版本的工具链".into();
+            localize_env_mutation(spec);
+        }
+        "command.env.doctor" => {
+            spec.about = "检查缺失的工具链与 PATH 冲突".into();
+        }
+        "command.env.ui" => {
+            spec.about = "打开用于管理工具链的终端界面".into();
+            set_option_help(spec, "snapshot", "只输出一帧非交互画面，不启动 TUI");
+            set_option_help(spec, "cols", "快照宽度（默认 100）");
+            set_option_help(spec, "rows", "快照高度（默认 28）");
+            set_option_help(spec, "down", "仅快照：模拟按 N 次方向键（用于验证滚动）");
+            set_option_help(
+                spec,
+                "no-versions",
+                "仅快照：跳过版本探测，以快速获得纯布局画面",
+            );
+            set_example_desc(
+                spec,
+                "lan env ui",
+                "打开双栏终端界面（方向键移动，i/u/d 执行操作）",
+            );
+            set_example_desc(
+                spec,
+                "lan env ui --snapshot",
+                "渲染一帧画面而不进入交互模式",
+            );
+        }
+
+        // agent
+        "command.agent" => {
+            spec.about = "运行基于 pi 的编码 agent（交互式 REPL 或单次执行）".into();
+            set_arg_help(spec, "prompt", "提示词文本；提供后 agent 以单次模式运行");
+            set_option_help(spec, "model", "传给 pi 的模型 id（例如 claude-sonnet-4-5）");
+            set_option_help(spec, "provider", "提供商 id（anthropic/openai/...）");
+            set_option_help(spec, "thinking", "推理强度");
+            set_option_help(
+                spec,
+                "approval-mode",
+                "工具审批模式：always-ask | write | yolo",
+            );
+            set_example_desc(spec, "lan agent", "启动交互式 agent 会话");
+            set_example_desc(
+                spec,
+                "lan agent \"explain the rust crate layout\"",
+                "单次执行提示词",
+            );
+            set_example_desc(
+                spec,
+                "lan agent --approval-mode yolo \"run the test suite\"",
+                "单次执行且不弹出审批提示",
+            );
+        }
+
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{localize_command_specs, CommandSpec};
+    use lania_agent::AgentCommandPlugin;
+    use lania_host::{
+        capability::CapabilityContainer,
+        plugin::{Plugin, PluginSetupContext},
+        registry::{CommandHandlerRegistryImpl, CommandRegistry, CommandRegistryImpl},
+        HookBusImpl,
+    };
+    use lania_plugins_command_add::AddCommandPlugin;
+    use lania_plugins_command_build::BuildCommandPlugin;
+    use lania_plugins_command_create::CreateCommandPlugin;
+    use lania_plugins_command_dev::DevCommandPlugin;
+    use lania_plugins_command_env::EnvCommandPlugin;
+    use lania_plugins_command_generate::GenerateCommandPlugin;
+    use lania_plugins_command_lint::LintCommandPlugin;
+    use lania_plugins_command_locale::ConfigCommandPlugin;
+    use lania_plugins_command_release::ReleaseCommandPlugin;
+    use lania_plugins_command_sync::SyncCommandPlugin;
+    use lania_plugins_command_template::TemplateCommandPlugin;
+    use lania_plugins_command_tools::ToolsCommandPlugin;
+
+    /// Rebuild the same built-in command tree that `lania-cli` registers before
+    /// rendering help, so any new command/option/arg/example is covered here
+    /// automatically.
+    fn builtin_command_specs() -> Vec<CommandSpec> {
+        let mut commands = CommandRegistryImpl::new();
+        let mut hooks = HookBusImpl::new();
+        let mut capabilities = CapabilityContainer::new();
+        let mut handlers = CommandHandlerRegistryImpl::new();
+
+        macro_rules! setup {
+            ($plugin:expr) => {{
+                $plugin
+                    .setup(&mut PluginSetupContext {
+                        commands: &mut commands,
+                        hooks: &mut hooks,
+                        capabilities: &mut capabilities,
+                        handlers: &mut handlers,
+                    })
+                    .expect("built-in plugin setup succeeds");
+            }};
+        }
+
+        // Same registration order as `lania-cli/src/main.rs`.
+        setup!(DevCommandPlugin);
+        setup!(BuildCommandPlugin);
+        setup!(LintCommandPlugin);
+        setup!(CreateCommandPlugin);
+        setup!(AddCommandPlugin);
+        setup!(GenerateCommandPlugin);
+        setup!(ReleaseCommandPlugin);
+        setup!(SyncCommandPlugin);
+        setup!(TemplateCommandPlugin);
+        setup!(ToolsCommandPlugin);
+        setup!(EnvCommandPlugin);
+        setup!(AgentCommandPlugin);
+        setup!(ConfigCommandPlugin);
+
+        // Dev-dependencies form a cycle through `lania-command`, so Cargo builds
+        // this crate twice: once for the unit-test target and once for the
+        // plugin graph. The two `CommandSpec` types are structurally identical
+        // but distinct, so bridge them through their shared serde shape.
+        commands
+            .commands()
+            .iter()
+            .map(|spec| {
+                serde_json::from_value(serde_json::to_value(spec).expect("spec serializes"))
+                    .expect("spec deserializes into the local type")
+            })
+            .collect()
+    }
+
+    fn contains_cjk(text: &str) -> bool {
+        text.chars().any(|ch| {
+            matches!(
+                ch,
+                '\u{3400}'..='\u{4DBF}' | '\u{4E00}'..='\u{9FFF}' | '\u{F900}'..='\u{FAFF}'
+            )
+        })
+    }
+
+    fn collect_untranslated(spec: &CommandSpec, parent_path: &str, failures: &mut Vec<String>) {
+        let path = if parent_path.is_empty() {
+            format!("lan {} ({})", spec.name, spec.handler_id)
+        } else {
+            format!("{parent_path} {} ({})", spec.name, spec.handler_id)
+        };
+
+        if !contains_cjk(&spec.about) {
+            failures.push(format!("{path}: about = {:?}", spec.about));
+        }
+        for option in &spec.options {
+            let label = if option.long.is_empty() {
+                option
+                    .short
+                    .map(|short| format!("-{short}"))
+                    .unwrap_or_else(|| "<unknown>".into())
+            } else {
+                format!("--{}", option.long)
+            };
+            if !contains_cjk(&option.help) {
+                failures.push(format!("{path}: option {label} help = {:?}", option.help));
+            }
+        }
+        for arg in &spec.args {
+            if !contains_cjk(&arg.help) {
+                failures.push(format!("{path}: arg {} help = {:?}", arg.name, arg.help));
+            }
+        }
+        for example in &spec.examples {
+            if !contains_cjk(&example.description) {
+                failures.push(format!(
+                    "{path}: example `{}` description = {:?}",
+                    example.command, example.description
+                ));
+            }
+        }
+        for subcommand in &spec.subcommands {
+            collect_untranslated(subcommand, &path, failures);
+        }
+    }
+
+    #[test]
+    fn zh_localization_covers_every_builtin_command_string() {
+        let mut specs = builtin_command_specs();
+        for expected in [
+            "dev", "build", "lint", "create", "add", "generate", "release", "sync", "template",
+            "tools", "env", "agent", "config",
+        ] {
+            assert!(
+                specs.iter().any(|spec| spec.name == expected),
+                "built-in command tree is missing `{expected}`"
+            );
+        }
+
+        localize_command_specs("zh", &mut specs);
+
+        let mut failures = Vec::new();
+        for spec in &specs {
+            collect_untranslated(spec, "", &mut failures);
+        }
+
+        assert!(
+            failures.is_empty(),
+            "missing zh localization for {} help string(s):\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
     }
 }

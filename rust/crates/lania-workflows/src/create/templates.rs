@@ -90,77 +90,105 @@ const DECLARED_TEMPLATES: &[DeclaredTemplate] = &[SPA_REACT_TEMPLATE, SPA_VUE_TE
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AddTemplateSpec {
     pub(super) name: &'static str,
-    pub(super) label: &'static str,
+    label_en: &'static str,
+    label_zh: &'static str,
+}
+
+impl AddTemplateSpec {
+    pub(super) fn label(&self, zh: bool) -> &'static str {
+        if zh {
+            self.label_zh
+        } else {
+            self.label_en
+        }
+    }
 }
 
 pub(super) const ADD_TEMPLATE_SPECS: &[AddTemplateSpec] = &[
     AddTemplateSpec {
         name: "v2",
-        label: "vue2模板组件",
+        label_en: "Vue 2 component",
+        label_zh: "vue2模板组件",
     },
     AddTemplateSpec {
         name: "v3",
-        label: "vue3模板组件",
+        label_en: "Vue 3 component",
+        label_zh: "vue3模板组件",
     },
     AddTemplateSpec {
         name: "rcc",
-        label: "react类组件",
+        label_en: "React class component",
+        label_zh: "react类组件",
     },
     AddTemplateSpec {
         name: "rfc",
-        label: "react函数式组件",
+        label_en: "React function component",
+        label_zh: "react函数式组件",
     },
     AddTemplateSpec {
         name: "svelte",
-        label: "svelte模板组件",
+        label_en: "Svelte component",
+        label_zh: "svelte模板组件",
     },
     AddTemplateSpec {
         name: "astro",
-        label: "astro组件",
+        label_en: "Astro component",
+        label_zh: "astro组件",
     },
     AddTemplateSpec {
         name: "prettier",
-        label: "prettier配置文件",
+        label_en: "Prettier config",
+        label_zh: "prettier配置文件",
     },
     AddTemplateSpec {
         name: "eslint",
-        label: "eslint配置文件",
+        label_en: "ESLint config",
+        label_zh: "eslint配置文件",
     },
     AddTemplateSpec {
         name: "stylelint",
-        label: "stylelint配置文件",
+        label_en: "Stylelint config",
+        label_zh: "stylelint配置文件",
     },
     AddTemplateSpec {
         name: "editorconfig",
-        label: "editorconfig配置文件",
+        label_en: "EditorConfig file",
+        label_zh: "editorconfig配置文件",
     },
     AddTemplateSpec {
         name: "gitignore",
-        label: ".gitignore文件",
+        label_en: ".gitignore file",
+        label_zh: ".gitignore文件",
     },
     AddTemplateSpec {
         name: "tsconfig",
-        label: "tsconfig配置文件",
+        label_en: "tsconfig file",
+        label_zh: "tsconfig配置文件",
     },
     AddTemplateSpec {
         name: "commitizen",
-        label: "commitizen配置文件",
+        label_en: "Commitizen config",
+        label_zh: "commitizen配置文件",
     },
     AddTemplateSpec {
         name: "go-handler",
-        label: "Go handler",
+        label_en: "Go handler",
+        label_zh: "Go handler",
     },
     AddTemplateSpec {
         name: "python-module",
-        label: "Python module",
+        label_en: "Python module",
+        label_zh: "Python module",
     },
     AddTemplateSpec {
         name: "rust-module",
-        label: "Rust module",
+        label_en: "Rust module",
+        label_zh: "Rust module",
     },
     AddTemplateSpec {
         name: "dart-class",
-        label: "Dart class",
+        label_en: "Dart class",
+        label_zh: "Dart class",
     },
 ];
 

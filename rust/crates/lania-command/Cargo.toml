@@ -9,3 +9,21 @@ authors.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+# Test-only: the localization coverage test assembles the real built-in command
+# tree from the plugin crates that the CLI binary registers.
+[dev-dependencies]
+lania-agent = { path = "../lania-agent" }
+lania-host = { path = "../lania-host" }
+lania-plugins-command-add = { path = "../lania-plugins-command-add" }
+lania-plugins-command-build = { path = "../lania-plugins-command-build" }
+lania-plugins-command-create = { path = "../lania-plugins-command-create" }
+lania-plugins-command-dev = { path = "../lania-plugins-command-dev" }
+lania-plugins-command-env = { path = "../lania-plugins-command-env" }
+lania-plugins-command-generate = { path = "../lania-plugins-command-generate" }
+lania-plugins-command-lint = { path = "../lania-plugins-command-lint" }
+lania-plugins-command-locale = { path = "../lania-plugins-command-locale" }
+lania-plugins-command-release = { path = "../lania-plugins-command-release" }
+lania-plugins-command-sync = { path = "../lania-plugins-command-sync" }
+lania-plugins-command-template = { path = "../lania-plugins-command-template" }
+lania-plugins-command-tools = { path = "../lania-plugins-command-tools" }
