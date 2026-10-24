@@ -65,20 +65,95 @@ impl<'a> CommandExecutionContext<'a> {
     }
 
     fn is_long_running(&self, request: &BridgeRequest, exchange: &BridgeExchange) -> bool {
-        // 不把“长任务”写死成某个固定方法集合，而是允许 response 自己声明 `longRunning`。
-        matches!(request.method.as_str(), "compiler.dev")
-            || (request.method == "compiler.build"
-                && exchange
-                    .response
-                    .result
-                    .as_ref()
-                    .and_then(|result| result["watch"].as_bool())
-                    .unwrap_or(false))
-            || exchange
-                .response
-                .result
-                .as_ref()
-                .and_then(|result| result["longRunning"].as_bool())
-                .unwrap_or(false)
+        is_long_running_request(request, exchange)
+    }
+}
+
+fn is_long_running_request(request: &BridgeRequest, exchange: &BridgeExchange) -> bool {
+    // 失败结果（success=false）不是长任务：否则非 web dev 启动失败会一直等 Ctrl-C。
+    let result = exchange.response.result.as_ref();
+    let failed = result
+        .and_then(|value| value.get("success"))
+        .and_then(|value| value.as_bool())
+        == Some(false);
+    if failed {
+        return false;
+    }
+    matches!(request.method.as_str(), "compiler.dev")
+        || (request.method == "compiler.build"
+            && result
+                .and_then(|value| value.get("watch"))
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false))
+        || result
+            .and_then(|value| value.get("longRunning"))
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use lania_node_bridge::{BridgeExchange, BridgeRequest, BridgeResponse};
+    use serde_json::json;
+
+    use super::is_long_running_request;
+
+    fn request(method: &str) -> BridgeRequest {
+        BridgeRequest {
+            id: "req-1".into(),
+            method: method.into(),
+            params: json!({}),
+        }
+    }
+
+    fn exchange(result: serde_json::Value) -> BridgeExchange {
+        BridgeExchange {
+            response: BridgeResponse {
+                id: "req-1".into(),
+                result: Some(result),
+                error: None,
+            },
+            events: vec![],
+        }
+    }
+
+    #[test]
+    fn failed_dev_result_is_not_long_running() {
+        assert!(!is_long_running_request(
+            &request("compiler.dev"),
+            &exchange(json!({ "success": false }))
+        ));
+    }
+
+    #[test]
+    fn successful_dev_result_is_long_running() {
+        assert!(is_long_running_request(
+            &request("compiler.dev"),
+            &exchange(json!({ "success": true, "longRunning": true }))
+        ));
+        assert!(is_long_running_request(
+            &request("compiler.dev"),
+            &exchange(json!({}))
+        ));
+    }
+
+    #[test]
+    fn build_watch_is_long_running_but_plain_build_is_not() {
+        assert!(is_long_running_request(
+            &request("compiler.build"),
+            &exchange(json!({ "watch": true }))
+        ));
+        assert!(!is_long_running_request(
+            &request("compiler.build"),
+            &exchange(json!({ "watch": false }))
+        ));
+    }
+
+    #[test]
+    fn explicit_long_running_flag_wins() {
+        assert!(is_long_running_request(
+            &request("something.else"),
+            &exchange(json!({ "longRunning": true }))
+        ));
     }
 }

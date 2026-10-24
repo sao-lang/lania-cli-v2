@@ -32,6 +32,20 @@ pub(crate) struct DevCommandHandler;
 pub(crate) struct ProductDevCommandHandler;
 pub(crate) struct ProductRootCommandHandler;
 
+/// 非 web runtime 的 adapter 会在 result 里带 `success` 字段。
+/// 缺失该字段视为成功（保持 web 既有行为）。
+pub(crate) fn resolve_dev_exit_code(result: Option<&serde_json::Value>) -> i32 {
+    let success = result
+        .and_then(|value| value.get("success"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true);
+    if success {
+        lania_host::EXIT_SUCCESS
+    } else {
+        lania_host::EXIT_RUNTIME_ERROR
+    }
+}
+
 #[async_trait(?Send)]
 impl CommandHandler for DevCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
@@ -39,7 +53,8 @@ impl CommandHandler for DevCommandHandler {
         ctx.require_capability(CapabilityName::NodeBridge)?;
         let request = DevCommandPlugin::build_request(ctx.command(), ctx.node_bridge());
         let run = ctx.call_bridge(request).await?;
-        Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
+        let exit_code = resolve_dev_exit_code(run.exchange.response.result.as_ref());
+        Ok(ctx.complete_bridge(run, exit_code))
     }
 }
 

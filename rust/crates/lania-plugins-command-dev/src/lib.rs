@@ -133,6 +133,23 @@ mod tests {
     }
 
     #[test]
+    fn dev_exit_code_maps_failure_to_runtime_error() {
+        use crate::handlers::resolve_dev_exit_code;
+        use lania_host::{EXIT_RUNTIME_ERROR, EXIT_SUCCESS};
+
+        assert_eq!(
+            resolve_dev_exit_code(Some(&json!({ "success": false }))),
+            EXIT_RUNTIME_ERROR
+        );
+        assert_eq!(
+            resolve_dev_exit_code(Some(&json!({ "success": true }))),
+            EXIT_SUCCESS
+        );
+        assert_eq!(resolve_dev_exit_code(Some(&json!({}))), EXIT_SUCCESS);
+        assert_eq!(resolve_dev_exit_code(None), EXIT_SUCCESS);
+    }
+
+    #[test]
     fn dev_request_forwards_runtime() {
         let context = CommandContext {
             cwd: "/repo".into(),

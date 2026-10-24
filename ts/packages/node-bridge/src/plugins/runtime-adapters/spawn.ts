@@ -77,6 +77,8 @@ function spawnAndWait(
       cwd,
       env: { ...process.env, ...command.env },
       stdio: ['ignore', 'pipe', 'pipe'],
+      // POSIX 下建立独立进程组，stop 时可整组终止（go run/cargo run 会再派生子进程）。
+      detached: process.platform !== 'win32',
     });
     const stdout = createLineEmitter((line) => events.push(logEvent(line, 'info')));
     const stderr = createLineEmitter((line) => {
@@ -134,6 +136,8 @@ export async function startSpawnDev(
       cwd,
       env: { ...process.env, ...command.env },
       stdio: ['ignore', 'pipe', 'pipe'],
+      // POSIX 下建立独立进程组，stop 时可整组终止（go run/cargo run 会再派生子进程）。
+      detached: process.platform !== 'win32',
     });
 
     const finishRunning = () => {
@@ -224,9 +228,18 @@ export async function killProcessTree(child: ChildProcess): Promise<void> {
     });
     return;
   }
-  child.kill('SIGTERM');
+  // detached spawn 让子进程成为独立进程组组长，负 pid 可终止整组。
+  try {
+    process.kill(-pid, 'SIGTERM');
+  } catch {
+    child.kill('SIGTERM');
+  }
   await new Promise<void>((resolve) => setTimeout(resolve, 2000));
   if (child.exitCode === null) {
-    child.kill('SIGKILL');
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      child.kill('SIGKILL');
+    }
   }
 }
