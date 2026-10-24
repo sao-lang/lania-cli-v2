@@ -92,6 +92,7 @@ pub struct CreateWorkflowInput {
     pub project_name: Option<String>,
     pub template: Option<String>,
     pub package_manager: Option<String>,
+    pub lint_tools: Option<Vec<String>>,
     pub language: Option<String>,
     pub init_git: bool,
     pub skip_install: bool,

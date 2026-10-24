@@ -57,6 +57,8 @@ impl CreateCommandPlugin {
                         "rust-lib".into(),
                         "python-cli".into(),
                         "dart-cli".into(),
+                        "nestjs".into(),
+                        "express".into(),
                     ],
                     negatable: false,
                 },
@@ -66,7 +68,19 @@ impl CreateCommandPlugin {
                     help: "Package manager".into(),
                     value_kind: ValueKind::String,
                     default_value: None,
-                    choices: vec!["npm".into(), "pnpm".into(), "yarn".into(), "bun".into()],
+                    choices: vec![
+                        "npm".into(),
+                        "pnpm".into(),
+                        "yarn".into(),
+                        "bun".into(),
+                        "pip".into(),
+                        "uv".into(),
+                        "poetry".into(),
+                        "go".into(),
+                        "cargo".into(),
+                        "dart".into(),
+                        "pub".into(),
+                    ],
                     negatable: false,
                 },
                 // Legacy compatibility: create in a child directory (maps to v2 path semantics).
@@ -114,6 +128,15 @@ impl CreateCommandPlugin {
                     long: "language".into(),
                     short: None,
                     help: "Preferred project language (forwarded to template context)".into(),
+                    value_kind: ValueKind::String,
+                    default_value: None,
+                    choices: vec![],
+                    negatable: false,
+                },
+                OptionSpec {
+                    long: "lint-tools".into(),
+                    short: None,
+                    help: "Comma-separated lint tools forwarded to the template".into(),
                     value_kind: ValueKind::String,
                     default_value: None,
                     choices: vec![],
@@ -185,6 +208,19 @@ impl CreateCommandPlugin {
             .get("skip-install")
             .and_then(|value| value.as_bool())
             .unwrap_or(false);
+        let lint_tools = context
+            .argv
+            .options
+            .get("lint-tools")
+            .and_then(|value| value.as_str())
+            .map(|raw| {
+                raw.split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .map(ToOwned::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|items| !items.is_empty());
         let init_git = if skip_git {
             false
         } else {
@@ -218,6 +254,7 @@ impl CreateCommandPlugin {
                 .get("package-manager")
                 .and_then(|value| value.as_str())
                 .map(ToOwned::to_owned),
+            lint_tools,
             language: context
                 .argv
                 .options
@@ -364,7 +401,7 @@ mod tests {
         let spec = &commands.commands()[0];
         assert_eq!(spec.name, "create");
         assert_eq!(spec.handler_id, HANDLER_ID);
-        assert_eq!(spec.options.len(), 10);
+        assert_eq!(spec.options.len(), 11);
         assert!(handlers.get(HANDLER_ID).is_some());
     }
 
@@ -376,7 +413,14 @@ mod tests {
             .iter()
             .find(|option| option.long == "template")
             .expect("template option exists");
-        for name in ["go-service", "rust-lib", "python-cli", "dart-cli"] {
+        for name in [
+            "go-service",
+            "rust-lib",
+            "python-cli",
+            "dart-cli",
+            "nestjs",
+            "express",
+        ] {
             assert!(template.choices.iter().any(|choice| choice == name), "missing {name}");
         }
     }

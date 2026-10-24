@@ -23,8 +23,14 @@ export async function listResult(runtimeInput: RuntimeInput) {
       templates: templates.map((template) => template.manifest.name),
       metadata: templates.map((template) => ({
         name: template.manifest.name,
-        title: declaredTemplateMap.get(template.manifest.name)?.title ?? template.manifest.name,
-        description: declaredTemplateMap.get(template.manifest.name)?.description ?? null,
+        title:
+          declaredTemplateMap.get(template.manifest.name)?.title ??
+          template.manifest.title ??
+          template.manifest.name,
+        description:
+          declaredTemplateMap.get(template.manifest.name)?.description ??
+          template.manifest.description ??
+          null,
         tags: declaredTemplateMap.get(template.manifest.name)?.tags ?? [],
         schemaVersion: template.manifest.schemaVersion,
         renderEngine: template.manifest.renderEngine,
@@ -42,10 +48,7 @@ export async function listResult(runtimeInput: RuntimeInput) {
 // 1. 先把请求模板名解析为真实模板
 // 2. 再调用 runtime 对应能力
 // 这样模板回退与运行时加载逻辑不会散落在多个 handler 中。
-export async function questionsResult(
-  templateName: unknown,
-  runtimeInput: RuntimeInput,
-) {
+export async function questionsResult(templateName: unknown, runtimeInput: RuntimeInput) {
   const template = await resolveTemplate(templateName, runtimeInput);
   const runtime = await loadTemplatesRuntime();
   const questions = await runtime.loadTemplateQuestions(template.manifest.name, runtimeInput);
@@ -58,10 +61,7 @@ export async function questionsResult(
   };
 }
 
-export async function dependenciesResult(
-  templateName: unknown,
-  runtimeInput: RuntimeInput,
-) {
+export async function dependenciesResult(templateName: unknown, runtimeInput: RuntimeInput) {
   const template = await resolveTemplate(templateName, runtimeInput);
   const runtime = await loadTemplatesRuntime();
   const dependencies = await runtime.loadTemplateDependencies(template.manifest.name, runtimeInput);
@@ -75,10 +75,7 @@ export async function dependenciesResult(
   };
 }
 
-export async function outputTasksResult(
-  templateName: unknown,
-  runtimeInput: RuntimeInput,
-) {
+export async function outputTasksResult(templateName: unknown, runtimeInput: RuntimeInput) {
   const template = await resolveTemplate(templateName, runtimeInput);
   const runtime = await loadTemplatesRuntime();
   return {
@@ -90,10 +87,7 @@ export async function outputTasksResult(
   };
 }
 
-export async function renderResult(
-  templateName: unknown,
-  runtimeInput: RuntimeInput,
-) {
+export async function renderResult(templateName: unknown, runtimeInput: RuntimeInput) {
   const runtime = await loadTemplatesRuntime();
   // render 直接透传给 runtime，是因为渲染结果本身通常已经带有完整事件和数据结构，
   // 这里不再额外包一层，避免破坏模板运行时的原始输出语义。

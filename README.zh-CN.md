@@ -368,13 +368,28 @@ module.exports = {
 
 内置模板：
 
-- create：`go-service`、`rust-lib`、`python-cli`、`dart-cli`
+- create：`go-service`、`rust-lib`、`python-cli`、`dart-cli`、`nestjs`、`express`
 - add：`go-handler`、`python-module`、`rust-module`、`dart-class`
 
+创建项目时可以选择包管理器、lint 工具与测试工具：
+
+| 模板                 | 包管理器                        | lint                                 | 测试           |
+| -------------------- | ------------------------------- | ------------------------------------ | -------------- |
+| `python-cli`         | `pip` / `uv` / `poetry`         | `ruff` / `black` / `mypy` / `flake8` | `pytest`       |
+| `go-service`         | `go modules`                    | `golangci-lint` / `gofmt` / `go vet` | `go test`      |
+| `rust-lib`           | `cargo`                         | `clippy` / `rustfmt`                 | `cargo test`   |
+| `dart-cli`           | `dart pub`                      | `lints`                              | `package:test` |
+| `nestjs` / `express` | `npm` / `pnpm` / `yarn` / `bun` | `eslint` / `prettier` / `oxlint`     | `vitest`       |
+
 ```bash
+lan create --template python-cli --package-manager uv --lint-tools ruff,mypy
+lan create --template go-service --lint-tools golangci-lint,go-vet
+lan create --template nestjs --package-manager pnpm --lint-tools eslint,prettier
 lan create --template go-service --skip-install
 lan add --name Widget --template rust-module --target src
 ```
+
+安装命令按运行时选择：Node 走 `npm/pnpm/yarn/bun install`；Python 走 `pip/uv/poetry`；Go 走 `go mod tidy`；Rust 走 `cargo fetch`；Dart 走 `dart pub get`。语言模板默认 `skipInstall: true`，Node 框架模板默认执行安装。
 
 ### `generate api` / `generate module`
 

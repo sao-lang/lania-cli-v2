@@ -1,4 +1,5 @@
-import { normalizePythonCliOptions } from './options.js';
+import { buildChoiceQuestions } from '../../language-options.js';
+import { PYTHON_CHOICES, normalizePythonCliOptions } from './options.js';
 
 export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   const normalized = normalizePythonCliOptions(options);
@@ -15,6 +16,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
       message: zh ? '请输入包名：' : 'Package name:',
       default: normalized.packageName,
     },
+    ...buildChoiceQuestions(PYTHON_CHOICES, options, zh),
     {
       name: 'skipInstall',
       type: 'confirm',

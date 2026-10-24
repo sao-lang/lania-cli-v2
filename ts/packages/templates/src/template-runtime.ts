@@ -36,6 +36,8 @@ import { ejsRenderer } from './ejs-renderer.js';
 
 export interface TemplateManifest {
   name: string;
+  title?: string;
+  description?: string;
   schemaVersion: number;
   renderEngine: 'rust_declarative' | 'node_bridge';
   legacyTemplateDir: string;
@@ -317,6 +319,8 @@ function buildTemplateLocals(
         ? context.repository
         : '';
   const unitTestTool = typeof options.unitTestTool === 'string' ? options.unitTestTool : 'vitest';
+  // 语言模板用 testTool 区分测试栈；未传时给空串，避免 EJS 引用未定义变量。
+  const testTool = typeof options.testTool === 'string' ? options.testTool : '';
   const port =
     typeof options.port === 'number' && Number.isFinite(options.port) ? options.port : 3000;
   const resolvedDependencies = normalizeDependencyRecord(options.resolvedDependencies);
@@ -339,6 +343,7 @@ function buildTemplateLocals(
     packageManager,
     repository,
     unitTestTool,
+    testTool,
     port,
     dependencies:
       Object.keys(resolvedDependencies).length > 0

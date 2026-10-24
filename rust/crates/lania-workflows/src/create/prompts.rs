@@ -107,6 +107,11 @@ pub(super) fn run_template_prompt(
                 continue;
             };
             answers.insert(step.id.clone(), json!(package_manager));
+        } else if step.field == "lintTools" {
+            let Some(lint_tools) = input.lint_tools.as_ref() else {
+                continue;
+            };
+            answers.insert(step.id.clone(), json!(lint_tools));
         }
     }
     let state = prompt.run_cli_with_options(
@@ -139,6 +144,11 @@ pub(super) fn build_template_question_options(
         options
             .entry("packageManager")
             .or_insert_with(|| json!(package_manager));
+    }
+    if let Some(lint_tools) = &input.lint_tools {
+        options
+            .entry("lintTools")
+            .or_insert_with(|| json!(lint_tools));
     }
     if input.skip_install_specified {
         options.insert("skipInstall".into(), json!(input.skip_install));

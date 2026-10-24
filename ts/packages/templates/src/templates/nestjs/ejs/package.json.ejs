@@ -1,0 +1,17 @@
+{
+  "name": "<%= packageName %>",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "test": "<%= testTool === 'vitest' ? 'vitest run' : 'echo no-tests' %>"
+  },
+  "dependencies": {
+<% Object.entries(dependencies).forEach(function ([name, version], index, entries) { %>    "<%= name %>": "<%= version %>"<%= index < entries.length - 1 ? ',' : '' %>
+<% }); %>  },
+  "devDependencies": {
+<% Object.entries(devDependencies).forEach(function ([name, version], index, entries) { %>    "<%= name %>": "<%= version %>"<%= index < entries.length - 1 ? ',' : '' %>
+<% }); %>  }
+}

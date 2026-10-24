@@ -1,4 +1,23 @@
-[project]
+<% if (packageManager === 'poetry') { %>[tool.poetry]
+name = "<%= typeof packageName !== 'undefined' && packageName ? packageName : 'demo' %>"
+version = "0.1.0"
+description = ""
+authors = []
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+
+[tool.poetry.group.dev.dependencies]
+<% lintTools.forEach(function (tool) { %><%= tool %> = "*"
+<% }); %><% if (testTool === 'pytest') { %>pytest = "*"
+<% } %>
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+<% } else { %>[project]
 name = "<%= typeof packageName !== 'undefined' && packageName ? packageName : 'demo' %>"
 version = "0.1.0"
 requires-python = ">=3.10"
+dependencies = []
+<% } %>

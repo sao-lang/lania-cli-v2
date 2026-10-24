@@ -1,0 +1,10 @@
+{
+  "name": "nestjs",
+  "title": "NestJS",
+  "description": "NestJS 服务端应用，支持 npm/pnpm/yarn/bun、lint 与 vitest。",
+  "schemaVersion": 1,
+  "renderEngine": "node_bridge",
+  "useCases": ["create"],
+  "ownership": "node_only",
+  "migrationLayer": "runtime_template"
+}

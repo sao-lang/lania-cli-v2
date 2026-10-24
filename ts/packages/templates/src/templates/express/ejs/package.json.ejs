@@ -1,0 +1,17 @@
+{
+  "name": "<%= packageName %>",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "<%= testTool === 'vitest' ? 'vitest run' : 'echo no-tests' %>"
+  },
+  "dependencies": {
+<% Object.entries(dependencies).forEach(function ([name, version], index, entries) { %>    "<%= name %>": "<%= version %>"<%= index < entries.length - 1 ? ',' : '' %>
+<% }); %>  },
+  "devDependencies": {
+<% Object.entries(devDependencies).forEach(function ([name, version], index, entries) { %>    "<%= name %>": "<%= version %>"<%= index < entries.length - 1 ? ',' : '' %>
+<% }); %>  }
+}

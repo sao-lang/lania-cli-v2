@@ -29,6 +29,85 @@ pub(crate) fn resolve_package_manager(
     }
 }
 
+/// 模板名到运行时族的映射。Node 生态（含 spa/toolkit/nestjs/express）统一视为 node。
+pub(crate) fn template_runtime(template: &str) -> &'static str {
+    match template {
+        "go-service" => "go",
+        "rust-lib" => "rust",
+        "python-cli" => "python",
+        "dart-cli" => "dart",
+        _ => "node",
+    }
+}
+
+pub(crate) fn default_package_manager(runtime: &str) -> &'static str {
+    match runtime {
+        "python" => "pip",
+        "go" => "go",
+        "rust" => "cargo",
+        "dart" => "pub",
+        _ => "npm",
+    }
+}
+
+pub(crate) fn validate_package_manager(runtime: &str, raw: Option<&str>) -> Result<()> {
+    let Some(value) = raw else {
+        return Ok(());
+    };
+    let allowed: &[&str] = match runtime {
+        "node" => &["npm", "pnpm", "yarn", "bun"],
+        "python" => &["pip", "uv", "poetry"],
+        "go" => &["go"],
+        "rust" => &["cargo"],
+        "dart" => &["dart", "pub"],
+        _ => return Ok(()),
+    };
+    if allowed.contains(&value) {
+        return Ok(());
+    }
+    Err(anyhow!(
+        "package manager `{value}` is not supported for runtime {runtime}; expected one of {}",
+        allowed.join(", ")
+    ))
+}
+
+/// 非 node 运行时的安装命令。node 仍走 `PackageManagerService`。
+pub(crate) fn runtime_install_command(
+    runtime: &str,
+    raw: Option<&str>,
+) -> Result<PackageCommand> {
+    let package_manager = raw.unwrap_or_else(|| default_package_manager(runtime));
+    let (program, args): (&str, Vec<&str>) = match runtime {
+        "python" => match package_manager {
+            "uv" => (
+                "uv",
+                vec!["pip", "install", "-r", "requirements.txt", "-r", "requirements-dev.txt"],
+            ),
+            "poetry" => ("poetry", vec!["install"]),
+            _ => (
+                "python",
+                vec![
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    "requirements.txt",
+                    "-r",
+                    "requirements-dev.txt",
+                ],
+            ),
+        },
+        "go" => ("go", vec!["mod", "tidy"]),
+        "rust" => ("cargo", vec!["fetch"]),
+        "dart" => ("dart", vec!["pub", "get"]),
+        other => return Err(anyhow!("no install command for runtime {other}")),
+    };
+    Ok(PackageCommand {
+        program: program.to_string(),
+        args: args.into_iter().map(str::to_string).collect(),
+    })
+}
+
 pub(crate) fn command_to_vec(command: &PackageCommand) -> Vec<String> {
     // hook 和日志更适合消费扁平命令数组，因此这里统一展开。
     std::iter::once(command.program.clone())
@@ -318,4 +397,56 @@ pub(crate) async fn run_package_command(
     services.progress.advance(progress_id, 1);
     services.progress.finish(progress_id);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        default_package_manager, runtime_install_command, template_runtime, validate_package_manager,
+    };
+
+    #[test]
+    fn maps_templates_to_runtimes() {
+        assert_eq!(template_runtime("go-service"), "go");
+        assert_eq!(template_runtime("python-cli"), "python");
+        assert_eq!(template_runtime("rust-lib"), "rust");
+        assert_eq!(template_runtime("dart-cli"), "dart");
+        assert_eq!(template_runtime("nestjs"), "node");
+        assert_eq!(template_runtime("express"), "node");
+        assert_eq!(template_runtime("spa-react"), "node");
+    }
+
+    #[test]
+    fn rejects_mismatched_package_manager() {
+        assert!(validate_package_manager("python", Some("npm")).is_err());
+        assert!(validate_package_manager("node", Some("uv")).is_err());
+        assert!(validate_package_manager("python", Some("uv")).is_ok());
+        assert!(validate_package_manager("go", Some("go")).is_ok());
+        assert!(validate_package_manager("rust", Some("cargo")).is_ok());
+        assert!(validate_package_manager("dart", Some("pub")).is_ok());
+        assert_eq!(default_package_manager("python"), "pip");
+    }
+
+    #[test]
+    fn builds_runtime_install_commands() {
+        let go = runtime_install_command("go", None).expect("go");
+        assert_eq!(go.program, "go");
+        assert_eq!(go.args, vec!["mod", "tidy"]);
+
+        let rust = runtime_install_command("rust", None).expect("rust");
+        assert_eq!(rust.args, vec!["fetch"]);
+
+        let dart = runtime_install_command("dart", None).expect("dart");
+        assert_eq!(dart.args, vec!["pub", "get"]);
+
+        let pip = runtime_install_command("python", None).expect("pip");
+        assert_eq!(pip.program, "python");
+        assert!(pip.args.iter().any(|arg| arg == "requirements-dev.txt"));
+
+        let uv = runtime_install_command("python", Some("uv")).expect("uv");
+        assert_eq!(uv.program, "uv");
+
+        let poetry = runtime_install_command("python", Some("poetry")).expect("poetry");
+        assert_eq!(poetry.args, vec!["install"]);
+    }
 }

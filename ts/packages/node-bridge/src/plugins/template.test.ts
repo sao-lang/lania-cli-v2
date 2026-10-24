@@ -14,13 +14,20 @@ test('template plugin delegates template listing to templates package', async ()
   const result = handled?.result as
     | {
         templates: string[];
-        metadata: Array<{ name: string; schemaVersion: number }>;
+        metadata: Array<{
+          name: string;
+          title: string;
+          description: string | null;
+          schemaVersion: number;
+        }>;
       }
     | undefined;
 
   assert.deepEqual(result?.templates, [
     'dart-cli',
+    'express',
     'go-service',
+    'nestjs',
     'python-cli',
     'rust-lib',
     'spa-react',
@@ -28,6 +35,10 @@ test('template plugin delegates template listing to templates package', async ()
     'toolkit',
     'toolkit-monorepo',
   ]);
+  const goService = result?.metadata.find((template) => template.name === 'go-service');
+  assert.equal(goService?.title, 'Go Service');
+  assert.ok(goService?.description);
+  assert.equal(result?.metadata.find((template) => template.name === 'nestjs')?.title, 'NestJS');
   assert.ok(
     result?.metadata.some(
       (template) => template.name === 'toolkit' && template.schemaVersion === 1,

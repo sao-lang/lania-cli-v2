@@ -8,6 +8,8 @@
 //! 与其把它当成“纯函数”，不如把它当成“编排器”：它自己尽量不做细节，
 //! 而是调用 `prompts.rs`/`capability.rs`/`helpers.rs` 等模块完成具体工作。
 
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, Result};
 use lania_exec::{ExecError, ExecErrorCode};
 use lania_format::{FormatMode, FormatOptions, FormatService};
@@ -77,6 +79,7 @@ impl CreateWorkflow {
             .ok_or_else(|| anyhow!("create prompt did not resolve template"))?
             .to_string();
         notes.push(format!("template: {template_name}"));
+        let runtime = template_runtime(&template_name);
 
         // 确定目标目录和项目名称
         let (target_dir, project_name) = if let Some(path) = &input.path {
@@ -187,6 +190,14 @@ impl CreateWorkflow {
             // Legacy compatibility: allow templates to branch on "language" (e.g. js/ts).
             prompt_state.insert("language".into(), json!(language));
         }
+        prompt_state
+            .entry("packageManager".into())
+            .or_insert_with(|| json!(default_package_manager(runtime)));
+        let requested_package_manager = prompt_state
+            .get("packageManager")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned);
+        validate_package_manager(runtime, requested_package_manager.as_deref())?;
         let mut template_runtime_options =
             build_template_question_options(&input, &prompt_state, services.locale.as_str());
 
@@ -201,29 +212,31 @@ impl CreateWorkflow {
         }
         let manager = resolve_package_manager(
             &services.package_manager,
-            prompt_state
-                .get("packageManager")
-                .and_then(Value::as_str)
-                .or(input.package_manager.as_deref()),
+            requested_package_manager.as_deref(),
         );
-        call_dependencies_modify(
-            services,
-            "create",
-            manager.binary(),
-            &mut dependencies,
-            &mut dev_dependencies,
-        )
-        .await?;
-        // 目标目录尚未创建（preview/dry-run 时也不会创建），
-        // 版本查询必须在已存在的工作目录中执行。
-        let (resolved_dependencies, resolved_dev_dependencies) = resolve_dependency_versions(
-            services,
-            manager,
-            &input.cwd,
-            &dependencies,
-            &dev_dependencies,
-        )
-        .await?;
+        // 非 node 运行时的依赖不是 npm 包，跳过 npm 版本查询，模板直接使用原始依赖列表。
+        let (resolved_dependencies, resolved_dev_dependencies) = if runtime == "node" {
+            call_dependencies_modify(
+                services,
+                "create",
+                manager.binary(),
+                &mut dependencies,
+                &mut dev_dependencies,
+            )
+            .await?;
+            // 目标目录尚未创建（preview/dry-run 时也不会创建），
+            // 版本查询必须在已存在的工作目录中执行。
+            resolve_dependency_versions(
+                services,
+                manager,
+                &input.cwd,
+                &dependencies,
+                &dev_dependencies,
+            )
+            .await?
+        } else {
+            (BTreeMap::new(), BTreeMap::new())
+        };
         template_runtime_options
             .as_object_mut()
             .expect("template runtime options object")
@@ -379,7 +392,11 @@ impl CreateWorkflow {
         if effective_skip_install {
             notes.push("skip-install: package manager commands were skipped".into());
         } else {
-            let install = services.package_manager.install_all_command(manager);
+            let install = if runtime == "node" {
+                services.package_manager.install_all_command(manager)
+            } else {
+                runtime_install_command(runtime, requested_package_manager.as_deref())?
+            };
             command_plans.push(command_to_vec(&install));
             if !dry_run_like {
                 if let Err(error) =
@@ -391,7 +408,7 @@ impl CreateWorkflow {
                     {
                         notes.push(format!(
                             "skip-install: {} is unavailable; scaffold created without installing dependencies",
-                            manager.binary()
+                            install.program
                         ));
                     } else {
                         return Err(error);

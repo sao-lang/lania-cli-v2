@@ -1,4 +1,22 @@
-export interface DartCliOptions {
+import {
+  normalizeChoices,
+  type ChoiceSpec,
+  type NormalizedChoices,
+} from '../../language-options.js';
+
+export const DART_CHOICES: ChoiceSpec = {
+  packageManagers: [{ value: 'pub', label: 'dart pub' }],
+  defaultPackageManager: 'pub',
+  lintTools: [{ value: 'lints', label: 'lints' }],
+  defaultLintTools: ['lints'],
+  testTools: [
+    { value: 'test', label: 'package:test' },
+    { value: 'skip', label: 'skip' },
+  ],
+  defaultTestTool: 'test',
+};
+
+export interface DartCliOptions extends NormalizedChoices {
   packageName: string;
 }
 
@@ -9,5 +27,5 @@ export function normalizeDartCliOptions(
     typeof options.packageName === 'string' && options.packageName.length > 0
       ? options.packageName
       : 'demo';
-  return { packageName };
+  return { packageName, ...normalizeChoices(options, DART_CHOICES) };
 }

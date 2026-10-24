@@ -1,5 +1,7 @@
 {
   "name": "dart-cli",
+  "title": "Dart CLI",
+  "description": "Dart CLI 项目，支持 lints 与 test。",
   "schemaVersion": 1,
   "renderEngine": "node_bridge",
   "useCases": ["create"],

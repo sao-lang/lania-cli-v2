@@ -1,5 +1,7 @@
 {
   "name": "python-cli",
+  "title": "Python CLI",
+  "description": "Python CLI 项目，支持 pip/uv/poetry、lint 与 pytest。",
   "schemaVersion": 1,
   "renderEngine": "node_bridge",
   "useCases": ["create"],

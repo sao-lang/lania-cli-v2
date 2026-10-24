@@ -1,5 +1,7 @@
 {
   "name": "rust-lib",
+  "title": "Rust Library",
+  "description": "Rust 库项目，支持选择 lint 与测试工具。",
   "schemaVersion": 1,
   "renderEngine": "node_bridge",
   "useCases": ["create"],

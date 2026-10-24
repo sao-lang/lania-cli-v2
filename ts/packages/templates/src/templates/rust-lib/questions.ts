@@ -1,4 +1,5 @@
-import { normalizeRustLibOptions } from './options.js';
+import { buildChoiceQuestions } from '../../language-options.js';
+import { RUST_CHOICES, normalizeRustLibOptions } from './options.js';
 
 export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   const normalized = normalizeRustLibOptions(options);
@@ -15,6 +16,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
       message: zh ? '请输入 crate 名称：' : 'Crate name:',
       default: normalized.packageName,
     },
+    ...buildChoiceQuestions(RUST_CHOICES, options, zh),
     {
       name: 'skipInstall',
       type: 'confirm',

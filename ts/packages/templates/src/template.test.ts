@@ -27,7 +27,9 @@ test('template list exposes schema metadata', async () => {
 
   assert.deepEqual(result.templates, [
     'dart-cli',
+    'express',
     'go-service',
+    'nestjs',
     'python-cli',
     'rust-lib',
     'spa-react',
@@ -634,6 +636,114 @@ test('language create templates render their manifests', async () => {
     assert.ok(
       questions.some((question) => question.name === 'skipInstall' && question.default === true),
     );
+  }
+});
+
+test('language templates expose package manager lint and test choices', async () => {
+  const cases: Array<{
+    name: string;
+    lint: string;
+    test: string;
+    extraFiles: string[];
+    absentFiles: string[];
+  }> = [
+    {
+      name: 'python-cli',
+      lint: 'ruff',
+      test: 'pytest',
+      extraFiles: ['ruff.toml', 'tests/test_main.py'],
+      absentFiles: ['.flake8'],
+    },
+    {
+      name: 'go-service',
+      lint: 'golangci-lint',
+      test: 'go-test',
+      extraFiles: ['.golangci.yml', 'main_test.go'],
+      absentFiles: [],
+    },
+    {
+      name: 'rust-lib',
+      lint: 'clippy',
+      test: 'builtin',
+      extraFiles: ['clippy.toml', 'tests/smoke.rs'],
+      absentFiles: [],
+    },
+    {
+      name: 'dart-cli',
+      lint: 'lints',
+      test: 'test',
+      extraFiles: ['analysis_options.yaml', 'test/main_test.dart'],
+      absentFiles: [],
+    },
+  ];
+
+  for (const item of cases) {
+    const questions = await loadTemplateQuestions(item.name, { cwd: null });
+    assert.ok(
+      questions.some((question) => question.name === 'lintTools'),
+      item.name,
+    );
+    assert.ok(
+      questions.some((question) => question.name === 'testTool'),
+      item.name,
+    );
+
+    const rendered = await renderRuntimeTemplate(item.name, {
+      cwd: null,
+      context: { projectName: 'demo', packageName: 'demo', modulePath: 'example.com/demo' },
+      options: {
+        packageManager: item.name === 'python-cli' ? 'pip' : undefined,
+        lintTools: [item.lint],
+        testTool: item.test,
+      },
+    });
+    const paths = rendered.files.map((file) => file.path);
+    for (const expected of item.extraFiles) {
+      assert.ok(paths.includes(expected), `${item.name} missing ${expected}`);
+    }
+    for (const absent of item.absentFiles) {
+      assert.ok(!paths.includes(absent), `${item.name} should not include ${absent}`);
+    }
+  }
+});
+
+test('python poetry template renders poetry metadata', async () => {
+  const rendered = await renderRuntimeTemplate('python-cli', {
+    cwd: null,
+    context: { projectName: 'demo', packageName: 'demo' },
+    options: { packageManager: 'poetry', lintTools: ['ruff'], testTool: 'pytest' },
+  });
+  const paths = rendered.files.map((file) => file.path);
+  assert.ok(!paths.includes('requirements-dev.txt'));
+  assert.ok(
+    rendered.files.some(
+      (file) => file.path === 'pyproject.toml' && file.content.includes('[tool.poetry]'),
+    ),
+  );
+});
+
+test('node framework templates render package manifests and tool configs', async () => {
+  const cases: Array<[string, string]> = [
+    ['nestjs', '@nestjs/core'],
+    ['express', 'express'],
+  ];
+  for (const [name, dependency] of cases) {
+    const rendered = await renderRuntimeTemplate(name, {
+      cwd: null,
+      context: { projectName: 'demo', packageName: 'demo' },
+      options: {
+        packageManager: 'pnpm',
+        lintTools: ['eslint', 'prettier'],
+        testTool: 'vitest',
+      },
+    });
+    const paths = rendered.files.map((file) => file.path);
+    assert.ok(paths.includes('package.json'), name);
+    assert.ok(paths.includes('eslint.config.js'), name);
+    assert.ok(paths.includes('prettier.config.cjs'), name);
+    assert.ok(paths.includes('test/app.test.ts'), name);
+    const packageJson = rendered.files.find((file) => file.path === 'package.json');
+    assert.ok(packageJson?.content.includes(`"${dependency}"`), name);
   }
 });
 

@@ -1,4 +1,5 @@
-import { normalizeDartCliOptions } from './options.js';
+import { buildChoiceQuestions } from '../../language-options.js';
+import { DART_CHOICES, normalizeDartCliOptions } from './options.js';
 
 export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   const normalized = normalizeDartCliOptions(options);
@@ -15,6 +16,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
       message: zh ? '请输入包名：' : 'Package name:',
       default: normalized.packageName,
     },
+    ...buildChoiceQuestions(DART_CHOICES, options, zh),
     {
       name: 'skipInstall',
       type: 'confirm',

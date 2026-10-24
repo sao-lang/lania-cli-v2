@@ -1,5 +1,7 @@
 {
   "name": "go-service",
+  "title": "Go Service",
+  "description": "Go 服务/CLI 项目，支持选择包管理器、lint 与测试工具。",
   "schemaVersion": 1,
   "renderEngine": "node_bridge",
   "useCases": ["create"],
