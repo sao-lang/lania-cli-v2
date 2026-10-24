@@ -25,7 +25,13 @@ import {
 test('template list exposes schema metadata', async () => {
   const result = await loadListResult({});
 
-  assert.deepEqual(result.templates, ['spa-react', 'spa-vue', 'toolkit', 'toolkit-monorepo']);
+  assert.deepEqual(result.templates, [
+    'go-service',
+    'spa-react',
+    'spa-vue',
+    'toolkit',
+    'toolkit-monorepo',
+  ]);
   assert.ok(result.metadata.every((template) => typeof template.schemaVersion === 'number'));
   assert.equal(
     result.metadata.find((template) => template.name === 'spa-react')?.renderEngine,
@@ -583,6 +589,29 @@ test('template runtime prefers executable js modules when ts variants also exist
   });
   assert.equal(rendered.files.length, 1);
   assert.equal(rendered.files[0]?.path, 'package.json');
+});
+
+test('go-service template renders go manifest and defaults skipInstall', async () => {
+  const names = (await listRuntimeTemplates({})).map((template) => template.manifest.name);
+  assert.ok(names.includes('go-service'));
+
+  const questions = await loadTemplateQuestions('go-service', { cwd: null });
+  const skipInstall = questions.find((question) => question.name === 'skipInstall');
+  assert.equal(skipInstall?.type, 'confirm');
+  assert.equal(skipInstall?.default, true);
+
+  const rendered = await renderRuntimeTemplate('go-service', {
+    cwd: null,
+    context: { projectName: 'demo', modulePath: 'example.com/demo' },
+  });
+  const paths = rendered.files.map((file) => file.path);
+  assert.ok(paths.includes('go.mod'));
+  assert.ok(paths.includes('main.go'));
+  assert.ok(
+    rendered.files.some(
+      (file) => file.path === 'go.mod' && file.content.includes('module example.com/demo'),
+    ),
+  );
 });
 
 async function loadListResult(input: {

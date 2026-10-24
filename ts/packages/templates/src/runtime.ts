@@ -24,12 +24,15 @@ export interface LoadedConfig {
   exists: boolean;
 }
 
-const LAN_CONFIG_SEARCH_PLACES = ['lan.config.js', 'lan.config.cjs', 'lan.config.ts', 'lan.config.json'];
+const LAN_CONFIG_SEARCH_PLACES = [
+  'lan.config.js',
+  'lan.config.cjs',
+  'lan.config.ts',
+  'lan.config.json',
+];
 
 export function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)
-    : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 export async function loadLanConfig(cwd: string): Promise<LoadedConfig> {
@@ -45,10 +48,7 @@ export async function loadLanConfig(cwd: string): Promise<LoadedConfig> {
   };
 }
 
-export async function findFirstExisting(
-  cwd: string,
-  candidates: string[],
-): Promise<string | null> {
+export async function findFirstExisting(cwd: string, candidates: string[]): Promise<string | null> {
   for (const candidate of candidates) {
     const absolutePath = resolve(cwd, candidate);
     if (await fileExists(absolutePath)) {
@@ -87,7 +87,7 @@ export function templatesPackageDir(): string {
 export function builtinTemplatesDir(): string {
   const sourceTemplatesDir = join(templatesPackageDir(), 'src', 'templates');
   const distTemplatesDir = join(templatesPackageDir(), 'dist', 'templates');
-  return import.meta.dirname.includes('/src') || !existsSync(distTemplatesDir)
-    ? sourceTemplatesDir
-    : distTemplatesDir;
+  // 用路径段判断开发态，避免 Windows 反斜杠导致 `includes('/src')` 失效。
+  const isSourceMode = import.meta.dirname.split(/[\\/]/).includes('src');
+  return isSourceMode || !existsSync(distTemplatesDir) ? sourceTemplatesDir : distTemplatesDir;
 }
