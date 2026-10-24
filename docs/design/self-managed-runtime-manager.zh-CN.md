@@ -55,7 +55,7 @@ lan env remove node 18      → lania 删除自己的目录
 │  ├─ CatalogService   语言/版本清单（官方 release API）│
 │  ├─ DownloadService  下载 + 校验和 + 解压            │
 │  ├─ StoreService     版本目录布局 + current 指针     │
-│  └─ ShimsService     ~/.lania/shims 生成与 PATH 注入 │
+│  └─ ShimsService     ~/.runex/shims 生成与 PATH 注入 │
 ├─────────────────────────────────────────────────────┤
 │ Provider 层（每种语言一个实现）                      │
 │  NodeProvider / PythonProvider / RustProvider / ... │
@@ -110,7 +110,7 @@ pub struct Layout {
 ## 3. 目录布局
 
 ```text
-~/.lania/                        # LANIA_HOME，可用环境变量覆盖
+~/.runex/                        # RUNEX_HOME，可用环境变量覆盖
 ├── runtimes/
 │   └── node/
 │       ├── 20.11.1/
@@ -118,7 +118,7 @@ pub struct Layout {
 │       │   ├── bin/npm -> ../lib/node_modules/npm/bin/npm-cli.js
 │       │   └── lib/node_modules/          # 原生 npm 全局包目录（lania 不接管）
 │       ├── 22.21.1/
-│       └── .lania-meta.json               # { "current": "20.11.1", "installed": [...] }
+│       └── .runex-meta.json               # { "current": "20.11.1", "installed": [...] }
 ├── shims/                                 # 注入 PATH 的目录
 │   ├── node
 │   ├── npm
@@ -128,9 +128,11 @@ pub struct Layout {
 └── state.json                             # 全局状态（默认版本、项目映射）
 ```
 
+> 项目级 `.lania/`（release-state、agent sessions、schemas）保持不变，两者职责不同（见 §9.2）。
+
 ### 3.1 current 指针
 
-**不再依赖 PATH 顺序**。`current` 是 `.lania-meta.json` 里的一个字段：
+**不再依赖 PATH 顺序**。`current` 是 `.runex-meta.json` 里的一个字段：
 
 ```json
 {
@@ -143,7 +145,7 @@ pub struct Layout {
 
 ### 3.2 shim 机制
 
-`lan env init` 只做一件事：把 `~/.lania/shims` 放到 PATH 最前面。
+`lan env init` 只做一件事：把 `~/.runex/shims` 放到 PATH 最前面。
 
 shim 是一个很小的转发器（Windows 用 `.cmd` + `.exe` 方案，POSIX 用 shell 脚本）：
 
@@ -204,9 +206,11 @@ Windows 上为了避免 `lan` 自身依赖 node（鸡生蛋问题），shim 用 
 
 ```text
 阶段 1  新增 Provider 层 + StoreService + ShimsService（不动现有命令）
-阶段 2  `lan env install/use/list/remove` 切到新实现，旧路径保留 `--legacy` 开关
-阶段 3  删除 ManagerKind 与转发逻辑，移除 `--legacy`
+阶段 2  `lan env install/use/list/remove` 切到新实现
+阶段 3  删除 ManagerKind 与转发逻辑
 ```
+
+不设 `--legacy` 逃生舱（见 §9.3）：切到新实现后旧路径直接移除。
 
 ## 6. Provider 实现矩阵
 
@@ -234,15 +238,43 @@ Windows 上为了避免 `lan` 自身依赖 node（鸡生蛋问题），shim 用 
 | Dart   | zip + `PUB_CACHE`                         |
 | Swift  | 仅 macOS/Linux，需系统依赖                |
 
-### 6.3 第三批（无官方预编译，需特殊处理）
+### 6.3 第三批（全部自管，逐条确认上游可行性）
 
-Cangjie、ArkTs、MoonBit、Solidity、Fortran、Gleam、Haxe、Elm、Nim、Crystal、
-OCaml、Clojure、Julia、Haskell、Erlang、Elixir、Lua、Perl、PHP、Ruby、C/C++、
-C#/F#、Groovy、R
+决策已确认这批**必须完整实现自管下载**，不做「只导入」降级。
+因此开工前必须逐条确认上游产物，下表是**开工前置清单**：
 
-这些要么依赖系统包管理器，要么只有 nightly，要么产物形态各异。
-**建议**：这批先做「探测 + 导入」（把系统已装的纳入 lania 视图），
-自管下载留到后续迭代，避免为了对齐 36 种语言而无限拖延。
+| 语言     | 上游来源                        | 主要障碍                       | 可行性               |
+| -------- | ------------------------------- | ------------------------------ | -------------------- |
+| Ruby     | ruby-lang.org / ruby-build      | Windows 无官方预编译           | 需评估               |
+| PHP      | windows.php.net / php.net       | 各平台包的扩展差异大           | 需评估               |
+| Perl     | strawberryperl (Win) / perl.org | 主要依赖系统                   | 需评估               |
+| Lua      | lua.org 源码包                  | **只有源码，无预编译**         | 需自行编译           |
+| Julia    | julialang.org                   | 官方 tarball，较好             | 可做                 |
+| Haskell  | ghcup 元数据                    | 依赖 ghcup 的绑定包列表        | 可做                 |
+| Erlang   | erlang.org                      | 官方有预编译                   | 可做                 |
+| Elixir   | github releases                 | 依赖 Erlang                    | 可做                 |
+| Crystal  | github releases                 | 官方有 tarball                 | 可做                 |
+| Nim      | nim-lang.org                    | 官方只有源码/部分二进制        | 需评估               |
+| OCaml    | ocaml.org                       | 官方有 opam 二进制分发         | 可做                 |
+| Clojure  | clojure.org                     | 仅 jar + 启动脚本              | 需明确「运行时」定义 |
+| Groovy   | apache 分发                     | 依赖 JVM                       | 需明确「运行时」定义 |
+| Scala    | scala-lang.org                  | 依赖 JVM，sbt 另管             | 需明确「运行时」定义 |
+| R        | cran.r-project.org              | 依赖 BLAS/LAPACK               | 需评估               |
+| Fortran  | 无统一上游                      | 实质是 gfortran（属 GCC）      | 需评估               |
+| C / C++  | MSVC / MinGW / GCC              | 无统一上游，平台差异极大       | 需评估               |
+| C# / F#  | dotnet.microsoft.com            | 产物是安装器，非 tarball       | 需评估               |
+| Swift    | swift.org                       | Windows 支持有限               | 可做                 |
+| Solidity | github (solc)                   | 只有单文件编译器，无「运行时」 | 需明确「运行时」定义 |
+| Gleam    | github releases                 | 官方有预编译                   | 可做                 |
+| Haxe     | haxe.org                        | 官方有预编译                   | 可做                 |
+| Elm      | github releases                 | 官方有预编译                   | 可做                 |
+| MoonBit  | moonbit 官方渠道                | 分发渠道需确认                 | 需评估               |
+| Cangjie  | 华为官方渠道                    | 渠道不稳定，可能需申请         | 需评估               |
+| ArkTs    | 华为官方渠道                    | 渠道不稳定                     | 需评估               |
+
+**结论**：26 种中有约 10 种能直接做，10 种需评估，6 种需要先澄清
+「什么叫这个语言的运行时」（Clojure/Groovy/Scala/Solidity 是库或单文件工具，
+C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的最大不确定点。
 
 ## 7. 风险
 
@@ -252,7 +284,7 @@ C#/F#、Groovy、R
 | 上游 CDN 地址/格式变更             | 中   | Provider 内收敛；校验和失败时明确报错不清空已有版本     |
 | Windows shim 需 Rust 二进制        | 中   | 复用现有 `lania-cli` 加 `lan-shim` 子命令，避免额外产物 |
 | 磁盘占用（多语言多版本）           | 中   | `lan env gc` 清理未使用版本 + 下载缓存上限              |
-| 破坏性变更（删除 44 个管理器支持） | 高   | 阶段 2 提供 `--legacy`；changeset 标 major              |
+| 破坏性变更（删除 44 个管理器支持） | 高   | changeset 标 major；无 `--legacy` 回退                  |
 
 ## 8. 验收标准
 
@@ -263,10 +295,61 @@ C#/F#、Groovy、R
 - [ ] 删除 `ManagerKind` 后全仓无残留引用
 - [ ] 现有 `env` e2e 测试全部迁移并通过
 
-## 9. 待决策
+## 9. 已确认决策
 
-1. **第三批语言**是否接受「先只做导入」？否则工期不可控。
-2. `LANIA_HOME` 默认位置：`~/.lania` 还是跟随现有 `.lania/` 项目目录约定？
-3. 是否保留 `--manager` 作为「用外部管理器装，但登记到 lania 清单」的逃生舱？
+| #   | 决策                | 结论                                                                      |
+| --- | ------------------- | ------------------------------------------------------------------------- |
+| 1   | 第三批语言范围      | **完整版**：全部 36 种语言都要自管下载安装，不做「只导入」降级            |
+| 2   | `LANIA_HOME` 目录名 | **改名**，避免与项目级 `.lania/`（release-state 等）混淆 → 用 `~/.runex/` |
+| 3   | `--manager` 逃生舱  | **不保留**。`lan env` 只有一条自管路径，不转发给外部管理器                |
+
+### 9.1 关于决策 1 的影响
+
+第三批 24 种语言必须全部自管，意味着每种语言都要确定：
+
+- 上游产物地址（官方 CDN / GitHub Releases / 语言自己的分发渠道）
+- 产物形态（tar.gz / zip / tar.zst / 单文件 / 安装器）
+- 平台矩阵（部分语言只支持特定 OS/arch）
+- 校验方式（官方 SHA256 / 签名文件）
+- 目录布局与环境变量（`JAVA_HOME`、`GOROOT`、`GEM_HOME` 等）
+
+**其中难度最高的几种**需要在立项时单独确认可行性与授权：
+
+| 语言                      | 主要障碍                                                      |
+| ------------------------- | ------------------------------------------------------------- |
+| Cangjie / ArkTs / MoonBit | 上游分发渠道不稳定，部分需申请或仅内部渠道                    |
+| Solidity                  | 官方只有 `solc` 单文件，无「运行时」概念                      |
+| C/C++                     | 无统一上游，实际是 libc/编译器集合，需按平台选 MSVC/MinGW/GCC |
+| C# / F#                   | 依赖 .NET SDK，产物是安装器而非 tarball                       |
+| Groovy / Scala / Clojure  | 依赖 JVM，实质是「库 + 启动脚本」                             |
+| R / Fortran               | 依赖系统科学计算库（BLAS/LAPACK）                             |
+
+**这 6 类如果找不到可靠的官方预编译产物，自管下载在工程上无法实现**，只能回退到「检测系统已装」。
+§6.3 会把每种语言的可行性逐条列出，作为开工前必须先确认的清单。
+
+### 9.2 关于决策 2 的影响
+
+```text
+~/.runex/                     # 新增：LANIA 的运行时根目录
+├── runtimes/<lang>/<version>/
+├── shims/
+├── cache/downloads/
+└── state.json
+```
+
+项目级 `.lania/`（release-state、agent sessions 等）保持不变，两者职责完全不同：
+
+| 目录        | 用途                                | 作用域     |
+| ----------- | ----------------------------------- | ---------- |
+| `.lania/`   | 项目状态（release、agent、schemas） | 每项目一份 |
+| `~/.runex/` | 运行时环境                          | 全局一份   |
+
+### 9.3 关于决策 3 的影响
+
+- Provider 层不再有 `ExternalManager` 回退实现
+- `lang env install` 只有 lania 自己的下载路径
+- §5.2 的删除清单保持不变：44 个 `ManagerKind` 全部移除
+- **风险**：某些语言（见 §9.1）如果确实无法自管，会变成「无法安装」，
+  而不是「降级到外部管理器」。这一点需要在上表逐条确认后再开工。
 
 > 全局包管理已明确移出本方案（见 §4），不再作为待决策项。
