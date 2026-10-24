@@ -73,7 +73,13 @@ jobs:
         run: |
           set -euo pipefail
           asset="lania-cli-${{ matrix.platform }}"
+          # 注意：`gh release view` 只看 release，不看 tag。tag 已存在但 release 不存在时
+          # 它仍会失败，所以这里必须显式区分「release 是否存在」。
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --notes "CLI binaries for $TAG"
+          fi
           # 同名 asset 已存在时先删除，便于重跑 workflow。
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "CLI binaries for $TAG"
           gh release delete-asset "$TAG" "$asset" --yes >/dev/null 2>&1 || true
           gh release upload "$TAG" "dist/$asset" --clobber
+          # 立即校验，避免 upload 静默失败。
+          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "$asset"
