@@ -637,6 +637,22 @@ test('language create templates render their manifests', async () => {
   }
 });
 
+test('language add templates render the requested component name', async () => {
+  const cases: Array<[string, string]> = [
+    ['go-handler', 'go'],
+    ['python-module', 'py'],
+    ['rust-module', 'rs'],
+    ['dart-class', 'dart'],
+  ];
+  for (const [name, ext] of cases) {
+    const rendered = await renderAddRuntimeTemplate(name, {
+      context: { componentName: 'Widget', language: 'ts' },
+    });
+    assert.equal(rendered.extname, ext);
+    assert.ok(rendered.content.includes('Widget'), `${name} missing component name`);
+  }
+});
+
 async function loadListResult(input: {
   cwd?: string | null;
   context?: Record<string, unknown>;
