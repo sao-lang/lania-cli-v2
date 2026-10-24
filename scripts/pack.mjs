@@ -277,6 +277,7 @@ function stagePlatformBinary(descriptor, releaseBinaryPath, source) {
   const targetName = descriptor.platform.startsWith('win32') ? 'lania-cli.exe' : 'lania-cli';
   const dst = path.join(descriptor.packageRoot, 'bin', targetName);
   copyFile(releaseBinaryPath, dst, 0o755);
+  assertStagedBinaryVersion(descriptor, dst);
   console.log(`[pack] staged ${descriptor.packageName} for ${descriptor.platform}`);
   return {
     packageName: descriptor.packageName,
@@ -284,6 +285,37 @@ function stagePlatformBinary(descriptor, releaseBinaryPath, source) {
     status: 'staged',
     source,
   };
+}
+
+/**
+ * 二进制里的版本号是编译期通过 `env!("CARGO_PKG_VERSION")` 烧进去的，
+ * `assertVersionSync` 只比对 package.json，管不到它。
+ *
+ * 这里补一道守卫：只有「宿主平台」的二进制能真正执行并自报版本；
+ * 其他平台只做来源标签校验（fetch 阶段已按 `v{version}` 拉取）。
+ */
+function assertStagedBinaryVersion(descriptor, binaryPath) {
+  const expected = readRustWorkspaceVersion();
+  if (descriptor.platform !== resolveHostPlatform()) {
+    return;
+  }
+  const result = spawnSync(binaryPath, ['--version'], { encoding: 'utf8' });
+  if (result.error) {
+    throw new Error(
+      `Failed to execute staged binary for ${descriptor.packageName}: ${result.error.message}`,
+    );
+  }
+  const reported = String(result.stdout ?? '').trim();
+  if (reported !== expected) {
+    throw new Error(
+      [
+        `Platform binary version mismatch for ${descriptor.packageName}.`,
+        `  binary reports : ${reported || '<empty>'}`,
+        `  expected       : ${expected}`,
+        '二进制是旧的：请先打 v{version} tag 让 CI 重新构建，再重新 pack。',
+      ].join('\n'),
+    );
+  }
 }
 
 function stagePlatformBinaries() {
