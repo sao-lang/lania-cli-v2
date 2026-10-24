@@ -21,11 +21,17 @@ import type { BridgeEvent } from '../protocol/events.js';
 import { asRecord, resolveModuleFromCwd } from '../core/runtime.js';
 
 export type BuildTool = 'vite' | 'webpack' | 'rollup';
+export type Runtime = 'web' | 'python' | 'go' | 'rust' | 'dart';
+export const RUNTIMES: readonly Runtime[] = ['web', 'python', 'go', 'rust', 'dart'];
+export function isRuntime(value: unknown): value is Runtime {
+  return typeof value === 'string' && (RUNTIMES as readonly string[]).includes(value);
+}
+export type Tool = BuildTool | Runtime;
 export type CompilerAction = 'dev' | 'build';
 export type WorkerMode = 'inline_bridge' | 'isolated_worker';
 
 export type ActiveCompiler = {
-  tool: BuildTool;
+  tool: Tool;
   action: CompilerAction;
   stop: () => Promise<BridgeEvent[] | void>;
 };
@@ -43,6 +49,7 @@ export interface CompilerAdapterParams {
 
 export interface CompilerAdapterContext {
   tool: BuildTool;
+  runtime: Runtime;
   lanConfig: Record<string, unknown>;
   runtimeWarning: string | null;
 }
@@ -70,7 +77,7 @@ export interface CompilerAdapter {
 }
 
 export function createCompilerResult(
-  tool: BuildTool,
+  tool: Tool,
   action: CompilerAction,
   implementation: 'runtime' | 'fallback',
   extras: Record<string, unknown> = {},
@@ -89,7 +96,7 @@ export function createCompilerResult(
 }
 
 export function buildResult(
-  tool: BuildTool,
+  tool: Tool,
   watch: boolean,
   mode: string | null,
   outputDir: string | null,
@@ -115,9 +122,14 @@ export function buildResult(
       },
     },
     compilerStatusEvent(tool, 'build', watch ? 'watching' : 'building', `Running ${tool} build`),
-    compilerAssetEvent(tool, `${resolvedOutputDir}/index.js`, implementation === 'runtime' ? 4096 : 2048, {
-      outputDir: resolvedOutputDir,
-    }),
+    compilerAssetEvent(
+      tool,
+      `${resolvedOutputDir}/index.js`,
+      implementation === 'runtime' ? 4096 : 2048,
+      {
+        outputDir: resolvedOutputDir,
+      },
+    ),
     {
       method: 'event.build_asset',
       params: {
@@ -127,9 +139,7 @@ export function buildResult(
     },
   ];
   if (watch) {
-    events.push(
-      compilerWatchChangeEvent(tool, 'src/main.ts', 'updated'),
-    );
+    events.push(compilerWatchChangeEvent(tool, 'src/main.ts', 'updated'));
     events.push({
       method: 'event.watch_change',
       params: {
@@ -161,7 +171,7 @@ export function buildResult(
 }
 
 export function fallbackDevResult(
-  tool: BuildTool,
+  tool: Tool,
   host: string,
   port: number,
   warning?: string,
@@ -230,9 +240,7 @@ export async function resolveCompilerRuntime(
           }
         : await resolveModuleFromCwd<any>(cwd, 'webpack').then((runtime) => {
             const resolvedWebpack = unwrapModuleDefault(runtime);
-            return resolvedWebpack
-              ? { webpack: resolvedWebpack, webpackDevServer: null }
-              : null;
+            return resolvedWebpack ? { webpack: resolvedWebpack, webpackDevServer: null } : null;
           });
       if (!webpackRuntime?.webpack) {
         return null;
@@ -245,9 +253,7 @@ export async function resolveCompilerRuntime(
       return webpackRuntime;
     }
     case 'rollup':
-      return adaptor.rollup
-        ? adaptor.rollup
-        : await resolveModuleFromCwd<any>(cwd, 'rollup');
+      return adaptor.rollup ? adaptor.rollup : await resolveModuleFromCwd<any>(cwd, 'rollup');
     default:
       return null;
   }
@@ -286,8 +292,7 @@ export async function resolveRuntimeWarning(
       const adaptors = asRecord(lanConfig.buildAdaptors);
       const adaptor = asRecord(adaptors.webpack);
       if (!adaptor.webpackDevServer) {
-        const devServerDeclared =
-          typeof dependencies['webpack-dev-server'] === 'string';
+        const devServerDeclared = typeof dependencies['webpack-dev-server'] === 'string';
         if (!devServerDeclared) {
           return 'declared dependency `webpack-dev-server` is missing from package.json';
         }
@@ -306,6 +311,37 @@ function unwrapModuleDefault<T>(value: T | { default?: T } | null | undefined): 
   }
   const record = asRecord(value as unknown);
   return (record.default ?? value) as T;
+}
+
+const RUNTIME_FEATURE_FILES: ReadonlyArray<readonly [string, Runtime]> = [
+  ['go.mod', 'go'],
+  ['Cargo.toml', 'rust'],
+  ['pyproject.toml', 'python'],
+  ['pubspec.yaml', 'dart'],
+  ['package.json', 'web'],
+];
+
+export async function detectRuntime(
+  config: Record<string, unknown>,
+  cwd: string,
+  override?: unknown,
+): Promise<Runtime> {
+  // 优先级：调用参数覆盖 > lan.config.runtime > 特征文件 > web 兜底。
+  if (isRuntime(override)) {
+    return override;
+  }
+  if (isRuntime(config.runtime)) {
+    return config.runtime;
+  }
+  for (const [file, runtime] of RUNTIME_FEATURE_FILES) {
+    try {
+      await fs.access(path.join(cwd, file));
+      return runtime;
+    } catch {
+      // 特征文件不存在，继续看下一个。
+    }
+  }
+  return 'web';
 }
 
 export function detectBuildTool(config: Record<string, unknown>): BuildTool {
@@ -330,10 +366,7 @@ export async function findAvailablePort(port: number, host: string): Promise<num
   // 这样老项目迁移到新 bridge 时端口行为更可预测。
   const fallbackCandidates =
     port === LEGACY_DEFAULT_DEV_PORT
-      ? range(
-          LEGACY_FALLBACK_PORT_RANGE_START,
-          LEGACY_FALLBACK_PORT_RANGE_END,
-        )
+      ? range(LEGACY_FALLBACK_PORT_RANGE_START, LEGACY_FALLBACK_PORT_RANGE_END)
       : range(Math.max(port + 1, 1024), Math.max(port + 20, 1024));
 
   for (const candidate of fallbackCandidates) {
@@ -364,8 +397,7 @@ async function allocateEphemeralPort(host: string): Promise<number> {
     server.once('error', reject);
     server.listen(0, host, () => {
       const address = server.address();
-      const resolvedPort =
-        address && typeof address === 'object' ? address.port : 0;
+      const resolvedPort = address && typeof address === 'object' ? address.port : 0;
       server.close((error) => {
         if (error) {
           reject(error);
@@ -385,10 +417,7 @@ function range(start: number, end: number): number[] {
   return values;
 }
 
-export function logEvent(
-  message: string,
-  level: 'info' | 'warn' = 'info',
-): BridgeEvent {
+export function logEvent(message: string, level: 'info' | 'warn' = 'info'): BridgeEvent {
   // 通用日志事件，供 fallback/runtime 两条路径复用。
   return {
     method: 'event.log',
@@ -400,7 +429,7 @@ export function logEvent(
 }
 
 export function compilerStartEvent(
-  tool: BuildTool,
+  tool: Tool,
   action: CompilerAction,
   implementation: 'runtime' | 'fallback',
   watch: boolean,
@@ -424,7 +453,7 @@ export function compilerStartEvent(
 }
 
 export function compilerStatusEvent(
-  tool: BuildTool,
+  tool: Tool,
   action: CompilerAction,
   stage: 'resolving' | 'starting' | 'building' | 'watching' | 'stopping',
   message: string,
@@ -442,7 +471,7 @@ export function compilerStatusEvent(
 }
 
 export function compilerServerReadyEvent(
-  tool: BuildTool,
+  tool: Tool,
   url: string,
   host: string,
   port: number,
@@ -460,7 +489,7 @@ export function compilerServerReadyEvent(
 }
 
 export function compilerAssetEvent(
-  tool: BuildTool,
+  tool: Tool,
   file: string,
   bytes: number,
   extra: Record<string, unknown> = {},
@@ -478,7 +507,7 @@ export function compilerAssetEvent(
 }
 
 export function compilerIssueEvent(
-  tool: BuildTool,
+  tool: Tool,
   severity: 'warning' | 'error',
   message: string,
   extra: Record<string, unknown> = {},
@@ -496,7 +525,7 @@ export function compilerIssueEvent(
 }
 
 export function compilerWatchChangeEvent(
-  tool: BuildTool,
+  tool: Tool,
   path: string,
   change: 'created' | 'updated' | 'deleted',
 ): BridgeEvent {
@@ -512,7 +541,7 @@ export function compilerWatchChangeEvent(
 }
 
 export function compilerDoneEvent(
-  tool: BuildTool,
+  tool: Tool,
   action: CompilerAction,
   success: boolean,
   implementation: 'runtime' | 'fallback',

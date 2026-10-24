@@ -50,7 +50,7 @@ async function handleDev(params: Record<string, unknown>) {
     const execution = await runCompilerInWorker(
       'compiler.dev',
       createAdapterParams(cwd, host, port, params),
-      { tool, lanConfig: lanConfig.config, runtimeWarning },
+      { tool, runtime: 'web', lanConfig: lanConfig.config, runtimeWarning },
     ).catch(() => undefined);
     if (execution?.activeCompiler) {
       activeCompiler = execution.activeCompiler;
@@ -76,7 +76,7 @@ async function handleBuild(params: Record<string, unknown>) {
     const execution = await runCompilerInWorker(
       'compiler.build',
       createAdapterParams(cwd, '127.0.0.1', 0, params),
-      { tool, lanConfig: lanConfig.config, runtimeWarning },
+      { tool, runtime: 'web', lanConfig: lanConfig.config, runtimeWarning },
     ).catch(() => undefined);
     if (execution?.activeCompiler) {
       activeCompiler = execution.activeCompiler;

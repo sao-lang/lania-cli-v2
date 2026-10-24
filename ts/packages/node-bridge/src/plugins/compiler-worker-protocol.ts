@@ -15,10 +15,10 @@
  */
 import type { BridgeEvent } from '../protocol/events.js';
 import type {
-  BuildTool,
   CompilerAdapterContext,
   CompilerAdapterParams,
   CompilerExecution,
+  Tool,
 } from './compiler-shared.js';
 
 export type CompilerWorkerMethod = 'compiler.dev' | 'compiler.build';
@@ -41,11 +41,11 @@ export type CompilerWorkerMessage =
       execution: Omit<CompilerExecution, 'activeCompiler'>;
       // keepAlive=true 表示 worker 将继续存活，等待后续 stop。
       keepAlive: boolean;
-      tool: BuildTool;
+      tool: Tool;
     }
   | {
       type: 'stopped';
-      tool: BuildTool | null;
+      tool: Tool | null;
     }
   | {
       type: 'error';

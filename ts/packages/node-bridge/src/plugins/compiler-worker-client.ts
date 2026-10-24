@@ -24,7 +24,7 @@ import type { BridgeEvent } from '../protocol/events.js';
 import {
   compilerIssueEvent,
   logEvent,
-  type BuildTool,
+  type Tool,
   type CompilerAdapterContext,
   type CompilerAdapterParams,
   type CompilerExecution,
@@ -87,8 +87,7 @@ export async function runCompilerInWorker(
             events: [...bufferedEvents, ...message.execution.events],
             activeCompiler: {
               tool: message.tool,
-              action:
-                message.execution.result.action === 'dev' ? 'dev' : 'build',
+              action: message.execution.result.action === 'dev' ? 'dev' : 'build',
               stop: async () => stopCompilerWorker(child, message.tool, bufferedEvents),
             },
           });
@@ -128,9 +127,7 @@ export async function runCompilerInWorker(
 }
 
 function resolveWorkerEntrypoint() {
-  const compiledWorker = fileURLToPath(
-    new URL('../workers/compiler-worker.js', import.meta.url),
-  );
+  const compiledWorker = fileURLToPath(new URL('../workers/compiler-worker.js', import.meta.url));
   if (existsSync(compiledWorker)) {
     return compiledWorker;
   }
@@ -139,7 +136,7 @@ function resolveWorkerEntrypoint() {
 
 async function stopCompilerWorker(
   child: ReturnType<typeof spawn>,
-  tool: BuildTool,
+  tool: Tool,
   bufferedEvents: BridgeEvent[],
 ): Promise<BridgeEvent[]> {
   // stop 的语义：
@@ -199,15 +196,13 @@ async function stopCompilerWorker(
       return;
     }
 
-    bufferedEvents.push(
-      logEvent(`[${tool}:worker] stop requested`, 'info'),
-    );
+    bufferedEvents.push(logEvent(`[${tool}:worker] stop requested`, 'info'));
   });
 }
 
 function attachStreamCapture(
   stream: NodeJS.ReadableStream | null,
-  tool: BuildTool,
+  tool: Tool,
   source: 'stdout' | 'stderr',
   bufferedEvents: BridgeEvent[],
 ) {
@@ -227,11 +222,7 @@ function attachStreamCapture(
   });
 }
 
-function workerOutputEvents(
-  tool: BuildTool,
-  source: 'stdout' | 'stderr',
-  text: string,
-): BridgeEvent[] {
+function workerOutputEvents(tool: Tool, source: 'stdout' | 'stderr', text: string): BridgeEvent[] {
   // 约定：
   // - stderr 一律视作“至少是 warning”，同时也作为 log 事件回传，便于用户侧排查
   // - stdout 仅作为 info 日志回传，不做结构化解析（避免引入对编译器输出格式的耦合）
