@@ -108,7 +108,7 @@ mod tests {
             .expect("build spec registered");
         assert_eq!(build_spec.name, "build");
         assert_eq!(build_spec.handler_id, "command.build");
-        assert_eq!(build_spec.options.len(), 5);
+        assert_eq!(build_spec.options.len(), 6);
         assert_eq!(build_spec.subcommands.len(), 0);
         let product_root_spec = commands
             .commands()
@@ -169,6 +169,40 @@ mod tests {
         assert_eq!(request.params["watch"], true);
         assert_eq!(request.params["mode"], "development");
         assert_eq!(request.params["outputDir"], "dist-custom");
+    }
+
+    #[test]
+    fn build_request_forwards_runtime() {
+        let context = CommandContext {
+            cwd: "/repo".into(),
+            argv: lania_command::ParsedArgv {
+                args: Default::default(),
+                options: [("runtime".into(), json!("rust"))].into_iter().collect(),
+            },
+            handler_id: "command.build".into(),
+            trace_id: "trace-runtime".into(),
+        };
+        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let request = BuildCommandPlugin::build_request(&context, &bridge);
+
+        assert_eq!(request.params["runtime"], json!("rust"));
+    }
+
+    #[test]
+    fn build_exit_code_maps_failure_to_runtime_error() {
+        use crate::handlers::resolve_build_exit_code;
+        use lania_host::{EXIT_RUNTIME_ERROR, EXIT_SUCCESS};
+
+        assert_eq!(
+            resolve_build_exit_code(Some(&json!({ "success": false }))),
+            EXIT_RUNTIME_ERROR
+        );
+        assert_eq!(
+            resolve_build_exit_code(Some(&json!({ "success": true }))),
+            EXIT_SUCCESS
+        );
+        assert_eq!(resolve_build_exit_code(Some(&json!({}))), EXIT_SUCCESS);
+        assert_eq!(resolve_build_exit_code(None), EXIT_SUCCESS);
     }
 
     #[test]

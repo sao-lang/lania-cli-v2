@@ -78,6 +78,21 @@ impl BuildCommandPlugin {
                     choices: vec![],
                     negatable: false,
                 },
+                OptionSpec {
+                    long: "runtime".into(),
+                    short: None,
+                    help: "Override runtime (web|python|go|rust|dart)".into(),
+                    value_kind: ValueKind::String,
+                    default_value: None,
+                    choices: vec![
+                        "web".into(),
+                        "python".into(),
+                        "go".into(),
+                        "rust".into(),
+                        "dart".into(),
+                    ],
+                    negatable: false,
+                },
             ])
             .with_examples(vec![
                 Example {
