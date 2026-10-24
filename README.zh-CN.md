@@ -333,6 +333,49 @@ cargo run -p lania-cli -- create --preview --name demo-app
 - 需要模板目录、模板问题或渲染内容时，工作流通过 Node Bridge 访问 `template` 插件。
 - 模板运行时由 `@lania-cli/templates` 提供，最终由 Rust 完成文件落盘、依赖安装、Git 初始化等宿主动作。
 
+### 多语言运行时（`dev` / `build` / `create` / `add`）
+
+`lan dev` / `lan build` 会先探测项目运行时，再分发到对应工具链。探测优先级：`--runtime` > `lan.config.runtime` > 特征文件 > `web` 兜底。
+
+特征文件顺序：`go.mod` > `Cargo.toml` > `pyproject.toml` > `pubspec.yaml` > `package.json`。
+
+支持的运行时：`web`（vite/webpack/rollup）、`go`、`rust`、`python`、`dart`。
+
+```js
+// lan.config.js
+module.exports = {
+  runtime: 'go',
+  runtimes: {
+    go: {
+      dev: ['go', 'run', '.'],
+      build: ['go', 'build', '-o', 'bin/app', '.'],
+    },
+    python: {
+      // python dev 无通用默认命令，必须显式配置
+      dev: ['python', '-m', 'uvicorn', 'app.main:app', '--reload'],
+      build: ['python', '-m', 'build'],
+    },
+  },
+};
+```
+
+- build 命令中的 `{output}` 会替换为 `--output-dir`（默认 `bin/app`）。
+- dev 子进程会收到 `PORT` / `HOST` 环境变量；build 子进程会收到 `OUTPUT_DIR`。
+- 非 web runtime 构建失败会以非零退出码返回；工具链缺失时直接失败，不伪造 dev server。
+- `lan build --watch` 暂不支持非 web runtime，会明确报错。
+- `lan dev` 只保证启动阶段输出可见，不流式转发运行期日志。
+- `lan create --template <name> --skip-install` 可跳过 npm/pnpm 安装；新语言模板的 `skipInstall` 默认即为 true。
+
+内置模板：
+
+- create：`go-service`、`rust-lib`、`python-cli`、`dart-cli`
+- add：`go-handler`、`python-module`、`rust-module`、`dart-class`
+
+```bash
+lan create --template go-service --skip-install
+lan add --name Widget --template rust-module --target src
+```
+
 ### `generate api` / `generate module`
 
 - Rust 工作流读取对应 YAML 配置。
