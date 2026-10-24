@@ -8,6 +8,7 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { BridgeEvent } from '../../protocol/events.js';
 import { asRecord, loadToolConfig, normalizeError } from '../../core/runtime.js';
 import {
   buildResult,
@@ -44,7 +45,7 @@ function normalizePath(value: string) {
 
 export const viteCompilerAdapter: CompilerAdapter = {
   tool: 'vite',
-  async handleDev(params, context) {
+  async handleDev(params, context, emit) {
     const vite = await resolveCompilerRuntime(params.cwd, 'vite', context.lanConfig);
     if (!vite?.createServer) {
       return null;
@@ -52,6 +53,10 @@ export const viteCompilerAdapter: CompilerAdapter = {
 
     const toolConfig = await loadToolConfig(params.cwd, 'vite');
     const buffered: Array<ReturnType<typeof logEvent> | ReturnType<typeof compilerIssueEvent>> = [];
+    const record = (event: (typeof buffered)[number]) => {
+      buffered.push(event);
+      emit?.(event);
+    };
     const customLogger = vite.createLogger
       ? (() => {
           const logger = vite.createLogger('info', {
@@ -63,13 +68,13 @@ export const viteCompilerAdapter: CompilerAdapter = {
               return;
             }
             if (level === 'error') {
-              buffered.push(compilerIssueEvent('vite', 'error', text));
-              buffered.push(logEvent(`[vite] ${text}`, 'warn'));
+              record(compilerIssueEvent('vite', 'error', text));
+              record(logEvent(`[vite] ${text}`, 'warn'));
             } else if (level === 'warn') {
-              buffered.push(compilerIssueEvent('vite', 'warning', text));
-              buffered.push(logEvent(`[vite] ${text}`, 'warn'));
+              record(compilerIssueEvent('vite', 'warning', text));
+              record(logEvent(`[vite] ${text}`, 'warn'));
             } else {
-              buffered.push(logEvent(`[vite] ${text}`, 'info'));
+              record(logEvent(`[vite] ${text}`, 'info'));
             }
           };
           logger.info = wrap('info');
@@ -93,11 +98,62 @@ export const viteCompilerAdapter: CompilerAdapter = {
       customLogger: customLogger ?? toolConfig.config.customLogger,
       server: serverConfig,
     };
+    const startEvent = compilerStartEvent(
+      'vite',
+      'dev',
+      'runtime',
+      true,
+      params.mode ?? 'development',
+      {
+        host: params.host,
+        port: params.port,
+        configPath: toolConfig.configPath,
+      },
+    );
+    const startingEvent = compilerStatusEvent(
+      'vite',
+      'dev',
+      'starting',
+      'Starting vite dev server',
+    );
+    const startingLog = logEvent(
+      'Starting vite dev server',
+      context.runtimeWarning ? 'warn' : 'info',
+    );
+    if (emit) {
+      emit(startEvent);
+      emit(startingEvent);
+      emit(startingLog);
+    }
+
     try {
       const server = await vite.createServer(config);
       await server.listen();
-      const resolvedUrl =
-        server.resolvedUrls?.local?.[0] ?? `http://${params.host}:${params.port}`;
+      const resolvedUrl = server.resolvedUrls?.local?.[0] ?? `http://${params.host}:${params.port}`;
+      const warningEvents = context.runtimeWarning
+        ? [
+            compilerIssueEvent('vite', 'warning', context.runtimeWarning),
+            logEvent(`[vite] ${context.runtimeWarning}`, 'warn'),
+          ]
+        : [];
+      const readyEvents = [
+        compilerServerReadyEvent('vite', resolvedUrl, params.host, params.port),
+        {
+          method: 'event.dev_url',
+          params: {
+            url: resolvedUrl,
+          },
+        } satisfies BridgeEvent,
+        compilerDoneEvent('vite', 'dev', true, 'runtime', {
+          longRunning: true,
+          host: params.host,
+          port: params.port,
+        }),
+      ];
+      if (emit) {
+        warningEvents.forEach(emit);
+        readyEvents.forEach(emit);
+      }
       return {
         result: createCompilerResult('vite', 'dev', 'runtime', {
           mode: params.mode ?? 'development',
@@ -106,37 +162,9 @@ export const viteCompilerAdapter: CompilerAdapter = {
           configPath: toolConfig.configPath,
           longRunning: true,
         }),
-        events: [
-          compilerStartEvent('vite', 'dev', 'runtime', true, params.mode ?? 'development', {
-            host: params.host,
-            port: params.port,
-            configPath: toolConfig.configPath,
-          }),
-          compilerStatusEvent('vite', 'dev', 'starting', 'Starting vite dev server'),
-          logEvent(
-            'Starting vite dev server',
-            context.runtimeWarning ? 'warn' : 'info',
-          ),
-          ...buffered,
-          ...(context.runtimeWarning
-            ? [
-                compilerIssueEvent('vite', 'warning', context.runtimeWarning),
-                logEvent(`[vite] ${context.runtimeWarning}`, 'warn'),
-              ]
-            : []),
-          compilerServerReadyEvent('vite', resolvedUrl, params.host, params.port),
-          {
-            method: 'event.dev_url',
-            params: {
-              url: resolvedUrl,
-            },
-          },
-          compilerDoneEvent('vite', 'dev', true, 'runtime', {
-            longRunning: true,
-            host: params.host,
-            port: params.port,
-          }),
-        ],
+        events: emit
+          ? []
+          : [startEvent, startingEvent, startingLog, ...buffered, ...warningEvents, ...readyEvents],
         activeCompiler: {
           tool: 'vite',
           action: 'dev',
@@ -146,12 +174,7 @@ export const viteCompilerAdapter: CompilerAdapter = {
         },
       };
     } catch (error) {
-      return fallbackDevResult(
-        'vite',
-        params.host,
-        params.port,
-        normalizeError(error).message,
-      );
+      return fallbackDevResult('vite', params.host, params.port, normalizeError(error).message);
     }
   },
   async handleBuild(params, context) {
@@ -207,7 +230,9 @@ export const viteCompilerAdapter: CompilerAdapter = {
               bytes = 0;
             }
           }
-          const relFile = normalizePath(path.posix.join(normalizePath(normalizedOutDir), normalizePath(fileName)));
+          const relFile = normalizePath(
+            path.posix.join(normalizePath(normalizedOutDir), normalizePath(fileName)),
+          );
           events.push(compilerAssetEvent('vite', relFile, bytes, { outputDir: normalizedOutDir }));
           events.push({
             method: 'event.build_asset',

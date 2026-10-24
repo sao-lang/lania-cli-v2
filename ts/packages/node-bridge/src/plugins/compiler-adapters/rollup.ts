@@ -40,18 +40,39 @@ function outputBytes(output: any): number {
 
 export const rollupCompilerAdapter: CompilerAdapter = {
   tool: 'rollup',
-  async handleDev(params, context) {
-    const runtime = await resolveCompilerRuntime(
-      params.cwd,
-      'rollup',
-      context.lanConfig,
-    );
+  async handleDev(params, context, emit) {
+    const runtime = await resolveCompilerRuntime(params.cwd, 'rollup', context.lanConfig);
     if (!runtime?.watch) {
       return null;
     }
 
     try {
       const toolConfig = await loadToolConfig(params.cwd, 'rollup');
+      const startEvent = compilerStartEvent('rollup', 'dev', 'runtime', true, 'development', {
+        host: params.host,
+        port: params.port,
+        configPath: toolConfig.configPath,
+      });
+      const startingEvent = compilerStatusEvent(
+        'rollup',
+        'dev',
+        'watching',
+        'Starting rollup watch mode',
+      );
+      const startingLog = logEvent(
+        'Starting rollup watch mode',
+        context.runtimeWarning ? 'warn' : 'info',
+      );
+      const warningEvents = context.runtimeWarning
+        ? [
+            compilerIssueEvent('rollup', 'warning', context.runtimeWarning),
+            logEvent(`[rollup] ${context.runtimeWarning}`, 'warn'),
+          ]
+        : [];
+      if (emit) {
+        [startEvent, startingEvent, startingLog, ...warningEvents].forEach(emit);
+      }
+
       const watcher = runtime.watch({
         ...toolConfig.config,
         watch: { ...(asRecord(toolConfig.config.watch) ?? {}), skipWrite: false },
@@ -61,13 +82,28 @@ export const rollupCompilerAdapter: CompilerAdapter = {
         const collected: any[] = [];
         const handler = (event: any) => {
           if (event?.code === 'START') {
-            collected.push(compilerStatusEvent('rollup', 'dev', 'watching', 'Rollup watch started'));
+            const entry = compilerStatusEvent('rollup', 'dev', 'watching', 'Rollup watch started');
+            collected.push(entry);
+            emit?.(entry);
           }
           if (event?.code === 'BUNDLE_END') {
-            collected.push(compilerStatusEvent('rollup', 'dev', 'watching', 'Rollup bundle finished'));
+            const entry = compilerStatusEvent(
+              'rollup',
+              'dev',
+              'watching',
+              'Rollup bundle finished',
+            );
+            collected.push(entry);
+            emit?.(entry);
           }
           if (event?.code === 'ERROR') {
-            collected.push(compilerIssueEvent('rollup', 'error', String(event.error?.message ?? 'rollup watch error')));
+            const entry = compilerIssueEvent(
+              'rollup',
+              'error',
+              String(event.error?.message ?? 'rollup watch error'),
+            );
+            collected.push(entry);
+            emit?.(entry);
           }
           if (event?.code === 'END') {
             watcher.off?.('event', handler);
@@ -81,6 +117,36 @@ export const rollupCompilerAdapter: CompilerAdapter = {
         }, 1500).unref?.();
       });
 
+      if (emit) {
+        // 首次构建后继续转发后续 rebuild 事件。
+        watcher.on?.('event', (event: any) => {
+          if (event?.code === 'START') {
+            emit(compilerStatusEvent('rollup', 'dev', 'watching', 'Rollup rebuild started'));
+          }
+          if (event?.code === 'END') {
+            emit(compilerStatusEvent('rollup', 'dev', 'watching', 'Rollup rebuild finished'));
+          }
+          if (event?.code === 'ERROR') {
+            emit(
+              compilerIssueEvent(
+                'rollup',
+                'error',
+                String(event.error?.message ?? 'rollup watch error'),
+              ),
+            );
+          }
+        });
+      }
+
+      const doneEvent = compilerDoneEvent('rollup', 'dev', true, 'runtime', {
+        longRunning: true,
+        host: params.host,
+        port: params.port,
+      });
+      if (emit) {
+        emit(doneEvent);
+      }
+
       return {
         result: createCompilerResult('rollup', 'dev', 'runtime', {
           mode: 'development',
@@ -89,30 +155,16 @@ export const rollupCompilerAdapter: CompilerAdapter = {
           configPath: toolConfig.configPath,
           longRunning: true,
         }),
-        events: [
-          compilerStartEvent('rollup', 'dev', 'runtime', true, 'development', {
-            host: params.host,
-            port: params.port,
-            configPath: toolConfig.configPath,
-          }),
-          compilerStatusEvent('rollup', 'dev', 'watching', 'Starting rollup watch mode'),
-          logEvent(
-            'Starting rollup watch mode',
-            context.runtimeWarning ? 'warn' : 'info',
-          ),
-          ...(context.runtimeWarning
-            ? [
-                compilerIssueEvent('rollup', 'warning', context.runtimeWarning),
-                logEvent(`[rollup] ${context.runtimeWarning}`, 'warn'),
-              ]
-            : []),
-          ...firstBuildEvents,
-          compilerDoneEvent('rollup', 'dev', true, 'runtime', {
-            longRunning: true,
-            host: params.host,
-            port: params.port,
-          }),
-        ],
+        events: emit
+          ? []
+          : [
+              startEvent,
+              startingEvent,
+              startingLog,
+              ...warningEvents,
+              ...firstBuildEvents,
+              doneEvent,
+            ],
         activeCompiler: {
           tool: 'rollup',
           action: 'dev',
@@ -122,20 +174,11 @@ export const rollupCompilerAdapter: CompilerAdapter = {
         },
       };
     } catch (error) {
-      return fallbackDevResult(
-        'rollup',
-        params.host,
-        params.port,
-        normalizeError(error).message,
-      );
+      return fallbackDevResult('rollup', params.host, params.port, normalizeError(error).message);
     }
   },
   async handleBuild(params, context) {
-    const runtime = await resolveCompilerRuntime(
-      params.cwd,
-      'rollup',
-      context.lanConfig,
-    );
+    const runtime = await resolveCompilerRuntime(params.cwd, 'rollup', context.lanConfig);
     if (!runtime?.rollup) {
       return null;
     }
@@ -181,10 +224,8 @@ export const rollupCompilerAdapter: CompilerAdapter = {
 
       const bundle = await runtime.rollup(toolConfig.config);
       const outputConfig = asRecord(toolConfig.config.output);
-      const output =
-        outputConfig.dir ?? outputConfig.file ?? params.outputDir ?? 'dist';
-      const resolvedOutputDir =
-        params.outputDir ?? (typeof output === 'string' ? output : 'dist');
+      const output = outputConfig.dir ?? outputConfig.file ?? params.outputDir ?? 'dist';
+      const resolvedOutputDir = params.outputDir ?? (typeof output === 'string' ? output : 'dist');
       const writeResult = await bundle.write({
         ...(asRecord(toolConfig.config.output) ?? {}),
         dir: resolvedOutputDir,
@@ -206,7 +247,9 @@ export const rollupCompilerAdapter: CompilerAdapter = {
           continue;
         }
         const bytes = outputBytes(outputItem);
-        const file = normalizePath(path.posix.join(normalizePath(resolvedOutputDir), normalizePath(fileName)));
+        const file = normalizePath(
+          path.posix.join(normalizePath(resolvedOutputDir), normalizePath(fileName)),
+        );
         events.push(compilerAssetEvent('rollup', file, bytes, { outputDir: resolvedOutputDir }));
         events.push({ method: 'event.build_asset', params: { file, bytes } });
       }

@@ -14,6 +14,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { getCompilerAdapters, resolveCompilerAdapter } from './compiler-adapters/index.js';
+import { viteCompilerAdapter } from './compiler-adapters/vite.js';
+import { loadLanConfig } from '../core/runtime.js';
 import { compilerPlugin } from './compiler.js';
 import { findAvailablePort } from './compiler-shared.js';
 
@@ -102,6 +104,60 @@ test('vite adapter handles dev runtime flow', async (t) => {
   );
 
   await handled?.activeCompiler?.stop?.();
+});
+
+test('vite dev streams lifecycle events through emit', async (t) => {
+  const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-vite-emit-'));
+  t.after(async () => rm(cwd, { recursive: true, force: true }));
+
+  await writeProjectFile(
+    cwd,
+    'package.json',
+    JSON.stringify({ name: 'vite-app', dependencies: { vite: '^5.0.0' } }, null, 2),
+  );
+  await writeProjectFile(
+    cwd,
+    'lan.config.cjs',
+    `module.exports = {
+      buildTool: 'vite',
+      buildAdaptors: {
+        vite: {
+          vite: {
+            createServer: async (config) => ({
+              listen: async () => undefined,
+              close: async () => undefined,
+              resolvedUrls: { local: [\`http://\${config.server.host}:\${config.server.port}\`] }
+            })
+          }
+        }
+      }
+    };`,
+  );
+  await writeProjectFile(cwd, 'vite.config.cjs', 'module.exports = {};');
+
+  const streamed: string[] = [];
+  const lanConfig = (await loadLanConfig(cwd)).config;
+  const execution = await viteCompilerAdapter.handleDev(
+    {
+      cwd,
+      host: '127.0.0.1',
+      port: 4100,
+      hmr: false,
+      open: false,
+      watch: false,
+      mode: 'test',
+      outputDir: null,
+    },
+    { tool: 'vite', runtime: 'web', lanConfig, runtimeWarning: null },
+    (event) => streamed.push(event.method),
+  );
+
+  assert.ok(streamed.includes('event.compiler_start'));
+  assert.ok(streamed.includes('event.compiler_status'));
+  assert.ok(streamed.includes('event.compiler_server_ready'));
+  assert.ok(streamed.includes('event.compiler_done'));
+  assert.deepEqual(execution?.events, []);
+  await execution?.activeCompiler?.stop?.();
 });
 
 test('vite adapter forwards mode and hmr overrides into createServer config', async (t) => {
