@@ -25,6 +25,7 @@
     "typescript": "^5.6.0"
   },
   "dependencies": {
+    "@lania-cli/agent": "workspace:*",
     "@lania-cli/templates": "workspace:*",
     "tsx": "^4.19.0",
     "yaml": "^2.8.1"

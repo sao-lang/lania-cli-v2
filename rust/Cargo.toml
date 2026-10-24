@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/lania-cli",
+  "crates/lania-agent",
   "crates/lania-host",
   "crates/lania-hooks",
   "crates/lania-command",

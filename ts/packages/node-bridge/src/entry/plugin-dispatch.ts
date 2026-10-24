@@ -1,4 +1,6 @@
 import { createPluginRegistry } from '../core/plugin-registry.js';
+import { hostCall } from '../core/host-rpc.js';
+import type { BridgePluginEvent } from '../core/bridge-plugin.js';
 import type { BridgeExchange } from '../protocol/response.js';
 import type { BridgeRequest } from '../protocol/request.js';
 import { BRIDGE_METHODS } from './protocol-catalog.js';
@@ -9,6 +11,7 @@ type PluginRegistry = ReturnType<typeof createPluginRegistry>;
 export async function handlePluginRequest(
   registry: PluginRegistry,
   request: BridgeRequest,
+  emit?: (event: BridgePluginEvent) => Promise<void>,
 ): Promise<BridgeExchange> {
   const cwd = requestCwd(request);
   const snapshot = await registry.resolve(cwd);
@@ -27,7 +30,11 @@ export async function handlePluginRequest(
 
   const plugin = await registry.resolvePlugin(request.method, cwd);
   try {
-    const handled = await plugin?.handle(request.method, asRecord(request.params), { cwd });
+    const handled = await plugin?.handle(request.method, asRecord(request.params), {
+      cwd,
+      emit,
+      hostCall,
+    });
     if (handled) {
       registry.metrics.recordEvents(handled.events.length);
       return {

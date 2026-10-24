@@ -94,7 +94,16 @@ for await (const line of rl) {
   if (envelope.type === 'request') {
     // Do not block stdin reader: host RPC responses may arrive while we are handling a request.
     void (async () => {
-      const exchange = await handleExchange(envelope.payload);
+      // 流式事件必须在请求结束前写出，因此把 `emit` 传进插件：
+      // - 插件立刻写出的 event 与最终 response 共享同一个串行写链，顺序安全；
+      // - 插件也可以选择把事件放在返回值里（旧行为），两者不冲突。
+      const exchange = await handleExchange(envelope.payload, async (event) => {
+        await writeEnvelope({
+          type: 'event',
+          requestId: envelope.payload.id,
+          payload: event,
+        });
+      });
       // 协议约定：同一个 request 可能产生多个 events，最后以单个 response 结束。
       for (const event of exchange.events) {
         await writeEnvelope({

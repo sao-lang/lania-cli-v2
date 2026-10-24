@@ -4,10 +4,14 @@
  * 主要导出：createHandshakeResponse、handleRequest、handleExchange、readyEvent。
  */
 import type { BridgeEvent } from '../protocol/events.js';
+import type { BridgePluginEvent } from '../core/bridge-plugin.js';
 import { createPluginRegistry } from '../core/plugin-registry.js';
 import type { BridgeRequest, HandshakeRequest } from '../protocol/request.js';
 import type { BridgeExchange, BridgeResponse, HandshakeResponse } from '../protocol/response.js';
-import { createHandshakeResponse as createBuiltinHandshakeResponse, handleBuiltinRequest } from './builtin-handlers.js';
+import {
+  createHandshakeResponse as createBuiltinHandshakeResponse,
+  handleBuiltinRequest,
+} from './builtin-handlers.js';
 import { handlePluginRequest } from './plugin-dispatch.js';
 
 const registry = createPluginRegistry();
@@ -20,10 +24,13 @@ export async function handleRequest(request: BridgeRequest): Promise<BridgeRespo
   return (await handleExchange(request)).response;
 }
 
-export async function handleExchange(request: BridgeRequest): Promise<BridgeExchange> {
+export async function handleExchange(
+  request: BridgeRequest,
+  emit?: (event: BridgePluginEvent) => Promise<void>,
+): Promise<BridgeExchange> {
   registry.metrics.recordRequest();
   const builtin = await handleBuiltinRequest(registry, request);
-  return builtin ?? handlePluginRequest(registry, request);
+  return builtin ?? handlePluginRequest(registry, request, emit);
 }
 
 export function readyEvent(): BridgeEvent<{ plugins: string[] }> {

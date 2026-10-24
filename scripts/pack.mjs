@@ -90,11 +90,13 @@ function readRustWorkspaceVersion() {
 function assertVersionSync(expected) {
   const nodeBridge = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
   const templates = readJson(path.join(repoRoot, 'ts/packages/templates/package.json'));
+  const agentPkg = readJson(path.join(repoRoot, 'ts/packages/agent/package.json'));
   const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   const versions = [
     ['rust workspace', expected],
     ['@lania-cli/node-bridge', nodeBridge.version],
     ['@lania-cli/templates', templates.version],
+    ['@lania-cli/agent', agentPkg.version],
     ['@lania-cli/cli', cli.version],
   ];
   for (const descriptor of discoverPlatformPackageDescriptors()) {
@@ -120,14 +122,19 @@ function stageNodeBridgePayload() {
 
   const bridgeDist = path.join(repoRoot, 'ts/packages/node-bridge/dist');
   const templatesDist = path.join(repoRoot, 'ts/packages/templates/dist');
+  const agentDist = path.join(repoRoot, 'ts/packages/agent/dist');
 
   const stdioEntry = path.join(bridgeDist, 'entry', 'stdio.js');
   const templatesEntry = path.join(templatesDist, 'index.js');
+  const agentEntry = path.join(agentDist, 'index.js');
   if (!fs.existsSync(stdioEntry)) {
     throw new Error('Missing node-bridge dist. Run TS build first.');
   }
   if (!fs.existsSync(templatesEntry)) {
     throw new Error('Missing templates dist. Run TS build first.');
+  }
+  if (!fs.existsSync(agentEntry)) {
+    throw new Error('Missing agent dist. Run TS build first.');
   }
 
   // Bridge runtime assets.
@@ -143,6 +150,7 @@ function stageNodeBridgePayload() {
   // - bridge can resolve `yaml`
   const nodeBridgePkg = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
   const templatesPkg = readJson(path.join(repoRoot, 'ts/packages/templates/package.json'));
+  const agentPkg = readJson(path.join(repoRoot, 'ts/packages/agent/package.json'));
   const payloadPkg = {
     name: '@lania-cli/node-bridge-payload',
     private: true,
@@ -151,6 +159,9 @@ function stageNodeBridgePayload() {
       ejs: templatesPkg.dependencies?.ejs ?? '^5.0.0',
       tsx: nodeBridgePkg.dependencies?.tsx ?? '^4.0.0',
       yaml: nodeBridgePkg.dependencies?.yaml ?? '^2.0.0',
+      // agent 插件在 bridge 进程内加载，pi 运行时必须随 payload 一起安装。
+      '@earendil-works/pi-agent-core': agentPkg.dependencies?.['@earendil-works/pi-agent-core'],
+      '@earendil-works/pi-ai': agentPkg.dependencies?.['@earendil-works/pi-ai'],
     },
   };
   writeJson(path.join(payloadRoot, 'package.json'), payloadPkg);
@@ -168,6 +179,15 @@ function stageNodeBridgePayload() {
     path.join(templatesTarget, 'package.json'),
   );
   copyDir(templatesDist, path.join(templatesTarget, 'dist'));
+
+  // Agent plugin placed next to templates so `import '@lania-cli/agent'` resolves from the bridge.
+  const agentTarget = path.join(payloadRoot, 'node_modules/@lania-cli/agent');
+  ensureDir(agentTarget);
+  copyFile(
+    path.join(repoRoot, 'ts/packages/agent/package.json'),
+    path.join(agentTarget, 'package.json'),
+  );
+  copyDir(agentDist, path.join(agentTarget, 'dist'));
 
   // Clean up files not needed at runtime.
   rmIfExists(path.join(payloadRoot, 'package-lock.json'));

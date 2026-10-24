@@ -21,6 +21,10 @@ export type BridgeEventMethod =
   | 'event.lint_result'
   | 'event.lint_summary'
   | 'event.watch_change'
+  | 'event.agent_text_delta'
+  | 'event.agent_tool_start'
+  | 'event.agent_tool_end'
+  | 'event.agent_end'
   | 'event.shutdown'
   | 'event.heartbeat';
 

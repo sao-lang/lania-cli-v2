@@ -12,6 +12,9 @@
  * - `resolve(cwd)`：会触发读取 lan.config 并加载动态插件（可能产生 rejectedPlugins）
  * - `snapshot(cwd)`：只返回“当前已缓存的结果”；若 cwd 从未 resolve 过，则退回 builtin-only
  */
+import { agentPlugin } from '@lania-cli/agent';
+
+import type { BridgeEvent } from '../protocol/events.js';
 import { commitizenPlugin } from '../plugins/commitizen.js';
 import { commitlintPlugin } from '../plugins/commitlint.js';
 import { compilerPlugin } from '../plugins/compiler.js';
@@ -32,6 +35,26 @@ import {
 } from './plugin-policy.js';
 import { loadLanConfig, resolveModuleFromCwd } from './runtime.js';
 
+/**
+ * `@lania-cli/agent` 用结构化事件类型声明，避免与 bridge 互相依赖。
+ * 它的流式输出全部走 `emit`，返回值里不带事件，因此这里做一次边界适配。
+ */
+const agentBridgePlugin: BridgePlugin = {
+  name: agentPlugin.name,
+  methods: agentPlugin.methods,
+  handle: async (method, params, context) => {
+    const result = await agentPlugin.handle(method, params, {
+      cwd: context?.cwd ?? null,
+      ...(context?.emit ? { emit: context.emit } : {}),
+      ...(context?.hostCall ? { hostCall: context.hostCall } : {}),
+    });
+    if (!result) {
+      return undefined;
+    }
+    return { result: result.result, events: [] as BridgeEvent[] };
+  },
+};
+
 const builtinPlugins: BridgePlugin[] = [
   // builtin 插件是 bridge 协议的一部分，顺序不影响功能，但会影响握手时 methods 的排列。
   configPlugin,
@@ -44,6 +67,7 @@ const builtinPlugins: BridgePlugin[] = [
   templatePlugin,
   commitizenPlugin,
   commitlintPlugin,
+  agentBridgePlugin,
 ];
 
 // registry 对外只暴露快照字段，但内部缓存条目还需要保留完整 plugin 对象：

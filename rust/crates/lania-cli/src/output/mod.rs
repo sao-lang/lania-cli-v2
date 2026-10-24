@@ -15,3 +15,8 @@ mod json;
 
 pub(crate) use human::render_output_value;
 pub(crate) use json::execution_json_value;
+
+/// 交互型命令（如 `lan agent`）在终端里自行渲染，宿主不再追加任何输出。
+pub(crate) fn should_suppress_output(value: &serde_json::Value) -> bool {
+    value.get("kind").and_then(|kind| kind.as_str()) == Some("agent_session")
+}

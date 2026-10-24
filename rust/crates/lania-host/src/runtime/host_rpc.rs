@@ -25,6 +25,7 @@ use lania_task::TaskService;
 use serde_json::{json, Value};
 
 mod exec;
+mod agent_tools;
 mod fs_domain;
 mod git;
 mod interaction;
@@ -240,6 +241,9 @@ impl HostRpcAdapter {
         }
         if method.starts_with("host.interaction.") {
             return self.handle_interaction_domain(method, payload);
+        }
+        if method.starts_with("agent.") {
+            return agent_tools::handle_agent_domain(self, method, payload);
         }
         Err(anyhow!("unsupported host rpc method: {method}"))
     }

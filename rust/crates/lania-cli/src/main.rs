@@ -14,6 +14,7 @@ use std::{env, sync::Arc};
 use anyhow::Result;
 use clap::error::ErrorKind as ClapErrorKind;
 use lania_host::{plugin::EmptyPlugin, ExecutionError, Host, HostRuntime, EXIT_RUNTIME_ERROR};
+use lania_agent::AgentCommandPlugin;
 use lania_logger::{AutoStyledLogRenderer, CliMessageLevel, LogRenderer, StderrLogSink};
 use lania_plugins_command_add::AddCommandPlugin;
 use lania_plugins_command_build::BuildCommandPlugin;
@@ -32,7 +33,7 @@ use lania_progress::TerminalProgressMode;
 mod output;
 mod profile;
 
-use output::{execution_json_value, render_output_value};
+use output::{execution_json_value, render_output_value, should_suppress_output};
 use profile::{
     cli_message_renderer, cli_parse_error_message, cli_text, cli_version, localized_user_message,
     normalize_os_args, output_profile_from_sources, resolve_effective_locale, EventMode,
@@ -57,6 +58,7 @@ async fn main() -> Result<()> {
     host.register_plugin(Box::new(TemplateCommandPlugin))?;
     host.register_plugin(Box::new(ToolsCommandPlugin))?;
     host.register_plugin(Box::new(EnvCommandPlugin))?;
+    host.register_plugin(Box::new(AgentCommandPlugin))?;
     host.register_plugin(Box::new(ConfigCommandPlugin))?;
     host.initialize().await?;
     let cwd = env::current_dir()?.display().to_string();
@@ -168,13 +170,14 @@ async fn main() -> Result<()> {
     {
         // 解析到了具体命令：交给 HostRuntime 执行（可能走 workflow 或 node-bridge）。
         host.execute_command(&context).await.map(|execution| {
-            (
-                render_output_value(
-                    execution_json_value(&execution, &output_profile),
-                    &output_profile,
-                ),
-                execution.exit_code(),
-            )
+            let value = execution_json_value(&execution, &output_profile);
+            // 交互型命令（agent）自己拥有终端：REPL 结束后不再追加任何宿主输出。
+            let output = if should_suppress_output(&value) {
+                Ok(String::new())
+            } else {
+                render_output_value(value, &output_profile)
+            };
+            (output, execution.exit_code())
         })
     } else {
         Ok((Ok(String::new()), 0))

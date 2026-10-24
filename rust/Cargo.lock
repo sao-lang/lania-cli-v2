@@ -675,11 +675,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "lania-agent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "lania-command",
+ "lania-host",
+ "lania-node-bridge",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "lania-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "lania-agent",
  "lania-command",
  "lania-config",
  "lania-host",
@@ -789,6 +803,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "ignore",
  "lania-command",
  "lania-config",
  "lania-exec",
@@ -803,6 +818,7 @@ dependencies = [
  "lania-prompt",
  "lania-task",
  "lania-workflows",
+ "regex",
  "serde",
  "serde_json",
  "tokio",
