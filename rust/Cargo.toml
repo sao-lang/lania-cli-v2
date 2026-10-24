@@ -16,6 +16,7 @@ members = [
   "crates/lania-validate",
   "crates/lania-git",
   "crates/lania-pm",
+  "crates/lania-env",
   "crates/lania-presentation",
   "crates/lania-node-bridge",
   "crates/lania-workflows",
@@ -30,6 +31,7 @@ members = [
   "crates/lania-plugins-command-generate",
   "crates/lania-plugins-command-template",
   "crates/lania-plugins-command-tools",
+  "crates/lania-plugins-command-env",
 ]
 resolver = "2"
 

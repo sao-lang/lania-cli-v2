@@ -19,6 +19,7 @@ Lania CLI 的命令可以按执行路径分为四类：Bridge 型、混合型、
 | `release`  | `r`  | Workflow          | 发布规划、执行、恢复与状态查询        |
 | `sync`     | `s`  | Workflow          | Git 暂存、提交、推送                  |
 | `config`   | —    | Workflow          | 管理全局 CLI 偏好                     |
+| `env`      | —    | 混合 / TUI        | 查看与管理多语言工具链版本            |
 | `product`  | —    | Bridge / Workflow | 产品 CLI 生成、构建、打包、发布与诊断 |
 
 ## 四类执行路径
@@ -118,6 +119,10 @@ lan config set output.progress none
     <code>lan tools list</code> / <code>lan tools run</code> / <code>lan tools view</code>
   </div>
   <div>
+    <strong>语言环境</strong>
+    <code>lan env list</code> / <code>lan env install</code> / <code>lan env ui</code>
+  </div>
+  <div>
     <strong>产品化</strong>
     <code>lan product generate</code> / <code>build</code> / <code>pack</code> / <code>publish</code>
   </div>
@@ -126,6 +131,7 @@ lan config set output.progress none
 ## 下一步
 
 - [工具命令 tools](/guide/tools)
+- [语言环境管理 env](/guide/env)
 - [模板与脚手架](/guide/scaffolding)
 - [代码生成](/guide/generate)
 - [CLI 命令参考](/reference/cli)

@@ -26,6 +26,8 @@ mod distribution_and_dynamic;
 mod generate_api;
 #[path = "phase3_e2e/dynamic_commands_host_rpc.rs"]
 mod dynamic_commands_host_rpc;
+#[path = "phase3_e2e/env_commands.rs"]
+mod env_commands;
 #[path = "phase3_e2e/generate_workflows.rs"]
 mod generate_workflows;
 #[path = "phase3_e2e/help_and_config.rs"]
@@ -48,4 +50,3 @@ mod error_scenarios;
 mod i18n_runtime;
 #[path = "phase3_e2e/p3_remaining.rs"]
 mod p3_remaining;
-

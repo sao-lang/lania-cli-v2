@@ -94,6 +94,39 @@ lan tools view <path> [options]
 
 支持文本、目录、媒体与二进制预览。详见 [工具命令 tools](/guide/tools)。
 
+## env
+
+管理多语言工具链版本，默认 dry-run，`--yes` 才真正执行。详见 [语言环境管理 env](/guide/env)。
+
+| 子命令                                     | 说明                                      |
+| ------------------------------------------ | ----------------------------------------- |
+| `lan env list [tool]`                      | 列出工具链及当前版本                      |
+| `lan env info <tool>`                      | 单个工具详情与已装版本                    |
+| `lan env versions <tool>`                  | 已安装版本列表                            |
+| `lan env install <tool> <version>`         | 安装                                      |
+| `lan env use <tool> <version> [--project]` | 切换 / 固定版本                           |
+| `lan env remove <tool> <version>`          | 卸载                                      |
+| `lan env doctor`                           | 缺失工具与 PATH 冲突检查                  |
+| `lan env ui`                               | 打开终端 TUI（`--snapshot` 输出单帧文本） |
+
+通用选项：
+
+| 选项                 | 说明                       |
+| -------------------- | -------------------------- |
+| `-m, --manager <id>` | 指定版本管理器             |
+| `-y, --yes`          | 实际执行（否则只输出计划） |
+| `-p, --project`      | 将版本写入项目版本文件     |
+
+`lan env ui` 的选项：
+
+| 选项         | 说明                                        |
+| ------------ | ------------------------------------------- |
+| `--snapshot` | 不进入交互，直接输出一帧纯文本（CI / 调试） |
+| `--cols <n>` | 快照宽度，默认 100                          |
+| `--rows <n>` | 快照高度，默认 28                           |
+
+支持的 `tool`：`node` `python` `rust` `go` `dart` `kotlin` `java` `c`。
+
 ## create
 
 ```bash

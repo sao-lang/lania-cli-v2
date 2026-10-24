@@ -19,6 +19,7 @@ use lania_plugins_command_add::AddCommandPlugin;
 use lania_plugins_command_build::BuildCommandPlugin;
 use lania_plugins_command_create::CreateCommandPlugin;
 use lania_plugins_command_dev::DevCommandPlugin;
+use lania_plugins_command_env::EnvCommandPlugin;
 use lania_plugins_command_generate::GenerateCommandPlugin;
 use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
@@ -55,6 +56,7 @@ async fn main() -> Result<()> {
     host.register_plugin(Box::new(SyncCommandPlugin))?;
     host.register_plugin(Box::new(TemplateCommandPlugin))?;
     host.register_plugin(Box::new(ToolsCommandPlugin))?;
+    host.register_plugin(Box::new(EnvCommandPlugin))?;
     host.register_plugin(Box::new(ConfigCommandPlugin))?;
     host.initialize().await?;
     let cwd = env::current_dir()?.display().to_string();
@@ -70,7 +72,6 @@ async fn main() -> Result<()> {
     let _ = host
         .bootstrap_project_extensions_from_cwd_async(cwd.clone())
         .await?;
-
     let renderer: Arc<dyn LogRenderer> = Arc::new(
         AutoStyledLogRenderer::default()
             .with_locale(locale.clone())

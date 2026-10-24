@@ -59,6 +59,7 @@ export default defineConfig({
           items: [
             { text: '命令总览', link: '/guide/commands' },
             { text: '工具命令 tools', link: '/guide/tools' },
+            { text: '语言环境管理 env', link: '/guide/env' },
             { text: '模板与脚手架', link: '/guide/scaffolding' },
             { text: '代码生成', link: '/guide/generate' },
             { text: '发布与同步', link: '/guide/release' },

@@ -26,10 +26,11 @@
 
 ## 当前能力
 
-- 内置命令覆盖 `dev`、`build`、`lint`、`tools`、`create`、`add`、`template`、`generate api`、`generate module`、`release`、`sync`、`config`。
+- 内置命令覆盖 `dev`、`build`、`lint`、`tools`、`env`、`create`、`add`、`template`、`generate api`、`generate module`、`release`、`sync`、`config`。
 - 支持三类执行路径：
   - Bridge 型命令：`dev`、`build`、`lint`
   - 混合型命令：`tools`，其中 `tools list` 走 Node Bridge，`tools run/view` 走本地宿主能力
+  - 混合型命令：`env`，探测走本地宿主能力，变更操作默认 dry-run；`env ui` 提供终端 TUI 双栏界面
   - Workflow 型命令：`create`、`add`、`generate`、`release`、`sync`
   - 运行时扩展命令：由项目通过 `lan.config.*` 和 `lania.schemas.*` 动态注入
 - 支持项目级插件与方法白名单、来源约束、签名策略等安全机制。
@@ -103,6 +104,20 @@ lan tools run ./scripts/demo.go
 lan tools view ./src/index.ts
 lan tools view ./assets/logo.png
 ```
+
+查看并管理语言环境（命令行与 GUI 两种模式）：
+
+```bash
+lan env list                     # 查看所有受支持工具链的当前版本
+lan env info node                # 单个工具详情
+lan env install node 20          # 默认 dry-run，只输出计划
+lan env install node 20 --yes    # 确认后执行
+lan env use python 3.12 --project
+lan env doctor                   # 缺失工具与 PATH 冲突检查
+lan env ui                       # 打开终端 TUI（键盘操作）
+```
+
+`lan env` 不自己造安装器，而是复用 nvm / fnm / volta / pyenv / uv / rustup / sdkman / scoop / winget / brew 等生态既有方案。`lan env ui` 提供双栏终端界面：左侧工具列表（`↑↓` 切换），右侧详情与操作（`i` 安装 / `u` 切换 / `d` 卸载），所有变更先显示计划再执行。详见 [语言环境管理 env](./docs-site/guide/env.md)。
 
 初始化契约生成配置：
 
@@ -218,6 +233,7 @@ cargo run -p lania-cli -- create --preview --name demo-app
 | `build`           | Bridge      | 触发构建或 watch 构建                                                                                    |
 | `lint`            | Bridge      | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复                                                  |
 | `tools`           | 混合命令    | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件 |
+| `env`             | 混合 / TUI  | 查看与管理 Node/Python/Rust/Go/Dart/Kotlin/Java/C 的工具链版本，`lan env ui` 提供终端双栏界面            |
 | `create`          | Workflow    | 以模板创建新项目                                                                                         |
 | `add`             | Workflow    | 向现有仓库补充局部模板、配置或代码片段                                                                   |
 | `template`        | Bridge 查询 | 列出模板或查看模板详情                                                                                   |
