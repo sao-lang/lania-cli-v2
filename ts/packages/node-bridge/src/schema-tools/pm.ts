@@ -2,12 +2,12 @@
  * `tools.pm`：包管理器探测、命令规划和实际执行的统一入口。
  *
  * 这一层把三类能力放在同一个命名空间里：
- * - 只读探测：当前项目更像 npm / pnpm / yarn / bun 中的哪一种
+ * - 只读探测：当前项目更像哪种生态的哪种包管理器
  * - 纯规划：生成 install/remove/run/publish 等命令快照
  * - 带副作用执行：真正通过 exec/host 调起包管理器
  *
- * 设计上尽量让 schema 作者少关心“当前项目到底用哪个 manager”，
- * 只在需要时显式指定，其余场景都走自动探测与稳定兜底。
+ * 规划与 spec 以 Rust 侧 `lania-pm` 为唯一权威；Node 侧只保留
+ * `detectFromFiles/binary/lockfile/lockfileStrategy` 这类同步静态查询。
  */
 import { hostCall } from '../core/host-rpc.js';
 import { asRecord } from '../core/runtime.js';
@@ -16,74 +16,143 @@ import { createHostInvoker } from './host-utils.js';
 import type { ToolsPolicyManager } from './policy.js';
 import type { SchemaToolContext } from './types.js';
 
+type PackageManagerOptions = {
+  manager?: string;
+  cwd?: string;
+  language?: string;
+};
+
+type CommandOptions = PackageManagerOptions;
+
+type CommandDto = { program: string; args: string[] };
+
 // 公开接口同时覆盖“探测 / 规划 / 执行”三个层次，保持 v2.3 对 schema 作者承诺的稳定 API 面。
 export interface PackageManagerTools {
   detectFromFiles: (files: string[]) => string;
-  detect: (cwd?: string) => Promise<string>;
+  detect: (cwd?: string, options?: { language?: string }) => Promise<string>;
   supportedManagers: () => Promise<string[]>;
-  spec: (managerOrCwd?: string) => Promise<Record<string, unknown>>;
+  spec: (
+    managerOrCwd?: string,
+    options?: { language?: string },
+  ) => Promise<Record<string, unknown>>;
   binary: (manager: string) => string;
   lockfile: (manager: string) => string;
   lockfileStrategy: (manager: string) => string;
   loadPackageJsonSnapshot: (cwd?: string) => Promise<Record<string, unknown>>;
   scriptExists: (script: string, cwd?: string) => Promise<boolean>;
   requireScript: (script: string, cwd?: string) => Promise<void>;
-  init: (options?: { manager?: string; cwd?: string }) => Promise<ExecRunResult>;
-  installAll: (options?: { manager?: string; cwd?: string }) => Promise<ExecRunResult>;
+  init: (options?: PackageManagerOptions) => Promise<ExecRunResult>;
+  installAll: (options?: PackageManagerOptions) => Promise<ExecRunResult>;
   install: (
     packages: string[],
-    options?: { manager?: string; dev?: boolean; cwd?: string },
+    options?: PackageManagerOptions & { dev?: boolean },
   ) => Promise<ExecRunResult>;
-  remove: (
-    packages: string[],
-    options?: { manager?: string; cwd?: string },
-  ) => Promise<ExecRunResult>;
-  update: (
-    packages: string[],
-    options?: { manager?: string; cwd?: string },
-  ) => Promise<ExecRunResult>;
+  remove: (packages: string[], options?: PackageManagerOptions) => Promise<ExecRunResult>;
+  update: (packages: string[], options?: PackageManagerOptions) => Promise<ExecRunResult>;
   run: (
     script: string,
     extraArgs?: string[],
-    options?: { manager?: string; cwd?: string; checked?: boolean },
+    options?: PackageManagerOptions & { checked?: boolean },
   ) => Promise<ExecRunResult>;
-  publish: (options?: { manager?: string; tag?: string; cwd?: string }) => Promise<ExecRunResult>;
+  publish: (options?: PackageManagerOptions & { tag?: string }) => Promise<ExecRunResult>;
   command: {
-    init: (manager?: string) => Promise<{ program: string; args: string[] }>;
-    installAll: (manager?: string) => Promise<{ program: string; args: string[] }>;
+    init: (manager?: string) => Promise<CommandDto>;
+    installAll: (manager?: string) => Promise<CommandDto>;
     install: (
       packages: string[],
-      options?: { manager?: string; cwd?: string; dev?: boolean },
-    ) => Promise<{ program: string; args: string[] }>;
-    remove: (
-      packages: string[],
-      options?: { manager?: string; cwd?: string },
-    ) => Promise<{ program: string; args: string[] }>;
-    update: (
-      packages: string[],
-      options?: { manager?: string; cwd?: string },
-    ) => Promise<{ program: string; args: string[] }>;
+      options?: PackageManagerOptions & { dev?: boolean },
+    ) => Promise<CommandDto>;
+    remove: (packages: string[], options?: PackageManagerOptions) => Promise<CommandDto>;
+    update: (packages: string[], options?: PackageManagerOptions) => Promise<CommandDto>;
     runScript: (
       script: string,
-      options?: { manager?: string; cwd?: string; args?: string[]; checked?: boolean },
-    ) => Promise<{ program: string; args: string[] }>;
+      options?: PackageManagerOptions & { args?: string[]; checked?: boolean },
+    ) => Promise<CommandDto>;
     runScriptChecked: (
       script: string,
-      options?: { manager?: string; cwd?: string; args?: string[] },
-    ) => Promise<{ program: string; args: string[] }>;
-    publish: (options?: {
-      manager?: string;
-      cwd?: string;
-      tag?: string;
-    }) => Promise<{ program: string; args: string[] }>;
-    addDependencyCommands: (options?: {
-      manager?: string;
-      dependencies?: string[];
-      devDependencies?: string[];
-      cwd?: string;
-    }) => Promise<Array<{ program: string; args: string[] }>>;
+      options?: PackageManagerOptions & { args?: string[] },
+    ) => Promise<CommandDto>;
+    publish: (options?: PackageManagerOptions & { tag?: string }) => Promise<CommandDto>;
+    addDependencyCommands: (
+      options?: PackageManagerOptions & {
+        dependencies?: string[];
+        devDependencies?: string[];
+      },
+    ) => Promise<CommandDto[]>;
   };
 }
+
+const SUPPORTED_PM = [
+  'npm',
+  'pnpm',
+  'yarn',
+  'bun',
+  'pip',
+  'uv',
+  'poetry',
+  'cargo',
+  'go',
+  'pub',
+  'bundler',
+  'composer',
+] as const;
+type SupportedPm = (typeof SUPPORTED_PM)[number];
+
+const BINARY: Record<SupportedPm, string> = {
+  npm: 'npm',
+  pnpm: 'pnpm',
+  yarn: 'yarn',
+  bun: 'bun',
+  pip: 'python',
+  uv: 'uv',
+  poetry: 'poetry',
+  cargo: 'cargo',
+  go: 'go',
+  pub: 'dart',
+  bundler: 'bundle',
+  composer: 'composer',
+};
+
+const LOCKFILE: Record<SupportedPm, string> = {
+  npm: 'package-lock.json',
+  pnpm: 'pnpm-lock.yaml',
+  yarn: 'yarn.lock',
+  bun: 'bun.lockb',
+  pip: 'requirements.txt',
+  uv: 'uv.lock',
+  poetry: 'poetry.lock',
+  cargo: 'Cargo.lock',
+  go: 'go.sum',
+  pub: 'pubspec.lock',
+  bundler: 'Gemfile.lock',
+  composer: 'composer.lock',
+};
+
+const isSupportedPm = (value: string): value is SupportedPm =>
+  (SUPPORTED_PM as readonly string[]).includes(value);
+
+const detectFromFiles = (files: string[]): SupportedPm => {
+  const has = (name: string) => files.includes(name);
+  if (has('pnpm-lock.yaml')) return 'pnpm';
+  if (has('yarn.lock')) return 'yarn';
+  if (has('bun.lockb') || has('bun.lock')) return 'bun';
+  if (has('uv.lock')) return 'uv';
+  if (has('poetry.lock')) return 'poetry';
+  if (has('Cargo.lock')) return 'cargo';
+  if (has('go.sum')) return 'go';
+  if (has('pubspec.lock')) return 'pub';
+  if (has('Gemfile.lock')) return 'bundler';
+  if (has('composer.lock')) return 'composer';
+  if (has('package-lock.json')) return 'npm';
+  if (has('Cargo.toml')) return 'cargo';
+  if (has('go.mod')) return 'go';
+  if (has('pubspec.yaml')) return 'pub';
+  if (has('Gemfile')) return 'bundler';
+  if (has('composer.json')) return 'composer';
+  if (has('package.json')) return 'npm';
+  if (has('pyproject.toml') || has('requirements.txt')) return 'pip';
+  return 'npm';
+};
 
 export function createPackageManagerTools(
   base: SchemaToolContext,
@@ -92,238 +161,76 @@ export function createPackageManagerTools(
   // 只读查询和 host-backed 命令规划共用同一个 invoker，
   // 这样策略校验与审计元数据能和其它 schema tools 保持一致。
   const host = createHostInvoker(base);
-  const SUPPORTED_PM = ['npm', 'pnpm', 'yarn', 'bun'] as const;
-  type SupportedPm = (typeof SUPPORTED_PM)[number];
 
-  const isSupportedPm = (value: string): value is SupportedPm =>
-    (SUPPORTED_PM as readonly string[]).includes(value);
-
-  const detectFromFiles = (files: string[]): SupportedPm => {
-    if (files.includes('pnpm-lock.yaml')) return 'pnpm';
-    if (files.includes('yarn.lock')) return 'yarn';
-    if (files.includes('bun.lockb') || files.includes('bun.lock')) return 'bun';
-    return 'npm';
-  };
+  const managerParams = (options?: PackageManagerOptions): Record<string, unknown> => ({
+    cwd: options?.cwd ?? base.cwd,
+    ...(options?.manager ? { manager: options.manager } : {}),
+    ...(options?.language ? { language: options.language } : {}),
+  });
 
   // `binary()` 是所有对外 manager 输入的最后一道归一化关口。
   // 未知值统一降级到 `npm`，避免 unsupported-manager 分支在各处扩散。
-  const binary = (manager: string): string => (isSupportedPm(manager) ? manager : 'npm');
+  const binary = (manager: string): string => (isSupportedPm(manager) ? BINARY[manager] : 'npm');
+  const lockfile = (manager: string): string =>
+    isSupportedPm(manager) ? LOCKFILE[manager] : LOCKFILE.npm;
 
-  // 这些静态元数据完全由本地决定，放在 Node 侧维护更便宜，也更方便随版本演进。
-  const lockfile = (manager: string): string => {
-    switch (binary(manager)) {
-      case 'pnpm':
-        return 'pnpm-lock.yaml';
-      case 'yarn':
-        return 'yarn.lock';
-      case 'bun':
-        return 'bun.lockb';
-      case 'npm':
-      default:
-        return 'package-lock.json';
-    }
-  };
+  const commandInit = async (options?: CommandOptions): Promise<CommandDto> =>
+    host.call<CommandDto>('host.pm.command.init', managerParams(options));
 
-  const buildSpec = (manager: SupportedPm): Record<string, unknown> => {
-    switch (manager) {
-      case 'npm':
-        return {
-          manager,
-          binary: 'npm',
-          init_subcommand: 'init',
-          add_subcommand: 'install',
-          install_subcommand: 'install',
-          remove_subcommand: 'uninstall',
-          update_subcommand: 'update',
-          run_subcommand: 'run',
-          save_flag: '--save',
-          save_dev_flag: '--save-dev',
-          silent_flag: '--silent',
-          strict_peer_flag: '--legacy-peer-deps',
-          init_flag: '-y',
-          run_separator: '--',
-          lockfile: 'package-lock.json',
-        };
-      case 'pnpm':
-        return {
-          manager,
-          binary: 'pnpm',
-          init_subcommand: 'init',
-          add_subcommand: 'install',
-          install_subcommand: 'install',
-          remove_subcommand: 'remove',
-          update_subcommand: 'update',
-          run_subcommand: 'run',
-          save_flag: '--save',
-          save_dev_flag: '--save-dev',
-          silent_flag: '--reporter=silent',
-          strict_peer_flag: '--strict-peer-dependencies=false',
-          init_flag: null,
-          run_separator: '--',
-          lockfile: 'pnpm-lock.yaml',
-        };
-      case 'yarn':
-        return {
-          manager,
-          binary: 'yarn',
-          init_subcommand: 'init',
-          add_subcommand: 'add',
-          install_subcommand: 'install',
-          remove_subcommand: 'remove',
-          update_subcommand: 'upgrade',
-          run_subcommand: 'run',
-          save_flag: null,
-          save_dev_flag: '--dev',
-          silent_flag: '--silent',
-          strict_peer_flag: null,
-          init_flag: '-y',
-          run_separator: null,
-          lockfile: 'yarn.lock',
-        };
-      case 'bun':
-      default:
-        return {
-          manager,
-          binary: 'bun',
-          init_subcommand: 'init',
-          add_subcommand: 'add',
-          install_subcommand: 'install',
-          remove_subcommand: 'remove',
-          update_subcommand: 'update',
-          run_subcommand: 'run',
-          save_flag: null,
-          save_dev_flag: '--dev',
-          silent_flag: '--silent',
-          strict_peer_flag: null,
-          init_flag: '-y',
-          run_separator: null,
-          lockfile: 'bun.lockb',
-        };
-    }
-  };
+  const commandInstallAll = async (options?: CommandOptions): Promise<CommandDto> =>
+    host.call<CommandDto>('host.pm.command.installAll', managerParams(options));
 
-  // 规划器既接受显式 manager，也接受只给 cwd 然后自动探测。
-  // 这样公共 helper 用起来更顺手，不需要在每个命令构造器里重复写探测逻辑。
-  const resolveManager = async (manager?: string, cwd?: string): Promise<SupportedPm> => {
-    if (manager && isSupportedPm(manager)) {
-      return manager;
-    }
-    const detected = await tools.detect(cwd);
-    return isSupportedPm(detected) ? detected : 'npm';
-  };
-
-  // 命令 DTO 故意保持很小，只保留 exec 真正需要的 program/args。
-  const buildCommand = (program: string, args: string[]) => ({ program, args });
-
-  // 下方 planning helper 都是纯函数式的：只产生命令快照，不直接执行。
-  // 真正的副作用统一留给更外层 high-level API。
-  const initCommand = async (manager?: string, cwd?: string) => {
-    const spec = buildSpec(await resolveManager(manager, cwd));
-    const args = [String(spec.init_subcommand)];
-    if (typeof spec.init_flag === 'string' && spec.init_flag) {
-      args.push(spec.init_flag);
-    }
-    return buildCommand(String(spec.binary), args);
-  };
-
-  const installAllCommand = async (manager?: string, cwd?: string) => {
-    const spec = buildSpec(await resolveManager(manager, cwd));
-    const args = [String(spec.install_subcommand)];
-    if (typeof spec.strict_peer_flag === 'string' && spec.strict_peer_flag) {
-      args.push(spec.strict_peer_flag);
-    }
-    return buildCommand(String(spec.binary), args);
-  };
-
-  const installCommand = async (
+  const commandInstall = async (
     packages: string[],
-    options?: { manager?: string; cwd?: string; dev?: boolean },
-  ) => {
-    const resolved = await resolveManager(options?.manager, options?.cwd);
-    const spec = buildSpec(resolved);
-    const args = [String(spec.add_subcommand)];
-    // peer dependency 放宽策略放在 planner 内部统一处理，
-    // 这样 `install`、`installAll` 和依赖引导都能继承同一套默认行为。
-    if (typeof spec.strict_peer_flag === 'string' && spec.strict_peer_flag) {
-      args.push(spec.strict_peer_flag);
-    }
-    if (options?.dev) {
-      args.push(String(spec.save_dev_flag));
-    } else if (resolved === 'npm' && typeof spec.save_flag === 'string' && spec.save_flag) {
-      args.push(spec.save_flag);
-    }
-    args.push(...packages);
-    return buildCommand(String(spec.binary), args);
-  };
+    options?: CommandOptions & { dev?: boolean },
+  ): Promise<CommandDto> =>
+    host.call<CommandDto>('host.pm.command.install', {
+      ...managerParams(options),
+      packages,
+      dev: options?.dev ?? false,
+    });
 
-  const removeCommand = async (
-    packages: string[],
-    options?: { manager?: string; cwd?: string },
-  ) => {
-    const spec = buildSpec(await resolveManager(options?.manager, options?.cwd));
-    return buildCommand(String(spec.binary), [String(spec.remove_subcommand), ...packages]);
-  };
+  const commandRemove = async (packages: string[], options?: CommandOptions): Promise<CommandDto> =>
+    host.call<CommandDto>('host.pm.command.remove', {
+      ...managerParams(options),
+      packages,
+    });
 
-  const updateCommand = async (
-    packages: string[],
-    options?: { manager?: string; cwd?: string },
-  ) => {
-    const spec = buildSpec(await resolveManager(options?.manager, options?.cwd));
-    return buildCommand(String(spec.binary), [String(spec.update_subcommand), ...packages]);
-  };
+  const commandUpdate = async (packages: string[], options?: CommandOptions): Promise<CommandDto> =>
+    host.call<CommandDto>('host.pm.command.update', {
+      ...managerParams(options),
+      packages,
+    });
 
-  const runScriptCommand = async (
+  const commandRunScript = async (
     script: string,
-    options?: { manager?: string; cwd?: string; args?: string[] },
-  ) => {
-    const spec = buildSpec(await resolveManager(options?.manager, options?.cwd));
-    const extraArgs = options?.args ?? [];
-    const args = [String(spec.run_subcommand), script];
-    // 只有部分包管理器需要在用户参数前显式插入分隔符；
-    // 这个差异收口在这里，调用方就不必自己写 manager 分支。
-    if (extraArgs.length > 0 && typeof spec.run_separator === 'string' && spec.run_separator) {
-      args.push(spec.run_separator);
-    }
-    args.push(...extraArgs);
-    return buildCommand(String(spec.binary), args);
-  };
+    options?: CommandOptions & { args?: string[]; checked?: boolean },
+  ): Promise<CommandDto> =>
+    host.call<CommandDto>('host.pm.command.runScript', {
+      ...managerParams(options),
+      script,
+      args: options?.args ?? [],
+      checked: options?.checked ?? false,
+    });
 
-  const publishCommand = async (options?: { manager?: string; cwd?: string; tag?: string }) => {
-    const resolved = await resolveManager(options?.manager, options?.cwd);
-    const args = ['publish'];
-    if (options?.tag) {
-      args.push('--tag', options.tag);
-    }
-    return buildCommand(resolved, args);
-  };
+  const commandPublish = async (options?: CommandOptions & { tag?: string }): Promise<CommandDto> =>
+    host.call<CommandDto>('host.pm.command.publish', {
+      ...managerParams(options),
+      tag: options?.tag,
+    });
 
-  const addDependencyCommands = async (options?: {
-    manager?: string;
-    dependencies?: string[];
-    devDependencies?: string[];
-    cwd?: string;
-  }) => {
-    const commands: Array<{ program: string; args: string[] }> = [];
-    // 保持声明顺序：先普通依赖，再 devDependencies，
-    // 贴近模板和 hooks 最常见的引导流程。
-    if ((options?.dependencies?.length ?? 0) > 0) {
-      commands.push(
-        await installCommand(options?.dependencies ?? [], {
-          manager: options?.manager,
-          cwd: options?.cwd,
-        }),
-      );
-    }
-    if ((options?.devDependencies?.length ?? 0) > 0) {
-      commands.push(
-        await installCommand(options?.devDependencies ?? [], {
-          manager: options?.manager,
-          cwd: options?.cwd,
-          dev: true,
-        }),
-      );
-    }
-    return commands;
+  const commandAddDependencyCommands = async (
+    options?: CommandOptions & { dependencies?: string[]; devDependencies?: string[] },
+  ): Promise<CommandDto[]> => {
+    const result = await host.call<{ commands?: CommandDto[] }>(
+      'host.pm.command.addDependencyCommands',
+      {
+        ...managerParams(options),
+        dependencies: options?.dependencies ?? [],
+        devDependencies: options?.devDependencies ?? [],
+      },
+    );
+    return Array.isArray(result.commands) ? result.commands : [];
   };
 
   // 高层执行统一走 host exec，这样包管理器工作流会继承与 `tools.exec` 一致的
@@ -355,10 +262,11 @@ export function createPackageManagerTools(
   // 这样既能保持文档承诺的 API 面，也不需要改变 `createSchemaTools()` 作为唯一装配入口的角色。
   const tools: PackageManagerTools = {
     detectFromFiles,
-    detect: async (cwd) => {
+    detect: async (cwd, options) => {
       await policy.assertPmAllowed('detect');
       const result = await host.call<{ manager: string }>('host.pm.detect', {
         cwd: cwd ?? base.cwd,
+        ...(options?.language ? { language: options.language } : {}),
       });
       return result.manager;
     },
@@ -367,22 +275,27 @@ export function createPackageManagerTools(
       const result = await host.call<{ managers: string[] }>('host.pm.supportedManagers');
       return Array.isArray(result.managers) ? result.managers : [];
     },
-    spec: async (managerOrCwd) => {
+    spec: async (managerOrCwd, options) => {
       await policy.assertPmAllowed('spec');
       // `spec()` 故意支持两种调用方式：
-      // - 传显式 manager：本地直接返回，不走 host round-trip
-      // - 传 cwd/undefined：先让 host 探测当前项目使用的 manager
+      // - 传显式 manager：直接让 Rust 返回该 manager 的 spec
+      // - 传 cwd/undefined：让 host 探测当前项目使用的 manager
       if (managerOrCwd && isSupportedPm(managerOrCwd)) {
-        return buildSpec(managerOrCwd);
+        return asRecord(
+          await host.call<Record<string, unknown>>('host.pm.spec', {
+            manager: managerOrCwd,
+          }),
+        );
       }
       const result = await host.call<Record<string, unknown>>('host.pm.spec', {
         cwd: managerOrCwd ?? base.cwd,
+        ...(options?.language ? { language: options.language } : {}),
       });
       return asRecord(result);
     },
     binary,
     lockfile,
-    lockfileStrategy: (manager) => `${binary(manager)} uses ${lockfile(manager)}`,
+    lockfileStrategy: (manager) => `${manager} uses ${lockfile(manager)}`,
     loadPackageJsonSnapshot: async (cwd) => {
       await policy.assertPmAllowed('loadPackageJsonSnapshot');
       const result = await host.call<Record<string, unknown>>('host.pm.loadPackageJsonSnapshot', {
@@ -416,27 +329,23 @@ export function createPackageManagerTools(
     },
     init: async (options) => {
       await policy.assertPmAllowed('init');
-      return runExecCommand(await initCommand(options?.manager, options?.cwd), {
-        cwd: options?.cwd,
-      });
+      return runExecCommand(await commandInit(options), { cwd: options?.cwd });
     },
     installAll: async (options) => {
       await policy.assertPmAllowed('installAll');
-      return runExecCommand(await installAllCommand(options?.manager, options?.cwd), {
-        cwd: options?.cwd,
-      });
+      return runExecCommand(await commandInstallAll(options), { cwd: options?.cwd });
     },
     install: async (packages, options) => {
       await policy.assertPmAllowed('install');
-      return runExecCommand(await installCommand(packages, options), { cwd: options?.cwd });
+      return runExecCommand(await commandInstall(packages, options), { cwd: options?.cwd });
     },
     remove: async (packages, options) => {
       await policy.assertPmAllowed('remove');
-      return runExecCommand(await removeCommand(packages, options), { cwd: options?.cwd });
+      return runExecCommand(await commandRemove(packages, options), { cwd: options?.cwd });
     },
     update: async (packages, options) => {
       await policy.assertPmAllowed('update');
-      return runExecCommand(await updateCommand(packages, options), { cwd: options?.cwd });
+      return runExecCommand(await commandUpdate(packages, options), { cwd: options?.cwd });
     },
     run: async (script, extraArgs, options) => {
       await policy.assertPmAllowed('run');
@@ -444,85 +353,60 @@ export function createPackageManagerTools(
         await tools.requireScript(script, options?.cwd);
       }
       return runExecCommand(
-        await runScriptCommand(script, {
+        await commandRunScript(script, {
           manager: options?.manager,
           cwd: options?.cwd,
+          language: options?.language,
           args: extraArgs ?? [],
+          checked: options?.checked,
         }),
         { cwd: options?.cwd, checked: options?.checked },
       );
     },
     publish: async (options) => {
       await policy.assertPmAllowed('publish');
-      return runExecCommand(await publishCommand(options), { cwd: options?.cwd });
+      return runExecCommand(await commandPublish(options), { cwd: options?.cwd });
     },
     command: {
       init: async (manager) => {
         await policy.assertPmAllowed('command.init');
-        return initCommand(manager, base.cwd);
+        return commandInit({ manager });
       },
       installAll: async (manager) => {
         await policy.assertPmAllowed('command.installAll');
-        return installAllCommand(manager, base.cwd);
+        return commandInstallAll({ manager });
       },
       install: async (packages, options) => {
         await policy.assertPmAllowed('command.install');
-        // 未显式固定 manager 时，优先使用 host 侧 planner，
-        // 这样探测结果会与 Rust 侧对该 cwd 的项目解析保持一致。
-        if (!options?.manager) {
-          const exchange = await hostCall<{ program: string; args: string[] }>(
-            'host.pm.command.install',
-            {
-              cwd: options?.cwd ?? base.cwd,
-              packages,
-              dev: options?.dev ?? false,
-            },
-          );
-          return exchange.result;
-        }
-        return installCommand(packages, options);
+        return commandInstall(packages, options);
       },
       remove: async (packages, options) => {
         await policy.assertPmAllowed('command.remove');
-        return removeCommand(packages, options);
+        return commandRemove(packages, options);
       },
       update: async (packages, options) => {
         await policy.assertPmAllowed('command.update');
-        return updateCommand(packages, options);
+        return commandUpdate(packages, options);
       },
       runScript: async (script, options) => {
         await policy.assertPmAllowed('command.runScript');
         if (options?.checked) {
           await tools.requireScript(script, options?.cwd);
         }
-        // 与 `command.install` 一样：
-        // 未显式指定 manager 时交给 host 探测；显式指定时直接走本地 planner。
-        if (!options?.manager) {
-          const exchange = await hostCall<{ program: string; args: string[] }>(
-            'host.pm.command.runScript',
-            {
-              cwd: options?.cwd ?? base.cwd,
-              script,
-              args: options?.args ?? [],
-              checked: options?.checked ?? false,
-            },
-          );
-          return exchange.result;
-        }
-        return runScriptCommand(script, options);
+        return commandRunScript(script, options);
       },
       runScriptChecked: async (script, options) => {
         await policy.assertPmAllowed('command.runScriptChecked');
         await tools.requireScript(script, options?.cwd);
-        return runScriptCommand(script, options);
+        return commandRunScript(script, { ...options, checked: true });
       },
       publish: async (options) => {
         await policy.assertPmAllowed('command.publish');
-        return publishCommand(options);
+        return commandPublish(options);
       },
       addDependencyCommands: async (options) => {
         await policy.assertPmAllowed('command.addDependencyCommands');
-        return addDependencyCommands(options);
+        return commandAddDependencyCommands(options);
       },
     },
   };

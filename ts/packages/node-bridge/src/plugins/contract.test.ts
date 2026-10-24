@@ -52,6 +52,11 @@ test('handshake exposes the current public method and event contract', () => {
     'addTemplate.render',
     'commitizen.run',
     'commitlint.run',
+    'agent.session.create',
+    'agent.prompt',
+    'agent.interrupt',
+    'agent.session.dispose',
+    'agent.models.list',
   ]);
 
   assert.deepEqual(response.events, [
@@ -72,6 +77,10 @@ test('handshake exposes the current public method and event contract', () => {
     'event.lint_result',
     'event.lint_summary',
     'event.watch_change',
+    'event.agent_text_delta',
+    'event.agent_tool_start',
+    'event.agent_tool_end',
+    'event.agent_end',
     'event.shutdown',
     'event.heartbeat',
   ]);

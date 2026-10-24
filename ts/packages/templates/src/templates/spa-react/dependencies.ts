@@ -2,7 +2,7 @@
  * spa-react 模板的依赖清单。
  *
  * 依赖策略与 spa-vue 类似：
- * - `react/react-dom/@lania-tools/tools` 放在 runtime dependencies
+ * - `react/react-dom` 放在 runtime dependencies
  * - 构建器、lint、样式生态与类型依赖按 normalized options 动态补到 devDependencies
  * - 使用 Set 去重，避免同一依赖被多个选项分支重复加入
  */
@@ -149,7 +149,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   }
 
   return {
-    dependencies: ['react', 'react-dom', '@lania-tools/tools'],
+    dependencies: ['react', 'react-dom'],
     devDependencies: Array.from(devDependencies),
   };
 };

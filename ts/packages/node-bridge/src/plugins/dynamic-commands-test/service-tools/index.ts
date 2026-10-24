@@ -4,6 +4,7 @@ import { registerExecServiceTests } from './exec.js';
 import { registerFilesystemServiceTests } from './filesystem.js';
 import { registerPackageManagerServiceTests } from './package-manager.js';
 import { registerPresentationServiceTests } from './presentation.js';
+import { registerRuntimeServiceTests } from './runtime.js';
 import { registerTaskServiceTests } from './tasks.js';
 
 export function registerTests() {
@@ -12,4 +13,5 @@ export function registerTests() {
   registerPackageManagerServiceTests();
   registerFilesystemServiceTests();
   registerPresentationServiceTests();
+  registerRuntimeServiceTests();
 }

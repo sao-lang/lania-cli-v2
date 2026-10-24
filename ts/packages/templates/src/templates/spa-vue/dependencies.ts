@@ -148,7 +148,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   }
 
   return {
-    dependencies: ['vue', '@lania-tools/tools'],
+    dependencies: ['vue'],
     devDependencies: Array.from(devDependencies),
   };
 };

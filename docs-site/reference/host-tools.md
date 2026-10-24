@@ -33,6 +33,7 @@ inline hook 也会拿到类似的 tools 视图。它不是全局单例，而是*
 | `exec`        | 执行命令/shell                | 是（`exec.allowShell` / `allowEnvWrite`） |
 | `git`         | Git 查询与操作                | 是                                        |
 | `pm`          | 包管理器检测与命令规划        | 是                                        |
+| `runtime`     | 脚本运行时识别、规划与执行    | 是                                        |
 | `scaffold`    | 模板层、依赖计划、merge/guard | 内部依赖 `pm`                             |
 | `fs`          | 文件读写、目录、glob          | 是（`fs.writeRoot`）                      |
 | `log`         | 日志 emit / entries           | 是                                        |
@@ -397,25 +398,49 @@ git.plan.{addAll,commitAmend,commitMessage,init,push,pushTag,tagCreateAnnotated,
 
 ```ts
 pm.detectFromFiles(files)
-pm.detect(cwd?)
+pm.detect(cwd?, { language? })
 pm.supportedManagers()
-pm.spec(managerOrCwd?)
+pm.spec(managerOrCwd?, { language? })
 pm.binary(manager)
 pm.lockfile(manager)
 pm.lockfileStrategy(manager)
 pm.loadPackageJsonSnapshot(cwd?)
 pm.scriptExists(script, cwd?)
 pm.requireScript(script, cwd?)
-pm.init({ manager?, cwd? })
-pm.installAll({ manager?, cwd? })
+pm.init({ manager?, cwd?, language? })
+pm.installAll({ manager?, cwd?, language? })
 pm.install(packages, options?)
 pm.remove(packages, options?)
 pm.update(packages, options?)
 pm.run(script, extraArgs?, options?)
-pm.publish({ manager?, tag?, cwd? })
-pm.command.install(...)
-pm.command.runScript(...)
+pm.publish({ manager?, tag?, cwd?, language? })
+pm.command.init(manager?)
+pm.command.installAll(manager?)
+pm.command.install(packages, options?)
+pm.command.remove(packages, options?)
+pm.command.update(packages, options?)
+pm.command.runScript(script, options?)
+pm.command.runScriptChecked(script, options?)
+pm.command.publish(options?)
+pm.command.addDependencyCommands(options?)
 ```
+
+支持的 manager：`npm`、`pnpm`、`yarn`、`bun`、`pip`、`uv`、`poetry`、`cargo`、`go`、`pub`、`bundler`、`composer`。所有 `command.*` 规划由 Rust `lania-pm` 生成，Node 侧不保留第二份命令拼装逻辑。
+
+## runtime
+
+```ts
+runtime.list()
+runtime.detect(file, cwd?)
+runtime.spec(language)
+runtime.plan(file, { cwd?, args? })
+runtime.run(file, { cwd?, args? })
+```
+
+- `detect` 优先 shebang，其次扩展名；返回 `{ file, language, runtime }`。
+- `plan` 只返回命令快照：`{ runtime, language, program, args, cwd, preparedCommand?, preparedSummary? }`。
+- `run` 在 Rust 侧执行；编译型语言会先 prepare，再运行临时二进制并清理产物。
+- `runtime.run` 受 `tools.allow` 的 `runtime` 命名空间约束。
 
 ## scaffold
 

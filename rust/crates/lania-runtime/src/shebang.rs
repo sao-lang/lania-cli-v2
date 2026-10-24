@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use std::{fs, path::Path};
 
-use super::{display_runtime_name, resolve::resolve_command, RunPlan};
+use crate::{display_runtime_name, resolve::resolve_command, RunPlan};
 
-pub(super) fn parse_shebang(path: &Path, cwd: &Path) -> Result<Option<RunPlan>> {
+/// 读取文件首行的 shebang 并解析为未解析可执行文件的运行计划。
+pub(crate) fn read_shebang(path: &Path) -> Result<Option<RunPlan>> {
     let bytes =
         fs::read(path).with_context(|| format!("failed to read file {}", path.display()))?;
     let Some(first_line) = bytes.split(|byte| *byte == b'\n').next() else {
@@ -13,13 +14,18 @@ pub(super) fn parse_shebang(path: &Path, cwd: &Path) -> Result<Option<RunPlan>> 
         return Ok(None);
     }
     let line = String::from_utf8_lossy(&first_line[2..]).trim().to_string();
-    let Some(plan) = parse_shebang_line(&line) else {
+    Ok(parse_shebang_line(&line))
+}
+
+/// 读取 shebang，并把解释器解析成当前环境可执行的路径。
+pub(crate) fn parse_shebang(path: &Path, cwd: &Path) -> Result<Option<RunPlan>> {
+    let Some(plan) = read_shebang(path)? else {
         return Ok(None);
     };
     Ok(Some(resolve_run_plan_program(plan, path, cwd)?))
 }
 
-pub(super) fn parse_shebang_line(line: &str) -> Option<RunPlan> {
+pub fn parse_shebang_line(line: &str) -> Option<RunPlan> {
     let tokens = shell_words::split(line).ok()?;
     if tokens.is_empty() {
         return None;
@@ -35,11 +41,13 @@ pub(super) fn parse_shebang_line(line: &str) -> Option<RunPlan> {
     };
 
     Some(RunPlan {
+        language: "shebang".into(),
         runtime: display_runtime_name(&program),
         program,
         program_args: args,
         prepared_command: None,
         prepared_summary: None,
+        cleanup_path: None,
     })
 }
 
@@ -82,8 +90,6 @@ fn resolve_run_plan_program(plan: RunPlan, script_path: &Path, cwd: &Path) -> Re
     Ok(RunPlan {
         runtime: display_runtime_name(&resolved),
         program: resolved,
-        program_args: plan.program_args,
-        prepared_command: None,
-        prepared_summary: None,
+        ..plan
     })
 }

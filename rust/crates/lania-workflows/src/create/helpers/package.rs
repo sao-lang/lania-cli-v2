@@ -17,16 +17,13 @@ use crate::models::WorkflowServices;
 
 pub(crate) fn resolve_package_manager(
     service: &PackageManagerService,
+    runtime: &str,
     raw: Option<&str>,
 ) -> PackageManager {
-    // 显式传入的包管理器优先；否则回退到基于项目文件的自动探测。
-    match raw {
-        Some("pnpm") => PackageManager::Pnpm,
-        Some("yarn") => PackageManager::Yarn,
-        Some("bun") => PackageManager::Bun,
-        Some("npm") => PackageManager::Npm,
-        _ => service.detect_from_files(["package.json"]),
-    }
+    // 显式传入的包管理器优先；否则回退到该运行时的默认包管理器。
+    raw.and_then(PackageManager::parse)
+        .or_else(|| service.default_for_language(runtime))
+        .unwrap_or(PackageManager::Npm)
 }
 
 /// 模板名到运行时族的映射。Node 生态（含 spa/toolkit/nestjs/express）统一视为 node。
@@ -40,72 +37,24 @@ pub(crate) fn template_runtime(template: &str) -> &'static str {
     }
 }
 
-pub(crate) fn default_package_manager(runtime: &str) -> &'static str {
-    match runtime {
-        "python" => "pip",
-        "go" => "go",
-        "rust" => "cargo",
-        "dart" => "pub",
-        _ => "npm",
-    }
-}
-
 pub(crate) fn validate_package_manager(runtime: &str, raw: Option<&str>) -> Result<()> {
     let Some(value) = raw else {
         return Ok(());
     };
-    let allowed: &[&str] = match runtime {
-        "node" => &["npm", "pnpm", "yarn", "bun"],
-        "python" => &["pip", "uv", "poetry"],
-        "go" => &["go"],
-        "rust" => &["cargo"],
-        "dart" => &["dart", "pub"],
-        _ => return Ok(()),
-    };
-    if allowed.contains(&value) {
+    let manager =
+        PackageManager::parse(value).ok_or_else(|| anyhow!("unknown package manager `{value}`"))?;
+    let allowed = PackageManager::managers_for_language(runtime);
+    if allowed.contains(&manager) {
         return Ok(());
     }
+    let names = allowed
+        .iter()
+        .map(|manager| manager.id())
+        .collect::<Vec<_>>()
+        .join(", ");
     Err(anyhow!(
-        "package manager `{value}` is not supported for runtime {runtime}; expected one of {}",
-        allowed.join(", ")
+        "package manager `{value}` is not supported for runtime {runtime}; expected one of {names}"
     ))
-}
-
-/// 非 node 运行时的安装命令。node 仍走 `PackageManagerService`。
-pub(crate) fn runtime_install_command(
-    runtime: &str,
-    raw: Option<&str>,
-) -> Result<PackageCommand> {
-    let package_manager = raw.unwrap_or_else(|| default_package_manager(runtime));
-    let (program, args): (&str, Vec<&str>) = match runtime {
-        "python" => match package_manager {
-            "uv" => (
-                "uv",
-                vec!["pip", "install", "-r", "requirements.txt", "-r", "requirements-dev.txt"],
-            ),
-            "poetry" => ("poetry", vec!["install"]),
-            _ => (
-                "python",
-                vec![
-                    "-m",
-                    "pip",
-                    "install",
-                    "-r",
-                    "requirements.txt",
-                    "-r",
-                    "requirements-dev.txt",
-                ],
-            ),
-        },
-        "go" => ("go", vec!["mod", "tidy"]),
-        "rust" => ("cargo", vec!["fetch"]),
-        "dart" => ("dart", vec!["pub", "get"]),
-        other => return Err(anyhow!("no install command for runtime {other}")),
-    };
-    Ok(PackageCommand {
-        program: program.to_string(),
-        args: args.into_iter().map(str::to_string).collect(),
-    })
 }
 
 pub(crate) fn command_to_vec(command: &PackageCommand) -> Vec<String> {
@@ -168,6 +117,9 @@ pub(crate) async fn resolve_dependency_versions(
                             .run_with_options_async(command, ExecRunOptions::default())
                             .await
                         {
+                            // 查询失败（包不存在、registry 不可达、未登录等）时保守回退到 latest，
+                            // 不阻断 create；真正的安装阶段会再次暴露具体错误。
+                            Ok(result) if result.exit_code != 0 => "latest".to_string(),
                             Ok(result) if result.stdout.trim().is_empty() => "latest".to_string(),
                             Ok(result) => parse_dependency_version(&result.stdout)?,
                             Err(error)
@@ -401,9 +353,9 @@ pub(crate) async fn run_package_command(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        default_package_manager, runtime_install_command, template_runtime, validate_package_manager,
-    };
+    use lania_pm::{PackageManager, PackageManagerService};
+
+    use super::{template_runtime, validate_package_manager};
 
     #[test]
     fn maps_templates_to_runtimes() {
@@ -424,29 +376,42 @@ mod tests {
         assert!(validate_package_manager("go", Some("go")).is_ok());
         assert!(validate_package_manager("rust", Some("cargo")).is_ok());
         assert!(validate_package_manager("dart", Some("pub")).is_ok());
-        assert_eq!(default_package_manager("python"), "pip");
+        assert_eq!(
+            PackageManager::default_for_language("python").map(|manager| manager.id()),
+            Some("pip")
+        );
     }
 
     #[test]
     fn builds_runtime_install_commands() {
-        let go = runtime_install_command("go", None).expect("go");
+        let service = PackageManagerService;
+
+        let go = service.install_all_command(PackageManager::Go).expect("go");
         assert_eq!(go.program, "go");
         assert_eq!(go.args, vec!["mod", "tidy"]);
 
-        let rust = runtime_install_command("rust", None).expect("rust");
+        let rust = service
+            .install_all_command(PackageManager::Cargo)
+            .expect("rust");
         assert_eq!(rust.args, vec!["fetch"]);
 
-        let dart = runtime_install_command("dart", None).expect("dart");
+        let dart = service
+            .install_all_command(PackageManager::Pub)
+            .expect("dart");
         assert_eq!(dart.args, vec!["pub", "get"]);
 
-        let pip = runtime_install_command("python", None).expect("pip");
+        let pip = service
+            .install_all_command(PackageManager::Pip)
+            .expect("pip");
         assert_eq!(pip.program, "python");
         assert!(pip.args.iter().any(|arg| arg == "requirements-dev.txt"));
 
-        let uv = runtime_install_command("python", Some("uv")).expect("uv");
+        let uv = service.install_all_command(PackageManager::Uv).expect("uv");
         assert_eq!(uv.program, "uv");
 
-        let poetry = runtime_install_command("python", Some("poetry")).expect("poetry");
+        let poetry = service
+            .install_all_command(PackageManager::Poetry)
+            .expect("poetry");
         assert_eq!(poetry.args, vec!["install"]);
     }
 }

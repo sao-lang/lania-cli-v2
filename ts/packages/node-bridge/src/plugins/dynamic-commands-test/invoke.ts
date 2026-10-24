@@ -662,6 +662,41 @@ export function registerTests() {
   });
 
   test('command.invokeDynamic exposes tools.scaffold for template layers and dependency plan', async (t) => {
+    installHostRpcTransport({
+      write: async (envelope) => {
+        const payload = envelope.payload as {
+          id: string;
+          method: string;
+          params: Record<string, unknown>;
+        };
+        const respond = createHostRpcResponder(payload);
+        if (payload.method === 'host.pm.command.addDependencyCommands') {
+          const manager = String(payload.params.manager ?? 'pnpm');
+          const dependencies = Array.isArray(payload.params.dependencies)
+            ? payload.params.dependencies.map(String)
+            : [];
+          const devDependencies = Array.isArray(payload.params.devDependencies)
+            ? payload.params.devDependencies.map(String)
+            : [];
+          const strict = manager === 'pnpm' ? ['--strict-peer-dependencies=false'] : [];
+          const commands = [];
+          if (dependencies.length > 0) {
+            commands.push({ program: manager, args: ['install', ...strict, ...dependencies] });
+          }
+          if (devDependencies.length > 0) {
+            commands.push({
+              program: manager,
+              args: ['install', ...strict, '--save-dev', ...devDependencies],
+            });
+          }
+          respond({ commands });
+          return;
+        }
+        respondUnsupportedTestHostMethod(payload);
+      },
+    });
+    t.after(() => resetHostRpcTransport());
+
     const cwd = await createDynamicCommandProject({
       configContent: `export default {
         extensions: { dynamicCommands: true },
@@ -1009,6 +1044,40 @@ export function registerTests() {
         }
         if (method === 'host.fs.mkdirp') {
           respond({ ok: true });
+          return;
+        }
+        if (method === 'host.pm.command.addDependencyCommands') {
+          const manager = String(payload.params.manager ?? 'pnpm');
+          const dependencies = Array.isArray(payload.params.dependencies)
+            ? payload.params.dependencies.map(String)
+            : [];
+          const devDependencies = Array.isArray(payload.params.devDependencies)
+            ? payload.params.devDependencies.map(String)
+            : [];
+          const strict = manager === 'pnpm' ? ['--strict-peer-dependencies=false'] : [];
+          const commands = [];
+          if (dependencies.length > 0) {
+            commands.push({ program: manager, args: ['install', ...strict, ...dependencies] });
+          }
+          if (devDependencies.length > 0) {
+            commands.push({
+              program: manager,
+              args: ['install', ...strict, '--save-dev', ...devDependencies],
+            });
+          }
+          respond({ commands });
+          return;
+        }
+        if (method === 'host.pm.command.remove') {
+          const manager = String(payload.params.manager ?? 'pnpm');
+          const packages = Array.isArray(payload.params.packages)
+            ? payload.params.packages.map(String)
+            : [];
+          respond({ program: manager, args: ['remove', ...packages] });
+          return;
+        }
+        if (method === 'host.fs.remove') {
+          respond({ ok: true, removed: true });
           return;
         }
         if (method === 'host.exec.runChecked') {

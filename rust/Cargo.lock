@@ -816,6 +816,7 @@ dependencies = [
  "lania-preferences",
  "lania-progress",
  "lania-prompt",
+ "lania-runtime",
  "lania-task",
  "lania-workflows",
  "regex",
@@ -998,9 +999,9 @@ dependencies = [
  "lania-exec",
  "lania-host",
  "lania-node-bridge",
+ "lania-runtime",
  "regex",
  "serde_json",
- "shell-words",
 ]
 
 [[package]]
@@ -1049,6 +1050,16 @@ dependencies = [
  "dialoguer",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "lania-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lania-exec",
+ "serde",
+ "shell-words",
 ]
 
 [[package]]

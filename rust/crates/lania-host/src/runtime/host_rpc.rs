@@ -21,16 +21,18 @@ use lania_node_bridge::{BridgeEvent, HostRpcHandler};
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;
+use lania_runtime::RuntimeService;
 use lania_task::TaskService;
 use serde_json::{json, Value};
 
-mod exec;
 mod agent_tools;
+mod exec;
 mod fs_domain;
 mod git;
 mod interaction;
 mod log;
 mod pm;
+mod runtime;
 mod task_progress;
 
 #[derive(Debug, Clone)]
@@ -170,6 +172,7 @@ pub(crate) struct HostRpcAdapter {
     exec: ExecService,
     git: GitService,
     package_manager: PackageManagerService,
+    runtime: RuntimeService,
     fs: FsService,
     logger: LoggerService,
     tasks: TaskService,
@@ -182,6 +185,7 @@ pub(crate) struct HostRpcAdapterDeps {
     pub(crate) exec: ExecService,
     pub(crate) git: GitService,
     pub(crate) package_manager: PackageManagerService,
+    pub(crate) runtime: RuntimeService,
     pub(crate) fs: FsService,
     pub(crate) logger: LoggerService,
     pub(crate) tasks: TaskService,
@@ -195,6 +199,7 @@ impl HostRpcAdapter {
             exec: deps.exec,
             git: deps.git,
             package_manager: deps.package_manager,
+            runtime: deps.runtime,
             fs: deps.fs,
             logger: deps.logger,
             tasks: deps.tasks,
@@ -226,6 +231,9 @@ impl HostRpcAdapter {
         }
         if method.starts_with("host.pm.") {
             return self.handle_pm_domain(method, payload);
+        }
+        if method.starts_with("host.runtime.") {
+            return self.handle_runtime_domain(method, payload);
         }
         if method.starts_with("host.fs.") {
             return self.handle_fs_domain(method, payload, tools_policy);
@@ -297,6 +305,15 @@ impl HostRpcAdapter {
     /// - 这里尽量保持 read/plan 导向；真正的进程执行仍然走 `host.exec.*`
     fn handle_pm_domain(&self, method: &str, payload: &HostPayload) -> Result<HostRpcResponse> {
         pm::handle_pm_domain(self, method, payload)
+    }
+
+    /// 处理 `host.runtime.*`（运行时识别、计划与执行）。
+    fn handle_runtime_domain(
+        &self,
+        method: &str,
+        payload: &HostPayload,
+    ) -> Result<HostRpcResponse> {
+        runtime::handle_runtime_domain(self, method, payload)
     }
 
     /// 处理 `host.fs.*`。
@@ -458,6 +475,7 @@ mod tests {
             exec: ExecService::new(false),
             git: GitService::default(),
             package_manager: PackageManagerService,
+            runtime: RuntimeService::new(),
             fs: FsService,
             logger: LoggerService::default(),
             tasks: TaskService::default(),
@@ -505,6 +523,7 @@ mod tests {
             exec: ExecService::new(false),
             git: GitService::default(),
             package_manager: PackageManagerService,
+            runtime: RuntimeService::new(),
             fs: FsService,
             logger: LoggerService::default(),
             tasks: TaskService::default(),
@@ -549,6 +568,7 @@ mod tests {
             exec: ExecService::new(false),
             git: GitService::default(),
             package_manager: PackageManagerService,
+            runtime: RuntimeService::new(),
             fs: FsService,
             logger: LoggerService::default(),
             tasks: TaskService::default(),
@@ -585,6 +605,7 @@ mod tests {
             exec: ExecService::new(false),
             git: GitService::default(),
             package_manager: PackageManagerService,
+            runtime: RuntimeService::new(),
             fs: FsService,
             logger: LoggerService::default(),
             tasks: TaskService::default(),
@@ -608,5 +629,139 @@ mod tests {
             .expect_err("expected policy to block exec shell");
 
         assert!(err.to_string().contains("E_TOOLS_DENIED"));
+    }
+
+    #[test]
+    fn host_runtime_detects_python_and_lists_runtimes() {
+        let root = std::env::temp_dir().join(format!(
+            "lania-host-runtime-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("demo.py"), "print('demo')\n").unwrap();
+        let cwd = root.to_string_lossy().to_string();
+
+        let adapter = HostRpcAdapter::new(HostRpcAdapterDeps {
+            exec: ExecService::new(false),
+            git: GitService::default(),
+            package_manager: PackageManagerService,
+            runtime: RuntimeService::new(),
+            fs: FsService,
+            logger: LoggerService::default(),
+            tasks: TaskService::default(),
+            progress: ProgressService::default(),
+            prompt: PromptService::default(),
+        });
+
+        let (detected, _) = adapter
+            .handle(
+                "host.runtime.detect",
+                json!({ "cwd": cwd, "file": "demo.py" }),
+            )
+            .expect("runtime detect works");
+        assert_eq!(detected["language"], json!("python"));
+
+        let (listed, _) = adapter
+            .handle("host.runtime.list", json!({}))
+            .expect("runtime list works");
+        assert!(listed["runtimes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|runtime| runtime["id"] == json!("python")));
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn host_runtime_run_executes_python_file() {
+        if lania_exec::resolve_executable("python3").is_none()
+            && lania_exec::resolve_executable("python").is_none()
+        {
+            return;
+        }
+        let root = std::env::temp_dir().join(format!(
+            "lania-host-runtime-run-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("demo.py"), "print('runtime-ok')\n").unwrap();
+        let cwd = root.to_string_lossy().to_string();
+
+        let adapter = HostRpcAdapter::new(HostRpcAdapterDeps {
+            exec: ExecService::new(false),
+            git: GitService::default(),
+            package_manager: PackageManagerService,
+            runtime: RuntimeService::new(),
+            fs: FsService,
+            logger: LoggerService::default(),
+            tasks: TaskService::default(),
+            progress: ProgressService::default(),
+            prompt: PromptService::default(),
+        });
+
+        let (result, _) = adapter
+            .handle("host.runtime.run", json!({ "cwd": cwd, "file": "demo.py" }))
+            .expect("runtime run works");
+        assert_eq!(result["exitCode"], json!(0));
+        assert_eq!(result["language"], json!("python"));
+        assert!(result["stdout"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("runtime-ok"));
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn host_pm_detects_cargo_and_plans_install_all() {
+        let root = std::env::temp_dir().join(format!(
+            "lania-host-pm-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\n").unwrap();
+        let cwd = root.to_string_lossy().to_string();
+
+        let adapter = HostRpcAdapter::new(HostRpcAdapterDeps {
+            exec: ExecService::new(false),
+            git: GitService::default(),
+            package_manager: PackageManagerService,
+            runtime: RuntimeService::new(),
+            fs: FsService,
+            logger: LoggerService::default(),
+            tasks: TaskService::default(),
+            progress: ProgressService::default(),
+            prompt: PromptService::default(),
+        });
+
+        let (detected, _) = adapter
+            .handle("host.pm.detect", json!({ "cwd": cwd }))
+            .expect("pm detect works");
+        assert_eq!(detected["manager"], json!("cargo"));
+        assert_eq!(detected["language"], json!("rust"));
+
+        let (command, _) = adapter
+            .handle(
+                "host.pm.command.installAll",
+                json!({ "cwd": cwd, "manager": "cargo" }),
+            )
+            .expect("cargo installAll plans");
+        assert_eq!(command["program"], json!("cargo"));
+        assert_eq!(command["args"], json!(["fetch"]));
+
+        std::fs::remove_dir_all(&root).ok();
     }
 }

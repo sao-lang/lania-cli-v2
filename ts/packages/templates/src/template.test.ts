@@ -217,6 +217,7 @@ test('spa-react webpack dependencies include webpack-dev-server', async () => {
     },
   });
 
+  assert.deepEqual(result.dependencies, ['react', 'react-dom']);
   assert.ok(result.devDependencies.includes('webpack'));
   assert.ok(result.devDependencies.includes('webpack-dev-server'));
 });
@@ -233,6 +234,7 @@ test('spa-vue webpack dependencies include webpack-dev-server', async () => {
     },
   });
 
+  assert.deepEqual(result.dependencies, ['vue']);
   assert.ok(result.devDependencies.includes('webpack'));
   assert.ok(result.devDependencies.includes('webpack-dev-server'));
 });

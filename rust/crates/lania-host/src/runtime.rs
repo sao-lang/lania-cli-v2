@@ -17,6 +17,7 @@ use lania_node_bridge::NodeBridgeClient;
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;
+use lania_runtime::RuntimeService;
 use lania_task::TaskService;
 
 use crate::{
@@ -56,6 +57,7 @@ pub(super) struct HostRuntimeServices {
     pub(super) prompt: PromptService,
     pub(super) git: GitService,
     pub(super) package_manager: PackageManagerService,
+    pub(super) runtime: RuntimeService,
     pub(super) node_bridge: NodeBridgeClient,
 }
 

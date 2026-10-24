@@ -10,9 +10,8 @@ mod template_context;
 
 pub(super) use env::{ensure_directory_empty, find_available_port};
 pub(super) use package::{
-    command_to_vec, default_package_manager, resolve_dependency_versions,
-    resolve_package_manager, run_package_command, runtime_install_command, template_runtime,
-    validate_package_manager,
+    command_to_vec, resolve_dependency_versions, resolve_package_manager, run_package_command,
+    template_runtime, validate_package_manager,
 };
 pub(super) use target_path::{
     normalize_add_target, resolve_add_output_path, validate_relative_target,

@@ -13,7 +13,7 @@ ctx.tools
   ├── Node Bridge 本地分发
   │     bridge / compiler / lint / config / system / commit
   └── Rust Host RPC
-        host / exec / fs / git / pm / log / tasks / progress / interaction
+        host / exec / fs / git / pm / runtime / log / tasks / progress / interaction
 ```
 
 同一份代码不需要关心能力最终落在哪一侧，但排查问题时要看：
@@ -131,6 +131,21 @@ if (hasTest) {
   await ctx.tools.pm.run('test');
 }
 ```
+
+## 运行时
+
+`ctx.tools.runtime` 把“用 node / python / go 等环境执行脚本”封装为统一工具：
+
+```ts
+const detected = await ctx.tools.runtime.detect('scripts/demo.py');
+const plan = await ctx.tools.runtime.plan('scripts/demo.py', { args: ['--verbose'] });
+const result = await ctx.tools.runtime.run('scripts/demo.py', { args: ['--verbose'] });
+```
+
+- `detect` 优先 shebang，其次扩展名。
+- `plan` 只生成命令快照，不执行。
+- `run` 在 Rust 侧执行；`rust` / `c` 会先编译到临时文件，执行后清理。
+- 运行时与包管理器通过元数据关联，例如 `python` → `pip/uv/poetry`、`rust` → `cargo`。
 
 ## 调用 Bridge 能力
 

@@ -28,11 +28,11 @@ export function registerPackageManagerServiceTests() {
             return;
           case 'host.pm.spec':
             respond({
-              manager: 'pnpm',
-              binary: 'pnpm',
+              manager: payload.params.manager ?? 'pnpm',
+              binary: payload.params.manager ?? 'pnpm',
               install_subcommand: 'install',
               run_subcommand: 'run',
-              lockfile: 'pnpm-lock.yaml',
+              lockfile: payload.params.manager === 'npm' ? 'package-lock.json' : 'pnpm-lock.yaml',
             });
             return;
           case 'host.pm.loadPackageJsonSnapshot':
@@ -48,20 +48,90 @@ export function registerPackageManagerServiceTests() {
               exists: payload.params.script === 'dev' || payload.params.script === 'build',
             });
             return;
+          case 'host.pm.command.init':
+            respond({
+              program: String(payload.params.manager ?? 'pnpm'),
+              args: payload.params.manager === 'npm' ? ['init', '-y'] : ['init'],
+            });
+            return;
+          case 'host.pm.command.installAll':
+            respond({
+              program: String(payload.params.manager ?? 'pnpm'),
+              args:
+                payload.params.manager === 'npm'
+                  ? ['install', '--legacy-peer-deps']
+                  : ['install', '--strict-peer-dependencies=false'],
+            });
+            return;
           case 'host.pm.command.install':
             respond({
-              program: 'pnpm',
-              args: [
-                'install',
-                '--strict-peer-dependencies=false',
-                ...(payload.params.packages as string[]),
+              program: String(payload.params.manager ?? 'pnpm'),
+              args:
+                payload.params.manager === 'npm'
+                  ? [
+                      'install',
+                      '--legacy-peer-deps',
+                      ...(payload.params.dev ? ['--save-dev'] : []),
+                      ...(payload.params.packages as string[]),
+                    ]
+                  : [
+                      'install',
+                      '--strict-peer-dependencies=false',
+                      ...(payload.params.dev ? ['--save-dev'] : []),
+                      ...(payload.params.packages as string[]),
+                    ],
+            });
+            return;
+          case 'host.pm.command.remove':
+            respond({
+              program: String(payload.params.manager ?? 'pnpm'),
+              args: ['remove', ...(payload.params.packages as string[])],
+            });
+            return;
+          case 'host.pm.command.update':
+            respond({
+              program: String(payload.params.manager ?? 'pnpm'),
+              args: ['update', ...(payload.params.packages as string[])],
+            });
+            return;
+          case 'host.pm.command.publish':
+            respond({
+              program: String(payload.params.manager ?? 'pnpm'),
+              args: ['publish', '--tag', String(payload.params.tag)],
+            });
+            return;
+          case 'host.pm.command.addDependencyCommands':
+            respond({
+              commands: [
+                {
+                  program: String(payload.params.manager ?? 'pnpm'),
+                  args: [
+                    'install',
+                    '--strict-peer-dependencies=false',
+                    ...(payload.params.dependencies as string[]),
+                  ],
+                },
+                {
+                  program: String(payload.params.manager ?? 'pnpm'),
+                  args: [
+                    'install',
+                    '--strict-peer-dependencies=false',
+                    '--save-dev',
+                    ...(payload.params.devDependencies as string[]),
+                  ],
+                },
               ],
             });
             return;
           case 'host.pm.command.runScript':
             respond({
-              program: 'pnpm',
-              args: ['run', String(payload.params.script), ...(payload.params.args as string[])],
+              program: String(payload.params.manager ?? 'pnpm'),
+              args: [
+                'run',
+                String(payload.params.script),
+                ...((payload.params.args as string[]).length > 0 ? ['--'] : []),
+                ...(payload.params.args as string[]),
+              ],
             });
             return;
           case 'host.exec.run':

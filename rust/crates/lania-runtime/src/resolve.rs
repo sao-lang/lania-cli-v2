@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(super) fn choose_first_available(
+pub(crate) fn choose_first_available(
     path: &Path,
     cwd: &Path,
     candidates: &[(&str, Vec<String>)],
@@ -27,7 +27,7 @@ pub(super) fn choose_first_available(
     )
 }
 
-pub(super) fn resolve_command(program: &str, script_path: &Path, cwd: &Path) -> Option<String> {
+pub(crate) fn resolve_command(program: &str, script_path: &Path, cwd: &Path) -> Option<String> {
     let candidate = PathBuf::from(program);
     if candidate.components().count() > 1 {
         return candidate.is_file().then(|| program.to_string());

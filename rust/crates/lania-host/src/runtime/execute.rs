@@ -112,21 +112,25 @@ impl HostRuntime {
             .load_lan_config_snapshot_from_cwd_async(context.cwd.clone())
             .await
             .ok();
-        let execution_context = CommandExecutionContext::new(&command_context, HostExecutionServices {
-            capabilities: &self.state.capabilities,
-            logger: &self.services.logger,
-            exec: &self.services.exec,
-            fs: &self.services.fs,
-            tasks: &self.services.tasks,
-            progress: &self.services.progress,
-            prompt: &self.services.prompt,
-            git: &self.services.git,
-            package_manager: &self.services.package_manager,
-            node_bridge: &self.services.node_bridge,
-            hooks: Arc::clone(&self.state.hooks) as Arc<dyn HookRuntime>,
-            project_config,
-            locale: self.state.locale.clone(),
-        });
+        let execution_context = CommandExecutionContext::new(
+            &command_context,
+            HostExecutionServices {
+                capabilities: &self.state.capabilities,
+                logger: &self.services.logger,
+                exec: &self.services.exec,
+                fs: &self.services.fs,
+                tasks: &self.services.tasks,
+                progress: &self.services.progress,
+                prompt: &self.services.prompt,
+                git: &self.services.git,
+                package_manager: &self.services.package_manager,
+                runtime: &self.services.runtime,
+                node_bridge: &self.services.node_bridge,
+                hooks: Arc::clone(&self.state.hooks) as Arc<dyn HookRuntime>,
+                project_config,
+                locale: self.state.locale.clone(),
+            },
+        );
         let mut execution = match handler.execute(&execution_context).await {
             Ok(execution) => execution,
             Err(error) => {

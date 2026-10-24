@@ -15,6 +15,7 @@ use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;
+use lania_runtime::RuntimeService;
 use lania_task::TaskService;
 
 use crate::{
@@ -43,12 +44,14 @@ impl HostRuntime {
         let fs = FsService;
         let git = GitService::default();
         let package_manager = PackageManagerService;
+        let runtime = RuntimeService::new();
         let prompt = PromptService::default();
         let node_bridge = NodeBridgeClient::new(BridgeClientConfig::default())
             .with_host_rpc_handler(HostRpcAdapter::new(HostRpcAdapterDeps {
                 exec: exec.clone(),
                 git: git.clone(),
                 package_manager: package_manager.clone(),
+                runtime: runtime.clone(),
                 fs: fs.clone(),
                 logger: logger.clone(),
                 tasks: tasks.clone(),
@@ -70,6 +73,7 @@ impl HostRuntime {
                 prompt,
                 git,
                 package_manager,
+                runtime,
                 node_bridge,
             },
             state: HostRuntimeState {
@@ -123,6 +127,10 @@ impl HostRuntime {
 
     pub fn package_manager(&self) -> &PackageManagerService {
         &self.services.package_manager
+    }
+
+    pub fn runtime(&self) -> &RuntimeService {
+        &self.services.runtime
     }
 
     pub fn node_bridge(&self) -> &NodeBridgeClient {

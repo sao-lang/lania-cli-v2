@@ -17,6 +17,69 @@ const repoRoot = path.resolve(
   '..',
 );
 
+/**
+ * product.publish 测试只需要一个可解析的 npm pack 结果，不需要真的打包
+ * 整个 node-bridge/node_modules。用 fake npm 把每次约 3 分钟的 pack 降到毫秒级。
+ */
+async function installFakeNpm(root: string): Promise<() => void> {
+  const binDir = path.join(root, 'fake-npm-bin');
+  const scriptPath = path.join(binDir, 'fake-npm.cjs');
+  await mkdir(binDir, { recursive: true });
+  await writeFile(
+    scriptPath,
+    `const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+if (args[0] === 'pack') {
+  const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+  const filename =
+    String(pkg.name ?? 'package').replace('@', '').replace('/', '-') +
+    '-' +
+    String(pkg.version ?? '0.0.0') +
+    '.tgz';
+  fs.writeFileSync(path.join(process.cwd(), filename), 'fake tgz');
+  process.stdout.write(JSON.stringify([{ filename }]));
+  process.exit(0);
+}
+if (args[0] === 'whoami') {
+  process.stdout.write('fake-user\\n');
+  process.exit(0);
+}
+if (args[0] === 'view') {
+  process.exit(1);
+}
+process.exit(0);
+`,
+    'utf8',
+  );
+
+  if (process.platform === 'win32') {
+    // Windows 上 spawnSync 会通过 PATHEXT 找到 npm.cmd。
+    await writeFile(
+      path.join(binDir, 'npm.cmd'),
+      `@echo off\r\nnode "${scriptPath}" %*\r\n`,
+      'utf8',
+    );
+  } else {
+    const npmPath = path.join(binDir, 'npm');
+    await writeFile(npmPath, `#!/usr/bin/env node\n${await readFile(scriptPath, 'utf8')}`, 'utf8');
+    await chmod(npmPath, 0o755);
+  }
+
+  const previousPath = process.env.PATH;
+  const previousSkipDeps = process.env.LANIA_PRODUCT_TEST_SKIP_NODE_BRIDGE_DEPS;
+  process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ''}`;
+  process.env.LANIA_PRODUCT_TEST_SKIP_NODE_BRIDGE_DEPS = '1';
+  return () => {
+    process.env.PATH = previousPath;
+    if (previousSkipDeps === undefined) {
+      delete process.env.LANIA_PRODUCT_TEST_SKIP_NODE_BRIDGE_DEPS;
+    } else {
+      process.env.LANIA_PRODUCT_TEST_SKIP_NODE_BRIDGE_DEPS = previousSkipDeps;
+    }
+  };
+}
+
 test('product.generate scaffolds a minimal product workspace', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-generate-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
@@ -522,6 +585,8 @@ test('product.pack creates a minimal install-root layout from product build outp
 test('product.publish creates a publish-ready npm package layout from packed output', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-publish-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
+  const restoreNpm = await installFakeNpm(cwd);
+  t.after(restoreNpm);
   const cliPackageJson = JSON.parse(
     await readFile(path.join(repoRoot, 'npm', 'cli', 'package.json'), 'utf8'),
   ) as { optionalDependencies?: Record<string, string> };
@@ -853,6 +918,8 @@ test('product.publish creates a publish-ready npm package layout from packed out
 test('product.publish stages linux-x64 bundle from explicit env binary source', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-publish-linux-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
+  const restoreNpm = await installFakeNpm(cwd);
+  t.after(restoreNpm);
 
   const linuxBinarySource = path.join(cwd, 'fixtures', 'lania-cli-linux-x64');
   await mkdir(path.dirname(linuxBinarySource), { recursive: true });
@@ -1001,6 +1068,8 @@ test('product.publish stages linux-x64 bundle from explicit env binary source', 
 test('product.publish stages linux-x64 bundle from platformBinariesDir auto-discovery', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-publish-dir-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
+  const restoreNpm = await installFakeNpm(cwd);
+  t.after(restoreNpm);
 
   const platformRoot = path.join(cwd, 'platform-binaries');
   const linuxBinary = path.join(platformRoot, 'linux-x64', 'lania-cli');
@@ -1356,6 +1425,8 @@ process.exit(0);
 test('product.publish requires --yes for non-dry-run execution', async (t) => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-publish-yes-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
+  const restoreNpm = await installFakeNpm(cwd);
+  t.after(restoreNpm);
 
   await mkdir(path.join(cwd, 'product', 'templates', 'base'), { recursive: true });
   await writeFile(

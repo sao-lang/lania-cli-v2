@@ -159,17 +159,37 @@ Git 域方法最多，按子域分组。所有方法都接受可选 `cwd`。
 
 ## host.pm.\*
 
-| 方法                              | 参数                                  | 返回                     |
-| --------------------------------- | ------------------------------------- | ------------------------ |
-| `host.pm.detect`                  | `cwd?`                                | `{ manager }`            |
-| `host.pm.spec`                    | `cwd?`                                | 包管理器 spec 对象       |
-| `host.pm.supportedManagers`       | —                                     | `{ managers: string[] }` |
-| `host.pm.loadPackageJsonSnapshot` | `cwd?`                                | package.json 快照        |
-| `host.pm.scriptExists`            | `script`, `cwd?`                      | `{ exists }`             |
-| `host.pm.command.install`         | `packages`, `dev?`, `cwd?`            | `{ program, args }`      |
-| `host.pm.command.runScript`       | `script`, `args?`, `checked?`, `cwd?` | `{ program, args }`      |
+| 方法                                    | 参数                                                    | 返回                     |
+| --------------------------------------- | ------------------------------------------------------- | ------------------------ |
+| `host.pm.detect`                        | `cwd?`, `language?`                                     | `{ manager, language }`  |
+| `host.pm.spec`                          | `manager?`, `cwd?`, `language?`                         | 包管理器 spec 对象       |
+| `host.pm.supportedManagers`             | —                                                       | `{ managers: string[] }` |
+| `host.pm.loadPackageJsonSnapshot`       | `cwd?`                                                  | package.json 快照        |
+| `host.pm.scriptExists`                  | `script`, `cwd?`                                        | `{ exists }`             |
+| `host.pm.command.init`                  | `manager?`, `cwd?`, `language?`                         | `{ program, args }`      |
+| `host.pm.command.installAll`            | `manager?`, `cwd?`, `language?`                         | `{ program, args }`      |
+| `host.pm.command.install`               | `packages`, `dev?`, `manager?`, `cwd?`, `language?`     | `{ program, args }`      |
+| `host.pm.command.remove`                | `packages`, `manager?`, `cwd?`, `language?`             | `{ program, args }`      |
+| `host.pm.command.update`                | `packages`, `manager?`, `cwd?`, `language?`             | `{ program, args }`      |
+| `host.pm.command.runScript`             | `script`, `args?`, `checked?`, `manager?`, `cwd?`       | `{ program, args }`      |
+| `host.pm.command.publish`               | `tag?`, `manager?`, `cwd?`, `language?`                 | `{ program, args }`      |
+| `host.pm.command.addDependencyCommands` | `dependencies?`, `devDependencies?`, `manager?`, `cwd?` | `{ commands: [...] }`    |
+
+支持 `manager`：`npm`、`pnpm`、`yarn`、`bun`、`pip`、`uv`、`poetry`、`cargo`、`go`、`pub`、`bundler`、`composer`。未显式指定时按 `cwd` / `language` 探测。
 
 注意：`host.pm.command.*` 只做命令规划，不执行。执行仍走 `host.exec.*`。
+
+## host.runtime.\*
+
+| 方法                  | 参数                    | 返回                                                                                                                 |
+| --------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `host.runtime.list`   | —                       | `{ runtimes: RuntimeSpec[] }`                                                                                        |
+| `host.runtime.detect` | `file`, `cwd?`          | `{ file, language, runtime }`                                                                                        |
+| `host.runtime.spec`   | `language`              | `RuntimeSpec`                                                                                                        |
+| `host.runtime.plan`   | `file`, `args?`, `cwd?` | `{ runtime, language, program, args, cwd, preparedCommand?, preparedSummary? }`                                      |
+| `host.runtime.run`    | `file`, `args?`, `cwd?` | `{ file, runtime, language, program, args, cwd, preparedCommand?, preparedSummary?, exitCode, stdout, stderr, ... }` |
+
+`plan` 只生成命令计划；`run` 在 Rust 侧执行，编译型语言会先 prepare、再运行临时二进制并清理产物。未知 language 返回 `unknown runtime language: <language>`。
 
 ## host.log.\*
 

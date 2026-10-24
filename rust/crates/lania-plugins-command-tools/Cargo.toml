@@ -12,6 +12,6 @@ lania-command = { path = "../lania-command" }
 lania-exec = { path = "../lania-exec" }
 lania-host = { path = "../lania-host" }
 lania-node-bridge = { path = "../lania-node-bridge" }
+lania-runtime = { path = "../lania-runtime" }
 serde_json.workspace = true
-shell-words.workspace = true
 regex.workspace = true

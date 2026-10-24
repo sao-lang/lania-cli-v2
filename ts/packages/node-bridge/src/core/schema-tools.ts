@@ -31,6 +31,7 @@ import { createToolsPolicyManager } from '../schema-tools/policy.js';
 import { createPackageManagerTools, type PackageManagerTools } from '../schema-tools/pm.js';
 import { createProgressTools, type ProgressTools } from '../schema-tools/progress.js';
 import { createResultTools, type ResultTools } from '../schema-tools/result.js';
+import { createRuntimeTools, type RuntimeTools } from '../schema-tools/runtime.js';
 import { createScaffoldTools, type ScaffoldTools } from '../schema-tools/scaffold.js';
 import { createTaskTools, type TaskTools } from '../schema-tools/tasks.js';
 import { createTextTools, type TextTools } from '../schema-tools/text.js';
@@ -77,6 +78,7 @@ export type { PathTools } from '../schema-tools/path.js';
 export type { PackageManagerTools } from '../schema-tools/pm.js';
 export type { ProgressTools } from '../schema-tools/progress.js';
 export type { ResultTools } from '../schema-tools/result.js';
+export type { RuntimeTools } from '../schema-tools/runtime.js';
 export type {
   ScaffoldDependencyPlanResult,
   ScaffoldRenderResult,
@@ -114,6 +116,7 @@ export interface SchemaTools {
   exec: ExecTools;
   git: GitTools;
   pm: PackageManagerTools;
+  runtime: RuntimeTools;
   scaffold: ScaffoldTools;
   fs: FsTools;
   log: LogTools;
@@ -485,6 +488,7 @@ export function createSchemaTools(
     exec: createExecTools(base, policy),
     git: createGitTools(base, policy),
     pm: createPackageManagerTools(base, policy),
+    runtime: createRuntimeTools(base, policy),
     scaffold: undefined as unknown as ScaffoldTools,
     fs: createFsTools(base, policy),
     log: createLogTools(base, policy),

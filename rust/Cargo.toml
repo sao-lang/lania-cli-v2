@@ -17,6 +17,7 @@ members = [
   "crates/lania-validate",
   "crates/lania-git",
   "crates/lania-pm",
+  "crates/lania-runtime",
   "crates/lania-env",
   "crates/lania-presentation",
   "crates/lania-node-bridge",

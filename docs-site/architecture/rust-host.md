@@ -128,6 +128,7 @@ Rust 侧按域路由：
 | `host.fs`          | `exists`、`read`、`write`、`mkdirp`、`readdir`、`remove`、`stat` |
 | `host.git`         | status、diff、add、commit、push、pull、branch、log 等            |
 | `host.pm`          | 包管理器检测、脚本探测、安装与运行                               |
+| `host.runtime`     | 脚本运行时识别、命令计划与执行                                   |
 | `host.log`         | 日志写入、读取、清空、ASCII 渲染                                 |
 | `host.tasks`       | 任务注册、启动、完成、失败                                       |
 | `host.progress`    | 进度开始、更新、结束                                             |

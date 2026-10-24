@@ -1,14 +1,35 @@
-import { AxiosWrapperFactory } from '@lania-tools/tools/axios-wrapper';
 import { API_BASE_URL, REQUEST_TIMEOUT, getAccessToken } from './config';
 
-const request = AxiosWrapperFactory.create('app', {
-  baseURL: API_BASE_URL,
-  timeout: REQUEST_TIMEOUT,
-  tokenProvider: getAccessToken,
-  responseHandler: (response) => response.data,
-  onError: (error) => {
-    console.error('[request error]', error);
-  },
-});
+async function request(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeout ?? REQUEST_TIMEOUT);
+  try {
+    const token = getAccessToken();
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: options.method ?? 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers ?? {}),
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
-export default request;
+const client = {
+  get: (path, options) => request(path, options),
+  post: (path, body, options) => request(path, { ...options, method: 'POST', body }),
+  put: (path, body, options) => request(path, { ...options, method: 'PUT', body }),
+  patch: (path, body, options) => request(path, { ...options, method: 'PATCH', body }),
+  delete: (path, options) => request(path, { ...options, method: 'DELETE' }),
+};
+
+export default client;

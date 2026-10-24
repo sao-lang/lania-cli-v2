@@ -25,6 +25,7 @@ use lania_node_bridge::NodeBridgeClient;
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;
+use lania_runtime::RuntimeService;
 use lania_task::{TaskDefinition, TaskRunMode, TaskRunOptions, TaskService};
 use lania_workflows::{WorkflowExecution, WorkflowServices};
 use serde::Serialize;
@@ -48,6 +49,7 @@ pub struct HostExecutionServices<'a> {
     pub prompt: &'a PromptService,
     pub git: &'a GitService,
     pub package_manager: &'a PackageManagerService,
+    pub runtime: &'a RuntimeService,
     pub node_bridge: &'a NodeBridgeClient,
     pub hooks: Arc<dyn HookRuntime>,
     pub project_config: Option<LanConfigSnapshot>,
@@ -72,6 +74,7 @@ pub struct CommandExecutionContext<'a> {
     pub(super) prompt: &'a PromptService,
     pub(super) git: &'a GitService,
     pub(super) package_manager: &'a PackageManagerService,
+    pub(super) runtime: &'a RuntimeService,
     pub(super) node_bridge: &'a NodeBridgeClient,
     // `hooks` 使用 `Arc<dyn HookRuntime>` 而不是 `&dyn HookRuntime`：
     // - workflow / task 往往会跨异步边界、跨闭包 move；
@@ -141,6 +144,7 @@ impl<'a> CommandExecutionContext<'a> {
             prompt: services.prompt,
             git: services.git,
             package_manager: services.package_manager,
+            runtime: services.runtime,
             node_bridge: services.node_bridge,
             policy: ExecutionPolicy::from_env(services.node_bridge),
             hooks: services.hooks,
@@ -198,6 +202,10 @@ impl<'a> CommandExecutionContext<'a> {
         self.exec
     }
 
+    pub fn runtime(&self) -> &RuntimeService {
+        self.runtime
+    }
+
     pub fn hooks(&self) -> &dyn HookRuntime {
         self.hooks.as_ref()
     }
@@ -249,9 +257,10 @@ impl<'a> CommandExecutionContext<'a> {
         // - 于是先放进 `Option`
         // - 真正执行时通过 `take()` 把它“拿出来并置空”
         // 这样类型系统就能表达“外表像可重复调用的回调，但内部资源只能被消费一次”。
-        let runner_slot: WorkflowRunnerSlot = Arc::new(std::sync::Mutex::new(Some(Box::new(move |services| {
-            Box::pin(runner(services))
-        }))));
+        let runner_slot: WorkflowRunnerSlot =
+            Arc::new(std::sync::Mutex::new(Some(Box::new(move |services| {
+                Box::pin(runner(services))
+            }))));
 
         // 这里是另一个很值得学习的点：
         // - workflow 的真实返回值是 `Result<WorkflowExecution>`

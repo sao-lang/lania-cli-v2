@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { getHealth } from './api/modules/system';
 const count = ref(0);
 const apiReadyText = computed(() =>
-  typeof getHealth === 'function' ? '@lania-tools/tools 已集成' : 'API client unavailable',
+  typeof getHealth === 'function' ? 'API client ready' : 'API client unavailable',
 );
 </script>
 

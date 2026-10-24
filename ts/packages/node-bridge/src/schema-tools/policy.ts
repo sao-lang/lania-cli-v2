@@ -24,6 +24,7 @@ export interface ToolsPolicyManager {
   assertInteractionAllowed: (operation: string) => Promise<void>;
   assertGitAllowed: (operation: string) => Promise<void>;
   assertPmAllowed: (operation: string) => Promise<void>;
+  assertRuntimeAllowed: (operation: string) => Promise<void>;
   assertLogAllowed: (operation: string) => Promise<void>;
   assertTasksAllowed: (operation: string) => Promise<void>;
   assertProgressAllowed: (operation: string) => Promise<void>;
@@ -171,6 +172,7 @@ export function createToolsPolicyManager(base: SchemaToolContext): ToolsPolicyMa
     },
     assertGitAllowed: async (operation: string) => assertToolAllowed('git', operation),
     assertPmAllowed: async (operation: string) => assertToolAllowed('pm', operation),
+    assertRuntimeAllowed: async (operation: string) => assertToolAllowed('runtime', operation),
     assertLogAllowed: async (operation: string) => assertToolAllowed('log', operation),
     assertTasksAllowed: async (operation: string) => assertToolAllowed('tasks', operation),
     assertProgressAllowed: async (operation: string) => assertToolAllowed('progress', operation),

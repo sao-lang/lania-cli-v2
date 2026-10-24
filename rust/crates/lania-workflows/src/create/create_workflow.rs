@@ -15,6 +15,7 @@ use lania_exec::{ExecError, ExecErrorCode};
 use lania_format::{FormatMode, FormatOptions, FormatService};
 use lania_fs::PlannedFile;
 use lania_logger::LogLevel;
+use lania_pm::PackageManager;
 use serde_json::{json, Value};
 
 use crate::models::{
@@ -192,7 +193,11 @@ impl CreateWorkflow {
         }
         prompt_state
             .entry("packageManager".into())
-            .or_insert_with(|| json!(default_package_manager(runtime)));
+            .or_insert_with(|| {
+                json!(PackageManager::default_for_language(runtime)
+                    .map(|manager| manager.id())
+                    .unwrap_or("npm"))
+            });
         let requested_package_manager = prompt_state
             .get("packageManager")
             .and_then(Value::as_str)
@@ -212,6 +217,7 @@ impl CreateWorkflow {
         }
         let manager = resolve_package_manager(
             &services.package_manager,
+            runtime,
             requested_package_manager.as_deref(),
         );
         // 非 node 运行时的依赖不是 npm 包，跳过 npm 版本查询，模板直接使用原始依赖列表。
@@ -392,11 +398,7 @@ impl CreateWorkflow {
         if effective_skip_install {
             notes.push("skip-install: package manager commands were skipped".into());
         } else {
-            let install = if runtime == "node" {
-                services.package_manager.install_all_command(manager)
-            } else {
-                runtime_install_command(runtime, requested_package_manager.as_deref())?
-            };
+            let install = services.package_manager.install_all_command(manager)?;
             command_plans.push(command_to_vec(&install));
             if !dry_run_like {
                 if let Err(error) =

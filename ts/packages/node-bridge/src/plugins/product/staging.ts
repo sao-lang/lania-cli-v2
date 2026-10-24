@@ -5,11 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 
 import { asRecord, fileExists } from '../../core/runtime.js';
 
-import {
-  OFFICIAL_DARWIN_ARM64_PACKAGE_NAME,
-  packageRoot,
-  repoRoot,
-} from './constants.js';
+import { OFFICIAL_DARWIN_ARM64_PACKAGE_NAME, packageRoot, repoRoot } from './constants.js';
 import { copyDirectory, readJsonFile, stageRuntimePackage } from './fs.js';
 import type {
   OfficialPlatformPackageDescriptor,
@@ -36,6 +32,12 @@ export async function stageNodeBridgePayload(targetDir: string): Promise<void> {
   const nodeModulesTarget = join(targetDir, 'node_modules');
   await mkdir(nodeModulesTarget, { recursive: true });
 
+  // 测试只需要验证发布布局，不需要反复复制约 80MB 的运行时依赖；
+  // 这是测试专用开关，正常 pack/publish 不应设置。
+  if (process.env.LANIA_PRODUCT_TEST_SKIP_NODE_BRIDGE_DEPS === '1') {
+    return;
+  }
+
   const nodeBridgePackage = await readJsonFile(join(packageRoot, 'package.json'));
   const runtimeDependencies = [
     ...Object.keys(asRecord(nodeBridgePackage.dependencies)),
@@ -49,11 +51,16 @@ export async function stageNodeBridgePayload(targetDir: string): Promise<void> {
 
 export function runNpmPack(outputRoot: string): { filename: string } {
   // `npm pack --json` 返回的是“已生成 tarball 列表”，这里统一只取第一项。
+  // 产品包会包含 node-bridge/node_modules，JSON 清单可能超过默认 1MB buffer。
   const result = spawnSync('npm', ['pack', '--json', '--ignore-scripts'], {
     cwd: outputRoot,
     encoding: 'utf8',
     env: process.env,
+    maxBuffer: 64 * 1024 * 1024,
   });
+  if (result.error) {
+    throw new Error(`npm pack failed in ${outputRoot}: ${result.error.message}`);
+  }
   if (result.status !== 0) {
     throw new Error(
       `npm pack failed in ${outputRoot}: ${result.stderr || result.stdout || 'unknown error'}`,
@@ -208,7 +215,10 @@ child.on('exit', (code, signal) => {
   return wrapperPath;
 }
 
-export async function stagePublishedWrapper(outputRoot: string, binaryName: string): Promise<string> {
+export async function stagePublishedWrapper(
+  outputRoot: string,
+  binaryName: string,
+): Promise<string> {
   // npm 发布包模式下的 wrapper：
   // 它需要先从可选依赖里解析出当前平台对应的二进制包，再转而执行那个真实二进制。
   // 这层 wrapper 的价值在于把“平台选择 + 环境变量注入”从业务 CLI 本体里剥离出来。
@@ -360,7 +370,9 @@ async function discoverOfficialPlatformPackages(): Promise<OfficialPlatformPacka
     const packageDirName = packageName.replace('@lania-cli/', '');
     const packageRootDir = join(repoRoot, 'npm', packageDirName);
     const packageExists = await fileExists(join(packageRootDir, 'package.json'));
-    const packageJson = packageExists ? await readJsonFile(join(packageRootDir, 'package.json')) : {};
+    const packageJson = packageExists
+      ? await readJsonFile(join(packageRootDir, 'package.json'))
+      : {};
     const osValue = Array.isArray(packageJson.os) ? packageJson.os[0] : null;
     const cpuValue = Array.isArray(packageJson.cpu) ? packageJson.cpu[0] : null;
 
@@ -484,7 +496,9 @@ function resolvePlatformBinaryDirCandidatesFromEnv(
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .map((value) => value.trim());
 
-  return values.flatMap((value) => buildPlatformBinaryDirCandidates(value, descriptor, 'environment'));
+  return values.flatMap((value) =>
+    buildPlatformBinaryDirCandidates(value, descriptor, 'environment'),
+  );
 }
 
 function buildPlatformBinaryDirCandidates(
