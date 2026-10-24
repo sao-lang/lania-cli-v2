@@ -15,6 +15,7 @@
 //! - `tools.rs`：tool_* 专用渲染
 
 mod common;
+mod env;
 mod product;
 mod system;
 mod template;
@@ -85,6 +86,10 @@ fn render_human_output_with_locale(value: &Value, locale: &str) -> String {
         Some("template_info") => template::render_template_info_human(&payload, locale),
         Some("config") => render_config_human(&payload, locale),
         Some("product_inspect") => product::render_product_inspect_human(&payload, locale),
+        Some(kind) if kind.starts_with("env_") => match env::render_env_human(&payload, locale) {
+            Some(rendered) => rendered,
+            None => render_pretty_json(&payload).unwrap_or_else(|_| payload.to_string()),
+        },
         _ => render_pretty_json(&payload).unwrap_or_else(|_| payload.to_string()),
     };
 

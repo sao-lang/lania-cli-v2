@@ -1,14 +1,16 @@
 //! 支持管理的语言 / 运行时。
 //!
-//! 每种语言的探测方式、候选管理器、附属工具、项目版本文件都集中在这张表的
-//! 一个分支里，新增语言只需要：
+//! 每种语言的探测方式、附属工具、项目版本文件都集中在这张表的一个分支里，
+//! 新增语言只需要：
 //! 1. 在枚举里加一个变体
 //! 2. 在 `spec()` 里补齐该语言的一行元数据
 //! 3. 在 `parse_id()` 里加上别名
+//!
+//! 「怎么安装 / 从哪下载」不在这张表里：第一批语言由
+//! [`crate::provider`] 的 Provider 负责，后续语言逐步补齐。
 
 use serde::Serialize;
 
-use crate::ManagerKind;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Language {
@@ -60,18 +62,10 @@ struct LanguageSpec {
     name: &'static str,
     /// 用于 `--version` 探测的可执行文件名（按顺序尝试）
     probes: &'static [&'static str],
-    /// 候选版本管理器（顺序即偏好）
-    managers: &'static [ManagerKind],
     /// 附带展示的包管理器（含依赖/构建工具）；不包含 lint、格式化、LSP、编译器。
     companions: &'static [&'static str],
     /// 项目级版本锁定文件
     version_files: &'static [&'static str],
-}
-
-macro_rules! managers {
-    ($($m:ident),* $(,)?) => {
-        &[$(ManagerKind::$m),*]
-    };
 }
 
 fn spec(language: Language) -> LanguageSpec {
@@ -80,7 +74,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "node",
             name: "Node.js",
             probes: &["node"],
-            managers: managers![Nvm, Fnm, Volta, N, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["npm", "pnpm", "yarn", "corepack"],
             version_files: &[".nvmrc", ".node-version"],
         },
@@ -88,7 +81,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "deno",
             name: "Deno",
             probes: &["deno"],
-            managers: managers![Denoup, Asdf, Mise, Scoop, Winget, Brew],
             companions: &[],
             version_files: &[],
         },
@@ -96,7 +88,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "bun",
             name: "Bun",
             probes: &["bun"],
-            managers: managers![Bunup, Asdf, Mise, Scoop, Winget, Brew],
             companions: &[],
             version_files: &[".bun-version"],
         },
@@ -104,7 +95,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "python",
             name: "Python",
             probes: &["python3", "python"],
-            managers: managers![Pyenv, Uv, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["pip", "pipx", "poetry"],
             version_files: &[".python-version"],
         },
@@ -112,7 +102,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "rust",
             name: "Rust",
             probes: &["rustc"],
-            managers: managers![Rustup],
             companions: &["cargo"],
             version_files: &["rust-toolchain.toml", "rust-toolchain"],
         },
@@ -120,7 +109,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "go",
             name: "Go",
             probes: &["go"],
-            managers: managers![GoInstall, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &[],
             version_files: &["go.mod"],
         },
@@ -128,7 +116,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "zig",
             name: "Zig",
             probes: &["zig"],
-            managers: managers![ZigVm, Asdf, Mise, Scoop, Winget, Brew],
             companions: &[],
             version_files: &[".zigversion"],
         },
@@ -136,7 +123,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "dart",
             name: "Dart",
             probes: &["dart"],
-            managers: managers![Fvm, Asdf, Scoop, Winget, Brew, Apt],
             companions: &["pub"],
             version_files: &[".fvmrc", "pubspec.yaml"],
         },
@@ -144,7 +130,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "kotlin",
             name: "Kotlin",
             probes: &["kotlinc", "kotlin"],
-            managers: managers![Sdkman, Asdf, Mise, Scoop, Winget, Brew],
             companions: &["gradle"],
             version_files: &[".sdkmanrc"],
         },
@@ -152,7 +137,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "java",
             name: "Java",
             probes: &["java"],
-            managers: managers![Sdkman, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["mvn", "gradle"],
             version_files: &[".sdkmanrc", ".java-version"],
         },
@@ -160,7 +144,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "scala",
             name: "Scala",
             probes: &["scala", "scalac"],
-            managers: managers![Sdkman, Coursier, Asdf, Mise, Brew, Apt],
             companions: &["sbt"],
             version_files: &[".sdkmanrc"],
         },
@@ -168,7 +151,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "groovy",
             name: "Groovy",
             probes: &["groovy"],
-            managers: managers![Sdkman, Asdf, Mise, Scoop, Brew, Apt],
             companions: &[],
             version_files: &[".sdkmanrc"],
         },
@@ -176,7 +158,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "c",
             name: "C",
             probes: &["gcc", "clang", "cc"],
-            managers: managers![Scoop, Winget, Brew, Apt],
             companions: &[],
             version_files: &[],
         },
@@ -184,7 +165,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "cpp",
             name: "C++",
             probes: &["g++", "clang++", "c++"],
-            managers: managers![Scoop, Winget, Brew, Apt],
             companions: &[],
             version_files: &[],
         },
@@ -192,7 +172,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "csharp",
             name: "C#",
             probes: &["dotnet"],
-            managers: managers![Dotnet, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["nuget"],
             version_files: &["global.json"],
         },
@@ -200,7 +179,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "fsharp",
             name: "F#",
             probes: &["dotnet"],
-            managers: managers![Dotnet, Asdf, Mise, Scoop, Winget, Brew],
             companions: &[],
             version_files: &["global.json"],
         },
@@ -208,7 +186,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "swift",
             name: "Swift",
             probes: &["swift"],
-            managers: managers![Swiftenv, Asdf, Mise, Scoop, Winget, Brew],
             companions: &[],
             version_files: &[".swift-version"],
         },
@@ -216,7 +193,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "ruby",
             name: "Ruby",
             probes: &["ruby"],
-            managers: managers![Rbenv, Rvm, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["gem", "bundler"],
             version_files: &[".ruby-version"],
         },
@@ -224,7 +200,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "php",
             name: "PHP",
             probes: &["php"],
-            managers: managers![Phpenv, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["composer"],
             version_files: &[".php-version"],
         },
@@ -232,7 +207,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "perl",
             name: "Perl",
             probes: &["perl"],
-            managers: managers![Plenv, Asdf, Mise, Scoop, Brew, Apt],
             companions: &["cpan", "cpanm"],
             version_files: &[".perl-version"],
         },
@@ -240,7 +214,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "lua",
             name: "Lua",
             probes: &["lua"],
-            managers: managers![Luaver, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["luarocks"],
             version_files: &[".lua-version"],
         },
@@ -248,7 +221,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "elixir",
             name: "Elixir",
             probes: &["elixir"],
-            managers: managers![Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["mix"],
             version_files: &[".tool-versions"],
         },
@@ -256,7 +228,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "erlang",
             name: "Erlang",
             probes: &["erl"],
-            managers: managers![KerL, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &["rebar3"],
             version_files: &[".tool-versions"],
         },
@@ -264,7 +235,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "haskell",
             name: "Haskell",
             probes: &["ghc"],
-            managers: managers![GhcUp, Asdf, Mise, Brew, Apt],
             companions: &["cabal", "stack"],
             version_files: &[".tool-versions"],
         },
@@ -272,7 +242,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "julia",
             name: "Julia",
             probes: &["julia"],
-            managers: managers![Juliaup, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &[],
             version_files: &[".julia-version"],
         },
@@ -280,7 +249,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "r",
             name: "R",
             probes: &["R", "Rscript"],
-            managers: managers![Rig, Asdf, Mise, Scoop, Winget, Brew, Apt],
             companions: &[],
             version_files: &[".Rversion"],
         },
@@ -288,7 +256,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "nim",
             name: "Nim",
             probes: &["nim"],
-            managers: managers![Choosenim, Asdf, Mise, Scoop, Brew],
             companions: &["nimble"],
             version_files: &[],
         },
@@ -296,7 +263,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "crystal",
             name: "Crystal",
             probes: &["crystal"],
-            managers: managers![Asdf, Mise, Brew, Apt],
             companions: &["shards"],
             version_files: &[".crystal-version"],
         },
@@ -304,7 +270,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "ocaml",
             name: "OCaml",
             probes: &["ocaml"],
-            managers: managers![Opam, Asdf, Mise, Brew, Apt],
             companions: &["opam"],
             version_files: &[".ocaml-version"],
         },
@@ -312,7 +277,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "clojure",
             name: "Clojure",
             probes: &["clojure", "clj"],
-            managers: managers![Cljup, Sdkman, Asdf, Mise, Brew, Apt],
             companions: &["lein"],
             version_files: &[".tool-versions"],
         },
@@ -320,9 +284,7 @@ fn spec(language: Language) -> LanguageSpec {
             id: "moonbit",
             name: "MoonBit",
             probes: &["moon"],
-            // MoonBit 官方工具链自带版本管理（`moon version --all`、
             // `moon toolchain`），没有第三方管理器可对接。
-            managers: managers![Moonup],
             companions: &[],
             version_files: &["moon.mod.json"],
         },
@@ -331,7 +293,6 @@ fn spec(language: Language) -> LanguageSpec {
             name: "Cangjie",
             probes: &["cjc", "cjpm"],
             // 华为仓颉：官方随 DevEco / Cangjie SDK 分发，无社区管理器。
-            managers: managers![Cangjieup],
             companions: &["cjpm"],
             version_files: &["cjpm.toml"],
         },
@@ -340,7 +301,6 @@ fn spec(language: Language) -> LanguageSpec {
             name: "ArkTS",
             probes: &["ark", "ohpm", "hvigorw"],
             // 鸿蒙（HarmonyOS）应用开发：SDK 随 DevEco Studio 管理。
-            managers: managers![Deveco],
             companions: &["ohpm"],
             version_files: &["oh-package.json5", "build-profile.json5"],
         },
@@ -348,7 +308,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "solidity",
             name: "Solidity",
             probes: &["solc", "forge"],
-            managers: managers![Foundryup, Asdf, Mise, Brew, Apt],
             companions: &["forge"],
             version_files: &["foundry.toml"],
         },
@@ -356,7 +315,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "fortran",
             name: "Fortran",
             probes: &["gfortran", "flang", "ifort"],
-            managers: managers![Asdf, Mise, Brew, Apt],
             companions: &["fpm"],
             version_files: &[".fpm-version"],
         },
@@ -364,7 +322,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "d",
             name: "D",
             probes: &["dmd", "ldc2", "gdc"],
-            managers: managers![Asdf, Mise, Brew, Apt],
             companions: &["dub"],
             version_files: &["dub.json", "dub.sdl"],
         },
@@ -372,7 +329,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "v",
             name: "V",
             probes: &["v"],
-            managers: managers![Vup, Asdf, Mise, Brew],
             companions: &["vpm"],
             version_files: &["v.mod"],
         },
@@ -380,7 +336,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "gleam",
             name: "Gleam",
             probes: &["gleam"],
-            managers: managers![Asdf, Mise, Brew, Apt],
             companions: &["rebar3"],
             version_files: &["gleam.toml"],
         },
@@ -388,7 +343,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "haxe",
             name: "Haxe",
             probes: &["haxe"],
-            managers: managers![Haxelihx, Asdf, Mise, Brew, Apt],
             companions: &["haxelib"],
             version_files: &["haxelib.json"],
         },
@@ -396,7 +350,6 @@ fn spec(language: Language) -> LanguageSpec {
             id: "elm",
             name: "Elm",
             probes: &["elm"],
-            managers: managers![Asdf, Mise, Brew, Apt],
             companions: &[],
             version_files: &["elm.json"],
         },
@@ -496,11 +449,6 @@ impl Language {
             (Self::Elm, false) => "Functional frontend language",
             (Self::Elm, true) => "前端函数式语言",
         }
-    }
-
-    /// 该语言通常由哪些管理器负责安装。顺序即偏好顺序。
-    pub fn managers(self) -> Vec<ManagerKind> {
-        spec(self).managers.to_vec()
     }
 
     /// 用于 `--version` 探测的可执行文件名（按顺序尝试）。

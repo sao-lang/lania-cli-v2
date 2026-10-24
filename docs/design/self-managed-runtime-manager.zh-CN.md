@@ -1,9 +1,12 @@
 # 自管版本管理器技术方案
 
-> 状态：**待评审**。目标读者：能直接据此开工的 builder。
+> 状态：**第一批已落地**（Node / Python / Go / Rust / Deno / Bun / Zig）。
+> 目标读者：能直接据此开工的 builder。
 > 决策来源：需求方明确要求「lania 自己做版本管理器，不再转发给 nvm/volta 等」，
 > 范围为 **只管理运行时环境**（安装/切换/卸载/列举），**不做全局包管理**，
-> 覆盖代码中全部 36 种语言，并 **replace** 现有的探测/转发层。
+> 覆盖代码中全部 40 种语言，并 **replace** 现有的探测/转发层。
+>
+> 落地情况见文末 §10「第一批实现记录」。
 
 ## 1. 意图与动机
 
@@ -353,3 +356,81 @@ C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的�
   而不是「降级到外部管理器」。这一点需要在上表逐条确认后再开工。
 
 > 全局包管理已明确移出本方案（见 §4），不再作为待决策项。
+
+## 10. 第一批实现记录
+
+### 10.1 已交付范围
+
+| 语言   | 上游                              | 产物                        | 校验和来源                     |
+| ------ | --------------------------------- | --------------------------- | ------------------------------ |
+| Node   | nodejs.org/dist                   | `tar.gz` / `zip`            | `SHASUMS256.txt`               |
+| Python | astral-sh/python-build-standalone | `*-install_only.tar.gz`     | GitHub asset `digest`          |
+| Go     | go.dev/dl                         | `tar.gz` / `zip`            | 上游未提供（做结构完整性校验） |
+| Rust   | static.rust-lang.org              | `rust-*` + `cargo-*` 组件包 | 上游未提供（做结构完整性校验） |
+| Deno   | github.com/denoland/deno/releases | `zip` 单文件                | GitHub asset `digest`          |
+| Bun    | github.com/oven-sh/bun/releases   | `zip` 单文件                | GitHub asset `digest`          |
+| Zig    | ziglang.org/download              | `tar.xz` 单目录             | `index.json` 的 `shasum`       |
+
+模块划分（`rust/crates/lania-env/src/`）：
+
+```text
+archive.rs   tar.gz / tar.xz / tar.zst / zip 解压 + 完整性校验
+checksum.rs  sha256 计算、上游清单解析（GNU / BSD 两种风格）
+detect.rs    只读探测（lania 自管版本优先，其次 PATH）
+error.rs     分类错误（Platform / Network / Verify / Archive / Unexpected）
+home.rs      ~/.runex 布局（RUNEX_HOME 覆盖）
+http.rs      阻塞式 GET（重试 / 代理 / GitHub token / 截断检测）
+platform.rs  OS / arch / libc 探测
+provider/    每种语言一个 Provider（model.rs 定义契约）
+shims.rs     ~/.runex/shims 生成（POSIX 脚本 + Windows .cmd）
+state.rs     state.json 与每版本 .runex-meta.json
+store.rs     安装 / 切换 / 卸载 / 列举 / which / doctor
+version.rs   版本解析、前缀匹配、稳定版优先
+plan.rs      dry-run 计划与执行（不再有 ManagerKind）
+```
+
+命令面（`lan env`）：
+
+| 子命令                 | 作用                                                  |
+| ---------------------- | ----------------------------------------------------- |
+| `install <tool> <ver>` | 下载 + 校验 + 解压 + 登记 + 生成 shim                 |
+| `use <tool> <ver>`     | 改 current 指针 + 重写 shim（`--project` 写版本文件） |
+| `remove <tool> <ver>`  | 删除自管目录；删当前版本时回退到剩余最高版本          |
+| `list [tool]`          | 列出工具与探测版本；`--installed` 只读自管清单        |
+| `info <tool>`          | 单个工具详情 + `provider` 能力                        |
+| `versions <tool>`      | 已安装版本；`--available` 额外查上游                  |
+| `which <name>`         | 输出入口对应的真实路径（shim 依赖它）                 |
+| `init [--shell]`       | 打印把 `~/.runex/shims` 加入 PATH 的片段              |
+| `doctor`               | 自管状态 / 缺失 / 外部安装 / shim 与 PATH 诊断        |
+| `ui`                   | 终端 TUI                                              |
+
+### 10.2 与方案原文的偏差（逐条说明）
+
+| #   | 方案原文                                                 | 实际实现                                                                     | 原因                                                                           |
+| --- | -------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 1   | Windows shim 用 Rust 编译的极小 launcher                 | 小程序用 `.cmd` 直接指向版本目录内的绝对路径；同时保留 POSIX 脚本给 Git Bash | 少一个产物、`node -v` 少一次进程启动；`use` 时重写绝对路径即可，无需额外二进制 |
+| 2   | POSIX shim `exec "$(lan env which node --resolve)" "$@"` | 保留原方案                                                                   | 切换版本后立即生效                                                             |
+| 3   | Python 用 `tar.zst` + strip                              | 改用 `install_only.tar.gz`（同源同内容，只是免去 `zstd` 强依赖的下载路径）   | `install_only.tar.gz` 已是扁平 `python/` 布局，无需 strip                      |
+| 4   | Rust 采用 `rustup` 元数据                                | 直接读 `channel-rust-stable.toml`，下载 `rust` + `cargo` 两个组件包并合并    | 不引入 rustup；组件包合并后即为可用的 `bin/`、`lib/`、`share/`                 |
+| 5   | `detect.rs` 保留为「导入外部运行时」                     | 保留为**只读探测**（`source: system`），不提供导入命令                       | 导入涉及复制系统目录，风险与收益不成正比，留待后续评估                         |
+| 6   | 目录名 `RUNEX_HOME`                                      | 环境变量为 `RUNEX_HOME`，目录为 `~/.runex`                                   | 与决策 2 一致                                                                  |
+
+### 10.3 第一批暴露的问题与处理
+
+| 问题                                              | 现象                                       | 处理                                                                          |
+| ------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
+| `ureq` 全局超时把大文件下载判成超时               | `timeout: global`，30 秒必然失败           | 改为只限制 connect / 单次读取；下载总时限单独用 `RUNEX_DOWNLOAD_TIMEOUT_SECS` |
+| 响应提前结束导致**静默截断**                      | 420MB 的 Rust 包只写 170MB，解压才报错     | 下载后比对 `Content-Length` 并校验归档结构；不一致立即删除缓存文件            |
+| GitHub API `per_page=100` 对超大仓库直接 504      | python-build-standalone 永远拿不到版本清单 | 改为 `per_page=20` 分页，首页失败即报错、后续页失败用已有结果                 |
+| GitHub API 匿名配额 60 次/小时                    | 反复调试后 403                             | 支持 `GITHUB_TOKEN` / `GH_TOKEN`（5000 次/小时），403 错误信息直接提示怎么解  |
+| `channel-rust-stable.toml` 没有根层 `version`     | 拿到 `0.100.0`（cargo 版本）而不是 1.99.1  | 改为按 `[pkg.rust]` 段解析；`pkg.cargo` 只作兜底                              |
+| python-build-standalone 每个 release 含多个次版本 | 只取第一个 asset，`3.12` 永远匹配不到      | 遍历全部 asset，按 `X.Y.Z` 去重（新 → 旧取第一个）                            |
+| `lan env install go 1.22` 装到 `1.22rc2`          | 前缀匹配先命中预发布                       | `pick_best` 优先稳定版，只有无稳定版时才用预发布                              |
+| 删除 current 版本后未回退                         | current 指针悬空、shim 指向已删除目录      | 先清指针再删目录，然后 `use` 剩余最高版本；无剩余则删 shim                    |
+| Rust 组件包解压后是 `rust-*/` + `cargo-*/` 嵌套   | `bin/` 不在根上，shim 找不到入口           | `materialize` 识别「全部带 `bin/` 的组件目录」并逐层合并                      |
+
+### 10.4 尚未覆盖（第二批 / 第三批）
+
+- Java / Kotlin / Scala / Dart / Swift / D / V / Julia / Haskell 等：`provider::is_planned` 已列出，`install` 会明确提示尚未自管。
+- 第三批（Ruby / PHP / Lua / C / C++ / C# 等）仍需按 §6.3 逐条确认上游可行性。
+- `lan env gc`（清理未使用版本与下载缓存）尚未实现；当前缓存只增不减。

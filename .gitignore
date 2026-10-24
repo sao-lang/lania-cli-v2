@@ -55,7 +55,8 @@ temp/
 
 .lania
 
-lania-cli
+# 注意：不要写裸 `lania-cli`，它会连带忽略 rust/crates/lania-cli/ 下的新文件。
+/lania-cli
 
 # Superpowers scratch
 .superpowers/

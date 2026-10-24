@@ -1,16 +1,14 @@
-//! 把用户意图（安装 / 切换 / 删除 / 设为默认）翻译成可执行的步骤计划。
+//! 把用户意图（安装 / 切换 / 删除）翻译成**自管运行时**的可执行计划。
 //!
-//! 这是 CLI 与 GUI 的**唯一共享决策层**：
-//! - CLI 拿到 `EnvPlan` 后决定是打印还是执行；
-//! - GUI 拿到同一份 `EnvPlan` 后展示给用户确认再调用同一个执行入口。
+//! 这里不再选择任何外部版本管理器：`lan env` 只有一条路径，
+//! 由 [`crate::RuntimeStore`] 自己下载、校验、解压、登记。
 //!
-//! 每个步骤都显式声明 `program` / `args`，不以字符串拼接命令，
-//! 从而在 shell 注入方面保持安全（`use_shell` 仅用于 nvm/sdkman 这类 shell 函数）。
+//! `EnvPlan` 仍然保留「先给计划、再执行」的语义（CLI 默认 dry-run、TUI 先弹确认框），
+//! 只是步骤内容从「调用 nvm/volta」变成「lania 自己的动作」。
 
-use anyhow::anyhow;
 use serde::Serialize;
 
-use crate::{Language, ManagerKind, ManagerProbe};
+use crate::{Language, RuntimeHome, RuntimeStore};
 
 /// 用户可执行的环境操作。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -19,7 +17,6 @@ pub enum EnvAction {
     Install,
     Use,
     Remove,
-    UninstallManagerVersion,
 }
 
 impl EnvAction {
@@ -28,7 +25,6 @@ impl EnvAction {
             Self::Install => "install",
             Self::Use => "use",
             Self::Remove => "remove",
-            Self::UninstallManagerVersion => "uninstall",
         }
     }
 
@@ -43,81 +39,56 @@ impl EnvAction {
 }
 
 /// 计划中的单个执行步骤。
-#[derive(Debug, Clone, Serialize)]
+///
+/// `kind` 决定 CLI/TUI 如何执行：
+/// - `install` / `use` / `remove`：调用 Store 的对应方法（lania 内部动作）；
+/// - `write-file`：写入/清除项目版本文件（不经过 Store）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanStep {
-    pub program: String,
-    pub args: Vec<String>,
-    /// 为 true 时通过 shell 调用 shell 函数（nvm/sdkman）。
-    /// 此时 `args` 是**已校验**的位置参数，由 `shell_function_script` 安全拼接。
-    pub use_shell: bool,
-    /// 供展示的完整命令文本。
-    pub command: String,
-    /// 该步骤的用途说明（人类可读）。
+    /// `install` | `use` | `remove` | `write-file`
+    pub kind: String,
+    /// 人类可读的步骤说明（同时是 dry-run 的主输出）。
     pub label: String,
+    /// 等价的 CLI 文本，便于复制到脚本里复现。
+    pub command: String,
+    /// `write-file` 专用：目标路径。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// `write-file` 专用：写入内容（空字符串表示删除文件）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
 }
 
 impl PlanStep {
-    fn direct(program: &str, args: Vec<String>, label: impl Into<String>) -> Self {
-        let command = std::iter::once(program.to_string())
-            .chain(args.iter().cloned())
-            .map(|part| quote_if_needed(&part))
-            .collect::<Vec<_>>()
-            .join(" ");
+    fn new(kind: &str, label: impl Into<String>, command: impl Into<String>) -> Self {
         Self {
-            program: program.to_string(),
-            args,
-            use_shell: false,
-            command,
+            kind: kind.to_string(),
             label: label.into(),
+            command: command.into(),
+            path: None,
+            content: None,
         }
     }
 
-    /// 调用 shell 函数（如 `nvm install 20`）。
-    ///
-    /// 安全约束：`func` 必须是内置白名单里的字面量，`args` 只允许版本号 / 语言名等
-    /// 经过 `sanitize_shell_token` 校验的片段，从而杜绝命令注入。
-    fn shell_function(func: &str, args: &[&str], label: impl Into<String>) -> Self {
-        let script = shell_function_script(func, args);
-        Self {
-            program: if cfg!(windows) { "cmd" } else { "bash" }.to_string(),
-            args: if cfg!(windows) {
-                vec!["/C".into(), script.clone()]
-            } else {
-                vec!["-lc".into(), script.clone()]
-            },
-            use_shell: true,
-            command: script,
-            label: label.into(),
-        }
-    }
-
-    /// 写入项目版本文件的步骤（不需要外部程序）。
     fn write_file(path: &str, content: &str, label: impl Into<String>) -> Self {
         Self {
-            program: "write-file".into(),
-            args: vec![path.into(), content.into()],
-            use_shell: false,
-            command: format!("write {path} <- {content}"),
+            kind: "write-file".into(),
             label: label.into(),
+            command: format!("write {path} <- {content}"),
+            path: Some(path.to_string()),
+            content: Some(content.to_string()),
         }
-    }
-
-    /// 供执行层复用的实际脚本（`use_shell` 步骤专用）。
-    pub fn shell_script(&self) -> Option<String> {
-        if !self.use_shell {
-            return None;
-        }
-        self.args.last().cloned()
     }
 }
 
-/// 允许出现在 shell 命令里的字符集合：版本号、语言名、`@`、`.`、`-`、`_`、`+`、`/`。
+/// 版本号白名单：只允许字母、数字与 `. - _ + @ /`。
 ///
-/// 任何其它字符都会被拒绝，而不是“转义后放行”——CLI 的版本参数不需要它们。
-pub fn validate_shell_token(value: &str) -> Option<&str> {
+/// 版本号会进入下载 URL 与版本目录名，入口处统一校验，
+/// 避免把 `../` 之类的路径片段带进安装目录。
+pub fn validate_version(value: &str) -> Option<&str> {
     let trimmed = value.trim();
-    if trimmed.is_empty() || trimmed.len() > 64 {
+    if trimmed.is_empty() || trimmed.len() > 64 || trimmed.contains("..") {
         return None;
     }
     let valid = trimmed
@@ -126,46 +97,20 @@ pub fn validate_shell_token(value: &str) -> Option<&str> {
     valid.then_some(trimmed)
 }
 
-fn shell_function_script(func: &str, args: &[&str]) -> String {
-    debug_assert!(matches!(func, "nvm" | "sdk" | "sdkman"));
-    let mut parts = vec![func.to_string()];
-    for arg in args {
-        // 非法的片段会被丢弃，宁可少传参数也不拼接任意内容。
-        if let Some(safe) = validate_shell_token(arg) {
-            parts.push(safe.to_string());
-        }
-    }
-    let call = parts.join(" ");
-    // `sdk` 是 SDKMAN 的 shell 函数，非交互 shell 里必须先初始化；
-    // 初始化脚本缺失时退回直接调用（用户手动 source 过的情况）。
-    if func == "sdk" || func == "sdkman" {
-        return format!(
-            "if [ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]; then \
-             . \"$HOME/.sdkman/bin/sdkman-init.sh\"; fi; {call}"
-        );
-    }
-    if func == "nvm" {
-        return format!(
-            "if [ -s \"$HOME/.nvm/nvm.sh\" ]; then . \"$HOME/.nvm/nvm.sh\"; fi; {call}"
-        );
-    }
-    call
-}
-
 /// 一次环境操作的完整计划。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvPlan {
     pub action: EnvAction,
     pub language: Language,
     pub tool: String,
     pub version: Option<String>,
-    pub manager: Option<ManagerKind>,
-    pub manager_available: bool,
+    /// 是否由 lania 自己管理（第一批语言为 true）。
+    pub managed: bool,
     pub steps: Vec<PlanStep>,
     /// 无法生成计划时的原因。
     pub error: Option<String>,
-    /// 提醒用户注意的附加说明（例如需要重开终端）。
+    /// 提醒用户注意的附加说明。
     pub notes: Vec<String>,
 }
 
@@ -173,813 +118,284 @@ impl EnvPlan {
     pub fn is_runnable(&self) -> bool {
         self.error.is_none() && !self.steps.is_empty()
     }
-}
 
-/// 为某个语言选择“最合适的”可用管理器。
-pub fn pick_manager(language: Language, preferred: Option<ManagerKind>) -> Option<ManagerProbe> {
-    // 有些管理器虽然本机可用，但对特定语言没有可用的包（例如 winget 里
-    // 没有 MoonBit / Cangjie）。这类组合必须排除，否则会生成空 ID 的命令。
-    let usable = |manager: ManagerKind| -> bool {
-        if manager == ManagerKind::Winget {
-            return !winget_id(language).is_empty();
-        }
-        true
-    };
-    if let Some(preferred) = preferred {
-        let probe = crate::managers::probe(preferred);
-        if probe.available && usable(preferred) {
-            return Some(probe);
-        }
-    }
-    language
-        .managers()
-        .into_iter()
-        .filter(|manager| usable(*manager))
-        .map(crate::managers::probe)
-        .find(|probe| probe.available)
-}
-
-/// 构建环境操作计划。
-pub fn build_plan(
-    action: EnvAction,
-    tool: &str,
-    version: Option<&str>,
-    preferred_manager: Option<ManagerKind>,
-    cwd: &std::path::Path,
-    project_scope: bool,
-) -> EnvPlan {
-    let Some(language) = Language::parse_id(tool) else {
-        return EnvPlan {
+    fn failed(action: EnvAction, tool: &str, version: Option<&str>, error: String) -> Self {
+        Self {
             action,
             language: Language::Node,
             tool: tool.to_string(),
             version: version.map(ToOwned::to_owned),
-            manager: None,
-            manager_available: false,
+            managed: false,
             steps: Vec::new(),
-            error: Some(format!(
-                "unsupported tool `{tool}`; supported: node, python, rust, go, dart, kotlin, java, c"
-            )),
+            error: Some(error),
             notes: Vec::new(),
-        };
+        }
+    }
+}
+
+/// 构建环境操作计划。
+///
+/// `cwd` 只用于项目级 pin 的路径；`home` 仅用于说明文本里的真实路径，
+/// 不存在的目录不会在这里创建（真正落盘发生在执行阶段）。
+pub fn build_plan(
+    action: EnvAction,
+    tool: &str,
+    version: Option<&str>,
+    cwd: &std::path::Path,
+    project_scope: bool,
+) -> EnvPlan {
+    let Some(language) = Language::parse_id(tool) else {
+        return EnvPlan::failed(
+            action,
+            tool,
+            version,
+            format!(
+                "unsupported tool `{tool}`; supported: {}",
+                crate::supported_language_ids().join(", ")
+            ),
+        );
     };
 
-    let manager = pick_manager(language, preferred_manager);
+    let language_id = language.id();
+    let managed = crate::supported_language_ids().contains(&language_id);
     let mut notes = Vec::new();
     let mut steps = Vec::new();
     let mut error = None;
 
-    // 版本号会被拼入 shell 函数调用（nvm / sdkman），因此必须在入口处校验。
     if let Some(version) = version {
-        if validate_shell_token(version).is_none() {
+        if validate_version(version).is_none() {
             error = Some(format!(
                 "invalid version `{version}`: only letters, digits and . - _ + @ / are allowed"
             ));
         }
     }
 
-    if error.is_some() {
-        return EnvPlan {
-            action,
-            language,
-            tool: language.id().to_string(),
-            version: version.map(ToOwned::to_owned),
-            manager: manager.as_ref().map(|probe| probe.manager),
-            manager_available: manager.is_some(),
-            steps,
-            error,
-            notes: vec!["use a plain version such as 20, 3.12, stable or 1.86.0".to_string()],
-        };
+    if error.is_none() && !managed {
+        error = Some(format!(
+            "{language_id} is not self-managed yet; available now: {}",
+            crate::supported_language_ids().join(", ")
+        ));
     }
 
-    match action {
-        EnvAction::Install => match version {
-            None => {
-                error = Some("install requires a version, e.g. `lan env install node 20`".into())
-            }
-            Some(version) => match manager.as_ref() {
-                Some(probe) => steps.extend(install_steps(language, probe.manager, version)),
-                None => error = Some(no_manager_message(language)),
+    if error.is_none() {
+        match action {
+            EnvAction::Install => match version {
+                None => {
+                    error = Some(format!(
+                        "install requires a version, e.g. `lan env install {language_id} 20`"
+                    ))
+                }
+                Some(version) => {
+                    let home = RuntimeHome::resolve()
+                        .map(|home| home.display_for_shell(&home.runtimes_dir()))
+                        .unwrap_or_else(|_| "~/.runex/runtimes".to_string());
+                    steps.push(PlanStep::new(
+                        "install",
+                        format!(
+                            "download {language_id} {version} from {} into {home}/{language_id}",
+                            crate::provider::upstream_for(language_id)
+                        ),
+                        format!("lan env install {language_id} {version} --yes"),
+                    ));
+                }
             },
-        },
-        EnvAction::Use => {
-            if let Some(probe) = manager.as_ref() {
-                steps.extend(use_steps(language, probe.manager, version));
-            }
-            if project_scope {
-                let file = language
-                    .version_files()
-                    .first()
-                    .copied()
-                    .ok_or_else(|| anyhow!("{} has no project version file", language.id()));
-                match (file, version) {
-                    (Ok(file), Some(version)) => steps.push(PlanStep::write_file(
-                        &cwd.join(file).display().to_string(),
+            EnvAction::Use => match version {
+                Some(_) => steps.push(PlanStep::new(
+                    "use",
+                    format!("point {language_id} at the requested version and regenerate shims"),
+                    format!(
+                        "lan env use {language_id} {} --yes",
+                        version.unwrap_or_default()
+                    ),
+                )),
+                None if project_scope => {}
+                None => {
+                    error = Some(
+                        "use requires a version (or --project to clear the project pin)".into(),
+                    )
+                }
+            },
+            EnvAction::Remove => match version {
+                Some(version) => steps.push(PlanStep::new(
+                    "remove",
+                    format!("delete lania-managed {language_id} {version}"),
+                    format!("lan env remove {language_id} {version} --yes"),
+                )),
+                None => error = Some("remove requires a version".into()),
+            },
+        }
+    }
+
+    if error.is_none() && project_scope {
+        match language.version_files().first().copied() {
+            Some(file) => {
+                let path = cwd.join(file).display().to_string();
+                match version {
+                    Some(version) => steps.push(PlanStep::write_file(
+                        &path,
                         version,
                         format!("pin {file} to {version}"),
                     )),
-                    (Ok(file), None) => steps.push(PlanStep::write_file(
-                        &cwd.join(file).display().to_string(),
+                    None => steps.push(PlanStep::write_file(
+                        &path,
                         "",
                         format!("clear {file} project pin"),
                     )),
-                    (Err(err), _) => error = Some(err.to_string()),
                 }
                 notes.push("项目级 pin 只影响当前目录及其子目录".into());
-            } else if version.is_none() {
-                error =
-                    Some("use requires a version (or --project to clear the project pin)".into());
             }
-            notes.push("切换版本后需要重开终端或重新加载 shell 才能生效".into());
+            None => error = Some(format!("{language_id} has no project version file")),
         }
-        EnvAction::Remove | EnvAction::UninstallManagerVersion => match (manager.as_ref(), version)
-        {
-            (Some(probe), Some(version)) => {
-                steps.extend(remove_steps(probe.manager, language, version))
-            }
-            (Some(_), None) => error = Some("remove requires a version".into()),
-            (None, _) => error = Some(no_manager_message(language)),
-        },
     }
 
     if error.is_none() && steps.is_empty() {
         error = Some(format!(
-            "no {} steps could be generated for {}",
-            action.as_str(),
-            language.id()
+            "no {} steps could be generated for {language_id}",
+            action.as_str()
         ));
     }
 
     EnvPlan {
         action,
         language,
-        tool: language.id().to_string(),
+        tool: language_id.to_string(),
         version: version.map(ToOwned::to_owned),
-        manager: manager.as_ref().map(|probe| probe.manager),
-        manager_available: manager.is_some(),
+        managed,
         steps,
         error,
         notes,
     }
 }
 
-fn no_manager_message(language: Language) -> String {
-    let names: Vec<&str> = language.managers().iter().map(|m| m.id()).collect();
-    format!(
-        "no supported version manager found for {}. install one of: {}",
-        language.id(),
-        names.join(", ")
-    )
-}
-
-fn install_steps(language: Language, manager: ManagerKind, version: &str) -> Vec<PlanStep> {
-    let v = version.to_string();
-    match manager {
-        ManagerKind::Nvm => vec![PlanStep::shell_function(
-            "nvm",
-            &["install", &v],
-            format!("install node {v} via nvm"),
-        )],
-        ManagerKind::Fnm => vec![PlanStep::direct(
-            "fnm",
-            vec!["install".into(), v.clone()],
-            format!("install node {v} via fnm"),
-        )],
-        ManagerKind::Volta => vec![PlanStep::direct(
-            "volta",
-            vec!["install".into(), format!("node@{v}")],
-            format!("install node {v} via volta"),
-        )],
-        ManagerKind::N => vec![PlanStep::direct(
-            "n",
-            vec![v.clone()],
-            format!("install node {v} via n"),
-        )],
-        ManagerKind::Asdf => vec![
-            PlanStep::direct(
-                "asdf",
-                vec!["plugin".into(), "add".into(), language.id().into()],
-                "ensure asdf plugin",
-            ),
-            PlanStep::direct(
-                "asdf",
-                vec!["install".into(), language.id().into(), v.clone()],
-                format!("install {} {v} via asdf", language.id()),
-            ),
-        ],
-        ManagerKind::Mise => vec![PlanStep::direct(
-            "mise",
-            vec![
-                "use".into(),
-                "--global".into(),
-                format!("{}@{v}", language.id()),
-            ],
-            format!("install {} {v} via mise", language.id()),
-        )],
-        ManagerKind::Pyenv => vec![PlanStep::direct(
-            "pyenv",
-            vec!["install".into(), v.clone()],
-            format!("install python {v} via pyenv"),
-        )],
-        ManagerKind::Uv => vec![PlanStep::direct(
-            "uv",
-            vec!["python".into(), "install".into(), v.clone()],
-            format!("install python {v} via uv"),
-        )],
-        ManagerKind::Rustup => vec![PlanStep::direct(
-            "rustup",
-            vec!["toolchain".into(), "install".into(), v.clone()],
-            format!("install rust toolchain {v}"),
-        )],
-        ManagerKind::GoInstall => vec![PlanStep::direct(
-            "go",
-            vec!["install".into(), format!("golang.org/dl/go{v}@latest")],
-            format!("prepare go {v} via golang.org/dl"),
-        )],
-        ManagerKind::Fvm => vec![PlanStep::direct(
-            "fvm",
-            vec!["install".into(), v.clone()],
-            format!("install flutter {v} via fvm"),
-        )],
-        ManagerKind::Sdkman => vec![PlanStep::shell_function(
-            "sdk",
-            &["install", sdkman_candidate(language), &v],
-            format!("install {} {v} via sdkman", language.id()),
-        )],
-        ManagerKind::Scoop => vec![PlanStep::direct(
-            "scoop",
-            vec!["install".into(), format!("{}@{}", language.id(), v)],
-            format!("install {} {v} via scoop", language.id()),
-        )],
-        ManagerKind::Winget => vec![PlanStep::direct(
-            "winget",
-            vec![
-                "install".into(),
-                "--id".into(),
-                winget_id(language).to_string(),
-                "--version".into(),
-                v.clone(),
-            ],
-            format!("install {} {v} via winget", language.id()),
-        )],
-        ManagerKind::Brew => vec![PlanStep::direct(
-            "brew",
-            vec!["install".into(), format!("{}@{v}", language.id())],
-            format!("install {} {v} via brew", language.id()),
-        )],
-        ManagerKind::Apt => vec![PlanStep::direct(
-            "apt-get",
-            vec!["install".into(), "-y".into(), language.id().into()],
-            format!("install {} via apt", language.id()),
-        )],
-        // ---- 其余语言专用管理器 ----
-        ManagerKind::Bunup => vec![PlanStep::direct(
-            "bun",
-            vec!["upgrade".into(), format!("bun@{v}")],
-            format!("install bun {v}"),
-        )],
-        ManagerKind::Denoup => vec![PlanStep::direct(
-            "deno",
-            vec!["upgrade".into(), format!("--version={v}")],
-            format!("install deno {v}"),
-        )],
-        ManagerKind::ZigVm => vec![PlanStep::direct(
-            "zig",
-            vec!["fetch".into(), v.clone()],
-            format!("fetch zig {v}"),
-        )],
-        ManagerKind::Coursier => vec![PlanStep::direct(
-            "cs",
-            vec!["install".into(), v.clone()],
-            format!("install {v} via coursier"),
-        )],
-        ManagerKind::Dotnet => vec![PlanStep::direct(
-            "dotnet",
-            vec!["--version".into(), v.clone()],
-            format!("select .NET SDK {v}"),
-        )],
-        ManagerKind::Swiftenv => vec![PlanStep::direct(
-            "swiftenv",
-            vec!["install".into(), v.clone()],
-            format!("install swift {v}"),
-        )],
-        ManagerKind::Rbenv => vec![PlanStep::direct(
-            "rbenv",
-            vec!["install".into(), v.clone()],
-            format!("install ruby {v}"),
-        )],
-        ManagerKind::Rvm => vec![PlanStep::direct(
-            "rvm",
-            vec!["install".into(), v.clone()],
-            format!("install ruby {v} via rvm"),
-        )],
-        ManagerKind::Phpenv => vec![PlanStep::direct(
-            "phpenv",
-            vec!["install".into(), v.clone()],
-            format!("install php {v}"),
-        )],
-        ManagerKind::Plenv => vec![PlanStep::direct(
-            "plenv",
-            vec!["install".into(), v.clone()],
-            format!("install perl {v}"),
-        )],
-        ManagerKind::Luaver => vec![PlanStep::direct(
-            "luaver",
-            vec!["install".into(), v.clone()],
-            format!("install lua {v}"),
-        )],
-        ManagerKind::KerL => vec![PlanStep::direct(
-            "kerl",
-            vec!["build".into(), "install".into(), v.clone()],
-            format!("build erlang {v}"),
-        )],
-        ManagerKind::GhcUp => vec![PlanStep::direct(
-            "ghcup",
-            vec!["install".into(), v.clone()],
-            format!("install ghc {v}"),
-        )],
-        ManagerKind::Juliaup => vec![PlanStep::direct(
-            "juliaup",
-            vec!["add".into(), v.clone()],
-            format!("install julia {v}"),
-        )],
-        ManagerKind::Rig => vec![PlanStep::direct(
-            "rig",
-            vec!["add".into(), v.clone()],
-            format!("install R {v}"),
-        )],
-        ManagerKind::Choosenim => vec![PlanStep::direct(
-            "choosenim",
-            vec![v.clone()],
-            format!("install nim {v}"),
-        )],
-        ManagerKind::Opam => vec![
-            PlanStep::direct(
-                "opam",
-                vec!["init".into(), "--bare".into()],
-                "ensure opam initialized",
-            ),
-            PlanStep::direct(
-                "opam",
-                vec!["switch".into(), "create".into(), v.clone()],
-                format!("create opam switch {v}"),
-            ),
-        ],
-        ManagerKind::Cljup => vec![PlanStep::direct(
-            "cljup",
-            vec!["install".into(), v.clone()],
-            format!("install clojure {v}"),
-        )],
-        ManagerKind::Moonup => vec![PlanStep::direct(
-            "moon",
-            vec!["version".into(), "install".into(), v.clone()],
-            format!("install moonbit {v}"),
-        )],
-        ManagerKind::Cangjieup => vec![PlanStep::direct(
-            "cjc",
-            vec!["--version".into()],
-            format!("安装仓颉 {v} 需要通过 Cangjie SDK 安装包"),
-        )],
-        ManagerKind::Deveco => vec![PlanStep::direct(
-            "ohpm",
-            vec!["install".into()],
-            format!("安装 ArkTS/HarmonyOS SDK {v} 需要通过 DevEco Studio"),
-        )],
-        ManagerKind::Foundryup => vec![PlanStep::direct(
-            "foundryup",
-            vec!["--version".into(), v.clone()],
-            format!("install foundry {v}"),
-        )],
-        ManagerKind::Vup => vec![PlanStep::direct(
-            "v",
-            vec!["up".into()],
-            "update V toolchain to latest".to_string(),
-        )],
-        ManagerKind::Haxelihx => vec![PlanStep::direct(
-            "haxelib",
-            vec!["install".into(), "hxcpp".into()],
-            format!("安装 Haxe {v} 需要通过系统包管理器"),
-        )],
+/// 执行一个计划（dry-run 由调用方决定是否调用）。
+///
+/// 返回每个步骤的执行结果文本，供 CLI/TUI 展示。
+pub fn execute_plan(
+    store: &RuntimeStore,
+    plan: &EnvPlan,
+    mut on_event: impl FnMut(&PlanStep),
+) -> Result<Vec<String>, crate::RuntimeError> {
+    if let Some(error) = plan.error.as_deref() {
+        return Err(crate::RuntimeError::other(error));
     }
-}
-
-fn use_steps(language: Language, manager: ManagerKind, version: Option<&str>) -> Vec<PlanStep> {
-    let v = version.unwrap_or_default().to_string();
-    let has_version = !v.is_empty();
-    match manager {
-        ManagerKind::Nvm => vec![PlanStep::shell_function(
-            "nvm",
-            &["use", &v],
-            "switch node version via nvm",
-        )],
-        ManagerKind::Fnm => vec![PlanStep::direct(
-            "fnm",
-            vec!["use".into(), v.clone()],
-            "switch node version via fnm",
-        )],
-        ManagerKind::Volta => vec![PlanStep::direct(
-            "volta",
-            vec!["pin".into(), format!("node@{v}")],
-            "pin node version via volta",
-        )],
-        ManagerKind::N => vec![PlanStep::direct(
-            "n",
-            vec![v.clone()],
-            "switch node version via n",
-        )],
-        ManagerKind::Asdf => {
-            if has_version {
-                vec![PlanStep::direct(
-                    "asdf",
-                    vec!["global".into(), language.id().into(), v.clone()],
-                    "set asdf global version",
-                )]
-            } else {
-                vec![]
+    let mut results = Vec::new();
+    for step in &plan.steps {
+        on_event(step);
+        match step.kind.as_str() {
+            "install" => {
+                let version = plan.version.clone().unwrap_or_default();
+                let outcome = store.install(&plan.tool, &version, &mut |_| {})?;
+                results.push(format!(
+                    "{} {} installed at {}",
+                    outcome.language,
+                    outcome.version,
+                    outcome.path.display()
+                ));
+            }
+            "use" => {
+                let version = plan.version.clone().unwrap_or_default();
+                let path = store.use_version(&plan.tool, &version)?;
+                results.push(format!("{} → {}", plan.tool, path.display()));
+            }
+            "remove" => {
+                let version = plan.version.clone().unwrap_or_default();
+                let path = store.remove(&plan.tool, &version)?;
+                results.push(format!("removed {}", path.display()));
+            }
+            "write-file" => {
+                let path = step.path.clone().unwrap_or_default();
+                let content = step.content.clone().unwrap_or_default();
+                if content.is_empty() {
+                    let _ = std::fs::remove_file(&path);
+                } else {
+                    if let Some(parent) = std::path::Path::new(&path).parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    std::fs::write(&path, format!("{content}\n"))?;
+                }
+                results.push(step.label.clone());
+            }
+            other => {
+                return Err(crate::RuntimeError::other(format!(
+                    "unknown plan step `{other}`"
+                )))
             }
         }
-        ManagerKind::Mise => vec![PlanStep::direct(
-            "mise",
-            vec![
-                "use".into(),
-                "--global".into(),
-                format!("{}@{v}", language.id()),
-            ],
-            "set mise global version",
-        )],
-        ManagerKind::Pyenv => {
-            if has_version {
-                vec![PlanStep::direct(
-                    "pyenv",
-                    vec!["global".into(), v.clone()],
-                    "set pyenv global version",
-                )]
-            } else {
-                vec![]
-            }
-        }
-        ManagerKind::Uv => vec![PlanStep::direct(
-            "uv",
-            vec!["python".into(), "pin".into(), v.clone()],
-            "pin python version via uv",
-        )],
-        ManagerKind::Rustup => vec![PlanStep::direct(
-            "rustup",
-            vec!["default".into(), v.clone()],
-            "set default rust toolchain",
-        )],
-        ManagerKind::GoInstall => vec![PlanStep::direct(
-            "go",
-            vec!["env".into(), "-w".into(), format!("GOTOOLCHAIN=go{v}")],
-            "set go toolchain",
-        )],
-        ManagerKind::Fvm => vec![PlanStep::direct(
-            "fvm",
-            vec!["use".into(), v.clone()],
-            "switch flutter version via fvm",
-        )],
-        ManagerKind::Sdkman => vec![PlanStep::shell_function(
-            "sdk",
-            &["default", sdkman_candidate(language), &v],
-            "set sdkman default",
-        )],
-        ManagerKind::Scoop => vec![PlanStep::direct(
-            "scoop",
-            vec![
-                "reset".into(),
-                language.id().into(),
-                "--version".into(),
-                v.clone(),
-            ],
-            "switch scoop app version",
-        )],
-        ManagerKind::Winget => vec![],
-        ManagerKind::Brew => vec![PlanStep::direct(
-            "brew",
-            vec![
-                "link".into(),
-                "--overwrite".into(),
-                format!("{}@{v}", language.id()),
-            ],
-            "link brew version",
-        )],
-        ManagerKind::Apt => vec![],
-        // ---- 其余语言专用管理器 ----
-        ManagerKind::Bunup => vec![], // bun 无固定版本切换命令，通过升级落盘
-        ManagerKind::Denoup => vec![],
-        ManagerKind::ZigVm => vec![PlanStep::direct(
-            "zig",
-            vec!["use".into(), v.clone()],
-            "switch zig version",
-        )],
-        ManagerKind::Coursier => vec![PlanStep::direct(
-            "cs",
-            vec!["install".into(), v.clone()],
-            "activate component via coursier",
-        )],
-        ManagerKind::Dotnet => vec![PlanStep::direct(
-            "dotnet",
-            vec!["--version".into(), v.clone()],
-            "select .NET SDK",
-        )],
-        ManagerKind::Swiftenv => vec![PlanStep::direct(
-            "swiftenv",
-            vec!["global".into(), v.clone()],
-            "set swift global version",
-        )],
-        ManagerKind::Rbenv => vec![PlanStep::direct(
-            "rbenv",
-            vec!["global".into(), v.clone()],
-            "set rbenv global version",
-        )],
-        ManagerKind::Rvm => vec![PlanStep::direct(
-            "rvm",
-            vec!["use".into(), format!("--default={v}")],
-            "set rvm default version",
-        )],
-        ManagerKind::Phpenv => vec![PlanStep::direct(
-            "phpenv",
-            vec!["global".into(), v.clone()],
-            "set phpenv global version",
-        )],
-        ManagerKind::Plenv => vec![PlanStep::direct(
-            "plenv",
-            vec!["global".into(), v.clone()],
-            "set plenv global version",
-        )],
-        ManagerKind::Luaver => vec![PlanStep::direct(
-            "luaver",
-            vec!["use".into(), v.clone()],
-            "set luaver default version",
-        )],
-        ManagerKind::KerL => vec![PlanStep::direct(
-            "kerl",
-            vec!["activate".into(), v.clone()],
-            "activate erlang release",
-        )],
-        ManagerKind::GhcUp => vec![PlanStep::direct(
-            "ghcup",
-            vec!["set".into(), v.clone()],
-            "set ghcup default",
-        )],
-        ManagerKind::Juliaup => vec![PlanStep::direct(
-            "juliaup",
-            vec!["default".into(), v.clone()],
-            "set juliaup default",
-        )],
-        ManagerKind::Rig => vec![PlanStep::direct(
-            "rig",
-            vec!["default".into(), v.clone()],
-            "set R default version",
-        )],
-        ManagerKind::Choosenim => vec![PlanStep::direct(
-            "choosenim",
-            vec![v.clone()],
-            "switch nim version",
-        )],
-        ManagerKind::Opam => vec![PlanStep::direct(
-            "opam",
-            vec!["switch".into(), v.clone()],
-            "switch opam switch",
-        )],
-        ManagerKind::Cljup => vec![PlanStep::direct(
-            "cljup",
-            vec!["default".into(), v.clone()],
-            "set cljup default",
-        )],
-        ManagerKind::Moonup => vec![PlanStep::direct(
-            "moon",
-            vec!["version".into(), "use".into(), v.clone()],
-            "switch moonbit version",
-        )],
-        ManagerKind::Cangjieup => vec![PlanStep::direct(
-            "cjc",
-            vec!["--version".into()],
-            "切换仓颉版本需要调整 CANGJIE_HOME 指向的 SDK",
-        )],
-        ManagerKind::Deveco => vec![PlanStep::direct(
-            "ohpm",
-            vec!["--version".into()],
-            "切换 HarmonyOS SDK 需要在 DevEco Studio 中选择",
-        )],
-        ManagerKind::Foundryup => vec![PlanStep::direct(
-            "foundryup",
-            vec!["--version".into(), v.clone()],
-            "switch foundry version",
-        )],
-        ManagerKind::Vup => vec![PlanStep::direct(
-            "v",
-            vec!["up".into()],
-            "update V toolchain".to_string(),
-        )],
-        ManagerKind::Haxelihx => vec![PlanStep::direct(
-            "haxelib",
-            vec!["set".into(), v.clone()],
-            "set haxelib version",
-        )],
     }
+    Ok(results)
 }
 
-fn remove_steps(manager: ManagerKind, language: Language, version: &str) -> Vec<PlanStep> {
-    let v = version.to_string();
-    match manager {
-        ManagerKind::Nvm => vec![PlanStep::shell_function(
-            "nvm",
-            &["uninstall", &v],
-            format!("uninstall node {v}"),
-        )],
-        ManagerKind::Fnm => vec![PlanStep::direct(
-            "fnm",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall node {v}"),
-        )],
-        ManagerKind::Volta => vec![PlanStep::direct(
-            "volta",
-            vec!["uninstall".into(), format!("node@{v}")],
-            format!("uninstall node {v}"),
-        )],
-        ManagerKind::Asdf => vec![PlanStep::direct(
-            "asdf",
-            vec!["uninstall".into(), language.id().into(), v.clone()],
-            format!("uninstall {} {v}", language.id()),
-        )],
-        ManagerKind::Mise => vec![PlanStep::direct(
-            "mise",
-            vec!["uninstall".into(), format!("{}@{v}", language.id())],
-            format!("uninstall {} {v}", language.id()),
-        )],
-        ManagerKind::Pyenv => vec![PlanStep::direct(
-            "pyenv",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall python {v}"),
-        )],
-        ManagerKind::Rustup => vec![PlanStep::direct(
-            "rustup",
-            vec!["toolchain".into(), "uninstall".into(), v.clone()],
-            format!("uninstall rust toolchain {v}"),
-        )],
-        ManagerKind::Fvm => vec![PlanStep::direct(
-            "fvm",
-            vec!["releases".into(), "remove".into(), v.clone()],
-            format!("remove flutter {v}"),
-        )],
-        ManagerKind::Sdkman => vec![PlanStep::shell_function(
-            "sdk",
-            &["uninstall", sdkman_candidate(language), &v],
-            format!("uninstall {} {v}", language.id()),
-        )],
-        ManagerKind::Scoop => vec![PlanStep::direct(
-            "scoop",
-            vec!["uninstall".into(), language.id().into()],
-            format!("uninstall {} via scoop", language.id()),
-        )],
-        ManagerKind::Winget => vec![PlanStep::direct(
-            "winget",
-            vec![
-                "uninstall".into(),
-                "--id".into(),
-                winget_id(language).to_string(),
-            ],
-            format!("uninstall {} via winget", language.id()),
-        )],
-        ManagerKind::Brew => vec![PlanStep::direct(
-            "brew",
-            vec!["uninstall".into(), format!("{}@{v}", language.id())],
-            format!("uninstall {} {v}", language.id()),
-        )],
-        ManagerKind::Apt => vec![PlanStep::direct(
-            "apt-get",
-            vec!["remove".into(), "-y".into(), language.id().into()],
-            format!("remove {} via apt", language.id()),
-        )],
-        // ---- 其余语言专用管理器 ----
-        ManagerKind::Swiftenv => vec![PlanStep::direct(
-            "swiftenv",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall swift {v}"),
-        )],
-        ManagerKind::Rbenv => vec![PlanStep::direct(
-            "rbenv",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall ruby {v}"),
-        )],
-        ManagerKind::Rvm => vec![PlanStep::direct(
-            "rvm",
-            vec!["remove".into(), v.clone()],
-            format!("uninstall ruby {v} via rvm"),
-        )],
-        ManagerKind::Phpenv => vec![PlanStep::direct(
-            "phpenv",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall php {v}"),
-        )],
-        ManagerKind::Plenv => vec![PlanStep::direct(
-            "plenv",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall perl {v}"),
-        )],
-        ManagerKind::Luaver => vec![PlanStep::direct(
-            "luaver",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall lua {v}"),
-        )],
-        ManagerKind::KerL => vec![PlanStep::direct(
-            "kerl",
-            vec!["delete".into(), "installation".into(), v.clone()],
-            format!("remove erlang {v}"),
-        )],
-        ManagerKind::GhcUp => vec![PlanStep::direct(
-            "ghcup",
-            vec!["uninstall".into(), v.clone()],
-            format!("uninstall ghc {v}"),
-        )],
-        ManagerKind::Juliaup => vec![PlanStep::direct(
-            "juliaup",
-            vec!["remove".into(), v.clone()],
-            format!("remove julia {v}"),
-        )],
-        ManagerKind::Rig => vec![PlanStep::direct(
-            "rig",
-            vec!["rm".into(), v.clone()],
-            format!("remove R {v}"),
-        )],
-        ManagerKind::Opam => vec![PlanStep::direct(
-            "opam",
-            vec!["switch".into(), "remove".into(), v.clone()],
-            format!("remove opam switch {v}"),
-        )],
-        ManagerKind::Dotnet => vec![],
-        ManagerKind::ZigVm => vec![PlanStep::direct(
-            "zig",
-            vec!["delete".into(), v.clone()],
-            format!("remove zig {v}"),
-        )],
-        _ => vec![],
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn sdkman_candidate(language: Language) -> &'static str {
-    match language {
-        Language::Kotlin => "kotlin",
-        Language::Scala => "scala",
-        Language::Groovy => "groovy",
-        Language::Clojure => "clojure",
-        _ => "java",
+    fn cwd() -> std::path::PathBuf {
+        std::path::PathBuf::from(".")
     }
-}
 
-fn winget_id(language: Language) -> &'static str {
-    match language {
-        Language::Node => "OpenJS.NodeJS",
-        Language::Deno => "DenoLand.Deno",
-        Language::Bun => "Oven-sh.Bun",
-        Language::Python => "Python.Python.3",
-        Language::Rust => "Rustlang.Rustup",
-        Language::Go => "GoLang.Go",
-        Language::Zig => "zig.zig",
-        Language::Dart => "Google.DartSDK",
-        Language::Kotlin => "JetBrains.Kotlin",
-        Language::Java => "EclipseAdoptium.Temurin",
-        Language::Scala => "Scala.Scala",
-        Language::Groovy => "Groovy.Groovy",
-        Language::C => "BrechtSanders.WinLibs.POSIX.UCRT",
-        Language::Cpp => "BrechtSanders.WinLibs.POSIX.UCRT",
-        Language::CSharp => "Microsoft.DotNet.SDK.8",
-        Language::FSharp => "Microsoft.DotNet.SDK.8",
-        Language::Swift => "Swift.Toolchain",
-        Language::Ruby => "RubyInstallerTeam.Ruby",
-        Language::PHP => "PHP.PHP",
-        Language::Perl => "StrawberryPerl.StrawberryPerl",
-        Language::Lua => "DEVCOM.Lua",
-        Language::Elixir => "Elixir.Elixir",
-        Language::Erlang => "Erlang.ErlangOTP",
-        Language::Haskell => "haskell.ghcup",
-        Language::Julia => "Julialang.Julia",
-        Language::R => "RProject.R",
-        Language::Nim => "nim-lang.Nim",
-        Language::Crystal => "CrystalLang.Crystal",
-        Language::OCaml => "OCaml.OCaml",
-        Language::Clojure => "Clojure.Clojure",
-        Language::Fortran => "GNU.Fortran",
-        Language::D => "Dlang.DMD",
-        // 以下语言在 winget 没有官方包（或名称不稳定），返回空串表示不可用，
-        // 由调用方回退到其它管理器。
-        Language::V => "Vlang.V",
-        Language::Gleam => "Gleam.Gleam",
-        // MoonBit / Cangjie / ArkTS / Solidity / Haxe / Elm 无官方 winget 包。
-        Language::MoonBit
-        | Language::Cangjie
-        | Language::ArkTs
-        | Language::Solidity
-        | Language::Haxe
-        | Language::Elm => "",
+    #[test]
+    fn install_plan_is_self_managed() {
+        let plan = build_plan(EnvAction::Install, "node", Some("20"), &cwd(), false);
+        assert!(plan.error.is_none(), "{:?}", plan.error);
+        assert!(plan.managed);
+        assert_eq!(plan.steps.len(), 1);
+        assert_eq!(plan.steps[0].kind, "install");
+        assert!(plan.steps[0].label.contains("nodejs.org/dist"));
     }
-}
 
-fn quote_if_needed(part: &str) -> String {
-    if part.is_empty() || part.chars().any(|c| c.is_whitespace()) {
-        format!("\"{part}\"")
-    } else {
-        part.to_string()
+    #[test]
+    fn unmanaged_language_reports_available_list() {
+        let plan = build_plan(EnvAction::Install, "ruby", Some("3.3.0"), &cwd(), false);
+        let error = plan.error.expect("ruby is not implemented yet");
+        assert!(error.contains("not self-managed"), "{error}");
+        assert!(error.contains("node"));
+    }
+
+    #[test]
+    fn unknown_tool_is_rejected() {
+        let plan = build_plan(
+            EnvAction::Install,
+            "not-a-language",
+            Some("1"),
+            &cwd(),
+            false,
+        );
+        assert!(plan.error.is_some());
+    }
+
+    #[test]
+    fn install_without_version_is_rejected() {
+        let plan = build_plan(EnvAction::Install, "go", None, &cwd(), false);
+        assert!(plan.error.unwrap().contains("requires a version"));
+    }
+
+    #[test]
+    fn path_traversal_versions_are_rejected() {
+        assert!(validate_version("20").is_some());
+        assert!(validate_version("3.12.4").is_some());
+        assert!(validate_version("../../etc").is_none());
+        assert!(validate_version("20;whoami").is_none());
+    }
+
+    #[test]
+    fn project_use_writes_version_file() {
+        let plan = build_plan(EnvAction::Use, "node", Some("20"), &cwd(), true);
+        assert!(plan.error.is_none(), "{:?}", plan.error);
+        let kinds: Vec<&str> = plan.steps.iter().map(|step| step.kind.as_str()).collect();
+        assert_eq!(kinds, vec!["use", "write-file"]);
+        assert!(plan.steps[1]
+            .path
+            .as_deref()
+            .is_some_and(|path| path.ends_with(".nvmrc")));
+    }
+
+    #[test]
+    fn use_and_remove_require_version() {
+        assert!(build_plan(EnvAction::Use, "node", None, &cwd(), false)
+            .error
+            .is_some());
+        assert!(build_plan(EnvAction::Remove, "node", None, &cwd(), false)
+            .error
+            .is_some());
     }
 }

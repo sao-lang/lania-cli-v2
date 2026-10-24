@@ -4,23 +4,37 @@
 
 use anyhow::Result;
 use lania_command::{ArgSpec, CommandSpec, OptionSpec, ValueKind};
-use lania_env::{EnvService, Language, ManagerKind};
+use lania_env::{EnvService, InstalledVersion, Language, Platform, RuntimeHome};
 use lania_host::execution::CommandExecutionContext;
 use serde_json::{json, Value};
 use std::path::Path;
 
 use crate::{
-    manager_filter, tool_filter, DOCTOR_HANDLER_ID, INFO_HANDLER_ID, LIST_HANDLER_ID,
+    runtime_store, tool_filter, DOCTOR_HANDLER_ID, INFO_HANDLER_ID, LIST_HANDLER_ID,
     VERSIONS_HANDLER_ID,
 };
 
 pub(super) fn list_spec() -> CommandSpec {
     CommandSpec::new(
         "list",
-        "Show all supported toolchains and versions",
+        "Show all supported toolchains and detected versions",
         LIST_HANDLER_ID,
     )
-    .with_options(vec![manager_option()])
+    .with_args(vec![ArgSpec {
+        name: "tool".into(),
+        required: false,
+        multiple: false,
+        help: "Filter by tool or language name".into(),
+    }])
+    .with_options(vec![OptionSpec {
+        long: "installed".into(),
+        short: Some('i'),
+        help: "Only list versions installed by lania (reads ~/.runex, no network)".into(),
+        value_kind: ValueKind::Bool,
+        default_value: None,
+        choices: vec![],
+        negatable: false,
+    }])
 }
 
 pub(super) fn info_spec() -> CommandSpec {
@@ -30,7 +44,6 @@ pub(super) fn info_spec() -> CommandSpec {
         INFO_HANDLER_ID,
     )
     .with_args(vec![tool_arg()])
-    .with_options(vec![manager_option()])
 }
 
 pub(super) fn versions_spec() -> CommandSpec {
@@ -40,13 +53,21 @@ pub(super) fn versions_spec() -> CommandSpec {
         VERSIONS_HANDLER_ID,
     )
     .with_args(vec![tool_arg()])
-    .with_options(vec![manager_option()])
+    .with_options(vec![OptionSpec {
+        long: "available".into(),
+        short: Some('a'),
+        help: "Also query upstream for the versions that can be installed".into(),
+        value_kind: ValueKind::Bool,
+        default_value: None,
+        choices: vec![],
+        negatable: false,
+    }])
 }
 
 pub(super) fn doctor_spec() -> CommandSpec {
     CommandSpec::new(
         "doctor",
-        "Check for missing toolchains and PATH conflicts",
+        "Check missing runtimes, shim gaps and PATH setup",
         DOCTOR_HANDLER_ID,
     )
 }
@@ -60,11 +81,10 @@ pub(super) fn mutate_spec(name: &str, about: &str, handler_id: &str) -> CommandS
                 name: "version".into(),
                 required: false,
                 multiple: false,
-                help: "Target version, e.g. 20 / 3.12 / stable".into(),
+                help: "Version (prefix allowed), e.g. 20 / 3.12 / 1.86.0".into(),
             },
         ])
         .with_options(vec![
-            manager_option(),
             OptionSpec {
                 long: "yes".into(),
                 short: Some('y'),
@@ -91,19 +111,7 @@ fn tool_arg() -> ArgSpec {
         name: "tool".into(),
         required: true,
         multiple: false,
-        help: "Tool to manage: node/python/rust/go/dart/kotlin/java/c".into(),
-    }
-}
-
-fn manager_option() -> OptionSpec {
-    OptionSpec {
-        long: "manager".into(),
-        short: Some('m'),
-        help: "Force a specific version manager (nvm/fnm/volta/pyenv/rustup/...)".into(),
-        value_kind: ValueKind::OptionalString,
-        default_value: None,
-        choices: vec![],
-        negatable: false,
+        help: "Tool to manage: node/python/go/rust/deno/bun/zig".into(),
     }
 }
 
@@ -113,7 +121,10 @@ pub(super) fn execute_list(
     ctx: &CommandExecutionContext<'_>,
 ) -> Value {
     let filter = tool_filter(ctx.command());
-    let manager = manager_filter(ctx);
+    if crate::option_bool(ctx, "installed").unwrap_or(false) {
+        return list_installed(filter);
+    }
+
     let tools: Vec<Value> = service
         .scan(cwd)
         .into_iter()
@@ -121,13 +132,6 @@ pub(super) fn execute_list(
             filter
                 .as_ref()
                 .is_none_or(|needle| tool.id.contains(needle) || tool.language.contains(needle))
-        })
-        .filter(|tool| {
-            manager.is_none_or(|manager| {
-                tool.candidates
-                    .iter()
-                    .any(|probe| probe.manager == manager && probe.available)
-            })
         })
         .map(|tool| serde_json::to_value(tool).unwrap_or(Value::Null))
         .collect();
@@ -139,6 +143,48 @@ pub(super) fn execute_list(
     })
 }
 
+/// `list --installed`：只读 lania 自己的清单，不落盘、不联网。
+fn list_installed(filter: Option<String>) -> Value {
+    let home = RuntimeHome::resolve().ok();
+    let platform = Platform::detect().ok();
+    let service = EnvService::new();
+    let mut entries: Vec<Value> = Vec::new();
+
+    if let Some(home) = home.as_ref() {
+        for id in lania_env::supported_language_ids() {
+            if filter
+                .as_ref()
+                .is_some_and(|needle| !id.contains(needle.as_str()))
+            {
+                continue;
+            }
+            let Some(language) = Language::parse_id(id) else {
+                continue;
+            };
+            for version in service.managed_versions(language) {
+                entries.push(installed_entry(home, id, &version));
+            }
+        }
+    }
+
+    json!({
+        "kind": "env_installed",
+        "home": home.as_ref().map(|home| home.root().display().to_string()),
+        "platform": platform.map(|platform| platform.to_string()),
+        "installed": entries,
+    })
+}
+
+fn installed_entry(home: &RuntimeHome, id: &str, version: &InstalledVersion) -> Value {
+    json!({
+        "language": id,
+        "version": version.version,
+        "current": version.current,
+        "path": home.version_dir(id, &version.version).display().to_string(),
+        "upstream": lania_env::upstream_for(id),
+    })
+}
+
 pub(super) fn execute_info(
     service: &EnvService,
     cwd: &Path,
@@ -146,23 +192,26 @@ pub(super) fn execute_info(
 ) -> Result<Value> {
     let language = require_language(ctx, "info")?;
     let status = service.status(language, cwd);
-    // 列出「所有候选管理器」装过的版本，而不只是当前生效的那个：
-    // 例如 node 来自系统安装时，用户仍需要看到 nvm/volta 里装过哪些版本。
-    let installed = service
-        .versions_for_language(language)
+    // 已安装版本只读 lania 自己管理的目录。
+    let installed: Vec<Value> = service
+        .managed_versions(language)
         .into_iter()
         .map(|item| {
             json!({
-                "manager": item.manager,
+                "source": item.source,
                 "version": item.version,
-                "current": status.version.as_deref() == Some(item.version.as_str()),
+                "current": item.current,
             })
         })
-        .collect::<Vec<_>>();
+        .collect();
+    let provider = Platform::detect()
+        .ok()
+        .and_then(|platform| lania_env::describe_provider(language.id(), platform));
 
     Ok(json!({
         "kind": "env_toolchain_info",
         "tool": serde_json::to_value(&status)?,
+        "provider": provider.map(|provider| serde_json::to_value(provider).unwrap_or(Value::Null)),
         "installedVersions": installed,
     }))
 }
@@ -172,103 +221,115 @@ pub(super) fn execute_versions(
     ctx: &CommandExecutionContext<'_>,
 ) -> Result<Value> {
     let language = require_language(ctx, "versions")?;
-    let forced = manager_filter(ctx);
+    let versions: Vec<Value> = service
+        .managed_versions(language)
+        .into_iter()
+        .map(|item| {
+            json!({
+                "version": item.version,
+                "source": item.source,
+                "current": item.current,
+            })
+        })
+        .collect();
 
-    // 未指定管理器时，列出所有候选管理器装过的版本（含来源），
-    // 这样即使当前运行时来自系统安装，也能看到 nvm/volta 中的历史版本。
-    let versions: Vec<Value> = match forced {
-        Some(manager) => service
-            .installed_versions_for(manager, Some(language))
-            .into_iter()
-            .map(|version| json!({ "version": version, "manager": manager.id() }))
-            .collect(),
-        None => service
-            .versions_for_language(language)
-            .into_iter()
-            .map(|item| json!({ "version": item.version, "manager": item.manager }))
-            .collect(),
+    // `--available` 需要联网：只在用户显式要求时才查上游。
+    let available = if crate::option_bool(ctx, "available").unwrap_or(false) {
+        match runtime_store() {
+            Ok(store) => store
+                .available_versions(language.id())
+                .map(|list| {
+                    Value::from(
+                        list.into_iter()
+                            .map(|version| version.raw)
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .unwrap_or_else(|error| json!({ "error": error.to_string() })),
+            Err(error) => json!({ "error": error.to_string() }),
+        }
+    } else {
+        Value::Null
     };
 
     Ok(json!({
         "kind": "env_versions",
         "tool": language.id(),
+        "managed": lania_env::supported_language_ids().contains(&language.id()),
         "versions": versions,
+        "available": available,
     }))
 }
 
-pub(super) fn execute_doctor(service: &EnvService, cwd: &Path) -> Value {
+pub(super) fn execute_doctor(service: &EnvService, cwd: &Path) -> Result<Value> {
     let tools = service.scan(cwd);
     let mut missing = Vec::new();
-    let mut conflicts = Vec::new();
-    let mut managers: Vec<Value> = Vec::new();
-    let mut seen_managers: Vec<ManagerKind> = Vec::new();
+    let mut external = Vec::new();
+    let mut managed = Vec::new();
+    let mut unsupported = Vec::new();
 
     for tool in &tools {
-        // 只对“语言运行时”报告缺失；附属工具（npm/poetry/maven…）缺了不算环境问题。
-        if !tool.installed && tool.id == tool.language {
-            missing.push(json!({ "id": tool.id, "name": tool.name }));
+        // 只对“语言运行时”报告：附属工具（npm/poetry/maven…）缺了不算环境问题。
+        if tool.id != tool.language {
+            continue;
         }
-        // 只有语言运行时、且路径确实不在任何已知管理器下，才算 PATH 冲突。
-        if tool.installed
-            && tool.id == tool.language
-            && tool.manager.is_none()
-            && !is_system_path(tool.binary_path.as_deref().unwrap_or_default())
-        {
-            conflicts.push(json!({
+        if !tool.installed {
+            missing.push(json!({ "id": tool.id, "name": tool.name }));
+        } else if tool.source.as_deref() == Some("system") {
+            external.push(json!({
                 "id": tool.id,
                 "binary": tool.binary_path,
-                "reason": "binary comes from outside every known version manager",
+                "reason": "installed outside lania (system package manager or manual install)",
             }));
         }
-        for probe in &tool.candidates {
-            if probe.available && !seen_managers.contains(&probe.manager) {
-                seen_managers.push(probe.manager);
-                managers.push(json!({
-                    "manager": probe.manager.id(),
-                    "path": probe.path,
-                    "root": probe.root,
-                }));
-            }
+        if tool.managed {
+            managed.push(json!({
+                "id": tool.id,
+                "current": tool.version,
+                "source": tool.source,
+                "installedCount": tool.installed_count,
+                "upstream": tool.upstream,
+            }));
+        } else {
+            unsupported.push(tool.id.clone());
         }
     }
 
-    json!({
+    let diagnostics: Vec<Value> = match runtime_store() {
+        Ok(store) => store
+            .diagnose()
+            .map(|items| {
+                items
+                    .into_iter()
+                    .map(|item| {
+                        json!({
+                            "level": match item.level {
+                                lania_env::DiagnosticLevel::Error => "error",
+                                lania_env::DiagnosticLevel::Warn => "warn",
+                            },
+                            "message": item.message,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|error| {
+                vec![json!({ "level": "error", "message": error.to_string() })]
+            }),
+        Err(error) => vec![json!({ "level": "error", "message": error.to_string() })],
+    };
+    let has_error = diagnostics.iter().any(|item| item["level"] == "error");
+
+    Ok(json!({
         "kind": "env_doctor",
         "cwd": cwd.display().to_string(),
         "platform": std::env::consts::OS,
-        "managers": managers,
+        "managed": managed,
         "missing": missing,
-        "conflicts": conflicts,
-        "ok": missing.is_empty() && conflicts.is_empty(),
-    })
-}
-
-/// 判断可执行文件是否来自系统级安装目录（这类来源不算“用户级 PATH 冲突”）。
-fn is_system_path(path: &str) -> bool {
-    let normalized = path.replace('\\', "/").to_ascii_lowercase();
-    let mut prefixes: Vec<String> = vec![
-        "c:/windows".into(),
-        "c:/program files".into(),
-        "c:/program files (x86)".into(),
-        "d:/program files".into(),
-        "d:/apps/".into(),
-        "/usr/bin".into(),
-        "/usr/local/bin".into(),
-        "/opt/".into(),
-        "c:/python".into(),
-    ];
-    // winget 安装的 App Execution Alias 位于用户的 WindowsApps 目录。
-    if let Some(home) = std::env::var_os("LOCALAPPDATA") {
-        prefixes.push(
-            Path::new(&home)
-                .join("Microsoft")
-                .join("WindowsApps")
-                .to_string_lossy()
-                .replace('\\', "/")
-                .to_ascii_lowercase(),
-        );
-    }
-    prefixes.iter().any(|prefix| normalized.starts_with(prefix))
+        "external": external,
+        "unsupported": unsupported,
+        "diagnostics": diagnostics,
+        "ok": missing.is_empty() && !has_error,
+    }))
 }
 
 fn require_language(ctx: &CommandExecutionContext<'_>, subcommand: &str) -> Result<Language> {
@@ -283,7 +344,8 @@ fn require_language(ctx: &CommandExecutionContext<'_>, subcommand: &str) -> Resu
         })?;
     Language::parse_id(tool).ok_or_else(|| {
         anyhow::anyhow!(
-            "unsupported tool `{tool}`; supported: node, python, rust, go, dart, kotlin, java, c"
+            "unsupported tool `{tool}`; supported: {}",
+            lania_env::supported_language_ids().join(", ")
         )
     })
 }

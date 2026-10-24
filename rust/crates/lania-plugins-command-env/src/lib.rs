@@ -1,15 +1,19 @@
 //! `lan env` 命令：多语言工具链环境的查询与管理。
 //!
 //! 子命令：
-//! - `list`      查看所有受支持工具及其当前版本
-//! - `info`      查看单个工具详情
-//! - `versions`  列出某个管理器已安装的版本
-//! - `install`   安装指定版本
-//! - `use`       切换 / 固定版本（`--project` 写入项目版本文件）
-//! - `remove`    卸载指定版本
-//! - `doctor`    体检：缺失工具、PATH 冲突
+//! - `list`       查看所有受支持工具及其当前版本（`--installed` 只看 lania 自管版本）
+//! - `info`       查看单个工具详情
+//! - `versions`   列出某个语言已安装的版本
+//! - `install`    从上游下载并安装指定版本
+//! - `use`        切换 current 指针（`--project` 写入项目版本文件）
+//! - `remove`     卸载由 lania 管理的版本
+//! - `which`      输出某个入口命令对应的真实路径（shim 使用）
+//! - `init`       打印把 `~/.runex/shims` 加入 PATH 的 shell 片段
+//! - `doctor`     体检：缺失工具、shim 与 PATH 一致性
+//! - `ui`         终端 TUI
 //!
 //! 执行语义：默认 dry-run 打印计划；只有 `--yes` 才真正执行。
+//! 安装/切换/卸载全部由 lania 自己完成，不转发给 nvm / volta 等外部管理器。
 
 mod list;
 mod tui;
@@ -17,7 +21,9 @@ mod tui;
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::{CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
-use lania_env::{build_plan, EnvAction, EnvPlan, EnvService, ManagerKind};
+use lania_env::{
+    build_plan, execute_plan, EnvAction, EnvPlan, EnvService, Platform, RuntimeHome, RuntimeStore,
+};
 use lania_host::{
     capability::CapabilityName,
     execution::{
@@ -37,6 +43,8 @@ pub const USE_HANDLER_ID: &str = "command.env.use";
 pub const REMOVE_HANDLER_ID: &str = "command.env.remove";
 pub const DOCTOR_HANDLER_ID: &str = "command.env.doctor";
 pub const UI_HANDLER_ID: &str = "command.env.ui";
+pub const WHICH_HANDLER_ID: &str = "command.env.which";
+pub const INIT_HANDLER_ID: &str = "command.env.init";
 
 #[derive(Debug, Default)]
 pub struct EnvCommandPlugin;
@@ -47,28 +55,21 @@ impl EnvCommandPlugin {
     pub fn spec() -> CommandSpec {
         CommandSpec::new(
             "env",
-            "Inspect and manage language toolchains (node/python/rust/go/dart/kotlin/java/c)",
+            "Install and switch language runtimes managed by lania itself (node/python/go/rust/deno/bun/zig)",
             HANDLER_ID,
         )
         .with_subcommands(vec![
             list::list_spec(),
             list::info_spec(),
             list::versions_spec(),
-            list::mutate_spec("install", "Install a toolchain version", INSTALL_HANDLER_ID),
-            list::mutate_spec("use", "Switch or pin a toolchain version", USE_HANDLER_ID),
-            list::mutate_spec("remove", "Uninstall a toolchain version", REMOVE_HANDLER_ID),
+            list::mutate_spec("install", "Download and install a runtime version", INSTALL_HANDLER_ID),
+            list::mutate_spec("use", "Switch the current runtime version", USE_HANDLER_ID),
+            list::mutate_spec("remove", "Delete a lania-managed runtime version", REMOVE_HANDLER_ID),
             list::doctor_spec(),
+            which_spec(),
+            init_spec(),
             ui_spec(),
         ])
-        .with_options(vec![OptionSpec {
-            long: "manager".into(),
-            short: Some('m'),
-            help: "Force a specific version manager (nvm/fnm/volta/pyenv/rustup/...)".into(),
-            value_kind: ValueKind::OptionalString,
-            default_value: None,
-            choices: vec![],
-            negatable: false,
-        }])
         .with_examples(examples())
     }
 }
@@ -101,6 +102,8 @@ impl Plugin for EnvCommandPlugin {
                 REMOVE_HANDLER_ID,
                 DOCTOR_HANDLER_ID,
                 UI_HANDLER_ID,
+                WHICH_HANDLER_ID,
+                INIT_HANDLER_ID,
             ],
             || EnvCommandHandler,
         )
@@ -121,12 +124,105 @@ impl CommandHandler for EnvCommandHandler {
             INSTALL_HANDLER_ID => execute_mutation(ctx, EnvAction::Install),
             USE_HANDLER_ID => execute_mutation(ctx, EnvAction::Use),
             REMOVE_HANDLER_ID => execute_mutation(ctx, EnvAction::Remove),
-            DOCTOR_HANDLER_ID => Ok(list::execute_doctor(&service, &cwd)),
+            DOCTOR_HANDLER_ID => list::execute_doctor(&service, &cwd),
+            WHICH_HANDLER_ID => execute_which(ctx),
+            INIT_HANDLER_ID => execute_init(ctx),
             UI_HANDLER_ID => execute_ui(ctx, &cwd),
             _ => Ok(json!({ "kind": "env_summary", "tools": service.scan(&cwd) })),
         }?;
 
         Ok(ctx.complete_template_info(result, 0))
+    }
+}
+
+fn which_spec() -> CommandSpec {
+    CommandSpec::new(
+        "which",
+        "Print the binary a managed entrypoint currently resolves to",
+        WHICH_HANDLER_ID,
+    )
+    .with_args(vec![lania_command::ArgSpec {
+        name: "name".into(),
+        required: true,
+        multiple: false,
+        help: "Entrypoint name, e.g. node / npm / python3 / go".into(),
+    }])
+    .with_options(vec![OptionSpec {
+        long: "resolve".into(),
+        short: None,
+        help: "Print only the resolved absolute path (used by shims)".into(),
+        value_kind: ValueKind::Bool,
+        default_value: None,
+        choices: vec![],
+        negatable: false,
+    }])
+}
+
+fn init_spec() -> CommandSpec {
+    CommandSpec::new(
+        "init",
+        "Print the shell snippet that puts lania's shims directory on PATH",
+        INIT_HANDLER_ID,
+    )
+    .with_options(vec![OptionSpec {
+        long: "shell".into(),
+        short: Some('s'),
+        help: "Target shell: bash / zsh / fish / powershell (default: auto-detect)".into(),
+        value_kind: ValueKind::OptionalString,
+        default_value: None,
+        choices: vec![],
+        negatable: false,
+    }])
+}
+
+/// `lan env which <name>`：给 shim 用的入口解析。
+fn execute_which(ctx: &CommandExecutionContext<'_>) -> Result<Value> {
+    let name = ctx
+        .command()
+        .argv
+        .args
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("env which requires a name, e.g. `lan env which node`"))?;
+    let store = runtime_store()?;
+    let path = store.which(name).map_err(|error| ExecutionError {
+        exit_code: EXIT_RUNTIME_ERROR,
+        message: error.to_string(),
+    })?;
+    let resolve_only = option_bool(ctx, "resolve").unwrap_or(false);
+    let path_text = path.display().to_string();
+    Ok(json!({
+        "kind": "env_which",
+        "name": name,
+        "path": path_text,
+        "resolve": resolve_only,
+    }))
+}
+
+/// `lan env init`：只做一件事——把 shims 目录放进 PATH 的说明/片段。
+fn execute_init(ctx: &CommandExecutionContext<'_>) -> Result<Value> {
+    let store = runtime_store()?;
+    let shell = option_string(ctx, "shell").unwrap_or_else(detect_shell);
+    let snippet = store.init_snippet(&shell);
+    Ok(json!({
+        "kind": "env_init",
+        "shell": shell,
+        "shims": store.home().shims_dir().display().to_string(),
+        "snippet": snippet,
+    }))
+}
+
+/// 按运行环境猜测 shell；猜不到时给 POSIX 片段（最能覆盖多数场景）。
+fn detect_shell() -> String {
+    if cfg!(windows) {
+        "powershell".to_string()
+    } else if std::env::var("SHELL")
+        .map(|value| value.contains("fish"))
+        .unwrap_or(false)
+    {
+        "fish".to_string()
+    } else {
+        "bash".to_string()
     }
 }
 
@@ -241,13 +337,10 @@ fn execute_mutation(ctx: &CommandExecutionContext<'_>, action: EnvAction) -> Res
     })?;
     let version = args.get("version").and_then(Value::as_str);
 
-    let manager = option_string(ctx, "manager")
-        .map(|value| parse_manager(&value))
-        .transpose()?;
     let project = option_bool(ctx, "project").unwrap_or(false);
     let yes = option_bool(ctx, "yes").unwrap_or(false);
 
-    let plan = build_plan(action, tool, version, manager, &cwd, project);
+    let plan = build_plan(action, tool, version, &cwd, project);
     if let Some(error) = plan.error.as_deref() {
         return Err(ExecutionError {
             exit_code: EXIT_RUNTIME_ERROR,
@@ -261,35 +354,38 @@ fn execute_mutation(ctx: &CommandExecutionContext<'_>, action: EnvAction) -> Res
     }
 
     ctx.require_capability(CapabilityName::Exec)?;
-    let service = EnvService::new();
-    let mut executed = Vec::new();
-    for step in &plan.steps {
-        if step.program == "write-file" {
-            let path = &step.args[0];
-            let content = &step.args[1];
-            if content.is_empty() {
-                let _ = std::fs::remove_file(path);
-            } else {
-                if let Some(parent) = std::path::Path::new(path).parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                std::fs::write(path, format!("{content}\n"))?;
+    let store = runtime_store()?;
+    let mut steps = Vec::new();
+    let results =
+        execute_plan(&store, &plan, |step| steps.push(step.clone())).map_err(|error| {
+            ExecutionError {
+                exit_code: EXIT_RUNTIME_ERROR,
+                message: error.to_string(),
             }
-            executed.push(json!({ "label": step.label, "command": step.command, "status": "ok" }));
-            continue;
-        }
-        let output = service.run_step(ctx.exec(), &cwd, step)?;
-        executed.push(json!({
-            "label": step.label,
-            "command": step.command,
-            "status": "ok",
-            "output": output.trim(),
-        }));
-    }
+        })?;
+    let executed: Vec<Value> = steps
+        .iter()
+        .zip(results.iter())
+        .map(|(step, result)| {
+            json!({
+                "label": step.label,
+                "command": step.command,
+                "status": "ok",
+                "output": result,
+            })
+        })
+        .collect();
 
     let mut value = plan_value(&plan, "executed");
     value["executed"] = json!(executed);
     Ok(value)
+}
+
+/// 构造自管运行时存储（平台探测失败或目录不可用时给出可读错误）。
+pub(crate) fn runtime_store() -> Result<RuntimeStore> {
+    let platform = Platform::detect().map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let home = RuntimeHome::resolve().map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    Ok(RuntimeStore::new(home, platform))
 }
 
 fn plan_value(plan: &EnvPlan, status: &str) -> Value {
@@ -300,30 +396,6 @@ fn plan_value(plan: &EnvPlan, status: &str) -> Value {
         map.insert("dryRun".into(), json!(status == "dry_run"));
     }
     value
-}
-
-fn parse_manager(value: &str) -> Result<ManagerKind> {
-    let normalized = value.trim().to_ascii_lowercase();
-    let parsed = match normalized.as_str() {
-        "nvm" => ManagerKind::Nvm,
-        "fnm" => ManagerKind::Fnm,
-        "volta" => ManagerKind::Volta,
-        "n" => ManagerKind::N,
-        "asdf" => ManagerKind::Asdf,
-        "mise" => ManagerKind::Mise,
-        "pyenv" => ManagerKind::Pyenv,
-        "uv" => ManagerKind::Uv,
-        "rustup" => ManagerKind::Rustup,
-        "go" | "go-install" => ManagerKind::GoInstall,
-        "fvm" => ManagerKind::Fvm,
-        "sdkman" => ManagerKind::Sdkman,
-        "scoop" => ManagerKind::Scoop,
-        "winget" => ManagerKind::Winget,
-        "brew" => ManagerKind::Brew,
-        "apt" => ManagerKind::Apt,
-        other => anyhow::bail!("unknown version manager `{other}`"),
-    };
-    Ok(parsed)
 }
 
 pub(crate) fn option_string(ctx: &CommandExecutionContext<'_>, key: &str) -> Option<String> {
@@ -343,11 +415,6 @@ pub(crate) fn option_bool(ctx: &CommandExecutionContext<'_>, key: &str) -> Optio
     ctx.command().argv.options.get(key).and_then(Value::as_bool)
 }
 
-/// 供 `list` 子模块复用：从命令选项读取 manager 过滤。
-pub(crate) fn manager_filter(ctx: &CommandExecutionContext<'_>) -> Option<ManagerKind> {
-    option_string(ctx, "manager").and_then(|value| parse_manager(&value).ok())
-}
-
 /// 供 `list` 子模块复用：语言/工具名过滤。
 pub(crate) fn tool_filter(command: &CommandContext) -> Option<String> {
     command
@@ -361,20 +428,28 @@ pub(crate) fn tool_filter(command: &CommandContext) -> Option<String> {
 fn examples() -> Vec<Example> {
     vec![
         Example {
-            command: "lan env list".into(),
-            description: "Show every supported toolchain with its detected version".into(),
-        },
-        Example {
-            command: "lan env info node".into(),
-            description: "Inspect node: binary path, manager, project pin, candidates".into(),
-        },
-        Example {
-            command: "lan env versions node".into(),
-            description: "List installed node versions managed by nvm/fnm/...".into(),
+            command: "lan env init".into(),
+            description: "Print the snippet that puts ~/.runex/shims on PATH".into(),
         },
         Example {
             command: "lan env install node 20 --yes".into(),
-            description: "Install node 20 via the detected manager".into(),
+            description: "Download node 20.x from nodejs.org and register it".into(),
+        },
+        Example {
+            command: "lan env use node 20".into(),
+            description: "Point the node current pointer at 20.x and regenerate shims".into(),
+        },
+        Example {
+            command: "lan env list --installed".into(),
+            description: "List only the versions lania itself installed".into(),
+        },
+        Example {
+            command: "lan env info node".into(),
+            description: "Inspect node: binary path, source, upstream, project pin".into(),
+        },
+        Example {
+            command: "lan env which node".into(),
+            description: "Print the binary the node shim currently resolves to".into(),
         },
         Example {
             command: "lan env use python 3.12 --project".into(),
@@ -382,15 +457,15 @@ fn examples() -> Vec<Example> {
         },
         Example {
             command: "lan env remove node 18 --yes".into(),
-            description: "Uninstall node 18".into(),
+            description: "Delete the lania-managed node 18 directory".into(),
         },
         Example {
             command: "lan env doctor".into(),
-            description: "Report missing toolchains and PATH conflicts".into(),
+            description: "Report missing runtimes, shim gaps and PATH problems".into(),
         },
         Example {
             command: "lan env ui".into(),
-            description: "Open a local GUI to manage toolchains visually".into(),
+            description: "Open the terminal UI to manage runtimes visually".into(),
         },
     ]
 }
@@ -407,8 +482,9 @@ mod tests {
     };
 
     use super::{
-        EnvCommandPlugin, DOCTOR_HANDLER_ID, HANDLER_ID, INFO_HANDLER_ID, INSTALL_HANDLER_ID,
-        LIST_HANDLER_ID, REMOVE_HANDLER_ID, UI_HANDLER_ID, USE_HANDLER_ID, VERSIONS_HANDLER_ID,
+        EnvCommandPlugin, DOCTOR_HANDLER_ID, HANDLER_ID, INFO_HANDLER_ID, INIT_HANDLER_ID,
+        INSTALL_HANDLER_ID, LIST_HANDLER_ID, REMOVE_HANDLER_ID, UI_HANDLER_ID, USE_HANDLER_ID,
+        VERSIONS_HANDLER_ID, WHICH_HANDLER_ID,
     };
 
     #[test]
@@ -431,12 +507,15 @@ mod tests {
         let spec = &commands.commands()[0];
         assert_eq!(spec.name, "env");
         assert_eq!(spec.handler_id, HANDLER_ID);
-        assert_eq!(spec.subcommands.len(), 8);
+        assert_eq!(spec.subcommands.len(), 10);
 
         let names: Vec<&str> = spec.subcommands.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(
             names,
-            vec!["list", "info", "versions", "install", "use", "remove", "doctor", "ui"]
+            vec![
+                "list", "info", "versions", "install", "use", "remove", "doctor", "which", "init",
+                "ui"
+            ]
         );
 
         for handler in [
@@ -448,6 +527,8 @@ mod tests {
             USE_HANDLER_ID,
             REMOVE_HANDLER_ID,
             DOCTOR_HANDLER_ID,
+            WHICH_HANDLER_ID,
+            INIT_HANDLER_ID,
             UI_HANDLER_ID,
         ] {
             assert!(handlers.get(handler).is_some(), "missing handler {handler}");
@@ -471,7 +552,8 @@ mod tests {
             .iter()
             .any(|arg| arg.name == "version" && !arg.required));
         assert!(install.options.iter().any(|option| option.long == "yes"));
-        assert!(install
+        // `--manager` 逃生舱已移除：lan env 只有自管一条路径。
+        assert!(!install
             .options
             .iter()
             .any(|option| option.long == "manager"));

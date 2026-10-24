@@ -425,7 +425,7 @@ impl Renderer {
         }
     }
 
-    fn draw_detail<'a>(&self, frame: &mut Frame<'_>, area: Rect, app: &App) {
+    fn draw_detail(&self, frame: &mut Frame<'_>, area: Rect, app: &App) {
         let Some(tool) = app.current() else {
             let block = self.panel_block(self.tr("Details", "详情"), false);
             let inner = block.inner(area);
@@ -450,7 +450,6 @@ impl Renderer {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let label_width = 22usize;
         let mut lines: Vec<Line<'_>> = Vec::new();
 
         // 版本大标题 + 简介
@@ -480,17 +479,17 @@ impl Renderer {
         )));
         lines.push(Line::from(""));
 
-        let kv = |lines: &mut Vec<Line<'a>>, key: &str, value: Span<'a>| {
+        fn kv<'a>(lines: &mut Vec<Line<'a>>, key: &str, value: Span<'a>, theme: &Theme) {
             // 中文字符占 2 个单元格，必须按显示宽度补齐才能对齐。
-            let padding = label_padding(key, label_width);
+            let padding = label_padding(key, 22);
             lines.push(Line::from(vec![
                 Span::styled(
                     format!("  {key}{}", " ".repeat(padding)),
-                    Style::default().fg(self.theme.muted),
+                    Style::default().fg(theme.muted),
                 ),
                 value,
             ]));
-        };
+        }
 
         kv(
             &mut lines,
@@ -499,42 +498,49 @@ impl Renderer {
                 tool.binary_path.clone().unwrap_or_else(|| "—".into()),
                 Style::default().fg(self.theme.text),
             ),
+            &self.theme,
         );
         kv(
             &mut lines,
             self.tr("Current source", "当前来源"),
-            match app.effective_manager() {
-                Some(manager) => {
-                    Span::styled(manager.id().to_string(), Style::default().fg(self.theme.ok))
-                }
-                None if tool.installed => Span::styled(
-                    self.tr("System install", "系统安装"),
-                    Style::default().fg(self.theme.warn),
+            match app.current_source() {
+                Some("lania") => Span::styled(
+                    self.tr("managed by lania", "lania 自管"),
+                    Style::default().fg(self.theme.ok),
                 ),
+                Some(value) => {
+                    Span::styled(value.to_string(), Style::default().fg(self.theme.warn))
+                }
                 None => Span::styled("—", Style::default().fg(self.theme.muted)),
             },
+            &self.theme,
         );
         kv(
             &mut lines,
-            self.tr("Will install with", "安装将使用"),
-            match app.target_manager() {
-                Some(manager) => Span::styled(
-                    manager.id().to_string(),
+            self.tr("Self-managed", "自管状态"),
+            if app.is_managed() {
+                Span::styled(
+                    tool.upstream.clone().unwrap_or_else(|| "✓".into()),
                     Style::default().fg(self.theme.accent),
-                ),
-                None => Span::styled(
-                    self.tr("No manager available", "无可用管理器"),
-                    Style::default().fg(self.theme.err),
-                ),
+                )
+            } else {
+                Span::styled(
+                    self.tr("not yet supported", "暂不支持自管"),
+                    Style::default().fg(self.theme.muted),
+                )
             },
+            &self.theme,
         );
         kv(
             &mut lines,
-            self.tr("Install root", "安装根目录"),
+            self.tr("Managed versions", "自管版本数"),
             Span::styled(
-                tool.install_root.clone().unwrap_or_else(|| "—".into()),
+                tool.installed_count
+                    .map(|count| count.to_string())
+                    .unwrap_or_else(|| "—".into()),
                 Style::default().fg(self.theme.text),
             ),
+            &self.theme,
         );
         kv(
             &mut lines,
@@ -546,6 +552,7 @@ impl Renderer {
                 ),
                 None => Span::styled(self.tr("none", "无"), Style::default().fg(self.theme.muted)),
             },
+            &self.theme,
         );
 
         // 已安装版本（`prime_versions` 在切换工具时已写入缓存，渲染时不再扫盘）
@@ -568,8 +575,8 @@ impl Renderer {
             lines.push(Line::from(Span::styled(
                 if tool.installed {
                     self.tr(
-                        "    Current version is not managed by any version manager",
-                        "    当前版本不受任何版本管理器管理",
+                        "    No versions installed through lania yet",
+                        "    尚未通过 lania 安装任何版本",
                     )
                 } else {
                     self.tr("    Not installed yet", "    尚未安装")
@@ -582,15 +589,15 @@ impl Renderer {
             let gap = 1usize;
             let mut spans: Vec<Span<'_>> = Vec::new();
             let mut used = 0usize;
-            for (manager, version) in versions {
+            for (source, version) in versions {
                 let is_current = tool.version.as_deref() == Some(version.as_str());
                 let (fg, bg) = if is_current {
                     (self.theme.bg_chip(), self.theme.ok)
                 } else {
                     (self.theme.text, self.theme.selection_bg)
                 };
-                // 宽度按「版本 chip + 管理器名 + 间距」估算，超出就换行。
-                let width = version.len() + manager.len() + 3 + gap;
+                // 宽度按「版本 chip + 来源名 + 间距」估算，超出就换行。
+                let width = version.len() + source.len() + 3 + gap;
                 if used > 0 && used + width > usable {
                     lines.push(Line::from(spans));
                     spans = Vec::new();
@@ -605,7 +612,7 @@ impl Renderer {
                     Style::default().fg(fg).bg(bg),
                 ));
                 spans.push(Span::styled(
-                    format!("{manager} "),
+                    format!("{source} "),
                     Style::default().fg(self.theme.muted),
                 ));
                 used += width;
@@ -615,49 +622,30 @@ impl Renderer {
             }
         }
 
-        // 版本管理器可用性：按面板实际宽度换行，避免 `npm` 被截成 `n`。
+        // 自管入口：`use` / `install` 之后 shim 会暴露这些命令。
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            self.tr("  Version managers", "  版本管理器"),
+            self.tr("  Entrypoints", "  入口命令"),
             Style::default()
                 .fg(self.theme.muted)
                 .add_modifier(Modifier::BOLD),
         )));
-
-        let indent = 4usize;
-        let usable = (inner.width as usize).saturating_sub(indent);
-        let gap = 3usize;
-        let mut spans: Vec<Span<'_>> = Vec::new();
-        let mut used = 0usize;
-        for probe in &tool.candidates {
-            let (mark, color) = if probe.available {
-                (self.icons.installed_mark(true), self.theme.ok)
-            } else {
-                (self.icons.installed_mark(false), self.theme.muted)
-            };
-            let text = format!("{mark} {}", probe.manager.id());
-            let width = display_width(&text);
-            if used > 0 && used + gap + width > usable {
-                lines.push(Line::from(spans));
-                spans = Vec::new();
-                used = 0;
-            }
-            if spans.is_empty() {
-                spans.push(Span::raw(" ".repeat(indent)));
-                used = indent;
-            } else {
-                spans.push(Span::raw(" ".repeat(gap)));
-                used += gap;
-            }
-            spans.push(Span::styled(text, Style::default().fg(color)));
-            used += width;
-        }
-        if !spans.is_empty() {
-            lines.push(Line::from(spans));
-        }
-        if let Some(manager) = app.effective_manager().or_else(|| app.target_manager()) {
+        let entrypoints: Vec<&str> = lania_env::Language::parse_id(&tool.language)
+            .map(|language| language.probe_binaries())
+            .unwrap_or_default();
+        lines.push(Line::from(Span::styled(
+            format!("    {}", entrypoints.join("  ")),
+            Style::default().fg(self.theme.text),
+        )));
+        if !tool.managed {
             lines.push(Line::from(Span::styled(
-                format!("    {}", manager.summary(self.zh())),
+                format!(
+                    "    {}",
+                    self.tr(
+                        "self-managed install is not available for this language yet",
+                        "该语言的自管安装尚未支持",
+                    )
+                ),
                 Style::default().fg(self.theme.muted),
             )));
         }
@@ -722,8 +710,6 @@ impl Renderer {
             label(self.tr(" use ", " 切换 ")),
             key("d"),
             label(self.tr(" remove ", " 卸载 ")),
-            key("m"),
-            label(self.tr(" manager ", " 管理器 ")),
             key("p"),
             label(self.tr(" pin ", " 锁定 ")),
             key("v"),
@@ -811,10 +797,6 @@ impl Renderer {
             .current()
             .map(|tool| tool.language.clone())
             .unwrap_or_default();
-        let manager = app
-            .target_manager()
-            .map(|manager| manager.id().to_string())
-            .unwrap_or_else(|| self.tr("none", "无").into());
         let pin = if app.project_pin {
             self.tr("on", "开")
         } else {
@@ -824,8 +806,7 @@ impl Renderer {
         let lines = vec![
             Line::from(Span::styled(
                 format!(
-                    "  {tool_name} · {} {manager} · {} {pin}",
-                    self.tr("manager", "管理器"),
+                    "  {tool_name} · {} {pin}",
                     self.tr("project pin", "项目锁定")
                 ),
                 Style::default().fg(self.theme.muted),
@@ -1015,10 +996,10 @@ pub fn action_label(action: lania_env::EnvAction, zh: bool) -> &'static str {
     match (action, zh) {
         (EnvAction::Install, true) => "安装",
         (EnvAction::Use, true) => "切换",
-        (EnvAction::Remove | EnvAction::UninstallManagerVersion, true) => "卸载",
+        (EnvAction::Remove, true) => "卸载",
         (EnvAction::Install, false) => "install",
         (EnvAction::Use, false) => "use",
-        (EnvAction::Remove | EnvAction::UninstallManagerVersion, false) => "remove",
+        (EnvAction::Remove, false) => "remove",
     }
 }
 
@@ -1123,10 +1104,11 @@ mod tests {
             installed: true,
             version: None,
             binary_path: None,
-            manager: None,
-            candidates: Vec::new(),
+            source: Some("system".into()),
+            managed: false,
+            upstream: None,
+            installed_count: None,
             project_version: None,
-            install_root: None,
         }
     }
 

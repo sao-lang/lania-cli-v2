@@ -6,8 +6,10 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use lania_env::{build_plan, EnvAction, EnvPlan, EnvService, Language, ManagerKind, ToolStatus};
-use lania_exec::ExecService;
+use lania_env::{
+    build_plan, execute_plan, EnvAction, EnvPlan, EnvService, Language, Platform, RuntimeHome,
+    RuntimeStore, ToolStatus,
+};
 
 /// 当前交互模式。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -68,7 +70,6 @@ pub struct App {
     /// 设备系统信息，如 `Windows x64 · HOSTNAME`。
     pub system: String,
     pub service: EnvService,
-    pub exec: ExecService,
     pub tools: Vec<ToolStatus>,
     /// 左侧列表行（分组标题 + 工具）
     pub rows: Vec<Row>,
@@ -81,8 +82,9 @@ pub struct App {
     pub mode: Mode,
     pub input: String,
     pub project_pin: bool,
-    pub manager_choice: HashMap<String, ManagerKind>,
-    /// 已安装版本缓存，key = 语言 id，值为 (管理器, 版本)
+    /// lania 自管运行时（安装/切换/卸载的唯一入口）。
+    pub store: Option<RuntimeStore>,
+    /// 已安装版本缓存，key = 语言 id，值为 `(来源, 版本)`。
     pub versions_cache: HashMap<String, Vec<(String, String)>>,
     pub pending_plan: Option<EnvPlan>,
     pub log: Vec<String>,
@@ -118,6 +120,11 @@ impl App {
         };
         let (repo, git_branch) = workspace_git(&cwd);
         let system = system_label();
+        let store = Platform::detect().ok().and_then(|platform| {
+            RuntimeHome::resolve()
+                .ok()
+                .map(|home| RuntimeStore::new(home, platform))
+        });
         Self {
             cwd,
             locale,
@@ -126,7 +133,6 @@ impl App {
             git_branch,
             system,
             service: EnvService::new(),
-            exec: ExecService::new(false),
             tools: Vec::new(),
             rows: Vec::new(),
             cursor: 0,
@@ -135,7 +141,7 @@ impl App {
             mode: Mode::Browse,
             input: String::new(),
             project_pin: false,
-            manager_choice: HashMap::new(),
+            store,
             versions_cache: HashMap::new(),
             pending_plan: None,
             log: Vec::new(),
@@ -160,11 +166,10 @@ impl App {
         }
     }
 
-    /// 测试专用：dry-run 执行器 + 关闭版本探测，避免改动真实工具链。
+    /// 测试专用：关闭版本探测，避免改动真实工具链。
     #[cfg(test)]
     pub(crate) fn new_dry_run(cwd: PathBuf, locale: &str) -> Self {
         let mut app = Self::new(cwd, locale);
-        app.exec = ExecService::dry_run();
         app.load_versions = false;
         app
     }
@@ -559,55 +564,14 @@ impl App {
         self.scroll = (self.scroll as isize + delta).clamp(0, u16::MAX as isize) as u16;
     }
 
-    pub fn effective_manager(&self) -> Option<ManagerKind> {
-        let tool = self.current()?;
-        if let Some(manager) = self.manager_choice.get(&tool.id) {
-            return Some(*manager);
-        }
-        tool.manager.as_deref().and_then(ManagerKind::parse_id)
+    /// 当前工具是否由 lania 自己管理（第一批语言）。
+    pub fn is_managed(&self) -> bool {
+        self.current().is_some_and(|tool| tool.managed)
     }
 
-    /// 执行安装/切换时实际会调用的管理器（允许回退到任意可用候选）。
-    pub fn target_manager(&self) -> Option<ManagerKind> {
-        if let Some(manager) = self.effective_manager() {
-            return Some(manager);
-        }
-        let tool = self.current()?;
-        let language = Language::parse_id(&tool.language)?;
-        lania_env::pick_manager(language, None).map(|probe| probe.manager)
-    }
-
-    pub fn cycle_manager(&mut self) {
-        let Some(tool) = self.current() else { return };
-        let Some(language) = Language::parse_id(&tool.language) else {
-            return;
-        };
-        let managers = language.managers();
-        if managers.is_empty() {
-            return;
-        }
-        let id = tool.id.clone();
-        let current = self.manager_choice.get(&id).copied();
-        let next = match current {
-            None => Some(managers[0]),
-            Some(manager) => {
-                let index = managers.iter().position(|candidate| *candidate == manager);
-                match index {
-                    Some(index) if index + 1 < managers.len() => Some(managers[index + 1]),
-                    _ => None,
-                }
-            }
-        };
-        match next {
-            Some(manager) => {
-                self.manager_choice.insert(id, manager);
-                self.status = format!("{} {}", self.tr("Manager →", "管理器 →"), manager.id());
-            }
-            None => {
-                self.manager_choice.remove(&id);
-                self.status = self.tr("Manager → auto", "管理器 → 自动").into();
-            }
-        }
+    /// 右侧「当前来源」文案：`lania` / `system` / `—`。
+    pub fn current_source(&self) -> Option<&str> {
+        self.current().and_then(|tool| tool.source.as_deref())
     }
 
     /// 若当前语言还没缓存版本，则扫描一次（切换工具时调用）。
@@ -622,9 +586,9 @@ impl App {
         };
         let versions: Vec<(String, String)> = self
             .service
-            .versions_for_language(language)
+            .managed_versions(language)
             .into_iter()
-            .map(|item| (item.manager, item.version))
+            .map(|item| (item.source, item.version))
             .collect();
         self.versions_cache.insert(language_id, versions);
     }
@@ -671,32 +635,62 @@ impl App {
         let external: Vec<String> = self
             .tools
             .iter()
-            .filter(|tool| tool.installed && tool.id == tool.language && tool.manager.is_none())
+            .filter(|tool| {
+                tool.installed
+                    && tool.id == tool.language
+                    && tool.source.as_deref() == Some("system")
+            })
             .map(|tool| tool.name.clone())
             .collect();
-        let none = self.tr("none", "无").to_string();
-        self.log = vec![
+        let mut lines = vec![
             self.tr("Doctor result", "体检结果").into(),
             String::new(),
             format!(
                 "{:<16}{}",
                 self.tr("Missing runtime", "缺失运行时"),
                 if missing.is_empty() {
-                    none.clone()
+                    self.tr("none", "无").to_string()
                 } else {
                     missing.join(", ")
                 }
             ),
             format!(
                 "{:<16}{}",
-                self.tr("Non-manager", "非管理器来源"),
+                self.tr("System install", "系统安装（非自管）"),
                 if external.is_empty() {
-                    none
+                    self.tr("none", "无").to_string()
                 } else {
                     external.join(", ")
                 }
             ),
         ];
+        // 自管状态与 PATH 一致性检查（shim 是否已生成、是否在 PATH 上）。
+        match &self.store {
+            Some(store) => match store.diagnose() {
+                Ok(diagnostics) if diagnostics.is_empty() => {
+                    lines.push(format!(
+                        "{:<16}{}",
+                        self.tr("Self-managed", "自管状态"),
+                        self.tr("ok", "正常")
+                    ));
+                }
+                Ok(diagnostics) => {
+                    for diagnostic in diagnostics {
+                        let prefix = match diagnostic.level {
+                            lania_env::DiagnosticLevel::Error => "✗",
+                            lania_env::DiagnosticLevel::Warn => "!",
+                        };
+                        lines.push(format!("{prefix} {}", diagnostic.message));
+                    }
+                }
+                Err(error) => lines.push(format!("✗ {error}")),
+            },
+            None => lines.push(format!(
+                "✗ {}",
+                self.tr("runtime store unavailable", "运行时存储不可用")
+            )),
+        }
+        self.log = lines;
         self.mode = Mode::Result;
         self.status = self.tr("Esc to go back", "Esc 返回").into();
     }
@@ -715,7 +709,6 @@ impl App {
         let Some(tool) = self.current() else { return };
         let version = self.input.trim().to_string();
         let tool_id = tool.language.clone();
-        let manager = self.target_manager();
         let plan = build_plan(
             kind.action(),
             &tool_id,
@@ -724,7 +717,6 @@ impl App {
             } else {
                 Some(version.as_str())
             },
-            manager,
             &self.cwd,
             self.project_pin,
         );
@@ -749,36 +741,27 @@ impl App {
             return;
         }
 
+        let Some(store) = self.store.as_ref() else {
+            self.log.push(format!(
+                "✗ {}",
+                self.tr("runtime store unavailable", "运行时存储不可用")
+            ));
+            self.status = self.tr("Failed", "失败").into();
+            return;
+        };
+
+        let mut steps = Vec::new();
+        let result = execute_plan(store, &plan, |step| steps.push(step.clone()));
+        let mut lines: Vec<String> = steps
+            .iter()
+            .map(|step| format!("› {}", step.command))
+            .collect();
         let mut failed = false;
-        let mut lines = Vec::new();
-        for step in &plan.steps {
-            lines.push(format!("› {}", step.command));
-            if step.program == "write-file" {
-                let path = std::path::Path::new(&step.args[0]);
-                let content = &step.args[1];
-                if content.is_empty() {
-                    let _ = std::fs::remove_file(path);
-                } else {
-                    if let Some(parent) = path.parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    let _ = std::fs::write(path, format!("{content}\n"));
-                }
-                lines.push(format!("  ✓ {}", step.label));
-                continue;
-            }
-            match self.service.run_step(&self.exec, &self.cwd, step) {
-                Ok(output) => {
-                    lines.push(format!("  ✓ {}", step.label));
-                    for line in output.lines().take(3) {
-                        lines.push(format!("    {}", line.trim_end()));
-                    }
-                }
-                Err(error) => {
-                    lines.push(format!("  ✗ {}: {error}", step.label));
-                    failed = true;
-                    break;
-                }
+        match result {
+            Ok(results) => lines.extend(results.into_iter().map(|line| format!("  ✓ {line}"))),
+            Err(error) => {
+                lines.push(format!("  ✗ {error}"));
+                failed = true;
             }
         }
         self.log.extend(lines);

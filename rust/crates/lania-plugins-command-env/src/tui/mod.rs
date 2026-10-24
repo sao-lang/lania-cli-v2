@@ -256,7 +256,6 @@ fn handle_browse(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char('v') => app.reload_versions(),
         KeyCode::Char('D') => app.doctor(),
-        KeyCode::Char('m') => app.cycle_manager(),
         KeyCode::Char('p') => {
             app.project_pin = !app.project_pin;
             app.status = if app.project_pin {

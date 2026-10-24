@@ -146,14 +146,6 @@ impl IconSet {
         }
     }
 
-    pub fn installed_mark(self, installed: bool) -> &'static str {
-        if installed {
-            "●"
-        } else {
-            "○"
-        }
-    }
-
     /// 当前选中项的行首指示符（yazi 风格 `❯`）。
     pub fn pointer(self) -> &'static str {
         "❯"
@@ -234,8 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn installed_mark_reflects_state() {
-        assert_eq!(IconSet::Ascii.installed_mark(true), "●");
-        assert_eq!(IconSet::Ascii.installed_mark(false), "○");
+    fn pointer_is_stable() {
+        assert_eq!(IconSet::Ascii.pointer(), "❯");
     }
 }

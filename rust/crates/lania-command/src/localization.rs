@@ -128,22 +128,17 @@ fn localize_lint_options(spec: &mut CommandSpec) {
     set_option_help(spec, "grouped-output", "按 adaptor 分组输出 lint 结果");
 }
 
-fn localize_env_options(spec: &mut CommandSpec) {
-    set_option_help(
-        spec,
-        "manager",
-        "强制指定版本管理器（nvm/fnm/volta/pyenv/rustup/...）",
-    );
-}
-
 fn localize_env_mutation(spec: &mut CommandSpec) {
-    localize_env_options(spec);
     set_arg_help(
         spec,
         "tool",
-        "要管理的工具：node/python/rust/go/dart/kotlin/java/c",
+        "要管理的工具：node/python/go/rust/deno/bun/zig",
     );
-    set_arg_help(spec, "version", "目标版本，例如 20 / 3.12 / stable");
+    set_arg_help(
+        spec,
+        "version",
+        "目标版本（支持前缀），例如 20 / 3.12 / 1.86.0",
+    );
     set_option_help(spec, "yes", "真正执行计划（默认仅演练）");
     set_option_help(spec, "project", "将版本写入项目版本文件");
 }
@@ -806,73 +801,108 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
 
         // env
         "command.env" => {
-            spec.about = "查看并管理多语言工具链（node/python/rust/go/dart/kotlin/java/c）".into();
-            localize_env_options(spec);
+            spec.about =
+                "由 lania 自行安装并切换语言运行时（node/python/go/rust/deno/bun/zig）".into();
             set_example_desc(
                 spec,
-                "lan env list",
-                "显示所有受支持的工具链及其探测到的版本",
-            );
-            set_example_desc(
-                spec,
-                "lan env info node",
-                "查看 node：可执行文件路径、管理器、项目固定版本与候选版本",
-            );
-            set_example_desc(
-                spec,
-                "lan env versions node",
-                "列出 nvm/fnm/... 等管理器已安装的 node 版本",
+                "lan env init",
+                "打印把 ~/.runex/shims 加入 PATH 的片段",
             );
             set_example_desc(
                 spec,
                 "lan env install node 20 --yes",
-                "通过探测到的管理器安装 node 20",
+                "从 nodejs.org 下载 node 20.x 并登记到本地",
+            );
+            set_example_desc(
+                spec,
+                "lan env use node 20",
+                "把 node 的 current 指针指向 20.x 并重新生成 shim",
+            );
+            set_example_desc(
+                spec,
+                "lan env list --installed",
+                "只列出 lania 自己安装过的版本",
+            );
+            set_example_desc(
+                spec,
+                "lan env info node",
+                "查看 node：可执行文件路径、来源、上游渠道与项目固定版本",
+            );
+            set_example_desc(
+                spec,
+                "lan env which node",
+                "输出 node 的 shim 当前指向的真实可执行文件",
             );
             set_example_desc(
                 spec,
                 "lan env use python 3.12 --project",
                 "将 python 3.12 固定到本项目的 .python-version",
             );
-            set_example_desc(spec, "lan env remove node 18 --yes", "卸载 node 18");
-            set_example_desc(spec, "lan env doctor", "报告缺失的工具链与 PATH 冲突");
-            set_example_desc(spec, "lan env ui", "打开本地界面以可视化管理工具链");
+            set_example_desc(
+                spec,
+                "lan env remove node 18 --yes",
+                "删除 lania 管理的 node 18 目录",
+            );
+            set_example_desc(
+                spec,
+                "lan env doctor",
+                "报告缺失的运行时、shim 缺口与 PATH 问题",
+            );
+            set_example_desc(spec, "lan env ui", "打开终端界面以可视化管理运行时");
         }
         "command.env.list" => {
-            spec.about = "显示所有受支持的工具链及版本".into();
-            localize_env_options(spec);
+            spec.about = "显示所有受支持的工具链及探测到的版本".into();
+            set_arg_help(spec, "tool", "按工具或语言名过滤");
+            set_option_help(
+                spec,
+                "installed",
+                "只列出 lania 安装的版本（读取 ~/.runex，不联网）",
+            );
         }
         "command.env.info" => {
             spec.about = "查看单个工具链的详情".into();
-            localize_env_options(spec);
             set_arg_help(
                 spec,
                 "tool",
-                "要查看的工具：node/python/rust/go/dart/kotlin/java/c",
+                "要查看的工具：node/python/go/rust/deno/bun/zig",
             );
         }
         "command.env.versions" => {
             spec.about = "列出某个工具链已安装的版本".into();
-            localize_env_options(spec);
             set_arg_help(
                 spec,
                 "tool",
-                "要列出工具：node/python/rust/go/dart/kotlin/java/c",
+                "要列出的工具：node/python/go/rust/deno/bun/zig",
             );
+            set_option_help(spec, "available", "同时查询上游可安装的版本");
         }
         "command.env.install" => {
-            spec.about = "安装指定版本的工具链".into();
+            spec.about = "下载并安装指定版本的运行时".into();
             localize_env_mutation(spec);
         }
         "command.env.use" => {
-            spec.about = "切换或固定工具链版本".into();
+            spec.about = "切换 current 运行时版本".into();
             localize_env_mutation(spec);
         }
         "command.env.remove" => {
-            spec.about = "卸载指定版本的工具链".into();
+            spec.about = "删除由 lania 管理的运行时版本".into();
             localize_env_mutation(spec);
         }
         "command.env.doctor" => {
-            spec.about = "检查缺失的工具链与 PATH 冲突".into();
+            spec.about = "检查缺失的运行时、shim 缺口与 PATH 设置".into();
+        }
+        "command.env.which" => {
+            spec.about = "输出自管入口当前解析到的可执行文件".into();
+            set_arg_help(spec, "name", "入口名，例如 node / npm / python3 / go");
+            set_option_help(spec, "resolve", "只输出解析后的绝对路径（供 shim 使用）");
+        }
+        "command.env.init" => {
+            spec.about = "打印把 lania 的 shims 目录加入 PATH 的 shell 片段".into();
+            set_option_help(
+                spec,
+                "shell",
+                "目标 shell：bash / zsh / fish / powershell（默认自动探测）",
+            );
         }
         "command.env.ui" => {
             spec.about = "打开用于管理工具链的终端界面".into();

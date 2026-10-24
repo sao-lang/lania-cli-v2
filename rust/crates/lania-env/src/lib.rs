@@ -1,26 +1,50 @@
 //! 多语言工具链版本管理的核心模型。
 //!
 //! 设计要点：
-//! - 本 crate 只负责“探测 + 计划（plan）”，不直接执行安装/卸载命令；
-//!   真正执行交给调用方（`lan env` 命令插件经由 `lania-exec`）。
-//! - 版本管理器优先复用生态既有方案（nvm / fnm / volta / pyenv / uv / rustup /
-//!   go 自带 / dart / sdkman / scoop / winget / brew …），避免自造安装器。
-//! - 所有能力都是“声明式描述 + 探测”，这样 GUI 与 CLI 可以共用同一份数据。
+//! - 本 crate 负责「探测本机运行时」与「自管运行时」（安装 / 切换 / 卸载 / 列举）。
+//!   自管路径的目录布局见 `~/.runex`（[`RuntimeHome`]），不依赖任何外部版本管理器。
+//! - 自管实现的契约是 [`RuntimeProvider`]：每种语言只需回答「有哪些版本 / 下哪个文件 /
+//!   怎么摆目录 / 需要什么环境变量」，下载、校验、解压、登记、shim 由服务层统一完成。
+//! - 所有能力都是「声明式描述 + 探测」，这样 GUI 与 CLI 可以共用同一份数据。
 //!
-//! 主要导出：Language、ManagerKind、EnvAction、EnvPlan、EnvService。
+//! 主要导出：Language、EnvService、RuntimeStore、RuntimeProvider。
 
+mod archive;
+mod checksum;
 mod detect;
+mod error;
+mod home;
+mod http;
 mod language;
-pub mod managers;
 mod plan;
+mod platform;
+pub mod provider;
+mod shims;
+mod state;
+mod store;
+mod version;
 
 #[cfg(test)]
 mod tests;
 
-pub use detect::{extract_semver, EnvService, InstalledVersion, ProjectVersion, ToolStatus};
+pub use archive::{extract as extract_archive, verify_integrity, ArchiveFormat};
+pub use checksum::{find_in_manifest, hex_digest_sha256, verify_file};
+pub use detect::{extract_semver, which, EnvService, InstalledVersion, ProjectVersion, ToolStatus};
+pub use error::{ArchiveError, NetworkError, PlatformError, RuntimeError, VerifyError};
+pub use home::{RuntimeHome, HOME_ENV, META_FILE};
+pub use http::HttpClient;
 pub use language::Language;
-pub use managers::{install_location_hint, probe as probe_manager, ManagerKind, ManagerProbe};
-pub use plan::{build_plan, pick_manager, EnvAction, EnvPlan, PlanStep};
+pub use plan::{build_plan, execute_plan, validate_version, EnvAction, EnvPlan, PlanStep};
+pub use platform::{Arch, Libc, Os, Platform};
+pub use provider::{
+    describe as describe_provider, is_planned, platform_limitation, provider_for,
+    supported_language_ids, upstream_for, ProviderArtifact, ProviderContext, ProviderInfo,
+    ProviderLayout, ProviderRelease, RuntimeProvider,
+};
+pub use shims::{resolve_entry as resolve_shim_entry, shell_snippet};
+pub use state::{InstalledMeta, InstalledRuntime, RuntimeState};
+pub use store::{Diagnostic, DiagnosticLevel, InstallEvent, InstallOutcome, RuntimeStore};
+pub use version::{pick_best, VersionTag};
 
 fn extract_version(language: Language, file_name: &str, content: &str) -> Option<String> {
     let trimmed = content.trim();

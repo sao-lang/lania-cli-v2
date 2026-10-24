@@ -102,49 +102,31 @@ fn project_pin_toggles() {
     let plan = app.pending_plan.as_ref().expect("plan");
     // 开启项目锁定时，计划里应包含写版本文件的步骤。
     assert!(
-        plan.steps.iter().any(|step| step.program == "write-file"),
+        plan.steps.iter().any(|step| step.kind == "write-file"),
         "expected a write-file step, got {:?}",
         plan.steps
     );
 }
 
 #[test]
-fn manager_cycle_returns_to_auto() {
-    let mut app = app();
-    let id = app.current().map(|tool| tool.id.clone()).expect("tool");
-    app.cycle_manager();
-    assert!(app.manager_choice.contains_key(&id));
-    for _ in 0..32 {
-        app.cycle_manager();
-        if !app.manager_choice.contains_key(&id) {
-            return;
-        }
-    }
-    panic!("cycle_manager never returned to auto");
-}
+fn managed_flag_explains_self_managed_support() {
+    let mut app = App::new_dry_run(PathBuf::from("."), "en");
+    app.set_tools_for_test(vec![node_tool(), tool("ruby", "ruby")]);
 
-#[test]
-fn effective_manager_does_not_fake_system_installs() {
-    let mut app = app();
-    let Some(index) = app
-        .tools
-        .iter()
-        .position(|tool| tool.installed && tool.manager.is_none() && tool.id == tool.language)
-    else {
-        return;
-    };
-    // 把光标移到该工具
-    while app.selected_tool_index() != Some(index) {
-        let before = app.cursor;
-        app.move_cursor(1);
-        if app.cursor == before {
-            return;
-        }
-    }
-    assert!(
-        app.effective_manager().is_none(),
-        "system-installed tool must not claim a manager"
+    app.move_cursor(-100);
+    assert_eq!(
+        app.current().map(|tool| tool.language.as_str()),
+        Some("node")
     );
+    assert!(app.is_managed(), "node is a batch-1 self-managed language");
+    assert_eq!(app.current_source(), Some("lania"));
+
+    app.move_cursor(1000);
+    assert_eq!(
+        app.current().map(|tool| tool.language.as_str()),
+        Some("ruby")
+    );
+    assert!(!app.is_managed(), "ruby has no provider yet");
 }
 
 #[test]
@@ -164,16 +146,11 @@ fn node_tool() -> lania_env::ToolStatus {
         installed: true,
         version: Some("20.0.0".into()),
         binary_path: None,
-        manager: Some("nvm".into()),
-        candidates: vec![lania_env::ManagerProbe {
-            manager: lania_env::ManagerKind::Nvm,
-            available: true,
-            path: None,
-            root: None,
-            note: None,
-        }],
+        source: Some("lania".into()),
+        managed: true,
+        upstream: Some("nodejs.org/dist".into()),
+        installed_count: Some(1),
         project_version: None,
-        install_root: None,
     }
 }
 
@@ -183,43 +160,30 @@ fn plan(action: lania_env::EnvAction, steps: Vec<lania_env::PlanStep>) -> lania_
         language: lania_env::Language::Node,
         tool: "node".into(),
         version: Some("20".into()),
-        manager: Some(lania_env::ManagerKind::Nvm),
-        manager_available: true,
+        managed: true,
         steps,
         error: None,
         notes: Vec::new(),
     }
 }
 
-fn step(program: &str, args: Vec<&str>, command: &str) -> lania_env::PlanStep {
-    lania_env::PlanStep {
-        program: program.into(),
-        args: args.into_iter().map(str::to_string).collect(),
-        use_shell: false,
-        command: command.into(),
-        label: "test step".into(),
-    }
-}
-
 #[test]
-fn execute_install_plan_dry_run_records_steps() {
+fn execute_plan_reports_error_for_unsupported_language() {
     let mut app = App::new_dry_run(PathBuf::from("."), "en");
     app.set_tools_for_test(vec![node_tool()]);
-    app.pending_plan = Some(plan(
-        lania_env::EnvAction::Install,
-        vec![step("nvm", vec!["install", "20"], "nvm install 20")],
-    ));
+    let mut plan = plan(lania_env::EnvAction::Install, Vec::new());
+    plan.error = Some("ruby is not self-managed yet".into());
+    app.pending_plan = Some(plan);
 
     app.execute_pending();
 
     assert!(matches!(app.mode, Mode::Result));
-    assert!(app.log.iter().any(|line| line.contains("nvm install 20")));
-    assert!(app.status.contains("completed"), "status: {}", app.status);
-    assert!(app.pending_refresh);
+    assert!(app.log.iter().any(|line| line.contains("not self-managed")));
+    assert!(!app.pending_refresh, "nothing ran, nothing to refresh");
 }
 
 #[test]
-fn execute_use_plan_writes_project_pin() {
+fn execute_write_file_step_writes_project_pin() {
     let dir = std::env::temp_dir().join(format!("lania-tui-pin-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let pin = dir.join(".nvmrc").display().to_string();
@@ -228,38 +192,21 @@ fn execute_use_plan_writes_project_pin() {
     app.set_tools_for_test(vec![node_tool()]);
     app.pending_plan = Some(plan(
         lania_env::EnvAction::Use,
-        vec![
-            step("nvm", vec!["use", "20"], "nvm use 20"),
-            lania_env::PlanStep {
-                program: "write-file".into(),
-                args: vec![pin.clone(), "20".into()],
-                use_shell: false,
-                command: format!("write {pin} <- 20"),
-                label: "pin .nvmrc to 20".into(),
-            },
-        ],
+        vec![lania_env::PlanStep {
+            kind: "write-file".into(),
+            label: "pin .nvmrc to 20".into(),
+            command: format!("write {pin} <- 20"),
+            path: Some(pin.clone()),
+            content: Some("20".into()),
+        }],
     ));
 
     app.execute_pending();
 
     assert!(app.status.contains("完成"), "status: {}", app.status);
     assert_eq!(std::fs::read_to_string(&pin).expect("pin file"), "20\n");
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn execute_remove_plan_dry_run_records_steps() {
-    let mut app = App::new_dry_run(PathBuf::from("."), "en");
-    app.set_tools_for_test(vec![node_tool()]);
-    app.pending_plan = Some(plan(
-        lania_env::EnvAction::Remove,
-        vec![step("nvm", vec!["uninstall", "20"], "nvm uninstall 20")],
-    ));
-
-    app.execute_pending();
-
-    assert!(app.log.iter().any(|line| line.contains("nvm uninstall 20")));
     assert!(app.pending_refresh);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -283,10 +230,11 @@ fn tool(id: &str, language: &str) -> lania_env::ToolStatus {
         installed: true,
         version: None,
         binary_path: None,
-        manager: None,
-        candidates: Vec::new(),
+        source: Some("system".into()),
+        managed: false,
+        upstream: None,
+        installed_count: None,
         project_version: None,
-        install_root: None,
     }
 }
 
