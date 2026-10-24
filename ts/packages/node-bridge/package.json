@@ -1,6 +1,6 @@
 {
-  "name": "@lania-cli/node-bridge",
-  "version": "0.1.0",
+  "name": "@lania-cli-v2/node-bridge",
+  "version": "0.0.1",
   "private": false,
   "type": "module",
   "exports": {
@@ -25,8 +25,8 @@
     "typescript": "^5.6.0"
   },
   "dependencies": {
-    "@lania-cli/agent": "workspace:*",
-    "@lania-cli/templates": "workspace:*",
+    "@lania-cli-v2/agent": "workspace:*",
+    "@lania-cli-v2/templates": "workspace:*",
     "tsx": "^4.19.0",
     "yaml": "^2.8.1"
   }

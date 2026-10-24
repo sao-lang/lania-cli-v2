@@ -18,10 +18,7 @@ export function normalizeRuntimeInput(params: Record<string, unknown>): RuntimeI
 
 // 模板名解析集中放在这里，目的是统一默认模板回退策略。
 // 当前约定是：如果请求模板不存在，则回退到 `spa-react`，保证旧调用方仍能得到可用结果。
-export async function resolveTemplate(
-  templateName: unknown,
-  runtimeInput: RuntimeInput,
-) {
+export async function resolveTemplate(templateName: unknown, runtimeInput: RuntimeInput) {
   const requested = asTemplateName(templateName);
   const runtime = await loadTemplatesRuntime();
   return (
@@ -56,7 +53,7 @@ function asTemplateName(value: unknown): string {
 }
 
 // 开发态优先尝试直接加载工作区 `templates` 源码，方便联调；
-// 如果当前环境拿不到源码入口，再退回到发布包 `@lania-cli/templates`。
+// 如果当前环境拿不到源码入口，再退回到发布包 `@lania-cli-v2/templates`。
 // 这样同一套 service/discovery 逻辑可以同时服务源码运行与安装运行。
 async function resolveTemplatesRuntime(): Promise<TemplatesRuntimeModule> {
   const pluginDir = dirname(fileURLToPath(import.meta.url));
@@ -68,7 +65,7 @@ async function resolveTemplatesRuntime(): Promise<TemplatesRuntimeModule> {
       // fall through to the published package when .ts source import is unavailable.
     }
   }
-  return (await import('@lania-cli/templates')) as TemplatesRuntimeModule;
+  return (await import('@lania-cli-v2/templates')) as TemplatesRuntimeModule;
 }
 
 // 这里只做最轻量的文件存在性探测，用于决定运行时加载来源。

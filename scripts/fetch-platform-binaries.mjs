@@ -34,9 +34,9 @@ function discoverPlatformPackageDescriptors() {
   const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   const optionalDependencies = cli.optionalDependencies ?? {};
   return Object.entries(optionalDependencies)
-    .filter(([packageName]) => packageName.startsWith('@lania-cli/cli-'))
+    .filter(([packageName]) => packageName.startsWith('@lania-cli-v2/cli-'))
     .map(([packageName, version]) => {
-      const packageDirName = packageName.replace('@lania-cli/', '');
+      const packageDirName = packageName.replace('@lania-cli-v2/', '');
       const packageRoot = path.join(repoRoot, 'npm', packageDirName);
       const packageJsonPath = path.join(packageRoot, 'package.json');
       const packageExists = fs.existsSync(packageJsonPath);

@@ -239,16 +239,16 @@ function resolvePlatformBinaryPackage() {
   const platform = process.platform;
   const arch = process.arch;
   if (platform === 'darwin' && arch === 'arm64') {
-    return '@lania-cli/cli-darwin-arm64';
+    return '@lania-cli-v2/cli-darwin-arm64';
   }
   if (platform === 'linux' && arch === 'x64') {
-    return '@lania-cli/cli-linux-x64';
+    return '@lania-cli-v2/cli-linux-x64';
   }
   return null;
 }
 
 function resolveBinaryPath(pkgName) {
-  const cliPkgJson = require.resolve('@lania-cli/cli/package.json');
+  const cliPkgJson = require.resolve('@lania-cli-v2/cli/package.json');
   const cliRequire = createRequire(cliPkgJson);
   const pkgJson = cliRequire.resolve(\`\${pkgName}/package.json\`);
   return path.join(path.dirname(pkgJson), 'bin', 'lania-cli');
@@ -364,10 +364,10 @@ async function discoverOfficialPlatformPackages(): Promise<OfficialPlatformPacka
   const result: OfficialPlatformPackageDescriptor[] = [];
 
   for (const [packageName, versionValue] of Object.entries(optionalDependencies)) {
-    if (!packageName.startsWith('@lania-cli/cli-')) {
+    if (!packageName.startsWith('@lania-cli-v2/cli-')) {
       continue;
     }
-    const packageDirName = packageName.replace('@lania-cli/', '');
+    const packageDirName = packageName.replace('@lania-cli-v2/', '');
     const packageRootDir = join(repoRoot, 'npm', packageDirName);
     const packageExists = await fileExists(join(packageRootDir, 'package.json'));
     const packageJson = packageExists
@@ -412,7 +412,7 @@ async function resolveBinarySourceForDescriptor(
   }
 
   // 允许传入 JSON map，例如：
-  // {"darwin-arm64":"/path/to/bin","@lania-cli/cli-darwin-arm64":"/path/to/bin"}
+  // {"darwin-arm64":"/path/to/bin","@lania-cli-v2/cli-darwin-arm64":"/path/to/bin"}
   const platformBinaryPaths = normalizePlatformBinaryPaths(params.platformBinaryPaths);
   const requestCandidates = [
     platformBinaryPaths[descriptor.platform],

@@ -103,7 +103,7 @@ export async function preparePublishArtifacts(
     },
     files: ['bin', 'lib', 'README.md'],
     dependencies: {
-      '@lania-cli/cli': String(cliPackage.version ?? '0.1.0'),
+      '@lania-cli-v2/cli': String(cliPackage.version ?? '0.1.0'),
     },
   };
   await writeJsonFile(join(options.outputRoot, 'package.json'), packageJson);

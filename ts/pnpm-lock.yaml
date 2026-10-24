@@ -25,7 +25,7 @@ importers:
 
   packages/lania:
     dependencies:
-      '@lania-cli/node-bridge':
+      '@lania-cli-v2/node-bridge':
         specifier: workspace:*
         version: link:../node-bridge
     devDependencies:
@@ -41,10 +41,10 @@ importers:
 
   packages/node-bridge:
     dependencies:
-      '@lania-cli/agent':
+      '@lania-cli-v2/agent':
         specifier: workspace:*
         version: link:../agent
-      '@lania-cli/templates':
+      '@lania-cli-v2/templates':
         specifier: workspace:*
         version: link:../templates
       tsx:

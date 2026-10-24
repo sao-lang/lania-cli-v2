@@ -9,7 +9,7 @@ import type {
   WorkflowDefinition,
 } from './types.js';
 
-export type { SchemaTools } from '@lania-cli/node-bridge';
+export type { SchemaTools } from '@lania-cli-v2/node-bridge';
 export type * from './types.js';
 
 export function defineConfig<T extends ProductConfig>(config: T): T;

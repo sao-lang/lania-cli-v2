@@ -1,0 +1,78 @@
+name: Build platform binaries
+
+# 在原生 runner 上构建 lan 二进制，并把产物上传到 GitHub Release，
+# 供 scripts/fetch-platform-binaries.mjs 在 pack/publish 阶段下载。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to upload assets to (e.g. v0.0.1)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - platform: win32-x64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build lania-cli
+        shell: bash
+        run: cargo build --release --locked --manifest-path rust/Cargo.toml -p lania-cli --target ${{ matrix.target }}
+
+      - name: Normalize binary name
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="rust/target/${{ matrix.target }}/release/lania-cli"
+          if [ -f "${src}.exe" ]; then src="${src}.exe"; fi
+          mkdir -p dist
+          cp "$src" dist/lania-cli
+          chmod +x dist/lania-cli
+          ls -lh dist/lania-cli
+
+      - name: Upload binary to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          set -euo pipefail
+          asset="lania-cli-${{ matrix.platform }}"
+          # 同名 asset 已存在时先删除，便于重跑 workflow。
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "CLI binaries for $TAG"
+          gh release delete-asset "$TAG" "$asset" --yes >/dev/null 2>&1 || true
+          gh release upload "$TAG" "dist/lania-cli#${asset}" --clobber

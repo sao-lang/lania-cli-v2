@@ -14,4 +14,4 @@ export const PRODUCT_REPORT_VERSION = 1;
 export const COMPAT_REPORT_VERSION = 1;
 
 // For publish flows we need a stable default platform package to fall back to (useful in dev).
-export const OFFICIAL_DARWIN_ARM64_PACKAGE_NAME = '@lania-cli/cli-darwin-arm64';
+export const OFFICIAL_DARWIN_ARM64_PACKAGE_NAME = '@lania-cli-v2/cli-darwin-arm64';

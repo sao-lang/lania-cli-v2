@@ -41,7 +41,7 @@
     "audit:all": "pnpm audit:js && pnpm audit:rust",
     "deps:audit": "cargo deny check",
     "deps:unused": "pnpm exec knip",
-    "deps:depcheck": "pnpm --filter @lania-cli/node-bridge exec depcheck . && pnpm --filter @lania-cli/templates exec depcheck . && pnpm --filter @lania-cli/cli exec depcheck . && pnpm --filter @lania-cli/cli-darwin-arm64 exec depcheck .",
+    "deps:depcheck": "pnpm --filter @lania-cli-v2/node-bridge exec depcheck . && pnpm --filter @lania-cli-v2/templates exec depcheck . && pnpm --filter @lania-cli-v2/cli exec depcheck . && pnpm --filter @lania-cli-v2/cli-darwin-arm64 exec depcheck .",
     "deps:update:check": "pnpm exec ncu -r",
     "deps:update": "pnpm exec ncu -r -u",
     "deps:outdated": "pnpm outdated -r",

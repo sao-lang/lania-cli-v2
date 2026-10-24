@@ -592,7 +592,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
   ) as { optionalDependencies?: Record<string, string> };
   const stagingBinaries = Object.keys(cliPackageJson.optionalDependencies ?? {}).map(
     (packageName) =>
-      path.join(repoRoot, 'npm', packageName.replace('@lania-cli/', ''), 'bin', 'lania-cli'),
+      path.join(repoRoot, 'npm', packageName.replace('@lania-cli-v2/', ''), 'bin', 'lania-cli'),
   );
   const originalStagingBinaries = new Map<string, Buffer>();
   for (const stagingBinary of new Set(stagingBinaries)) {
@@ -699,7 +699,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(result.wrapper, './bin/acme.mjs');
   assert.match(result.tarball, /^\.\/.*\.tgz$/);
   assert.equal(result.bundle.root, './bundle');
-  assert.equal(result.bundle.cliTarball, './bundle/cli-package/lania-cli-cli-0.1.0.tgz');
+  assert.equal(result.bundle.cliTarball, './bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz');
   assert.equal(result.bundle.platformTarball, null);
   assert.deepEqual(result.bundle.platformTarballs, []);
   assert.equal(result.productRoot, './lib/product');
@@ -724,10 +724,10 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(packageJson.name, '@acme/demo');
   assert.equal(packageJson.version, '1.2.3');
   assert.equal(packageJson.bin.acme, './bin/acme.mjs');
-  assert.equal(typeof packageJson.dependencies['@lania-cli/cli'], 'string');
+  assert.equal(typeof packageJson.dependencies['@lania-cli-v2/cli'], 'string');
 
   const wrapper = await readFile(path.join(publishRoot, 'bin', 'acme.mjs'), 'utf8');
-  assert.match(wrapper, /@lania-cli\/cli/);
+  assert.match(wrapper, /@lania-cli-v2\/cli/);
   assert.match(wrapper, /LANIA_PRODUCT_ROOT/);
   assert.match(wrapper, /LANIA_NODE_BRIDGE_DIR/);
 
@@ -758,13 +758,13 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(publishReport.reportVersion, 1);
   assert.match(publishReport.tarball, /^\.\/.*\.tgz$/);
   assert.equal(publishReport.bundle.root, './bundle');
-  assert.equal(publishReport.bundle.cliTarball, './bundle/cli-package/lania-cli-cli-0.1.0.tgz');
+  assert.equal(publishReport.bundle.cliTarball, './bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz');
   assert.equal(publishReport.bundle.platformTarball, null);
   assert.equal(publishReport.experimental?.compat?.actual?.protocolVersion, '0.1.0');
   assert.deepEqual(publishReport.bundle.platformTarballs, []);
   const expectedMatrix = [
     {
-      packageName: '@lania-cli/cli-darwin-arm64',
+      packageName: '@lania-cli-v2/cli-darwin-arm64',
       platform: 'darwin-arm64',
       version: '0.1.0',
       status: 'binary_missing',
@@ -772,7 +772,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
       source: 'package_dir',
     },
     {
-      packageName: '@lania-cli/cli-linux-x64',
+      packageName: '@lania-cli-v2/cli-linux-x64',
       platform: 'linux-x64',
       version: '0.1.0',
       status: 'binary_missing',
@@ -780,7 +780,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
       source: 'package_dir',
     },
     {
-      packageName: '@lania-cli/cli-win32-x64',
+      packageName: '@lania-cli-v2/cli-win32-x64',
       platform: 'win32-x64',
       version: '0.1.0',
       status: 'binary_missing',
@@ -794,7 +794,9 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.ok(publishReport.generatedFiles.includes('./bundle'));
   assert.ok(publishReport.generatedFiles.includes('./publish-manifest.json'));
   assert.ok(publishReport.generatedFiles.includes('./publish-report.json'));
-  assert.ok(publishReport.generatedFiles.includes('./bundle/cli-package/lania-cli-cli-0.1.0.tgz'));
+  assert.ok(
+    publishReport.generatedFiles.includes('./bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz'),
+  );
   assert.ok(
     publishReport.generatedFiles.some(
       (entry) => typeof entry === 'string' && entry.endsWith('.tgz'),
@@ -849,14 +851,14 @@ test('product.publish creates a publish-ready npm package layout from packed out
     ['product', 'official_cli'],
   );
   assert.equal(publishManifest.packages[0]?.name, '@acme/demo');
-  assert.equal(publishManifest.packages[1]?.name, '@lania-cli/cli');
+  assert.equal(publishManifest.packages[1]?.name, '@lania-cli-v2/cli');
   assert.deepEqual(
     publishManifest.packages.map((entry) => entry.publishStrategy),
     ['npm_tarball_publish', 'npm_tarball_publish'],
   );
   const publishManifestMatrix = [
     {
-      packageName: '@lania-cli/cli-darwin-arm64',
+      packageName: '@lania-cli-v2/cli-darwin-arm64',
       platform: 'darwin-arm64',
       version: '0.1.0',
       status: 'binary_missing',
@@ -864,7 +866,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
       source: 'package_dir',
     },
     {
-      packageName: '@lania-cli/cli-linux-x64',
+      packageName: '@lania-cli-v2/cli-linux-x64',
       platform: 'linux-x64',
       version: '0.1.0',
       status: 'binary_missing',
@@ -872,7 +874,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
       source: 'package_dir',
     },
     {
-      packageName: '@lania-cli/cli-win32-x64',
+      packageName: '@lania-cli-v2/cli-win32-x64',
       platform: 'win32-x64',
       version: '0.1.0',
       status: 'binary_missing',
@@ -881,23 +883,23 @@ test('product.publish creates a publish-ready npm package layout from packed out
     },
   ];
   assert.deepEqual(publishManifest.platformMatrix, publishManifestMatrix);
-  assert.deepEqual(publishManifest.publishOrder, ['@lania-cli/cli', '@acme/demo']);
+  assert.deepEqual(publishManifest.publishOrder, ['@lania-cli-v2/cli', '@acme/demo']);
   assert.deepEqual(publishManifest.dependencyLinks, [
     {
       from: '@acme/demo',
-      to: '@lania-cli/cli',
+      to: '@lania-cli-v2/cli',
       type: 'dependency',
       field: 'dependencies',
     },
   ]);
   assert.deepEqual(
     publishManifest.steps.map((entry) => entry.packageName),
-    ['@lania-cli/cli', '@acme/demo'],
+    ['@lania-cli-v2/cli', '@acme/demo'],
   );
   assert.equal(publishManifest.steps[0]?.command.program, 'npm');
   assert.deepEqual(publishManifest.steps[0]?.command.args.slice(0, 6), [
     'publish',
-    './bundle/cli-package/lania-cli-cli-0.1.0.tgz',
+    './bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz',
     '--tag',
     'latest',
     '--access',
@@ -912,7 +914,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(publishManifest.steps[0]?.publishConfig.otpRequired, 'unknown');
   assert.equal(publishManifest.steps[0]?.publishConfig.provenance, false);
   assert.equal(publishManifest.steps[0]?.publishConfig.dryRun, false);
-  assert.deepEqual(publishManifest.steps[1]?.dependsOn, ['@lania-cli/cli']);
+  assert.deepEqual(publishManifest.steps[1]?.dependsOn, ['@lania-cli-v2/cli']);
 });
 
 test('product.publish stages linux-x64 bundle from explicit env binary source', async (t) => {
@@ -1014,7 +1016,7 @@ test('product.publish stages linux-x64 bundle from explicit env binary source', 
   };
 
   const linuxTarball = publishReport.bundle.platformTarballs.find(
-    (entry) => entry.packageName === '@lania-cli/cli-linux-x64',
+    (entry) => entry.packageName === '@lania-cli-v2/cli-linux-x64',
   );
   assert.ok(linuxTarball);
   assert.equal(linuxTarball.platform, 'linux-x64');
@@ -1022,10 +1024,10 @@ test('product.publish stages linux-x64 bundle from explicit env binary source', 
   assert.match(linuxTarball.tarball, /^\.\/bundle\/cli-linux-x64-package\/.*\.tgz$/);
 
   const linuxMatrix = publishReport.bundle.platformMatrix.find(
-    (entry) => entry.packageName === '@lania-cli/cli-linux-x64',
+    (entry) => entry.packageName === '@lania-cli-v2/cli-linux-x64',
   );
   assert.deepEqual(linuxMatrix, {
-    packageName: '@lania-cli/cli-linux-x64',
+    packageName: '@lania-cli-v2/cli-linux-x64',
     platform: 'linux-x64',
     version: '0.1.0',
     status: 'ready',
@@ -1034,32 +1036,32 @@ test('product.publish stages linux-x64 bundle from explicit env binary source', 
   });
 
   const linuxPackage = publishManifest.packages.find(
-    (entry) => entry.name === '@lania-cli/cli-linux-x64',
+    (entry) => entry.name === '@lania-cli-v2/cli-linux-x64',
   );
   assert.equal(linuxPackage?.role, 'platform_binary');
-  assert.equal(linuxPackage?.name, '@lania-cli/cli-linux-x64');
+  assert.equal(linuxPackage?.name, '@lania-cli-v2/cli-linux-x64');
   assert.equal(linuxPackage?.tarball, linuxTarball.tarball);
   assert.equal(linuxPackage?.optional, true);
   assert.equal(linuxPackage?.platform, 'linux-x64');
   assert.equal(linuxPackage?.source, 'environment');
-  assert.ok(publishManifest.publishOrder.includes('@lania-cli/cli-linux-x64'));
+  assert.ok(publishManifest.publishOrder.includes('@lania-cli-v2/cli-linux-x64'));
   assert.ok(
-    publishManifest.publishOrder.indexOf('@lania-cli/cli-linux-x64') <
-      publishManifest.publishOrder.indexOf('@lania-cli/cli'),
+    publishManifest.publishOrder.indexOf('@lania-cli-v2/cli-linux-x64') <
+      publishManifest.publishOrder.indexOf('@lania-cli-v2/cli'),
   );
   assert.ok(
     publishManifest.dependencyLinks.some(
       (entry) =>
-        entry.from === '@lania-cli/cli' &&
-        entry.to === '@lania-cli/cli-linux-x64' &&
+        entry.from === '@lania-cli-v2/cli' &&
+        entry.to === '@lania-cli-v2/cli-linux-x64' &&
         entry.type === 'optional_dependency' &&
         entry.field === 'optionalDependencies',
     ),
   );
   const linuxStep = publishManifest.steps.find(
-    (entry) => entry.packageName === '@lania-cli/cli-linux-x64',
+    (entry) => entry.packageName === '@lania-cli-v2/cli-linux-x64',
   );
-  assert.equal(linuxStep?.packageName, '@lania-cli/cli-linux-x64');
+  assert.equal(linuxStep?.packageName, '@lania-cli-v2/cli-linux-x64');
   assert.equal(linuxStep?.role, 'platform_binary');
   assert.equal(linuxStep?.tarball, linuxTarball.tarball);
   assert.deepEqual(linuxStep?.dependsOn, []);
@@ -1136,13 +1138,13 @@ test('product.publish stages linux-x64 bundle from platformBinariesDir auto-disc
     };
   };
   const linuxTarball = publishReport.bundle.platformTarballs.find(
-    (entry) => entry.packageName === '@lania-cli/cli-linux-x64',
+    (entry) => entry.packageName === '@lania-cli-v2/cli-linux-x64',
   );
   assert.ok(linuxTarball);
   assert.equal(linuxTarball.platform, 'linux-x64');
   assert.equal(linuxTarball.source, 'request');
   const linuxMatrix = publishReport.bundle.platformMatrix.find(
-    (entry) => entry.packageName === '@lania-cli/cli-linux-x64',
+    (entry) => entry.packageName === '@lania-cli-v2/cli-linux-x64',
   );
   assert.equal(linuxMatrix?.status, 'ready');
   assert.equal(linuxMatrix?.source, 'request');
@@ -1340,7 +1342,7 @@ process.exit(0);
         steps: [
           {
             id: 'publish-1',
-            packageName: '@lania-cli/cli-linux-x64',
+            packageName: '@lania-cli-v2/cli-linux-x64',
             command: {
               program: 'npm',
               args: [
@@ -1357,7 +1359,7 @@ process.exit(0);
           },
           {
             id: 'publish-2',
-            packageName: '@lania-cli/cli',
+            packageName: '@lania-cli-v2/cli',
             command: {
               program: 'npm',
               args: [
@@ -1503,7 +1505,7 @@ process.exit(0);
         steps: [
           {
             id: 'publish-1',
-            packageName: '@lania-cli/cli-linux-x64',
+            packageName: '@lania-cli-v2/cli-linux-x64',
             command: {
               program: 'npm',
               args: [
@@ -1520,7 +1522,7 @@ process.exit(0);
           },
           {
             id: 'publish-2',
-            packageName: '@lania-cli/cli',
+            packageName: '@lania-cli-v2/cli',
             command: {
               program: 'npm',
               args: [
@@ -1689,13 +1691,13 @@ process.exit(0);
     JSON.stringify(
       {
         packages: [
-          { name: '@lania-cli/cli', version: '1.0.0' },
+          { name: '@lania-cli-v2/cli', version: '1.0.0' },
           { name: '@acme/demo', version: '1.0.0' },
         ],
         steps: [
           {
             id: 'publish-1',
-            packageName: '@lania-cli/cli',
+            packageName: '@lania-cli-v2/cli',
             publishConfig: { registry: 'https://registry.npmjs.org/' },
             command: {
               program: 'npm',
@@ -1829,13 +1831,13 @@ process.exit(0);
     JSON.stringify(
       {
         packages: [
-          { name: '@lania-cli/cli', version: '1.0.0' },
+          { name: '@lania-cli-v2/cli', version: '1.0.0' },
           { name: '@acme/demo', version: '1.0.0' },
         ],
         steps: [
           {
             id: 'publish-1',
-            packageName: '@lania-cli/cli',
+            packageName: '@lania-cli-v2/cli',
             publishConfig: { registry: 'https://registry.npmjs.org/' },
             command: {
               program: 'npm',
@@ -1913,7 +1915,7 @@ process.exit(0);
   assert.equal(manifest.execution.rollbackPlan.commands.length, 1);
   assert.deepEqual(manifest.execution.rollbackPlan.commands[0]?.command, [
     'unpublish',
-    '@lania-cli/cli@1.0.0',
+    '@lania-cli-v2/cli@1.0.0',
     '--registry',
     'https://registry.npmjs.org/',
   ]);
@@ -1926,7 +1928,7 @@ process.exit(0);
   assert.equal(lines.filter((entry) => entry.args[0] === 'publish').length, 2);
   assert.deepEqual(lines.find((entry) => entry.args[0] === 'unpublish')?.args, [
     'unpublish',
-    '@lania-cli/cli@1.0.0',
+    '@lania-cli-v2/cli@1.0.0',
     '--registry',
     'https://registry.npmjs.org/',
   ]);

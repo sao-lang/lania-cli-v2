@@ -355,7 +355,7 @@ export function createSchemaTools(
           id: request.id,
           result: {
             ok: true,
-            bridgeName: '@lania-cli/node-bridge',
+            bridgeName: '@lania-cli-v2/node-bridge',
           },
         },
         events: [],

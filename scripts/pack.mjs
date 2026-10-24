@@ -94,10 +94,10 @@ function assertVersionSync(expected) {
   const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   const versions = [
     ['rust workspace', expected],
-    ['@lania-cli/node-bridge', nodeBridge.version],
-    ['@lania-cli/templates', templates.version],
-    ['@lania-cli/agent', agentPkg.version],
-    ['@lania-cli/cli', cli.version],
+    ['@lania-cli-v2/node-bridge', nodeBridge.version],
+    ['@lania-cli-v2/templates', templates.version],
+    ['@lania-cli-v2/agent', agentPkg.version],
+    ['@lania-cli-v2/cli', cli.version],
   ];
   for (const descriptor of discoverPlatformPackageDescriptors()) {
     if (!descriptor.packageExists) {
@@ -146,13 +146,13 @@ function stageNodeBridgePayload() {
 
   // Install runtime deps into payloadRoot/node_modules so:
   // - `node --import tsx ...` resolves `tsx` from payloadRoot
-  // - `@lania-cli/templates` can resolve `ejs`
+  // - `@lania-cli-v2/templates` can resolve `ejs`
   // - bridge can resolve `yaml`
   const nodeBridgePkg = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
   const templatesPkg = readJson(path.join(repoRoot, 'ts/packages/templates/package.json'));
   const agentPkg = readJson(path.join(repoRoot, 'ts/packages/agent/package.json'));
   const payloadPkg = {
-    name: '@lania-cli/node-bridge-payload',
+    name: '@lania-cli-v2/node-bridge-payload',
     private: true,
     type: 'module',
     dependencies: {
@@ -172,7 +172,7 @@ function stageNodeBridgePayload() {
 
   // Templates runtime assets placed under node_modules so the bridge can import it by specifier.
   // Must happen AFTER npm install, otherwise npm install may clean up the manually placed directory.
-  const templatesTarget = path.join(payloadRoot, 'node_modules/@lania-cli/templates');
+  const templatesTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/templates');
   ensureDir(templatesTarget);
   copyFile(
     path.join(repoRoot, 'ts/packages/templates/package.json'),
@@ -180,8 +180,8 @@ function stageNodeBridgePayload() {
   );
   copyDir(templatesDist, path.join(templatesTarget, 'dist'));
 
-  // Agent plugin placed next to templates so `import '@lania-cli/agent'` resolves from the bridge.
-  const agentTarget = path.join(payloadRoot, 'node_modules/@lania-cli/agent');
+  // Agent plugin placed next to templates so `import '@lania-cli-v2/agent'` resolves from the bridge.
+  const agentTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/agent');
   ensureDir(agentTarget);
   copyFile(
     path.join(repoRoot, 'ts/packages/agent/package.json'),
@@ -198,7 +198,7 @@ function resolveHostPlatform() {
 }
 
 function inferPlatformFromPackageName(packageName) {
-  return packageName.replace('@lania-cli/cli-', '');
+  return packageName.replace('@lania-cli-v2/cli-', '');
 }
 
 function platformToEnvSuffix(platform) {
@@ -209,9 +209,9 @@ function discoverPlatformPackageDescriptors() {
   const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   const optionalDependencies = cli.optionalDependencies ?? {};
   return Object.entries(optionalDependencies)
-    .filter(([packageName]) => packageName.startsWith('@lania-cli/cli-'))
+    .filter(([packageName]) => packageName.startsWith('@lania-cli-v2/cli-'))
     .map(([packageName, version]) => {
-      const packageDirName = packageName.replace('@lania-cli/', '');
+      const packageDirName = packageName.replace('@lania-cli-v2/', '');
       const packageRoot = path.join(repoRoot, 'npm', packageDirName);
       const packageJsonPath = path.join(packageRoot, 'package.json');
       const packageExists = fs.existsSync(packageJsonPath);
@@ -335,7 +335,7 @@ async function main() {
     );
   });
 
-  console.log(`[pack] staging node bridge payload for @lania-cli/cli`);
+  console.log(`[pack] staging node bridge payload for @lania-cli-v2/cli`);
   stageNodeBridgePayload();
 
   console.log(`[pack] staging platform binary packages`);

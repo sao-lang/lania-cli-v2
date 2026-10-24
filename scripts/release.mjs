@@ -21,17 +21,17 @@ function cancel(msg) { log.error(msg); process.exit(0); }
 function discoverAllPackages() {
   const cliPkg = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   const platformPkgs = Object.keys(cliPkg.optionalDependencies ?? {})
-    .filter((n) => n.startsWith('@lania-cli/cli-'))
+    .filter((n) => n.startsWith('@lania-cli-v2/cli-'))
     .map((n) => ({
       name: n,
-      packageJsonPath: path.join(repoRoot, 'npm', n.replace('@lania-cli/', ''), 'package.json'),
+      packageJsonPath: path.join(repoRoot, 'npm', n.replace('@lania-cli-v2/', ''), 'package.json'),
     }))
     .filter((p) => fs.existsSync(p.packageJsonPath));
 
   const all = [
-    { name: '@lania-cli/cli',             packageJsonPath: path.join(repoRoot, 'npm/cli/package.json') },
-    { name: '@lania-cli/node-bridge',     packageJsonPath: path.join(repoRoot, 'ts/packages/node-bridge/package.json') },
-    { name: '@lania-cli/templates',       packageJsonPath: path.join(repoRoot, 'ts/packages/templates/package.json') },
+    { name: '@lania-cli-v2/cli',             packageJsonPath: path.join(repoRoot, 'npm/cli/package.json') },
+    { name: '@lania-cli-v2/node-bridge',     packageJsonPath: path.join(repoRoot, 'ts/packages/node-bridge/package.json') },
+    { name: '@lania-cli-v2/templates',       packageJsonPath: path.join(repoRoot, 'ts/packages/templates/package.json') },
     { name: 'lania',                      packageJsonPath: path.join(repoRoot, 'ts/packages/lania/package.json') },
     ...platformPkgs,
   ];
@@ -62,7 +62,7 @@ function bumpRustWorkspaceVersion(version) {
 function bumpCliOptionalDeps(version) {
   const cliPkg = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   for (const [key] of Object.entries(cliPkg.optionalDependencies ?? {})) {
-    if (key.startsWith('@lania-cli/cli-')) cliPkg.optionalDependencies[key] = version;
+    if (key.startsWith('@lania-cli-v2/cli-')) cliPkg.optionalDependencies[key] = version;
   }
   writeJson(path.join(repoRoot, 'npm/cli/package.json'), cliPkg);
 }
@@ -146,7 +146,7 @@ async function main() {
     log.step(`✓ ${name}`);
   }
   bumpCliOptionalDeps(newVersion);
-  log.step('✓ @lania-cli/cli optionalDependencies');
+  log.step('✓ @lania-cli-v2/cli optionalDependencies');
   writeChangelog(newVersion, changelogEntries);
 
   outro(`✅ 版本已更新至 ${newVersion}

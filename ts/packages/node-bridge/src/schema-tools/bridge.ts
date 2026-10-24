@@ -18,14 +18,20 @@ import { lintPlugin } from '../plugins/lint.js';
 import { systemPlugin } from '../plugins/system.js';
 
 export interface BridgeTools {
-  request: (method: string, params?: Record<string, unknown>) => BridgeRequest<Record<string, unknown>>;
+  request: (
+    method: string,
+    params?: Record<string, unknown>,
+  ) => BridgeRequest<Record<string, unknown>>;
   handshakeRequest: () => BridgeRequest<Record<string, unknown>>;
   pingRequest: () => BridgeRequest<Record<string, unknown>>;
   shutdownRequest: () => BridgeRequest<Record<string, unknown>>;
   metricsRequest: (cwd?: string) => BridgeRequest<Record<string, unknown>>;
   subscribeRequest: (cwd?: string) => BridgeRequest<Record<string, unknown>>;
   loadLanConfigRequest: (cwd?: string) => BridgeRequest<Record<string, unknown>>;
-  loadToolConfigRequest: (cwd: string | undefined, tool: string) => BridgeRequest<Record<string, unknown>>;
+  loadToolConfigRequest: (
+    cwd: string | undefined,
+    tool: string,
+  ) => BridgeRequest<Record<string, unknown>>;
   compilerDevRequest: (cwd?: string, port?: number) => BridgeRequest<Record<string, unknown>>;
   compilerBuildRequest: (cwd?: string, watch?: boolean) => BridgeRequest<Record<string, unknown>>;
   compilerBuildWithOptionsRequest: (
@@ -162,12 +168,14 @@ export function createBridgeTools(options: {
         protocolVersion: '0.1.0',
         transport: 'stdio',
         encoding: 'json',
-        hostName: '@lania-cli/schema-tools',
+        hostName: '@lania-cli-v2/schema-tools',
       }),
     pingRequest: () => options.buildBridgeRequest('bridge.ping', {}),
     shutdownRequest: () => options.buildBridgeRequest('bridge.shutdown', {}),
-    metricsRequest: (cwd) => options.buildBridgeRequest('bridge.metrics', { cwd: cwd ?? options.cwd }),
-    subscribeRequest: (cwd) => options.buildBridgeRequest('bridge.subscribe', { cwd: cwd ?? options.cwd }),
+    metricsRequest: (cwd) =>
+      options.buildBridgeRequest('bridge.metrics', { cwd: cwd ?? options.cwd }),
+    subscribeRequest: (cwd) =>
+      options.buildBridgeRequest('bridge.subscribe', { cwd: cwd ?? options.cwd }),
     loadLanConfigRequest: (cwd) =>
       options.buildBridgeRequest('config.loadLan', { cwd: cwd ?? options.cwd }),
     loadToolConfigRequest: (cwd, tool) =>
@@ -178,7 +186,10 @@ export function createBridgeTools(options: {
         ...(typeof port === 'number' ? { port } : {}),
       }),
     compilerBuildRequest: (cwd, watch) =>
-      options.buildBridgeRequest('compiler.build', { cwd: cwd ?? options.cwd, watch: watch ?? false }),
+      options.buildBridgeRequest('compiler.build', {
+        cwd: cwd ?? options.cwd,
+        watch: watch ?? false,
+      }),
     compilerBuildWithOptionsRequest: (cwd, watch, mode, outputDir) =>
       options.buildBridgeRequest('compiler.build', {
         cwd: cwd ?? options.cwd,
@@ -231,7 +242,8 @@ export function createBridgeTools(options: {
       run: (opts) => bridgeRaw.call('lint.run', { cwd: options.cwd, ...(opts ?? {}) }),
     },
     system: {
-      listCommands: (opts) => bridgeRaw.call('system.listCommands', { cwd: options.cwd, ...(opts ?? {}) }),
+      listCommands: (opts) =>
+        bridgeRaw.call('system.listCommands', { cwd: options.cwd, ...(opts ?? {}) }),
     },
     commit: {
       commitizen: (opts) => bridgeRaw.call('commitizen.run', { cwd: options.cwd, ...(opts ?? {}) }),
@@ -259,11 +271,11 @@ export async function dispatchBuiltinBridge(
         ? await lintPlugin.handle(method, params)
         : method.startsWith('system.')
           ? await systemPlugin.handle(method, params, context as any)
-        : method.startsWith('commitizen.')
-          ? await commitizenPlugin.handle(method, params, context as any)
-          : method.startsWith('commitlint.')
-            ? await commitlintPlugin.handle(method, params, context as any)
-            : null;
+          : method.startsWith('commitizen.')
+            ? await commitizenPlugin.handle(method, params, context as any)
+            : method.startsWith('commitlint.')
+              ? await commitlintPlugin.handle(method, params, context as any)
+              : null;
 
   if (!handled) {
     throw new Error(`unsupported bridge method in schema tools: ${method}`);

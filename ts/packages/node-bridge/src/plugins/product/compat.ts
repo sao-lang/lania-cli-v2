@@ -126,7 +126,10 @@ export async function computeProductCompatSnapshot(input: {
     verdict = 'warn';
     reasons.push('missing hostVersion in bridge request params');
   }
-  if (typeof input.packageJson.version !== 'string' || input.packageJson.version.trim().length == 0) {
+  if (
+    typeof input.packageJson.version !== 'string' ||
+    input.packageJson.version.trim().length == 0
+  ) {
     verdict = 'warn';
     reasons.push('missing product package.json version');
   }
@@ -172,7 +175,7 @@ export async function computeProductCompatSnapshot(input: {
     actual: {
       hostVersion: input.hostVersion,
       protocolVersion,
-      nodeBridgeName: '@lania-cli/node-bridge',
+      nodeBridgeName: '@lania-cli-v2/node-bridge',
       nodeBridgeVersion,
     },
     product: {
@@ -180,8 +183,8 @@ export async function computeProductCompatSnapshot(input: {
       productName: typeof input.productConfig.name === 'string' ? input.productConfig.name : null,
       productBinaryName:
         typeof input.productConfig.binaryName === 'string' ? input.productConfig.binaryName : null,
-      productVersion: typeof input.packageJson.version === 'string' ? input.packageJson.version : null,
+      productVersion:
+        typeof input.packageJson.version === 'string' ? input.packageJson.version : null,
     },
   };
 }
-

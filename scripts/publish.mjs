@@ -485,7 +485,7 @@ function main() {
 
   // Always pack first to ensure:
   // - dist assets exist
-  // - @lania-cli/cli contains lib/node-bridge payload
+  // - @lania-cli-v2/cli contains lib/node-bridge payload
   run('node', ['./scripts/pack.mjs'], { cwd: repoRoot });
   runPnpm(['install', '--no-frozen-lockfile']);
 

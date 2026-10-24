@@ -133,7 +133,7 @@ export function registerTests() {
     assert.equal(payload?.commitizenRunRequest?.params?.scope, 'core');
     assert.equal(payload?.commitlintRunRequest?.params?.message, 'feat(core): short');
     assert.equal(payload?.ping?.ok, true);
-    assert.equal(payload?.ping?.bridgeName, '@lania-cli/node-bridge');
+    assert.equal(payload?.ping?.bridgeName, '@lania-cli-v2/node-bridge');
     assert.equal(payload?.metrics?.requests >= 2, true);
     assert.equal(payload?.subscribe?.accepted, true);
     assert.equal(payload?.subscribe?.mode, 'request_response_stream');

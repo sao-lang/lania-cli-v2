@@ -1,6 +1,6 @@
 import type { BridgeEvent } from '../protocol/events.js';
 
-export const BRIDGE_NAME = '@lania-cli/node-bridge';
+export const BRIDGE_NAME = '@lania-cli-v2/node-bridge';
 export const BRIDGE_METHODS = [
   'bridge.ping',
   'bridge.shutdown',

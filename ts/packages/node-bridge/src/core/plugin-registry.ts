@@ -12,7 +12,7 @@
  * - `resolve(cwd)`：会触发读取 lan.config 并加载动态插件（可能产生 rejectedPlugins）
  * - `snapshot(cwd)`：只返回“当前已缓存的结果”；若 cwd 从未 resolve 过，则退回 builtin-only
  */
-import { agentPlugin } from '@lania-cli/agent';
+import { agentPlugin } from '@lania-cli-v2/agent';
 
 import type { BridgeEvent } from '../protocol/events.js';
 import { commitizenPlugin } from '../plugins/commitizen.js';
@@ -36,7 +36,7 @@ import {
 import { loadLanConfig, resolveModuleFromCwd } from './runtime.js';
 
 /**
- * `@lania-cli/agent` 用结构化事件类型声明，避免与 bridge 互相依赖。
+ * `@lania-cli-v2/agent` 用结构化事件类型声明，避免与 bridge 互相依赖。
  * 它的流式输出全部走 `emit`，返回值里不带事件，因此这里做一次边界适配。
  */
 const agentBridgePlugin: BridgePlugin = {

@@ -1,6 +1,6 @@
 {
   "name": "lania",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": false,
   "type": "module",
   "exports": {
@@ -30,7 +30,7 @@
     "test": "node --import tsx --test ./src/**/*.test.ts"
   },
   "dependencies": {
-    "@lania-cli/node-bridge": "workspace:*"
+    "@lania-cli-v2/node-bridge": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

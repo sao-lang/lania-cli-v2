@@ -4,12 +4,12 @@
   "commit": false,
   "fixed": [
     [
-      "@lania-cli/cli",
-      "@lania-cli/cli-darwin-arm64",
-      "@lania-cli/cli-linux-x64",
-      "@lania-cli/cli-win32-x64",
-      "@lania-cli/node-bridge",
-      "@lania-cli/templates"
+      "@lania-cli-v2/cli",
+      "@lania-cli-v2/cli-darwin-arm64",
+      "@lania-cli-v2/cli-linux-x64",
+      "@lania-cli-v2/cli-win32-x64",
+      "@lania-cli-v2/node-bridge",
+      "@lania-cli-v2/templates"
     ]
   ],
   "linked": [],

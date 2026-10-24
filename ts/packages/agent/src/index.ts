@@ -1,5 +1,5 @@
 /**
- * `@lania-cli/agent`：lania 的 agent 内核。
+ * `@lania-cli-v2/agent`：lania 的 agent 内核。
  *
  * 设计边界：
  * - 本包只做「模型编排」：pi 的 agent loop、provider、工具 schema 适配。

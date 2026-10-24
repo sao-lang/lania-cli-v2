@@ -13,7 +13,10 @@ import { resolve } from 'node:path';
 import type { ProductBundlePlatformTarball, ProductPublishManifestPackage } from '../types.js';
 import { firstNonEmptyString } from '../utils.js';
 
-export function resolvePublishDistTag(params: Record<string, unknown>, packageVersion: string): string {
+export function resolvePublishDistTag(
+  params: Record<string, unknown>,
+  packageVersion: string,
+): string {
   // dist-tag 优先从显式参数取；如果没给，再根据 prerelease 版本自动推断。
   const fromParams = firstNonEmptyString(params.distTag, params['dist-tag'], params.channel);
   if (fromParams) {
@@ -130,7 +133,7 @@ export function createRegistryManifestPackages(input: {
   if (input.cliTarball) {
     packages.push({
       role: 'official_cli',
-      name: '@lania-cli/cli',
+      name: '@lania-cli-v2/cli',
       version: input.cliPackageVersion,
       tarball: input.cliTarball,
       distTag: input.distTag,

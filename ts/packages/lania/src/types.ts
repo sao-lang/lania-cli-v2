@@ -1,4 +1,4 @@
-import type { SchemaTools } from '@lania-cli/node-bridge';
+import type { SchemaTools } from '@lania-cli-v2/node-bridge';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -73,7 +73,9 @@ export interface CommandExample {
   description?: string;
 }
 
-export type LocalizedText = string | { zh?: string; en?: string; [key: string]: string | undefined };
+export type LocalizedText =
+  | string
+  | { zh?: string; en?: string; [key: string]: string | undefined };
 
 export type PromptKind =
   | 'input'
@@ -204,12 +206,7 @@ export interface ResolverSchema {
   when?: ConditionSchema;
 }
 
-export type MergeRuleStrategy =
-  | 'replace'
-  | 'append'
-  | 'deep_merge'
-  | 'dedupe_merge'
-  | 'patch';
+export type MergeRuleStrategy = 'replace' | 'append' | 'deep_merge' | 'dedupe_merge' | 'patch';
 
 export interface MergeRuleSchema {
   target: string;
@@ -458,10 +455,7 @@ export interface CommandHandlerSpec {
 export type WorkflowDefinition<
   TArgs extends JsonRecord = JsonRecord,
   TOptions extends JsonRecord = JsonRecord,
-> =
-  | CommandHandler<TArgs, TOptions>
-  | CommandHandlerSpec
-  | DeclarativeWorkflowDefinition;
+> = CommandHandler<TArgs, TOptions> | CommandHandlerSpec | DeclarativeWorkflowDefinition;
 
 export interface NamedWorkflowDefinition<
   TName extends string = string,

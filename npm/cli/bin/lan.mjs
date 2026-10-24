@@ -26,13 +26,13 @@ function resolvePlatformBinaryPackage() {
   const platform = process.platform;
   const arch = process.arch;
   if (platform === 'darwin' && arch === 'arm64') {
-    return '@lania-cli/cli-darwin-arm64';
+    return '@lania-cli-v2/cli-darwin-arm64';
   }
   if (platform === 'linux' && arch === 'x64') {
-    return '@lania-cli/cli-linux-x64';
+    return '@lania-cli-v2/cli-linux-x64';
   }
   if (platform === 'win32' && arch === 'x64') {
-    return '@lania-cli/cli-win32-x64';
+    return '@lania-cli-v2/cli-win32-x64';
   }
   return null;
 }
@@ -45,11 +45,11 @@ function resolveBinaryPath(pkgName) {
 }
 
 // 解析 cli 包的根目录路径，同时判断当前运行模式。
-// 优先尝试 @lania-cli/cli（已安装模式），失败则回退到仓库源码路径（开发模式）。
+// 优先尝试 @lania-cli-v2/cli（已安装模式），失败则回退到仓库源码路径（开发模式）。
 function resolveCliPackageDir() {
   try {
     return {
-      packageDir: path.dirname(require.resolve('@lania-cli/cli/package.json')),
+      packageDir: path.dirname(require.resolve('@lania-cli-v2/cli/package.json')),
       sourceMode: false,
     };
   } catch {
