@@ -1,9 +1,20 @@
 # 多运行时 bridge 与 dev/build/create/add/lint 重构
 
-> 状态：**设计阶段，未开工**。
+> 状态：**B0–B4 已落地**（B5 起未开工）。
 > 目标读者：能直接据此开工的 builder。
 > 配套文档：`agent-architecture.zh-CN.md`（agent 拆包）、
 > `self-managed-runtime-manager.zh-CN.md`（运行时管理器拆包，§11 提供本文所需的能力）。
+>
+> 已落地范围（可对照 §11 里程碑）：
+>
+> - **B0** 工具链血缘：`RuntimeHome::activate()` + 入口调用 + `doctor` 双诊断
+> - **B1** `BridgeLaunchSpec` 参数化 + `BridgeRegistry` 骨架
+> - **B2** `toolchain.describe` 单点（`plugins/toolchain.ts`）
+> - **B2.5** 配置候选去重 + `runtime`/`runtimes` 强类型 + 加载失败可见 + 函数求值上下文
+> - **B3** `event.diag` + `Diagnostic` / `RunResult` + 全工具结构化解析
+> - **B4** `LintReportRenderer`（分组/对齐/高亮）+ `--json` 新增 `diagnostics[]`
+>
+> 未落地：B5（dev 长驻订阅 + `[app]` 前缀渲染）、B6–B14。
 
 ## 0. 问题陈述
 

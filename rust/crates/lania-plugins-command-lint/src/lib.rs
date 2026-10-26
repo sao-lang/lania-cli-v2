@@ -197,8 +197,9 @@ impl CommandHandler for LintCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         ctx.require_capability(CapabilityName::NodeBridge)?;
         let request = LintCommandPlugin::build_request(ctx.command(), ctx.node_bridge());
+        let started = std::time::Instant::now();
         let run = ctx.call_bridge(request).await?;
-        emit_grouped_output(ctx, &run.exchange.response.result);
+        emit_lint_report(ctx, &run.exchange.response.result, started.elapsed());
         let exit_code = run
             .exchange
             .response
@@ -207,6 +208,63 @@ impl CommandHandler for LintCommandHandler {
             .and_then(|result| result["exitCode"].as_i64())
             .unwrap_or(lania_host::EXIT_LINT_FAILED as i64) as i32;
         Ok(ctx.complete_bridge(run, exit_code))
+    }
+}
+
+/// 把 bridge 的 `diagnostics` 数组映射成展示模型。
+fn diagnostic_views(result: &Value) -> Vec<lania_presentation::DiagnosticView> {
+    let Some(items) = result["diagnostics"].as_array() else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .map(|item| {
+            let severity = match item["severity"].as_str().unwrap_or("error") {
+                "warning" => lania_presentation::ReportSeverity::Warning,
+                "info" => lania_presentation::ReportSeverity::Info,
+                "hint" => lania_presentation::ReportSeverity::Hint,
+                _ => lania_presentation::ReportSeverity::Error,
+            };
+            lania_presentation::DiagnosticView {
+                tool: item["tool"].as_str().unwrap_or("unknown").to_string(),
+                id: item["id"].as_str().map(ToOwned::to_owned),
+                severity,
+                message: item["message"].as_str().unwrap_or_default().to_string(),
+                file: item["file"].as_str().map(ToOwned::to_owned),
+                line: item["range"]["start"]["line"].as_u64(),
+                col: item["range"]["start"]["col"].as_u64(),
+                fix_available: item["fix"]["available"].as_bool(),
+            }
+        })
+        .collect()
+}
+
+/// 统一渲染 lint 结果（§7.4）。
+///
+/// - 有 `diagnostics` 时走新的 `LintReportRenderer`：按文件分组、列对齐、severity 高亮。
+/// - 只有旧字段（`summaryByAdaptor`）时才回落到旧的按 adaptor 输出，保证兼容。
+fn emit_lint_report(
+    ctx: &CommandExecutionContext<'_>,
+    result: &Option<Value>,
+    elapsed: std::time::Duration,
+) {
+    let Some(result) = result.as_ref() else {
+        return;
+    };
+    let views = diagnostic_views(result);
+    if views.is_empty() {
+        emit_grouped_output(ctx, &Some(result.clone()));
+        return;
+    }
+    let logger = ctx.workflow_services().logger.scoped("command.lint");
+    let report =
+        lania_presentation::LintReport::from_diagnostics(views, Some(elapsed.as_millis() as u64));
+    let renderer = lania_presentation::LintReportRenderer::for_terminal(
+        std::io::IsTerminal::is_terminal(&std::io::stdout()),
+        ctx.locale(),
+    );
+    for line in renderer.render(&report) {
+        logger.log(LogLevel::Info, line);
     }
 }
 

@@ -424,3 +424,9 @@ pub fn default_localization_policy(multilingual: bool, locale: &str) -> Localiza
 
 #[cfg(test)]
 mod tests;
+
+pub mod lint_report;
+
+pub use lint_report::{
+    DiagnosticSeverity as ReportSeverity, DiagnosticView, LintReport, LintReportRenderer, ToolCount,
+};
