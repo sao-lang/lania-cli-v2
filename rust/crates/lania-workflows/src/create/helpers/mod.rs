@@ -13,7 +13,5 @@ pub(super) use package::{
     command_to_vec, resolve_dependency_versions, resolve_package_manager, run_package_command,
     template_runtime, validate_package_manager,
 };
-pub(super) use target_path::{
-    normalize_add_target, resolve_add_output_path, validate_relative_target,
-};
+pub(super) use target_path::{normalize_add_target, validate_relative_target};
 pub(super) use template_context::load_add_template_context;

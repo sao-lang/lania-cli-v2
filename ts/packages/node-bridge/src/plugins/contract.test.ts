@@ -50,6 +50,7 @@ test('handshake exposes the current public method and event contract', () => {
     'template.getOutputTasks',
     'template.render',
     'addTemplate.render',
+    'addGenerator.list',
     'toolchain.describe',
     'commitizen.run',
     'commitlint.run',

@@ -1,5 +1,6 @@
 import type { BridgeEvent } from '../protocol/events.js';
 import { normalizeRuntimeInput } from './template/runtime.js';
+import { listGeneratorsResult } from './template/generators.js';
 import {
   dependenciesResult,
   listResult,
@@ -19,6 +20,7 @@ export const templatePlugin = {
     'template.getOutputTasks',
     'template.render',
     'addTemplate.render',
+    'addGenerator.list',
   ],
   async handle(method: string, params: Record<string, unknown>) {
     const runtimeInput = normalizeRuntimeInput(params);
@@ -41,6 +43,9 @@ export const templatePlugin = {
           result: await renderAddTemplateResult(params.template, runtimeInput.context),
           events: [renderLogEvent('Rendered add template output') satisfies BridgeEvent],
         };
+      case 'addGenerator.list':
+        // 生成器表由 Rust 单点维护，TS 只转发（§4.5.6）。
+        return listGeneratorsResult(runtimeInput.cwd);
       default:
         return null;
     }

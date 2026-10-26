@@ -1,7 +1,7 @@
-//! Rust 内建的模板声明（create/add 的 fallback 数据源）。
+//! Rust 内建的模板声明（create 的 fallback 数据源）。
 //!
 //! 当 Node bridge 可用时，模板往往来自外部生态；但 bridge 不可用时，
-//! `create`/`add` 仍需要一个“最小可用”的模板集合。
+//! `create` 仍需要一个“最小可用”的模板集合。
 //!
 //! 这个文件用静态数据结构声明：
 //! - 模板名与问题（questions）
@@ -9,6 +9,7 @@
 //! - 输出任务与文件规则（`PlannedFile` 的来源之一）
 //!
 //! 注意：这里的模板是“演示级/兜底级”，不追求覆盖所有场景，目标是保证工具可用。
+//! `add` 的生成器清单已迁到 `create/add/generators.rs`（单点定义），不在此文件。
 
 use std::path::PathBuf;
 
@@ -86,111 +87,6 @@ const SPA_VUE_TEMPLATE: DeclaredTemplate = DeclaredTemplate {
 };
 
 const DECLARED_TEMPLATES: &[DeclaredTemplate] = &[SPA_REACT_TEMPLATE, SPA_VUE_TEMPLATE];
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct AddTemplateSpec {
-    pub(super) name: &'static str,
-    label_en: &'static str,
-    label_zh: &'static str,
-}
-
-impl AddTemplateSpec {
-    pub(super) fn label(&self, zh: bool) -> &'static str {
-        if zh {
-            self.label_zh
-        } else {
-            self.label_en
-        }
-    }
-}
-
-pub(super) const ADD_TEMPLATE_SPECS: &[AddTemplateSpec] = &[
-    AddTemplateSpec {
-        name: "v2",
-        label_en: "Vue 2 component",
-        label_zh: "vue2模板组件",
-    },
-    AddTemplateSpec {
-        name: "v3",
-        label_en: "Vue 3 component",
-        label_zh: "vue3模板组件",
-    },
-    AddTemplateSpec {
-        name: "rcc",
-        label_en: "React class component",
-        label_zh: "react类组件",
-    },
-    AddTemplateSpec {
-        name: "rfc",
-        label_en: "React function component",
-        label_zh: "react函数式组件",
-    },
-    AddTemplateSpec {
-        name: "svelte",
-        label_en: "Svelte component",
-        label_zh: "svelte模板组件",
-    },
-    AddTemplateSpec {
-        name: "astro",
-        label_en: "Astro component",
-        label_zh: "astro组件",
-    },
-    AddTemplateSpec {
-        name: "prettier",
-        label_en: "Prettier config",
-        label_zh: "prettier配置文件",
-    },
-    AddTemplateSpec {
-        name: "eslint",
-        label_en: "ESLint config",
-        label_zh: "eslint配置文件",
-    },
-    AddTemplateSpec {
-        name: "stylelint",
-        label_en: "Stylelint config",
-        label_zh: "stylelint配置文件",
-    },
-    AddTemplateSpec {
-        name: "editorconfig",
-        label_en: "EditorConfig file",
-        label_zh: "editorconfig配置文件",
-    },
-    AddTemplateSpec {
-        name: "gitignore",
-        label_en: ".gitignore file",
-        label_zh: ".gitignore文件",
-    },
-    AddTemplateSpec {
-        name: "tsconfig",
-        label_en: "tsconfig file",
-        label_zh: "tsconfig配置文件",
-    },
-    AddTemplateSpec {
-        name: "commitizen",
-        label_en: "Commitizen config",
-        label_zh: "commitizen配置文件",
-    },
-    AddTemplateSpec {
-        name: "go-handler",
-        label_en: "Go handler",
-        label_zh: "Go handler",
-    },
-    AddTemplateSpec {
-        name: "python-module",
-        label_en: "Python module",
-        label_zh: "Python module",
-    },
-    AddTemplateSpec {
-        name: "rust-module",
-        label_en: "Rust module",
-        label_zh: "Rust module",
-    },
-    AddTemplateSpec {
-        name: "dart-class",
-        label_en: "Dart class",
-        label_zh: "Dart class",
-    },
-];
 
 pub(super) fn declared_template(name: &str) -> Option<&'static DeclaredTemplate> {
     DECLARED_TEMPLATES

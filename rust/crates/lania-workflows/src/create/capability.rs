@@ -8,31 +8,20 @@
 //! 你可以把这里理解成“能力网关”：
 //! - `list/questions/dependencies/output_tasks/render` 都返回 (结果, 可选的 bridge 记录 step)
 //! - 上层 workflow 收集这些 step，用于在输出里展示“我跟 bridge 交互了什么”
+//!
+//! 注：`add` 不再是“单模板渲染”，已迁到 `create/add/`（生成器表 + 命名推导 + 多文件产物）。
 
-use std::path::PathBuf;
 use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use lania_fs::PlannedFile;
-use lania_node_bridge::{AddTemplateBridgeCapability, NodeBridgeClient, TemplateBridgeCapability};
+use lania_node_bridge::{NodeBridgeClient, TemplateBridgeCapability};
 use serde_json::{json, Value};
 
 use crate::models::{step, TemplateCapability, WorkflowBridgeStep};
 
 use super::templates::{declared_template, declared_template_names, render_declared_template};
-
-#[derive(Debug, Clone)]
-pub(super) struct AddTemplateCapability<'a> {
-    bridge: &'a NodeBridgeClient,
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct RenderedAddTemplate {
-    pub(super) template: String,
-    pub(super) filename: Option<String>,
-    pub(super) extname: Option<String>,
-    pub(super) content: String,
-}
 
 impl<'a> TemplateCapability<'a> {
     pub fn new(bridge: &'a NodeBridgeClient) -> Self {
@@ -45,9 +34,7 @@ impl<'a> TemplateCapability<'a> {
         // - 没有 bridge 时，CLI 仍有最小可用能力
         // - 有 bridge 时，又能无缝扩展到更完整的模板生态
         let mut templates = declared_template_names();
-        let request = self
-            .bridge
-            .template_list_request(cwd.display().to_string());
+        let request = self.bridge.template_list_request(cwd.display().to_string());
         match self.bridge.list_templates(cwd.display().to_string()).await {
             Ok(exchange) => {
                 let bridge_templates = exchange
@@ -262,42 +249,5 @@ impl<'a> TemplateCapability<'a> {
                 }
             }
         }
-    }
-}
-
-impl<'a> AddTemplateCapability<'a> {
-    pub(super) fn new(bridge: &'a NodeBridgeClient) -> Self {
-        Self { bridge }
-    }
-
-    pub(super) async fn render(
-        &self,
-        template: &str,
-        context: Value,
-    ) -> Result<(RenderedAddTemplate, WorkflowBridgeStep)> {
-        let request = self
-            .bridge
-            .add_template_render_request(template, context.clone());
-        let exchange = self
-            .bridge
-            .render_add_template(template.to_string(), context)
-            .await?;
-        let result = exchange
-            .response
-            .result
-            .as_ref()
-            .ok_or_else(|| anyhow!("addTemplate.render returned no payload"))?;
-        Ok((
-            RenderedAddTemplate {
-                template: result["template"].as_str().unwrap_or(template).to_string(),
-                filename: result["filename"].as_str().map(ToOwned::to_owned),
-                extname: result["extname"].as_str().map(ToOwned::to_owned),
-                content: result["content"]
-                    .as_str()
-                    .ok_or_else(|| anyhow!("addTemplate.render returned no content"))?
-                    .to_string(),
-            },
-            step(request, exchange),
-        ))
     }
 }

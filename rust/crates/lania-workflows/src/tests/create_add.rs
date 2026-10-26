@@ -60,7 +60,89 @@ async fn add_workflow_detects_conflicts() {
     assert!(result
         .notes
         .iter()
-        .any(|note| note.contains("dedicated add template render applied")));
+        .any(|note| note.contains("framework: generic")));
+    assert!(result
+        .notes
+        .iter()
+        .any(|note| note.contains("generator: component")));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn add_workflow_generates_nest_resource_and_registers_module() {
+    let (services, root) = services(ExecService::dry_run());
+    // 框架探测：`nest-cli.json` 存在即认定为 nestjs。
+    std::fs::write(root.join("nest-cli.json"), "{}").expect("nest cli marker");
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    std::fs::write(
+        root.join("src/app.module.ts"),
+        "// <lania:imports>\n@Module({})\nexport class AppModule {}\n",
+    )
+    .expect("app module");
+
+    let result = AddWorkflow
+        .run(
+            &services,
+            AddWorkflowInput {
+                cwd: root.clone(),
+                name: Some("users".into()),
+                template: Some("resource".into()),
+                target: None,
+                force: false,
+            },
+        )
+        .await
+        .expect("nest resource generation succeeds");
+    assert_eq!(
+        result
+            .notes
+            .iter()
+            .filter(|note| note.contains("generator: resource"))
+            .count(),
+        1
+    );
+
+    for expected in [
+        "src/users/users.module.ts",
+        "src/users/users.controller.ts",
+        "src/users/users.service.ts",
+        "src/users/dto/create-user.dto.ts",
+        "src/users/dto/update-user.dto.ts",
+        "src/users/entities/user.entity.ts",
+        "src/users/users.controller.spec.ts",
+    ] {
+        assert!(root.join(expected).exists(), "missing {expected}");
+    }
+    let app_module = std::fs::read_to_string(root.join("src/app.module.ts")).expect("app module");
+    assert!(app_module.contains("import { UsersModule } from './users/users.module';"));
+    assert!(result
+        .notes
+        .iter()
+        .any(|note| note.contains("framework: nestjs")));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn add_workflow_without_framework_only_offers_generic_generators() {
+    let (services, root) = services(ExecService::dry_run());
+    let result = AddWorkflow
+        .run(
+            &services,
+            AddWorkflowInput {
+                cwd: root.clone(),
+                name: Some("button".into()),
+                template: Some("component".into()),
+                target: Some("src".into()),
+                force: false,
+            },
+        )
+        .await
+        .expect("generic component generation succeeds");
+    assert!(root.join("src/components/Button.tsx").exists());
+    assert!(result
+        .notes
+        .iter()
+        .any(|note| note.contains("framework: generic")));
     let _ = std::fs::remove_dir_all(root);
 }
 

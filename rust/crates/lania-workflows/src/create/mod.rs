@@ -2,7 +2,8 @@
 //!
 //! 主要导出：new、list、questions、dependencies、output_tasks、render。
 
-mod add_workflow;
+pub(crate) mod add;
+pub(crate) mod add_workflow;
 mod capability;
 mod create_workflow;
 mod helpers;

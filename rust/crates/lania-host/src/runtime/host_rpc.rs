@@ -253,6 +253,15 @@ impl HostRpcAdapter {
         if method.starts_with("agent.") {
             return agent_tools::handle_agent_domain(self, method, payload);
         }
+        // `add` 的生成器表由 `lania-workflows` 单点维护（§4.5.6），
+        // TS 侧通过 host RPC 读取，避免出现第二份清单。
+        if method == "addGenerator.list" {
+            let cwd = payload_optional_str(payload, "cwd").unwrap_or_else(|| ".".to_string());
+            return Ok((
+                lania_workflows::generator_catalog(Path::new(&cwd), None),
+                Vec::new(),
+            ));
+        }
         Err(anyhow!("unsupported host rpc method: {method}"))
     }
 

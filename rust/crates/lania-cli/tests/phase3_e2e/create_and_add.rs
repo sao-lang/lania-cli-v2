@@ -233,15 +233,7 @@ fn lan_add_e2e() {
 
     let output = run_cli(
         &root,
-        &[
-            "add",
-            "--name",
-            "Button",
-            "--template",
-            "rfc",
-            "--target",
-            "src/components",
-        ],
+        &["add", "component", "Button", "--target", "src/components"],
         &[],
     );
     let json = parse_stdout_json(&output);
@@ -256,7 +248,70 @@ fn lan_add_e2e() {
         .any(|note| note
             .as_str()
             .unwrap_or_default()
-            .contains("dedicated add template render applied")));
+            .contains("framework: generic")));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_add_generates_nest_resource_e2e() {
+    let root = temp_dir("add-nest");
+    write_file(root.join("nest-cli.json"), "{}");
+    write_file(
+        root.join("lan.config.js"),
+        "export default { buildTool: 'vite', language: 'TypeScript' };\n",
+    );
+    write_file(
+        root.join("src/app.module.ts"),
+        "// <lania:imports>\n@Module({})\nexport class AppModule {}\n",
+    );
+
+    let output = run_cli(&root, &["add", "resource", "users"], &[]);
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0));
+    for expected in [
+        "src/users/users.module.ts",
+        "src/users/users.controller.ts",
+        "src/users/users.service.ts",
+        "src/users/dto/create-user.dto.ts",
+        "src/users/dto/update-user.dto.ts",
+        "src/users/entities/user.entity.ts",
+        "src/users/users.controller.spec.ts",
+    ] {
+        assert!(root.join(expected).exists(), "missing {expected}");
+    }
+    let app_module = fs::read_to_string(root.join("src/app.module.ts")).expect("app module");
+    assert!(app_module.contains("import { UsersModule } from './users/users.module';"));
+    assert_eq!(json["kind"], "result");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_add_list_e2e() {
+    let root = temp_dir("add-list");
+    write_file(root.join("nest-cli.json"), "{}");
+    write_file(
+        root.join("lan.config.js"),
+        "export default { buildTool: 'vite', language: 'TypeScript' };\n",
+    );
+
+    let output = run_cli(&root, &["add", "--list"], &[]);
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(json["kind"], "result");
+    assert_eq!(json["result"]["framework"], "nestjs");
+    let names: Vec<&str> = json["result"]["generators"]
+        .as_array()
+        .expect("generators")
+        .iter()
+        .filter_map(|generator| generator["name"].as_str())
+        .collect();
+    assert!(names.contains(&"resource"));
+    assert!(names.contains(&"component"));
+    assert!(names.contains(&"config"));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -273,19 +328,19 @@ fn lan_add_interactive_e2e() {
     let output = run_cli_interactive(
         &root,
         &["add", "--target", "src/components"],
-        &["", "Button"],
+        &["", "", "", "Button"],
         &[],
     );
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(json["kind"], "result");
-    assert_eq!(json["result"]["prompts"]["template"], "rfc");
+    assert_eq!(json["result"]["prompts"]["generator"], "component");
     assert_eq!(json["result"]["prompts"]["name"], "Button");
     assert!(root.join("src/components/Button.tsx").exists());
     assert!(fs::read_to_string(root.join("src/components/Button.tsx"))
         .expect("generated component readable")
-        .contains("const MyComponent"));
+        .contains("export function Button"));
 
     let _ = fs::remove_dir_all(root);
 }

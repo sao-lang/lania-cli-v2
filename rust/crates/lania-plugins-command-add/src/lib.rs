@@ -6,13 +6,13 @@
 //! - 包含序列化/反序列化与 JSON 结构约定
 use anyhow::Result;
 use async_trait::async_trait;
-use lania_command::{CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
+use lania_command::{ArgSpec, CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
 use lania_host::{
     capability::CapabilityName,
     execution::{CommandExecution, CommandExecutionContext, CommandHandler},
     plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
 };
-use lania_workflows::{AddWorkflow, AddWorkflowInput};
+use lania_workflows::{generator_catalog, AddWorkflow, AddWorkflowInput};
 
 pub const HANDLER_ID: &str = "command.add";
 
@@ -28,6 +28,22 @@ impl AddCommandPlugin {
             "Add generated content into an existing workspace",
             HANDLER_ID,
         )
+        .with_args(vec![
+            ArgSpec {
+                name: "generator".into(),
+                required: false,
+                multiple: false,
+                help: "Generator name, e.g. `resource` (NestJS) or `component`".into(),
+            },
+            // clap 要求 option 名与位置参数名唯一，而 `--name` 已经占用 `name`，
+            // 因此位置参数用 `generator-name`，在 `build_input` 里映射回名称。
+            ArgSpec {
+                name: "generator-name".into(),
+                required: false,
+                multiple: false,
+                help: "Base name used to derive class names and file paths".into(),
+            },
+        ])
         .with_options(vec![
             OptionSpec {
                 long: "name".into(),
@@ -41,28 +57,10 @@ impl AddCommandPlugin {
             OptionSpec {
                 long: "template".into(),
                 short: Some('t'),
-                help: "Template name".into(),
+                help: "Generator name or a legacy template name (rfc/v3/eslint/...)".into(),
                 value_kind: ValueKind::String,
                 default_value: None,
-                choices: vec![
-                    "v2".into(),
-                    "v3".into(),
-                    "rcc".into(),
-                    "rfc".into(),
-                    "svelte".into(),
-                    "astro".into(),
-                    "prettier".into(),
-                    "eslint".into(),
-                    "stylelint".into(),
-                    "editorconfig".into(),
-                    "gitignore".into(),
-                    "tsconfig".into(),
-                    "commitizen".into(),
-                    "go-handler".into(),
-                    "python-module".into(),
-                    "rust-module".into(),
-                    "dart-class".into(),
-                ],
+                choices: vec![],
                 negatable: false,
             },
             OptionSpec {
@@ -85,6 +83,15 @@ impl AddCommandPlugin {
                 negatable: false,
             },
             OptionSpec {
+                long: "list".into(),
+                short: Some('l'),
+                help: "List available generators grouped by framework, then exit".into(),
+                value_kind: ValueKind::Bool,
+                default_value: None,
+                choices: vec![],
+                negatable: false,
+            },
+            OptionSpec {
                 long: "force".into(),
                 short: Some('f'),
                 help: "Overwrite conflicting files".into(),
@@ -96,12 +103,17 @@ impl AddCommandPlugin {
         ])
         .with_examples(vec![
             Example {
-                command: "lan add --name button".into(),
-                description: "Add a default toolkit module".into(),
+                command: "lan add resource users".into(),
+                description: "Generate a multi-file NestJS resource (module/controller/service/dto/entity/spec)"
+                    .into(),
             },
             Example {
-                command: "lan add --name dashboard --template spa-react --target scaffolds".into(),
-                description: "Add a scaffold into a custom directory".into(),
+                command: "lan add component Button --target src/components".into(),
+                description: "Add a framework-agnostic UI component".into(),
+            },
+            Example {
+                command: "lan add --list".into(),
+                description: "Show generators available for the detected framework".into(),
             },
         ])
     }
@@ -113,6 +125,18 @@ impl AddCommandPlugin {
             .get("filepath")
             .and_then(|value| value.as_str())
             .map(ToOwned::to_owned);
+        let positional_generator = context
+            .argv
+            .args
+            .get("generator")
+            .and_then(|value| value.as_str())
+            .map(ToOwned::to_owned);
+        let positional_name = context
+            .argv
+            .args
+            .get("generator-name")
+            .and_then(|value| value.as_str())
+            .map(ToOwned::to_owned);
         AddWorkflowInput {
             cwd: context.cwd.clone().into(),
             name: context
@@ -120,13 +144,15 @@ impl AddCommandPlugin {
                 .options
                 .get("name")
                 .and_then(|value| value.as_str())
-                .map(ToOwned::to_owned),
+                .map(ToOwned::to_owned)
+                .or(positional_name),
             template: context
                 .argv
                 .options
                 .get("template")
                 .and_then(|value| value.as_str())
-                .map(ToOwned::to_owned),
+                .map(ToOwned::to_owned)
+                .or(positional_generator),
             target: context
                 .argv
                 .options
@@ -141,6 +167,35 @@ impl AddCommandPlugin {
                 .and_then(|value| value.as_bool())
                 .unwrap_or(false),
         }
+    }
+
+    /// `lan add --list`：按框架分组输出生成器清单。
+    ///
+    /// 框架探测失败时**只列通用生成器**（§4.5.3），不猜框架。
+    pub fn list_catalog(cwd: &std::path::Path, locale: &str) -> serde_json::Value {
+        let catalog = generator_catalog(cwd, None);
+        let framework = catalog["framework"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let generic = catalog["generic"].as_bool().unwrap_or(true);
+        let generators = catalog["generators"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|generator| {
+                let entry_framework = generator["framework"].as_str().unwrap_or_default();
+                entry_framework.is_empty() || (!generic && entry_framework == framework)
+            })
+            .collect::<Vec<_>>();
+        serde_json::json!({
+            "kind": "template_info",
+            "framework": if generic { serde_json::Value::Null } else { serde_json::json!(framework) },
+            "frameworkReason": catalog["frameworkReason"],
+            "locale": locale,
+            "generators": generators,
+        })
     }
 }
 
@@ -178,14 +233,14 @@ impl Plugin for AddCommandPlugin {
 impl CommandHandler for AddCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         ctx.require_capability(CapabilityName::Template)?;
+        let input = AddCommandPlugin::build_input(ctx.command());
+        if ctx.bool_option("list") {
+            let catalog = AddCommandPlugin::list_catalog(&input.cwd, ctx.locale());
+            return Ok(ctx.complete_template_info(catalog, lania_host::EXIT_SUCCESS));
+        }
         ctx.emit_workflow_start("add").await;
         let workflow = AddWorkflow;
-        let execution = workflow
-            .run(
-                &ctx.workflow_services(),
-                AddCommandPlugin::build_input(ctx.command()),
-            )
-            .await?;
+        let execution = workflow.run(&ctx.workflow_services(), input).await?;
         ctx.emit_workflow_complete("add").await;
         Ok(ctx.complete_workflow(execution, lania_host::EXIT_SUCCESS))
     }
@@ -225,24 +280,83 @@ mod tests {
         let spec = &commands.commands()[0];
         assert_eq!(spec.name, "add");
         assert_eq!(spec.handler_id, HANDLER_ID);
-        assert_eq!(spec.options.len(), 5);
+        assert_eq!(spec.options.len(), 6);
+        assert_eq!(spec.args.len(), 2);
+        let arg_names: Vec<&str> = spec.args.iter().map(|arg| arg.name.as_str()).collect();
+        assert_eq!(arg_names, vec!["generator", "generator-name"]);
+        // clap 要求 option 与 positional 名唯一（`--name` 与位置参数不能同名）。
+        let mut all_names: Vec<&str> = spec
+            .options
+            .iter()
+            .map(|option| option.long.as_str())
+            .collect();
+        all_names.extend(arg_names);
+        let unique: std::collections::HashSet<&&str> = all_names.iter().collect();
+        assert_eq!(all_names.len(), unique.len());
         assert!(handlers.get(HANDLER_ID).is_some());
     }
 
     #[test]
-    fn add_spec_lists_language_templates() {
+    fn add_spec_accepts_positional_generator_and_name() {
         let spec = AddCommandPlugin::spec();
-        let template = spec
-            .options
+        let names: Vec<&str> = spec.args.iter().map(|arg| arg.name.as_str()).collect();
+        assert_eq!(names, vec!["generator", "generator-name"]);
+    }
+
+    #[test]
+    fn builds_add_input_from_positional_args() {
+        let context = lania_command::CommandContext {
+            name: String::new(),
+            cwd: "/repo".into(),
+            argv: lania_command::ParsedArgv {
+                args: [
+                    ("generator".into(), json!("resource")),
+                    ("generator-name".into(), json!("users")),
+                ]
+                .into_iter()
+                .collect(),
+                options: Default::default(),
+            },
+            handler_id: HANDLER_ID.into(),
+            trace_id: "trace-add-positional".into(),
+        };
+
+        let input = AddCommandPlugin::build_input(&context);
+        assert_eq!(input.template.as_deref(), Some("resource"));
+        assert_eq!(input.name.as_deref(), Some("users"));
+    }
+
+    #[test]
+    fn list_catalog_only_shows_generic_generators_without_a_framework() {
+        let root = std::env::temp_dir().join(format!("lania-add-list-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("temp dir");
+        let catalog = AddCommandPlugin::list_catalog(&root, "en");
+        let generators = catalog["generators"].as_array().expect("generators");
+        let names: Vec<&str> = generators
             .iter()
-            .find(|option| option.long == "template")
-            .expect("template option exists");
-        for name in ["go-handler", "python-module", "rust-module", "dart-class"] {
-            assert!(
-                template.choices.iter().any(|choice| choice == name),
-                "missing {name}"
-            );
-        }
+            .filter_map(|generator| generator["name"].as_str())
+            .collect();
+        assert_eq!(names, vec!["component", "config"]);
+        assert!(catalog["framework"].is_null());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn list_catalog_includes_framework_generators_when_detected() {
+        let root = std::env::temp_dir().join(format!("lania-add-list-nest-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("temp dir");
+        std::fs::write(root.join("nest-cli.json"), "{}").expect("marker");
+        let catalog = AddCommandPlugin::list_catalog(&root, "en");
+        assert_eq!(catalog["framework"], "nestjs");
+        let names: Vec<&str> = catalog["generators"]
+            .as_array()
+            .expect("generators")
+            .iter()
+            .filter_map(|generator| generator["name"].as_str())
+            .collect();
+        assert!(names.contains(&"resource"));
+        assert!(names.contains(&"component"));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

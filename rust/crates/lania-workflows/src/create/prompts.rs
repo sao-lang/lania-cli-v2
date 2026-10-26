@@ -12,7 +12,8 @@ use anyhow::{anyhow, Result};
 use lania_prompt::{PromptFlow, PromptService, PromptStep};
 use serde_json::{json, Value};
 
-use super::templates::ADD_TEMPLATE_SPECS;
+use super::add::{FrameworkDetection, Generator, GeneratorQuestionKind};
+use super::add_workflow::{available_generators, legacy_generator_for_variant, legacy_variant};
 use crate::models::{AddWorkflowInput, CreateWorkflowInput};
 
 pub(super) fn run_create_prompt(
@@ -166,46 +167,104 @@ pub(super) fn run_add_prompt(
     prompt: &PromptService,
     locale: &str,
     input: &AddWorkflowInput,
+    generator: &Generator,
+    detection: &FrameworkDetection,
 ) -> Result<BTreeMap<String, Value>> {
     let zh = locale == "zh";
-    let mut template_step = PromptStep::new(
-        "template",
-        if zh { "添加模板" } else { "Add template" },
-        "template",
+    // 两级交互（§4.5.6）：先按框架过滤出的生成器列表选择，再填生成器专属问题。
+    let mut generator_step = PromptStep::new(
+        "generator",
+        if zh { "添加内容" } else { "Add generator" },
+        "generator",
     )
     .kind(lania_prompt::PromptStepKind::Select);
     if std::io::stdin().is_terminal() {
-        template_step = template_step.default_value(json!("rfc"));
+        generator_step = generator_step.default_value(json!(generator.name));
     }
-    for template in ADD_TEMPLATE_SPECS {
-        template_step = template_step.choice(template.label(zh), json!(template.name));
+    for candidate in available_generators(detection) {
+        let label = if zh {
+            candidate.label_zh
+        } else {
+            candidate.label_en
+        };
+        generator_step = generator_step.choice(label, json!(candidate.name));
     }
-    let flow = PromptFlow {
-        steps: vec![
-            template_step,
-            PromptStep::new(
-                "target",
-                if zh { "目标路径" } else { "Target path" },
-                "target",
-            )
-            .detail(if zh {
-                "示例：src/components 或 src/components/Button.tsx"
-            } else {
-                "Examples: src/components or src/components/Button.tsx"
-            })
-            .default_value(json!("src")),
-            PromptStep::new("name", if zh { "文件名" } else { "File name" }, "name")
+
+    let mut steps = vec![generator_step];
+    for question in generator.questions {
+        let label = if zh {
+            question.label_zh
+        } else {
+            question.label_en
+        };
+        let mut step = PromptStep::new(question.field, label, question.field);
+        step = match question.kind {
+            GeneratorQuestionKind::Select => step.kind(lania_prompt::PromptStepKind::Select),
+            GeneratorQuestionKind::Confirm => step.kind(lania_prompt::PromptStepKind::Confirm),
+            GeneratorQuestionKind::Text => step,
+        };
+        if question.kind == GeneratorQuestionKind::Select {
+            // 只有选项题需要注册候选项：非空 `choices` 会触发引擎的「值必须是候选项」校验，
+            // 把 `Text` / `Confirm` 也塞进去会让自由文本直接失败。
+            for choice in question.choices {
+                step = step.choice(*choice, json!(*choice));
+            }
+        }
+        if let Some(first) = question.choices.first() {
+            step = step.default_value(json!(first));
+        } else if question.kind == GeneratorQuestionKind::Confirm {
+            step = step.default_value(json!(true));
+        } else {
+            step = step.default_value(json!(""));
+        }
+        steps.push(step);
+    }
+    if generator.wants_name {
+        steps.push(
+            PromptStep::new("name", if zh { "名称" } else { "Name" }, "name")
                 .detail(if zh {
-                    "当目标路径指向目录时使用"
+                    "用于推导类名与文件名，例如 users 或 user-profile"
                 } else {
-                    "Used when the target path points to a directory"
+                    "Used to derive class names and file paths, e.g. users or user-profile"
                 })
                 .default_value(json!("index")),
-        ],
-    };
+        );
+    }
+    steps.push(
+        PromptStep::new(
+            "target",
+            if zh { "目标路径" } else { "Target path" },
+            "target",
+        )
+        .detail(if zh {
+            "留空使用生成器默认目录"
+        } else {
+            "Leave empty to use the generator's default directory"
+        })
+        .default_value(json!("")),
+    );
+    let flow = PromptFlow { steps };
     let mut answers = BTreeMap::new();
-    if let Some(template) = &input.template {
-        answers.insert("template".into(), json!(template));
+    // 显式 `--template` 直接锁定生成器，避免再问一次。
+    // `generator` 题的候选项就是生成器名；旧的平铺模板名（`rfc` / `eslint` …）
+    // 映射回所属生成器（`component` / `config`），并把原文作为 `variant` 锁定。
+    if let Some(template) = input.template.as_deref() {
+        let generator_answer = match legacy_variant(template) {
+            Some(_) => legacy_generator_for_variant(template),
+            None => template,
+        };
+        answers.insert("generator".into(), json!(generator_answer));
+    } else {
+        answers.insert("generator".into(), json!(generator.name));
+    }
+    if let Some(template) = input.template.as_deref().and_then(legacy_variant) {
+        if generator
+            .questions
+            .iter()
+            .any(|question| question.field == "variant")
+        {
+            answers.insert("variant".into(), json!(template));
+        }
     }
     if let Some(target) = &input.target {
         answers.insert("target".into(), json!(target));

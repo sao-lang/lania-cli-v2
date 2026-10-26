@@ -12,6 +12,8 @@ pub(crate) struct AddTemplateContextSnapshot {
     pub(crate) project_name: String,
     pub(crate) language: String,
     pub(crate) css_processor: String,
+    /// `lan.config.*` 的原始 JSON，供框架探测读取 `add.framework`。
+    pub(crate) raw: Value,
 }
 
 pub(crate) async fn load_add_template_context(
@@ -45,5 +47,6 @@ pub(crate) async fn load_add_template_context(
             .and_then(Value::as_str)
             .unwrap_or("css")
             .to_string(),
+        raw: snapshot.raw.clone(),
     })
 }
