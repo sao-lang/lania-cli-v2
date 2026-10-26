@@ -95,6 +95,9 @@ impl<'a> CommandExecutionContext<'a> {
                         );
                     }
                 }
+                BridgeEventMethod::Diag => {
+                    self.apply_diag_event(request, event);
+                }
                 BridgeEventMethod::CompilerStart => {
                     let id = self.progress_id_for_event(request, event);
                     if self.progress.snapshot().iter().all(|item| item.id != id) {
@@ -317,6 +320,37 @@ impl<'a> CommandExecutionContext<'a> {
                 BridgeEventMethod::Ready => {}
             }
         }
+    }
+
+    /// `event.diag`：被劫持的终端输出（§7.2）。
+    ///
+    /// 与旧 `event.log` 的关键差异是**保留来源与用途**：
+    /// - `channel = app` 是应用自身日志（服务端 HTTP 访问日志等），用 `[app]` 前缀区分；
+    /// - `channel = build/dev` 是工具链日志，用 `[dev]` 之类的通道前缀；
+    /// - stderr 不再一律冒充 warning —— level 由 bridge 按内容推断。
+    fn apply_diag_event(&self, request: &BridgeRequest, event: &BridgeEvent) {
+        let Some(line) = lania_node_bridge::parse_diag_line(&event.params) else {
+            return;
+        };
+        let level = match line.level {
+            lania_node_bridge::LogLevelName::Trace => LogLevel::Trace,
+            lania_node_bridge::LogLevelName::Debug => LogLevel::Debug,
+            lania_node_bridge::LogLevelName::Warn => LogLevel::Warn,
+            lania_node_bridge::LogLevelName::Error => LogLevel::Error,
+            lania_node_bridge::LogLevelName::Info => LogLevel::Info,
+        };
+        let channel = match line.channel {
+            lania_node_bridge::DiagChannel::App => "app",
+            lania_node_bridge::DiagChannel::Dev => "dev",
+            lania_node_bridge::DiagChannel::Lint => "lint",
+            lania_node_bridge::DiagChannel::Build => "build",
+        };
+        self.log(
+            level,
+            "command_execute",
+            Some(request.method.clone()),
+            format!("[{channel}] {}", line.text),
+        );
     }
 
     fn progress_id_for_event(&self, request: &BridgeRequest, event: &BridgeEvent) -> String {

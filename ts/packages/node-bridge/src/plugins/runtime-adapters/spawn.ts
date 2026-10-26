@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
 import type { BridgeEvent } from '../../protocol/events.js';
+import { createDiagEmitter, createLineSplitter } from '../diag.js';
 import {
   compilerDoneEvent,
   compilerIssueEvent,
@@ -91,10 +92,16 @@ function spawnAndWait(
       // POSIX 下建立独立进程组，stop 时可整组终止（go run/cargo run 会再派生子进程）。
       detached: process.platform !== 'win32',
     });
-    const stdout = createLineEmitter((line) => push(logEvent(line, 'info')));
-    const stderr = createLineEmitter((line) => {
+    // 被劫持的终端输出统一走 `event.diag`（结构化、带 channel 与跨流 seq），
+    // 不再压平成 `event.log` / 更不把 stderr 一律当 warning（§7.2）。
+    const diag = createDiagEmitter(emit, { channel: 'build', tool: runtime, source: 'tool' });
+    const stdout = createLineSplitter((line) => {
+      diag(line, 'stdout');
+      push(logEvent(line, 'info'));
+    });
+    const stderr = createLineSplitter((line) => {
       stderrTail = line;
-      push(compilerIssueEvent(runtime, 'warning', line));
+      diag(line, 'stderr');
     });
     child.stdout?.on('data', stdout.push);
     child.stderr?.on('data', stderr.push);
@@ -167,6 +174,8 @@ export async function startSpawnDev(
       settled = true;
       clearTimeout(timer);
       clearTimeout(readinessTimer);
+      // 从这里开始，子进程的输出就是「应用自身」的日志了。
+      serverReady = true;
       push(compilerStatusEvent(runtime, 'dev', 'watching', 'dev command is running'));
       push(compilerDoneEvent(runtime, 'dev', true, 'runtime', { runtime, longRunning: true }));
       resolve({
@@ -188,12 +197,26 @@ export async function startSpawnDev(
         readinessTimer = setTimeout(finishRunning, DEV_OUTPUT_GRACE_MS);
       }
     };
+    // dev 场景：工具链启动日志属于 `dev`，服务端在启动完成后继续打印的
+    // HTTP 访问日志属于**应用自身** —— 两者都用 `event.diag` 但 channel 不同，
+    // 上层才能用 `[dev]` / `[app]` 前缀区分（§7.5.3）。
+    let serverReady = false;
+    const diag = createDiagEmitter(emit, { channel: 'dev', tool: runtime, source: 'tool' });
+    const pushDiag = (line: string, stream: 'stdout' | 'stderr') => {
+      if (serverReady) {
+        // 服务启动后这里就是应用自己的输出。
+        createDiagEmitter(emit, { channel: 'app', tool: runtime, source: 'runtime' })(line, stream);
+        return;
+      }
+      diag(line, stream);
+    };
     const stdout = createLineEmitter((line) => {
       push(logEvent(line, 'info'));
+      pushDiag(line, 'stdout');
       scheduleReady();
     });
     const stderr = createLineEmitter((line) => {
-      push(compilerIssueEvent(runtime, 'warning', line));
+      pushDiag(line, 'stderr');
       scheduleReady();
     });
     child.stdout?.on('data', stdout.push);

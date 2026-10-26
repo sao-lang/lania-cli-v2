@@ -11,9 +11,11 @@ pub use client::{
     LintBridgeCapability, NodeBridgeClient, TemplateBridgeCapability,
 };
 pub use protocol::{
-    BridgeError, BridgeEvent, BridgeEventMethod, BridgeExchange, BridgeFailureStrategy,
-    BridgeMetricsSnapshot, BridgeRequest, BridgeResponse, HandshakeRequest, HandshakeResponse,
-    HostRequest, HostResponse,
+    normalize_diagnostics, parse_diag_line, BridgeError, BridgeEvent, BridgeEventMethod,
+    BridgeExchange, BridgeFailureStrategy, BridgeMetricsSnapshot, BridgeRequest, BridgeResponse,
+    DiagChannel, DiagCounts, DiagLine, DiagSource, Diagnostic, DiagnosticFix, DiagnosticPosition,
+    DiagnosticRange, DiagnosticSeverity, HandshakeRequest, HandshakeResponse, HostRequest,
+    HostResponse, LogLevelName,
 };
 
 /// Rust 宿主侧用于处理“Node 主动发起的 host RPC 调用”的接口。

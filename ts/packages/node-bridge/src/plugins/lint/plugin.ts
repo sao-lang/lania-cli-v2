@@ -11,6 +11,8 @@
  */
 import type { BridgeEvent } from '../../protocol/events.js';
 import { loadLanConfig } from '../../core/runtime.js';
+import { countDiagnostics, normalizeDiagnostics } from '../diagnostics.js';
+import { nextDiagSeq } from '../diag.js';
 import {
   buildResultsByAdaptor,
   buildSummaryByAdaptor,
@@ -48,6 +50,9 @@ export const lintPlugin = {
     const summaryByAdaptor = buildSummaryByAdaptor(results);
     const summaryText = formatLintSummary(mode, summary, results);
     const exitCode = summary.errors > 0 ? 1 : 0;
+    // 跨 adaptor 合并：同一位置被多个工具报警时**全部保留**（渲染层用 tool 标签区分）。
+    const diagnostics = normalizeDiagnostics(results.flatMap((result) => result.diagnostics ?? []));
+    const counts = countDiagnostics(diagnostics);
 
     return {
       result: {
@@ -65,6 +70,9 @@ export const lintPlugin = {
         formatter: 'lania.lint.formatter.v1',
         normalizer: 'lania.lint.normalizer.v1',
         resultsByAdaptor: buildResultsByAdaptor(results),
+        /** 统一结果模型（§7.3）：Rust 侧聚合为 `RunResult.diagnostics`。 */
+        diagnostics,
+        counts,
         exitCode,
       },
       events: [
@@ -106,6 +114,34 @@ export const lintPlugin = {
                 errors: result.errors,
                 warnings: result.warnings,
                 implementation: result.implementation,
+              },
+            }) satisfies BridgeEvent,
+        ),
+        // 结构化诊断逐条流出：上层可以边收边渲染，也能在长任务里实时展示。
+        ...diagnostics.map(
+          (diagnostic) =>
+            ({
+              method: 'event.diag',
+              params: {
+                source: 'tool',
+                stream: 'syslog',
+                tool: diagnostic.tool,
+                channel: 'lint',
+                level:
+                  diagnostic.severity === 'error'
+                    ? 'error'
+                    : diagnostic.severity === 'warning'
+                      ? 'warn'
+                      : 'info',
+                text: diagnostic.message,
+                seq: nextDiagSeq(),
+                ts: Date.now(),
+                fields: {
+                  file: diagnostic.file,
+                  line: diagnostic.range?.start.line,
+                  col: diagnostic.range?.start.col,
+                  id: diagnostic.id,
+                },
               },
             }) satisfies BridgeEvent,
         ),

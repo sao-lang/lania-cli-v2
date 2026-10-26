@@ -26,7 +26,8 @@ export type BridgeEventMethod =
   | 'event.agent_tool_end'
   | 'event.agent_end'
   | 'event.shutdown'
-  | 'event.heartbeat';
+  | 'event.heartbeat'
+  | 'event.diag';
 
 export interface BridgeEvent<T = unknown> {
   method: BridgeEventMethod;

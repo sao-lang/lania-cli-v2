@@ -2,22 +2,48 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { asRecord } from '../../core/runtime.js';
+import { normalizeDiagnostics, type Diagnostic } from '../diagnostics.js';
+import { toolchainFor } from '../toolchain.js';
 import {
-  aggregateDiagnostics,
   failedRuntimeResult,
   fallbackMissingAdaptor,
+  okStatusResult,
   runBinary,
 } from './shared.js';
-import { createLintRunResult, type LintAdaptor, type LintRunResult } from './types.js';
-
-type Diagnostic = { filePath: string; severity: 'error' | 'warning' };
+import {
+  parseBlackDiagnostics,
+  parseClippyDiagnostics,
+  parseDartAnalyzeDiagnostics,
+  parseFlake8Diagnostics,
+  parseGolangciDiagnostics,
+  parseGoVetDiagnostics,
+  parseMypyDiagnostics,
+  parseRuffDiagnostics,
+} from './parsers.js';
+import {
+  createLintRunResult,
+  filesFromDiagnostics,
+  type LintAdaptor,
+  type LintRunResult,
+} from './types.js';
 
 interface ToolSpec {
   name: string;
   versionArgs: string[];
   candidates: string[];
 }
+
+/** 把 adaptor id 映射到解析函数（唯一映射点，新增工具只改这里）。 */
+export const ADAPTOR_PARSERS: Partial<Record<LintAdaptor, (output: string) => Diagnostic[]>> = {
+  ruff: parseRuffDiagnostics,
+  black: parseBlackDiagnostics,
+  mypy: parseMypyDiagnostics,
+  flake8: parseFlake8Diagnostics,
+  'golangci-lint': parseGolangciDiagnostics,
+  'go-vet': parseGoVetDiagnostics,
+  clippy: parseClippyDiagnostics,
+  'dart-analyze': parseDartAnalyzeDiagnostics,
+};
 
 function pythonCandidates(cwd: string, name: string): string[] {
   const executable = process.platform === 'win32' ? `${name}.exe` : name;
@@ -29,7 +55,12 @@ function pythonCandidates(cwd: string, name: string): string[] {
   ];
 }
 
-/** 先确认工具存在：项目虚拟环境优先，其次 PATH。 */
+/**
+ * 先确认工具存在：项目虚拟环境优先，其次 PATH。
+ *
+ * 这个顺序必须保留（§6.4）：项目 `.venv` 里的工具版本才是项目真正要用的，
+ * 直接走 PATH 会拿到全局版本。
+ */
 function resolveTool(cwd: string, spec: ToolSpec): string | null {
   for (const candidate of spec.candidates) {
     if (existsSync(candidate)) {
@@ -44,171 +75,34 @@ function resolveTool(cwd: string, spec: ToolSpec): string | null {
   return !probe.error && probe.status === 0 ? spec.name : null;
 }
 
+/**
+ * 统一收口：诊断 → `LintRunResult`。
+ *
+ * `files` 由 `diagnostics` **派生**，保证两个字段永不失配。
+ */
 function toResult(adaptor: LintAdaptor, diagnostics: Diagnostic[]): LintRunResult {
-  return createLintRunResult(adaptor, 'runtime', aggregateDiagnostics(diagnostics));
+  const normalized = normalizeDiagnostics(diagnostics);
+  return createLintRunResult(
+    adaptor,
+    'runtime',
+    filesFromDiagnostics(normalized),
+    normalized.filter((item) => item.severity === 'error').length,
+    normalized.filter((item) => item.severity === 'warning').length,
+    undefined,
+    normalized,
+  );
 }
 
-export function parseRuffOutput(output: string): Diagnostic[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(output || '[]');
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-  return parsed.flatMap((item) => {
-    const record = asRecord(item);
-    const filePath =
-      typeof record.filename === 'string'
-        ? record.filename
-        : typeof record.file === 'string'
-          ? record.file
-          : null;
-    return filePath ? [{ filePath, severity: 'error' as const }] : [];
-  });
-}
-
-export function parseBlackOutput(output: string): Diagnostic[] {
-  return output
-    .split(/\r?\n/)
-    .map((line) => {
-      const marker = 'would reformat ';
-      const index = line.indexOf(marker);
-      return index >= 0 ? line.slice(index + marker.length).trim() : '';
-    })
-    .filter(Boolean)
-    .map((filePath) => ({ filePath, severity: 'warning' as const }));
-}
-
-export function parseMypyOutput(output: string): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  for (const line of output.split(/\r?\n/)) {
-    const match = /^(.+?):(\d+): (error|warning|note):/.exec(line);
-    if (!match || match[3] === 'note') {
-      continue;
-    }
-    diagnostics.push({
-      filePath: match[1],
-      severity: match[3] === 'error' ? 'error' : 'warning',
-    });
-  }
-  return diagnostics;
-}
-
-export function parseFlake8Output(output: string): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  for (const line of output.split(/\r?\n/)) {
-    const match = /^(.+?):(\d+):(\d+): ([A-Z]\d+) /.exec(line);
-    if (!match) {
-      continue;
-    }
-    diagnostics.push({
-      filePath: match[1],
-      severity: match[4].startsWith('W') ? 'warning' : 'error',
-    });
-  }
-  return diagnostics;
-}
-
-export function parseGolangciOutput(output: string): Diagnostic[] {
-  try {
-    const parsed = JSON.parse(output);
-    const issues = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(asRecord(parsed).Issues)
-        ? (asRecord(parsed).Issues as unknown[])
-        : [];
-    const diagnostics: Diagnostic[] = [];
-    for (const issue of issues) {
-      const record = asRecord(issue);
-      const position = asRecord(record.Pos ?? record.pos);
-      const filePath =
-        typeof position.Filename === 'string'
-          ? position.Filename
-          : typeof position.filename === 'string'
-            ? position.filename
-            : null;
-      if (!filePath) {
-        continue;
-      }
-      diagnostics.push({
-        filePath,
-        severity: record.Severity === 'warning' ? 'warning' : 'error',
-      });
-    }
-    return diagnostics;
-  } catch {
-    const diagnostics: Diagnostic[] = [];
-    for (const line of output.split(/\r?\n/)) {
-      const match = /^(.+?):(\d+):(\d+): /.exec(line);
-      if (match) {
-        diagnostics.push({ filePath: match[1], severity: 'error' });
+/** 从 `toolchain.ts`（唯一来源）取该 adaptor 的默认参数。 */
+function argsFor(adaptor: LintAdaptor, fallback: string[]): string[] {
+  for (const runtime of ['python', 'go', 'rust', 'dart'] as const) {
+    for (const tool of toolchainFor(runtime)?.lintTools ?? []) {
+      if (tool.id === adaptor) {
+        return tool.args;
       }
     }
-    return diagnostics;
   }
-}
-
-export function parseGoVetOutput(output: string): Diagnostic[] {
-  return output
-    .split(/\r?\n/)
-    .map((line) => /^(.+?\.go):(\d+):(\d+): /.exec(line))
-    .filter((match): match is RegExpExecArray => Boolean(match))
-    .map((match) => ({ filePath: match[1], severity: 'error' as const }));
-}
-
-export function parseClippyOutput(output: string): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  for (const line of output.split(/\r?\n/)) {
-    if (!line.trim()) {
-      continue;
-    }
-    let record: Record<string, unknown>;
-    try {
-      record = asRecord(JSON.parse(line));
-    } catch {
-      continue;
-    }
-    if (record.reason !== 'compiler-message') {
-      continue;
-    }
-    const message = asRecord(record.message);
-    const level = message.level;
-    if (level !== 'error' && level !== 'warning') {
-      continue;
-    }
-    const spans = Array.isArray(message.spans) ? message.spans : [];
-    const filePath = spans
-      .map((span) => asRecord(span).file_name)
-      .find((value): value is string => typeof value === 'string');
-    if (filePath) {
-      diagnostics.push({ filePath, severity: level });
-    }
-  }
-  return diagnostics;
-}
-
-export function parseDartAnalyzeOutput(output: string): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  for (const line of output.split(/\r?\n/)) {
-    const fields = line.split('|');
-    if (fields.length < 4) {
-      continue;
-    }
-    const severity = fields[0];
-    const filePath = fields[3];
-    if (!filePath) {
-      continue;
-    }
-    if (severity === 'ERROR') {
-      diagnostics.push({ filePath, severity: 'error' });
-    } else if (severity === 'WARNING') {
-      diagnostics.push({ filePath, severity: 'warning' });
-    }
-  }
-  return diagnostics;
+  return fallback;
 }
 
 async function runRuff(cwd: string, fix: boolean): Promise<LintRunResult> {
@@ -226,8 +120,8 @@ async function runRuff(cwd: string, fix: boolean): Promise<LintRunResult> {
   }
   args.push('.');
   const command = await runBinary(cwd, binary, args);
-  const diagnostics = parseRuffOutput(command.stdout);
-  if (command.exitCode > 1 && diagnostics.length === 0) {
+  const diagnostics = parseRuffDiagnostics(command.stdout);
+  if (command.exitCode !== 0 && diagnostics.length === 0) {
     return failedRuntimeResult('ruff', command.stderr || command.stdout);
   }
   return toResult('ruff', diagnostics);
@@ -247,7 +141,10 @@ async function runBlack(cwd: string, fix: boolean): Promise<LintRunResult> {
   if (command.exitCode > 1) {
     return failedRuntimeResult('black', command.stderr || command.stdout);
   }
-  return toResult('black', fix ? [] : parseBlackOutput(`${command.stdout}\n${command.stderr}`));
+  return toResult(
+    'black',
+    fix ? [] : parseBlackDiagnostics(`${command.stdout}\n${command.stderr}`),
+  );
 }
 
 async function runMypy(cwd: string): Promise<LintRunResult> {
@@ -259,8 +156,8 @@ async function runMypy(cwd: string): Promise<LintRunResult> {
   if (!binary) {
     return fallbackMissingAdaptor('mypy');
   }
-  const command = await runBinary(cwd, binary, ['.']);
-  const diagnostics = parseMypyOutput(`${command.stdout}\n${command.stderr}`);
+  const command = await runBinary(cwd, binary, argsFor('mypy', ['.']));
+  const diagnostics = parseMypyDiagnostics(`${command.stdout}\n${command.stderr}`);
   if (command.exitCode > 1 && diagnostics.length === 0) {
     return failedRuntimeResult('mypy', command.stderr || command.stdout);
   }
@@ -276,8 +173,8 @@ async function runFlake8(cwd: string): Promise<LintRunResult> {
   if (!binary) {
     return fallbackMissingAdaptor('flake8');
   }
-  const command = await runBinary(cwd, binary, ['.']);
-  const diagnostics = parseFlake8Output(`${command.stdout}\n${command.stderr}`);
+  const command = await runBinary(cwd, binary, argsFor('flake8', ['.']));
+  const diagnostics = parseFlake8Diagnostics(`${command.stdout}\n${command.stderr}`);
   if (command.exitCode > 1 && diagnostics.length === 0) {
     return failedRuntimeResult('flake8', command.stderr || command.stdout);
   }
@@ -299,7 +196,7 @@ async function runGolangci(cwd: string, fix: boolean): Promise<LintRunResult> {
   }
   args.push('./...');
   const command = await runBinary(cwd, binary, args);
-  const diagnostics = parseGolangciOutput(command.stdout || command.stderr);
+  const diagnostics = parseGolangciDiagnostics(command.stdout || command.stderr);
   if (command.exitCode > 1 && diagnostics.length === 0) {
     return failedRuntimeResult('golangci-lint', command.stderr || command.stdout);
   }
@@ -311,8 +208,8 @@ async function runGoVet(cwd: string): Promise<LintRunResult> {
   if (!binary) {
     return fallbackMissingAdaptor('go-vet');
   }
-  const command = await runBinary(cwd, binary, ['vet', './...']);
-  const diagnostics = parseGoVetOutput(`${command.stdout}\n${command.stderr}`);
+  const command = await runBinary(cwd, binary, argsFor('go-vet', ['vet', './...']));
+  const diagnostics = parseGoVetDiagnostics(`${command.stdout}\n${command.stderr}`);
   if (command.exitCode > 1 && diagnostics.length === 0) {
     return failedRuntimeResult('go-vet', command.stderr || command.stdout);
   }
@@ -329,7 +226,7 @@ async function runClippy(cwd: string): Promise<LintRunResult> {
     return fallbackMissingAdaptor('clippy');
   }
   const command = await runBinary(cwd, binary, ['clippy', '--message-format=json']);
-  const diagnostics = parseClippyOutput(`${command.stdout}\n${command.stderr}`);
+  const diagnostics = parseClippyDiagnostics(`${command.stdout}\n${command.stderr}`);
   if (command.exitCode > 1 && diagnostics.length === 0) {
     return failedRuntimeResult('clippy', command.stderr || command.stdout);
   }
@@ -342,7 +239,7 @@ async function runDartAnalyze(cwd: string): Promise<LintRunResult> {
     return fallbackMissingAdaptor('dart-analyze');
   }
   const command = await runBinary(cwd, binary, ['analyze', '--format', 'machine']);
-  const diagnostics = parseDartAnalyzeOutput(`${command.stdout}\n${command.stderr}`);
+  const diagnostics = parseDartAnalyzeDiagnostics(`${command.stdout}\n${command.stderr}`);
   if (command.exitCode > 1 && diagnostics.length === 0) {
     return failedRuntimeResult('dart-analyze', command.stderr || command.stdout);
   }
@@ -375,3 +272,6 @@ export async function runLanguageAdaptor(
       return null;
   }
 }
+
+/** `okStatusResult` 在 adaptor 无文件时使用；此处重导出以保持既有调用点稳定。 */
+export { okStatusResult };

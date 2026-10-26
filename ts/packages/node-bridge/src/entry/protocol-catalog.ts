@@ -34,6 +34,7 @@ export const BRIDGE_EVENTS: BridgeEvent['method'][] = [
   'event.agent_end',
   'event.shutdown',
   'event.heartbeat',
+  'event.diag',
 ];
 
 export const BRIDGE_HEARTBEAT_INTERVAL_MS = 10_000;

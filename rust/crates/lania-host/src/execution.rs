@@ -8,6 +8,7 @@
 mod bridge_api;
 mod bridge_helpers;
 mod context;
+pub mod run_result;
 mod types;
 mod utils;
 
@@ -19,7 +20,12 @@ mod utils;
 //
 // 这样做的好处是：命令 handler 只需要描述业务逻辑，
 // 不需要在每个命令里重复写一遍 timeout / Ctrl-C / exit code / host_state 拼装。
-pub use context::{CommandExecutionContext, ExecutionError, ExecutionPolicy, HostExecutionServices};
+pub use context::{
+    CommandExecutionContext, ExecutionError, ExecutionPolicy, HostExecutionServices,
+};
+pub use run_result::{
+    diagnostic_from_text, parse_counts, parse_diagnostics, RunKind, RunResult, RunStatus,
+};
 pub use types::{
     BridgeCommandRun, CommandExecution, CommandHandler, EXIT_CANCELLED, EXIT_LINT_FAILED,
     EXIT_RUNTIME_ERROR, EXIT_SUCCESS, EXIT_TIMEOUT,
