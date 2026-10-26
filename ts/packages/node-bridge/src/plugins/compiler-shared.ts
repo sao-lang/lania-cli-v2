@@ -20,6 +20,7 @@ import path from 'node:path';
 
 import type { BridgeEvent } from '../protocol/events.js';
 import { asRecord, resolveModuleFromCwd } from '../core/runtime.js';
+import { detectionOrder, type RuntimeId } from './toolchain.js';
 
 export type BuildTool = 'vite' | 'webpack' | 'rollup' | 'nest' | 'tsc';
 export type Runtime = 'web' | 'python' | 'go' | 'rust' | 'dart';
@@ -322,35 +323,62 @@ function unwrapModuleDefault<T>(value: T | { default?: T } | null | undefined): 
   return (record.default ?? value) as T;
 }
 
-const RUNTIME_FEATURE_FILES: ReadonlyArray<readonly [string, Runtime]> = [
-  ['go.mod', 'go'],
-  ['Cargo.toml', 'rust'],
-  ['pyproject.toml', 'python'],
-  ['pubspec.yaml', 'dart'],
-  ['package.json', 'web'],
-];
-
 export async function detectRuntime(
   config: Record<string, unknown>,
   cwd: string,
   override?: unknown,
 ): Promise<Runtime> {
-  // 优先级：调用参数覆盖 > lan.config.runtime > 特征文件 > web 兜底。
+  // 优先级见 `docs/design/multi-runtime-bridge.zh-CN.md` §5.1：
+  // 调用参数覆盖 > lan.config.runtime > 特征文件（含锁文件）> web 兜底。
+  //
+  // 特征文件列表来自 `toolchain.ts`（唯一来源），不再在本文件维护副本。
+  const detected = await detectRuntimes(cwd);
   if (isRuntime(override)) {
     return override;
   }
   if (isRuntime(config.runtime)) {
     return config.runtime;
   }
-  for (const [file, runtime] of RUNTIME_FEATURE_FILES) {
-    try {
-      await fs.access(path.join(cwd, file));
-      return runtime;
-    } catch {
-      // 特征文件不存在，继续看下一个。
+  // 判定优先级：deno.json > bun.lock(b) > package.json > pyproject > go.mod > Cargo > pubspec
+  for (const { file, runtime } of detectionOrder()) {
+    if (detected.includes(file)) {
+      return runtimeToCompilerRuntime(runtime);
     }
   }
   return 'web';
+}
+
+/**
+ * 一次性把特征文件（含锁文件）探测完，返回**实际存在**的文件名。
+ *
+ * 之所以先全量探测再按优先级挑，是因为原始规则里 `bun.lockb` 要优先于
+ * `package.json`，而 `package.json` 同时又是 node 的特征文件 ——
+ * 逐个文件 short-circuit 会导致 bun 项目被判定成 node。
+ */
+async function detectRuntimes(cwd: string): Promise<string[]> {
+  const candidates = new Set<string>();
+  for (const { file } of detectionOrder()) {
+    candidates.add(file);
+  }
+  const present: string[] = [];
+  await Promise.all(
+    [...candidates].map(async (file) => {
+      try {
+        await fs.access(path.join(cwd, file));
+        present.push(file);
+      } catch {
+        // 不存在：忽略。
+      }
+    }),
+  );
+  return present;
+}
+
+/** `toolchain.ts` 里的运行时 id → compiler 侧的 `Runtime`（web 是 node 的编译形态）。 */
+function runtimeToCompilerRuntime(runtime: RuntimeId): Runtime {
+  return runtime === 'node' || runtime === 'bun' || runtime === 'deno'
+    ? 'web'
+    : (runtime as Runtime);
 }
 
 export function detectBuildTool(config: Record<string, unknown>, cwd?: string): BuildTool {

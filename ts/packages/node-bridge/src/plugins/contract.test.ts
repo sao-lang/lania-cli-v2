@@ -50,6 +50,7 @@ test('handshake exposes the current public method and event contract', () => {
     'template.getOutputTasks',
     'template.render',
     'addTemplate.render',
+    'toolchain.describe',
     'commitizen.run',
     'commitlint.run',
     'agent.session.create',
@@ -83,6 +84,7 @@ test('handshake exposes the current public method and event contract', () => {
     'event.agent_end',
     'event.shutdown',
     'event.heartbeat',
+    'event.diag',
   ]);
 });
 

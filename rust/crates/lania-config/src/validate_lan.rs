@@ -17,7 +17,7 @@ use crate::parse_plugins::parse_plugin_ref;
 use crate::validate_release::validate_release_config;
 use crate::validate_sections::{
     validate_commands_config, validate_extensions_config, validate_hooks_config,
-    validate_schema_discovery_config, validate_ui_config,
+    validate_runtime_config, validate_schema_discovery_config, validate_ui_config,
 };
 
 type JsonObject = serde_json::Map<String, Value>;
@@ -178,6 +178,11 @@ pub(crate) fn validate_lan_config(raw: &Value, schema_version: u32) -> Vec<Confi
     validate_schema_discovery_config(raw_value(raw, "schemaDiscovery"), &mut errors);
     validate_commands_config(raw_value(raw, "commands"), &mut errors);
     validate_hooks_config(raw_value(raw, "hooks"), &mut errors);
+    validate_runtime_config(
+        raw_value(raw, "runtime"),
+        raw_value(raw, "runtimes"),
+        &mut errors,
+    );
     validate_type(
         raw_value(raw, "custom"),
         "$.custom",
@@ -194,7 +199,11 @@ pub(crate) fn validate_lan_config(raw: &Value, schema_version: u32) -> Vec<Confi
     );
     // 这里兼容 `config.release` 和顶层 `release` 两种形态，
     // 说明 validator 也承担一部分历史兼容职责，而不只是机械做类型检查。
-    validate_string_array(raw_value(raw, "pluginAllowlist"), "$.pluginAllowlist", &mut errors);
+    validate_string_array(
+        raw_value(raw, "pluginAllowlist"),
+        "$.pluginAllowlist",
+        &mut errors,
+    );
     validate_string_array(
         raw_value(raw, "pluginMethodAllowlist"),
         "$.pluginMethodAllowlist",

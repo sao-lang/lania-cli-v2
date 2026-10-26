@@ -1,5 +1,6 @@
 import { asRecord } from '../../core/runtime.js';
 import type { CompilerAdapterContext, CompilerAdapterParams } from '../compiler-shared.js';
+import { toolchainFor } from '../toolchain.js';
 import type { SpawnRuntime } from './types.js';
 
 export interface SpawnCommand {
@@ -8,13 +9,11 @@ export interface SpawnCommand {
   env: Record<string, string>;
 }
 
-const DEFAULT_COMMANDS: Record<SpawnRuntime, { dev?: string[]; build?: string[] }> = {
-  go: { dev: ['go', 'run', '.'], build: ['go', 'build', '-o', '{output}', '.'] },
-  rust: { dev: ['cargo', 'run'], build: ['cargo', 'build', '--release'] },
-  python: { build: ['python', '-m', 'build'] },
-  dart: { dev: ['dart', 'run'], build: ['dart', 'compile', 'exe', 'bin/main.dart'] },
-};
-
+/**
+ * 默认 build/dev 命令来自 `toolchain.ts`（唯一来源）。
+ *
+ * 优先级：`lan.config.runtimes[<id>][<action>]` 覆盖 > 内置命令。
+ */
 export function resolveSpawnCommand(
   runtime: SpawnRuntime,
   action: 'dev' | 'build',
@@ -25,7 +24,9 @@ export function resolveSpawnCommand(
   const configuredArgs = Array.isArray(configured)
     ? configured.filter((value): value is string => typeof value === 'string')
     : [];
-  const raw = configuredArgs.length > 0 ? configuredArgs : DEFAULT_COMMANDS[runtime][action];
+  const toolchain = toolchainFor(runtime);
+  const builtin = action === 'dev' ? toolchain?.devCommand : toolchain?.buildCommand;
+  const raw = configuredArgs.length > 0 ? configuredArgs : (builtin ?? []);
   if (!raw || raw.length === 0) {
     return null;
   }

@@ -25,6 +25,7 @@ import { lintPlugin } from '../plugins/lint.js';
 import { productPlugin } from '../plugins/product.js';
 import { systemPlugin } from '../plugins/system.js';
 import { templatePlugin } from '../plugins/template.js';
+import { toolchainPlugin } from '../plugins/toolchain-plugin.js';
 import type { BridgePlugin } from './bridge-plugin.js';
 import { createBridgeMetrics } from './metrics.js';
 import {
@@ -65,6 +66,8 @@ const builtinPlugins: BridgePlugin[] = [
   lintPlugin,
   systemPlugin,
   templatePlugin,
+  // 运行时知识单点：Rust / doctor / 各语言 bridge 都从这里读，不再各自维护副本。
+  toolchainPlugin,
   commitizenPlugin,
   commitlintPlugin,
   agentBridgePlugin,

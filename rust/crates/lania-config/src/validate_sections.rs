@@ -14,6 +14,120 @@ use crate::{
 
 type JsonObject = serde_json::Map<String, Value>;
 
+/// 校验 `runtime` / `runtimes`（§6.5.5）。
+///
+/// 约束：
+/// - `runtimes.<id>.build` / `.dev` 必须是 `string[]`；
+/// - 未知运行时 id 只报 **warning 级别** 的问题（这里用 `InvalidValue` 之外的单独消息表达），
+///   因为未来可能新增运行时，报 error 会让旧版本 CLI 拒绝新配置。
+pub(crate) fn validate_runtime_config(
+    runtime: Option<&Value>,
+    runtimes: Option<&Value>,
+    errors: &mut Vec<ConfigValidationError>,
+) {
+    if let Some(value) = runtime {
+        match value.as_str() {
+            Some(text) if !text.trim().is_empty() => {
+                if !crate::known_runtime_ids()
+                    .iter()
+                    .any(|id| id.eq_ignore_ascii_case(text.trim()))
+                {
+                    // 未知运行时只提示，不阻断：配置可能来自更新版本的 lania。
+                    push_error(
+                        errors,
+                        ConfigValidationErrorCode::InvalidValue,
+                        "$.runtime",
+                        format!(
+                            "unknown runtime `{text}`; expected one of: {}",
+                            crate::known_runtime_ids().join(", ")
+                        ),
+                    );
+                }
+            }
+            _ => push_error(
+                errors,
+                ConfigValidationErrorCode::InvalidType,
+                "$.runtime",
+                "runtime must be a non-empty string",
+            ),
+        }
+    }
+
+    let Some(runtimes) = runtimes else {
+        return;
+    };
+    let Some(object) = runtimes.as_object() else {
+        push_error(
+            errors,
+            ConfigValidationErrorCode::InvalidType,
+            "$.runtimes",
+            "runtimes must be an object",
+        );
+        return;
+    };
+
+    for (id, entry) in object {
+        let path = format!("$.runtimes.{id}");
+        let Some(entry) = entry.as_object() else {
+            push_error(
+                errors,
+                ConfigValidationErrorCode::InvalidType,
+                &path,
+                "each runtime override must be an object",
+            );
+            continue;
+        };
+        if !crate::known_runtime_ids()
+            .iter()
+            .any(|known| known.eq_ignore_ascii_case(id))
+        {
+            push_error(
+                errors,
+                ConfigValidationErrorCode::InvalidValue,
+                &path,
+                format!(
+                    "unknown runtime id `{id}`; expected one of: {}",
+                    crate::known_runtime_ids().join(", ")
+                ),
+            );
+        }
+        for key in ["build", "dev"] {
+            let Some(value) = entry.get(key) else {
+                continue;
+            };
+            match value.as_array() {
+                Some(items) if items.iter().all(Value::is_string) => {}
+                _ => push_error(
+                    errors,
+                    ConfigValidationErrorCode::InvalidType,
+                    format!("{path}.{key}"),
+                    format!("{path}.{key} must be an array of strings"),
+                ),
+            }
+        }
+        if let Some(value) = entry.get("packageManager") {
+            if !value.is_string() {
+                push_error(
+                    errors,
+                    ConfigValidationErrorCode::InvalidType,
+                    format!("{path}.packageManager"),
+                    "packageManager must be a string",
+                );
+            }
+        }
+        for key in entry.keys() {
+            if !["build", "dev", "packageManager"].contains(&key.as_str()) {
+                push_error(
+                    errors,
+                    ConfigValidationErrorCode::UnknownField,
+                    format!("{path}.{key}"),
+                    format!("unknown runtime override field `{key}`"),
+                );
+            }
+        }
+    }
+}
+
 fn object_value<'a>(object: &'a JsonObject, key: &str) -> Option<&'a Value> {
     object.get(key)
 }

@@ -360,6 +360,13 @@ pub struct CommandsSnapshot {
     pub raw: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct RuntimeCommandOverride {
+    pub build: Option<Vec<String>>,
+    pub dev: Option<Vec<String>>,
+    pub package_manager: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LanConfigSnapshot {
     pub cwd: String,
@@ -370,6 +377,13 @@ pub struct LanConfigSnapshot {
     pub build_adaptors: BTreeMap<String, Value>,
     pub lint_adaptors: BTreeMap<String, Value>,
     pub lint_tools: Vec<String>,
+    /// 显式声明的运行时；`None` 表示按特征文件自动探测。
+    ///
+    /// 之前只能从 `raw` 里摸（`snapshot.raw["runtime"]`），
+    /// 导致每个消费者都要自己判空 + 转型。
+    pub runtime: Option<String>,
+    /// 每个运行时的 build/dev 命令覆盖。
+    pub runtimes: BTreeMap<String, RuntimeCommandOverride>,
     pub plugins: Vec<ConfigPluginRef>,
     pub extensions: LanExtensionsSnapshot,
     pub ui: UiSnapshot,

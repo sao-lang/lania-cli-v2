@@ -358,3 +358,104 @@ fn accepts_runtime_and_runtimes_config_fields() {
         .iter()
         .any(|error| error.position.path == "$.runtimes"));
 }
+
+#[test]
+fn parses_typed_runtime_and_runtimes_override() {
+    let snapshot = ConfigService::load_lan_snapshot(&json!({
+        "cwd": "/repo",
+        "exists": true,
+        "config": {
+            "runtime": "GO",
+            "runtimes": {
+                "go": {
+                    "build": ["go", "build", "-o", "bin/app", "."],
+                    "packageManager": "go"
+                },
+                "python": { "dev": ["python", "-m", "http.server"] }
+            }
+        }
+    }))
+    .expect("snapshot parses");
+
+    // 运行时 id 统一小写，消费者不必自己大小写归一。
+    assert_eq!(snapshot.runtime.as_deref(), Some("go"));
+    let go = snapshot.runtimes.get("go").expect("go override parsed");
+    assert_eq!(
+        go.build.as_deref(),
+        Some(
+            &[
+                "go".to_string(),
+                "build".into(),
+                "-o".into(),
+                "bin/app".into(),
+                ".".into()
+            ][..]
+        )
+    );
+    assert_eq!(go.package_manager.as_deref(), Some("go"));
+    let python = snapshot
+        .runtimes
+        .get("python")
+        .expect("python override parsed");
+    assert!(python.build.is_none());
+    assert_eq!(python.dev.as_deref().map(|args| args.len()), Some(3));
+}
+
+#[test]
+fn omits_runtime_fields_when_absent() {
+    let snapshot = ConfigService::load_lan_snapshot(&json!({
+        "cwd": "/repo",
+        "exists": true,
+        "config": {}
+    }))
+    .expect("snapshot parses");
+
+    assert!(snapshot.runtime.is_none());
+    assert!(snapshot.runtimes.is_empty());
+}
+
+#[test]
+fn flags_bad_runtimes_override_shapes() {
+    let snapshot = ConfigService::load_lan_snapshot(&json!({
+        "cwd": "/repo",
+        "exists": true,
+        "config": {
+            "runtime": "",
+            "runtimes": {
+                "go": { "build": "go build" },
+                "cobol": { "build": ["cobc"] }
+            }
+        }
+    }))
+    .expect("snapshot parses");
+
+    let paths: Vec<&str> = snapshot
+        .validation_errors
+        .iter()
+        .map(|error| error.position.path.as_str())
+        .collect();
+    assert!(paths.contains(&"$.runtime"), "{paths:?}");
+    assert!(paths.contains(&"$.runtimes.go.build"), "{paths:?}");
+    assert!(paths.contains(&"$.runtimes.cobol"), "{paths:?}");
+}
+
+#[test]
+fn accepts_all_known_runtime_ids() {
+    let snapshot = ConfigService::load_lan_snapshot(&json!({
+        "cwd": "/repo",
+        "exists": true,
+        "config": {
+            "runtimes": {
+                "node": {}, "bun": {}, "deno": {},
+                "python": {}, "go": {}, "rust": {}, "dart": {}
+            }
+        }
+    }))
+    .expect("snapshot parses");
+
+    assert!(
+        snapshot.validation_errors.is_empty(),
+        "{:?}",
+        snapshot.validation_errors
+    );
+}

@@ -27,6 +27,13 @@ mod validate_utils;
 
 mod version;
 
+/// 本文支持的七个运行时 id（与 bridge 的 `toolchain.ts` / `RuntimeKind` 一致）。
+///
+/// 放在 `lania-config` 内而不是依赖 `lania-env`：配置校验不应引入下载/解压依赖树。
+pub fn known_runtime_ids() -> &'static [&'static str] {
+    &["node", "bun", "deno", "python", "go", "rust", "dart"]
+}
+
 pub use models::*;
 pub use service::ConfigService;
 

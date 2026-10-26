@@ -16,9 +16,44 @@ export interface LoadedConfig {
   configPath: string | null;
   config: Record<string, unknown>;
   exists: boolean;
+  /** 加载失败的明确原因（语法错误 / import 失败 / 求值抛错）。 */
+  error?: string;
 }
 
-const LAN_CONFIG_SEARCH_PLACES = [
+/**
+ * 函数式配置的求值上下文（§6.5.7）。
+ *
+ * 字段刻意只放「输入」而不放「探测结果」：`runtime` / `packageManager` 这类
+ * 需要探测的字段会造成「配置加载 → 探测 → 配置加载」的循环。
+ */
+export interface ConfigContext {
+  /** 当前环境名；来自 LANIA_ENV，缺省 "development"。 */
+  env: string;
+  /** 配置文件所在目录的绝对路径。 */
+  cwd: string;
+  /** 当前执行的命令名（如 "build" / "lint"）；配置预加载阶段为空串。 */
+  command: string;
+}
+
+/** 解析求值上下文。`command` 由调用方给出（预加载阶段为空串）。 */
+export function resolveConfigContext(cwd: string, command = ''): ConfigContext {
+  // 刻意不读 NODE_ENV：Go / Rust / Python / Dart 项目根本没有它，
+  // 用它会让配置行为随运行时变化，违背「运行时中立」。
+  const env = process.env.LANIA_ENV?.trim();
+  return {
+    env: env && env.length > 0 ? env : 'development',
+    cwd,
+    command,
+  };
+}
+
+/**
+ * `lan.config.*` 候选文件名 —— **唯一权威来源**。
+ *
+ * Rust 侧不再维护副本（见 `docs/design/multi-runtime-bridge.zh-CN.md` §6.5.3）：
+ * 过去 Rust 只列 4 个，导致「写了 `lan.config.mts` 时 Rust 路径找不到、直接调 bridge 却能找到」。
+ */
+export const LAN_CONFIG_SEARCH_PLACES = [
   'lan.config.js',
   'lan.config.cjs',
   'lan.config.mjs',
@@ -33,12 +68,7 @@ const TOOL_CONFIG_SEARCH_PLACES: Record<string, string[]> = {
   webpack: ['webpack.config.js', 'webpack.config.cjs'],
   rollup: ['rollup.config.js', 'rollup.config.cjs'],
   gulp: ['gulpfile.ts', 'gulpfile.js', 'gulpfile.cjs', 'gulpfile.mjs'],
-  eslint: [
-    '.eslintrc.js',
-    '.eslintrc.cjs',
-    'eslint.config.js',
-    'eslint.config.cjs',
-  ],
+  eslint: ['.eslintrc.js', '.eslintrc.cjs', 'eslint.config.js', 'eslint.config.cjs'],
   oxlint: [
     '.oxlintrc.json',
     '.oxlintrc.jsonc',
@@ -123,18 +153,17 @@ const TOOL_CONFIG_SEARCH_PLACES: Record<string, string[]> = {
 export function asRecord(value: unknown): Record<string, unknown> {
   // 运行时从 JSON / 动态 import / 外部 bridge 返回值里拿到的内容经常是 unknown。
   // 这里统一做一次“对象化”收口，避免每个调用点都重复判空和类型断言。
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)
-    : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 export async function loadLanConfig(
   cwd: string,
-  options?: { searchFrom?: string; candidates?: string[] },
+  options?: { searchFrom?: string; candidates?: string[]; command?: string },
 ): Promise<LoadedConfig> {
   // lan.config.* 是 CLI 运行时最核心的一层项目配置。
   // 这里的策略很直接：按候选顺序找到第一个存在的文件，然后把它解析成对象。
   const searchFrom = options?.searchFrom ?? cwd;
+  // **候选列表的唯一权威就在这里**。Rust 侧不再维护副本，只传 `searchFrom`。
   const candidates = options?.candidates ?? LAN_CONFIG_SEARCH_PLACES;
   // 按指定搜索顺序查找 lan.config.*；找到第一个即停止。
   const configPath = await findFirstExisting(searchFrom, candidates);
@@ -142,17 +171,27 @@ export async function loadLanConfig(
     return { configPath: null, config: {}, exists: false };
   }
 
-  return {
-    configPath,
-    config: await loadConfigModule(configPath),
-    exists: true,
-  };
+  const context = resolveConfigContext(dirname(configPath), options?.command ?? '');
+  try {
+    return {
+      configPath,
+      config: await loadConfigFile(configPath, context),
+      exists: true,
+    };
+  } catch (error) {
+    // 加载失败**不再静默返回空对象**（§6.5.9）。
+    // 静默降级的后果是「配置写错时命令看起来正常，但行为全错」
+    // （典型：`lintTools` 丢失 → lint 什么都没跑却报成功）。
+    return {
+      configPath,
+      config: {},
+      exists: true,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    };
+  }
 }
 
-export async function loadToolConfig(
-  cwd: string,
-  tool: string,
-): Promise<LoadedConfig> {
+export async function loadToolConfig(cwd: string, tool: string): Promise<LoadedConfig> {
   // 工具配置来源优先级：
   // 1) 项目文件（如 vite.config.* / .eslintrc.*）
   // 2) package.json 指向的配置文件（部分工具支持）
@@ -183,10 +222,7 @@ export async function loadToolConfig(
   };
 }
 
-export async function findFirstExisting(
-  cwd: string,
-  candidates: string[],
-): Promise<string | null> {
+export async function findFirstExisting(cwd: string, candidates: string[]): Promise<string | null> {
   // 有意按传入顺序逐个检查，而不是并发探测。
   // 这样可以让“候选列表顺序”直接表达优先级，行为也更容易解释。
   for (const candidate of candidates) {
@@ -219,7 +255,10 @@ export async function loadPackageJsonSnapshot(cwd: string): Promise<Record<strin
   return loadPackageJson(cwd);
 }
 
-async function loadConfigFile(filePath: string): Promise<Record<string, unknown>> {
+async function loadConfigFile(
+  filePath: string,
+  context?: ConfigContext,
+): Promise<Record<string, unknown>> {
   const extension = extname(filePath).toLowerCase();
   if (
     extension === '.json' ||
@@ -239,7 +278,12 @@ async function loadConfigFile(filePath: string): Promise<Record<string, unknown>
     default?: unknown;
   };
   const candidate = moduleNamespace.default ?? moduleNamespace;
-  const resolved = typeof candidate === 'function' ? await candidate({}) : candidate;
+  // 函数式配置拿到 `{ env, cwd, command }`（§6.5.7）。
+  // 之前传的是空对象，导致 `({env}) => ...` 永远拿到 undefined、按环境分支的配置写了也没用。
+  const resolved =
+    typeof candidate === 'function'
+      ? await candidate(context ?? resolveConfigContext(dirname(filePath)))
+      : candidate;
   return asRecord(resolved);
 }
 
@@ -333,9 +377,7 @@ function inlineToolConfigFromPackageJson(
   return null;
 }
 
-function objectWithKeys(
-  value: Record<string, unknown>,
-): Record<string, unknown> | null {
+function objectWithKeys(value: Record<string, unknown>): Record<string, unknown> | null {
   // 空对象通常代表“字段存在但无有效配置”，这里统一把它视为缺失，减少上层判空分支。
   return Object.keys(value).length > 0 ? value : null;
 }

@@ -12,10 +12,13 @@
  * - 这里会把函数注册进 Node 侧 inline-hooks registry，并把配置内容替换成 `{ type:'inline', id }`
  */
 import type { BridgeEvent } from '../protocol/events.js';
-import { loadLanConfig, loadToolConfig } from '../core/runtime.js';
+import { LAN_CONFIG_SEARCH_PLACES, loadLanConfig, loadToolConfig } from '../core/runtime.js';
 import { registerInlineHook } from '../core/inline-hooks.js';
 
-const SUPPORTED_EXTENSIONS = ['.js', '.cjs', '.json', '.ts'];
+/** 与 `LAN_CONFIG_SEARCH_PLACES` 保持一致，避免另一份扩展名列表。 */
+const SUPPORTED_EXTENSIONS = [
+  ...new Set(LAN_CONFIG_SEARCH_PLACES.map((file) => file.slice('lan.config'.length))),
+];
 
 export const configPlugin = {
   name: 'config',
@@ -29,31 +32,49 @@ export const configPlugin = {
           ? params.candidates.filter((item): item is string => typeof item === 'string')
           : undefined;
         const searchFrom = typeof params.searchFrom === 'string' ? params.searchFrom : undefined;
-        const loaded = await loadLanConfig(cwd, { searchFrom, candidates });
+        const command = typeof params.command === 'string' ? params.command : '';
+        const loaded = await loadLanConfig(cwd, { searchFrom, candidates, command });
         const sanitizedConfig = sanitizeConfigHooks(cwd, loaded.config);
+        // 加载失败必须在结果里可见（§6.5.9）：Rust 侧会把它并入 `validation_errors`，
+        // CLI 再以 warning 展示 —— 不阻断命令，但用户能看到。
+        const loadError = loaded.error
+          ? [
+              {
+                code: 'config_load_failed',
+                message: `failed to load ${loaded.configPath ?? 'lan.config'}: ${loaded.error}`,
+                position: { path: 'lan.config', line: null, column: null },
+              },
+            ]
+          : [];
+        const events: BridgeEvent[] = [
+          {
+            method: 'event.log',
+            params: {
+              level: loaded.error ? 'warn' : 'info',
+              message: loaded.error
+                ? `Failed to load lan config from ${loaded.configPath}: ${loaded.error}`
+                : loaded.exists
+                  ? `Loaded lan config from ${loaded.configPath}`
+                  : 'No lan config found, using defaults',
+            },
+          },
+        ];
         return {
           result: {
             cwd,
             configPath: loaded.configPath,
             exists: loaded.exists,
             supportedExtensions: SUPPORTED_EXTENSIONS,
+            searchPlaces: [...LAN_CONFIG_SEARCH_PLACES],
             config: sanitizedConfig,
             buildTool: (sanitizedConfig as any).buildTool ?? 'vite',
             buildAdaptors: (sanitizedConfig as any).buildAdaptors ?? {},
             lintAdaptors: (sanitizedConfig as any).lintAdaptors ?? {},
             lintTools: (sanitizedConfig as any).lintTools ?? [],
+            loadError: loaded.error ?? null,
+            validationErrors: loadError,
           },
-          events: [
-            {
-              method: 'event.log',
-              params: {
-                level: 'info',
-                message: loaded.exists
-                  ? `Loaded lan config from ${loaded.configPath}`
-                  : 'No lan config found, using defaults',
-              },
-            } satisfies BridgeEvent,
-          ],
+          events,
         };
       }
       case 'config.loadTool': {

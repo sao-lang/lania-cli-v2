@@ -12,7 +12,11 @@
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 
-use super::{LanConfigSnapshot, ToolConfigSnapshot, CURRENT_LAN_CONFIG_VERSION};
+use std::collections::BTreeMap;
+
+use super::{
+    LanConfigSnapshot, RuntimeCommandOverride, ToolConfigSnapshot, CURRENT_LAN_CONFIG_VERSION,
+};
 use crate::parse_plugins::parse_plugin_ref;
 use crate::parse_snapshots::{
     parse_commands_snapshot, parse_extensions_snapshot, parse_hook_bindings_snapshot,
@@ -23,6 +27,42 @@ use crate::version::version_strategy;
 
 fn prefer_config_value<'a>(payload: &'a Value, raw: &'a Value, key: &str) -> Option<&'a Value> {
     payload.get(key).or_else(|| raw.get(key))
+}
+
+/// 解析 `runtimes: { <id>: { build?, dev?, packageManager? } }`。
+///
+/// 宽松解析：单个条目的形态问题不炸整个配置（类型问题交给 validate 阶段报）。
+fn parse_runtimes_override(value: Option<&Value>) -> BTreeMap<String, RuntimeCommandOverride> {
+    let mut out = BTreeMap::new();
+    let Some(object) = value.and_then(Value::as_object) else {
+        return out;
+    };
+    for (id, entry) in object {
+        let Some(entry) = entry.as_object() else {
+            continue;
+        };
+        out.insert(
+            id.clone(),
+            RuntimeCommandOverride {
+                build: string_array(entry.get("build")),
+                dev: string_array(entry.get("dev")),
+                package_manager: entry
+                    .get("packageManager")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
+            },
+        );
+    }
+    out
+}
+
+fn string_array(value: Option<&Value>) -> Option<Vec<String>> {
+    value.and_then(Value::as_array).map(|items| {
+        items
+            .iter()
+            .filter_map(|item| item.as_str().map(ToOwned::to_owned))
+            .collect()
+    })
 }
 
 pub(crate) fn load_lan_snapshot(payload: &Value) -> Result<LanConfigSnapshot> {
@@ -60,6 +100,14 @@ pub(crate) fn load_lan_snapshot(payload: &Value) -> Result<LanConfigSnapshot> {
         .flatten()
         .filter_map(|value| value.as_str().map(ToOwned::to_owned))
         .collect::<Vec<String>>();
+    // `runtime` / `runtimes` 提升为强类型字段（§6.5.5）：
+    // 之前在 `LanConfigSnapshot` 里根本没有，只能从 `raw` 里摸，
+    // 而 `toolchain.describe` 与运行时判定都需要稳定读取它。
+    let runtime = prefer_config_value(payload, &raw, "runtime")
+        .and_then(Value::as_str)
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    let runtimes = parse_runtimes_override(prefer_config_value(payload, &raw, "runtimes"));
     let plugins = payload["plugins"]
         .as_array()
         .or_else(|| raw["plugins"].as_array())
@@ -95,6 +143,8 @@ pub(crate) fn load_lan_snapshot(payload: &Value) -> Result<LanConfigSnapshot> {
         build_adaptors,
         lint_adaptors,
         lint_tools,
+        runtime,
+        runtimes,
         plugins,
         extensions,
         ui,

@@ -51,6 +51,32 @@ test('bridge isolates plugin runtime failures', async (t) => {
   assert.equal(exchange.response.error?.message, 'boom');
 });
 
+test('bridge exposes the single-source runtime toolchain table', async () => {
+  const exchange = await handleExchange({
+    id: 'req-toolchain',
+    method: 'toolchain.describe',
+    params: {},
+  });
+
+  assert.equal(exchange.response.error, undefined);
+  const result = exchange.response.result as {
+    runtimes: Array<{ id: string; jsCluster: boolean }>;
+    detectionOrder: Array<{ file: string; runtime: string }>;
+  };
+  assert.ok(Array.isArray(result.runtimes));
+  assert.deepEqual(result.runtimes.map((entry) => entry.id).sort(), [
+    'bun',
+    'dart',
+    'deno',
+    'go',
+    'node',
+    'python',
+    'rust',
+  ]);
+  // Rust 侧依赖这份顺序做判定，必须存在且非空。
+  assert.ok(result.detectionOrder.length > 0);
+});
+
 async function writeProjectFile(cwd: string, relativePath: string, content: string) {
   const filePath = path.join(cwd, relativePath);
   await mkdir(path.dirname(filePath), { recursive: true });
