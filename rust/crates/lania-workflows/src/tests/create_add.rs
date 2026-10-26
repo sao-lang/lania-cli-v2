@@ -146,6 +146,86 @@ async fn add_workflow_without_framework_only_offers_generic_generators() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[test]
+fn unique_path_keeps_extension_and_handles_dotfiles() {
+    let root = temp_dir("unique-path");
+    std::fs::write(root.join("Button.tsx"), "x").expect("seed conflict");
+    assert_eq!(
+        super::super::create::add_workflow::unique_path(&root.join("Button.tsx")),
+        root.join("Button-1.tsx")
+    );
+    std::fs::write(root.join(".gitignore"), "x").expect("seed dotfile conflict");
+    assert_eq!(
+        super::super::create::add_workflow::unique_path(&root.join(".gitignore")),
+        root.join(".gitignore-1")
+    );
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn add_workflow_skips_conflicts_without_force_and_reports_them() {
+    let (services, root) = services(ExecService::dry_run());
+    let target = root.join("src").join("components");
+    std::fs::create_dir_all(&target).expect("target dir exists");
+    std::fs::write(target.join("Button.tsx"), "hand-written").expect("seed conflict");
+
+    // 非交互环境（测试进程 stdin 不是 TTY）必须保持「跳过 + 计入 conflicts」，
+    // 而不是阻塞等待输入。
+    let result = AddWorkflow
+        .run(
+            &services,
+            AddWorkflowInput {
+                cwd: root.clone(),
+                name: Some("Button".into()),
+                template: Some("component".into()),
+                target: Some("src/components".into()),
+                force: false,
+            },
+        )
+        .await
+        .expect("add workflow succeeds");
+
+    assert_eq!(result.conflicts.len(), 1);
+    assert_eq!(
+        std::fs::read_to_string(target.join("Button.tsx")).expect("existing file readable"),
+        "hand-written",
+        "existing file must stay untouched when the conflict is skipped"
+    );
+    assert!(result
+        .notes
+        .iter()
+        .any(|note| note.contains("skipped existing src/components/Button.tsx")));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn add_workflow_force_overwrites_conflicts() {
+    let (services, root) = services(ExecService::dry_run());
+    let target = root.join("src").join("components");
+    std::fs::create_dir_all(&target).expect("target dir exists");
+    std::fs::write(target.join("Button.tsx"), "hand-written").expect("seed conflict");
+
+    let result = AddWorkflow
+        .run(
+            &services,
+            AddWorkflowInput {
+                cwd: root.clone(),
+                name: Some("Button".into()),
+                template: Some("component".into()),
+                target: Some("src/components".into()),
+                force: true,
+            },
+        )
+        .await
+        .expect("add workflow succeeds");
+
+    assert!(result.conflicts.is_empty());
+    let content =
+        std::fs::read_to_string(target.join("Button.tsx")).expect("generated file readable");
+    assert!(content.contains("export function Button"));
+    let _ = std::fs::remove_dir_all(root);
+}
+
 #[tokio::test]
 async fn add_workflow_accepts_legacy_absolute_looking_target() {
     let (services, root) = services(ExecService::dry_run());

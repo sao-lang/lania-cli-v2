@@ -8,11 +8,13 @@
 //! 兼容：`--template rfc` 这类旧的平铺模板名仍然可用，映射到 `component` 生成器的 `variant`。
 
 use std::collections::BTreeMap;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
 use lania_format::{FormatMode, FormatOptions, FormatService};
 use lania_fs::PlannedFile;
+use lania_prompt::{PromptFlow, PromptStep};
 use serde_json::{json, Value};
 
 use crate::models::{
@@ -89,7 +91,7 @@ impl AddWorkflow {
         let rendered = render_generator(generator, &context)?;
         let artifact_count = rendered.files.len();
         // 生成器产物路径相对 cwd；这里统一挂到 cwd 下拉平成绝对路径。
-        let mut files = rendered
+        let files = rendered
             .files
             .into_iter()
             .map(|file| PlannedFile {
@@ -101,6 +103,10 @@ impl AddWorkflow {
         services.progress.advance("add", 3);
 
         let formatter = FormatService;
+        // 冲突必须在格式化**之前**决策：格式化会改写内容，但不会改变路径，
+        // 因此在这里按路径逐条询问「覆盖 / 跳过 / 重命名」是安全的。
+        let (mut files, skipped) = resolve_conflicts(services, files, &input, &mut notes)?;
+        let skipped_count = skipped.len();
         let format_report = formatter.format_planned_files(
             &services.exec,
             &mut files,
@@ -112,10 +118,9 @@ impl AddWorkflow {
                 root_dir: Some(input.cwd.clone()),
             },
         )?;
-        let conflicts = services.fs.find_conflicts(&files);
         call_files_prepare(services, "add", &target_dir, &mut files).await?;
-        let report =
-            write_files_with_hooks(services, "add", &target_dir, &files, input.force).await?;
+        // 冲突已在上一步处理完：这里必须允许覆盖，否则「用户选了覆盖」也会被静默跳过。
+        let report = write_files_with_hooks(services, "add", &target_dir, &files, true).await?;
         // 注册在写盘之后：它改的是用户已有文件，与本次生成的冲突检查是两件事。
         apply_registrations(generator, &context, &input.cwd, &mut notes);
         services.progress.advance("add", 4);
@@ -150,10 +155,10 @@ impl AddWorkflow {
                 format_report.failed_count()
             ));
         }
-        if !conflicts.is_empty() && !input.force {
-            workflow_notes.push(
-                "conflicting files were skipped; rerun with --force to overwrite".to_string(),
-            );
+        if skipped_count > 0 {
+            workflow_notes.push(format!(
+                "{skipped_count} file(s) were kept as-is; rerun with --force to overwrite"
+            ));
         }
         services.progress.finish("add");
 
@@ -168,7 +173,7 @@ impl AddWorkflow {
                 .into_iter()
                 .map(|path| path.display().to_string())
                 .collect(),
-            conflicts: conflicts
+            conflicts: skipped
                 .into_iter()
                 .map(|path| path.display().to_string())
                 .collect(),
@@ -178,6 +183,157 @@ impl AddWorkflow {
             interactive_rendered: false,
         })
     }
+}
+
+/// 冲突处理策略（§4.5.8）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConflictChoice {
+    Overwrite,
+    Skip,
+    Rename,
+}
+
+/// 逐条询问冲突文件如何处理，并据此改写 `files`。
+///
+/// 语义：
+/// - `--force` 直接覆盖，不询问（保持非交互可脚本化）。
+/// - 非交互（CI / 管道）：保持旧行为「跳过 + 计入 conflicts」，不尝试读 stdin。
+/// - 交互：每个冲突路径询问一次；`Renumber` 时给出 `foo-1.ts` / `foo-2.ts` 这类候选。
+fn resolve_conflicts(
+    services: &WorkflowServices,
+    files: Vec<PlannedFile>,
+    input: &AddWorkflowInput,
+    notes: &mut Vec<String>,
+) -> Result<(Vec<PlannedFile>, Vec<PathBuf>)> {
+    if input.force {
+        return Ok((files, Vec::new()));
+    }
+    let conflicts = services.fs.find_conflicts(&files);
+    if conflicts.is_empty() {
+        return Ok((files, Vec::new()));
+    }
+    let interactive = std::io::stdin().is_terminal();
+    let mut decisions: BTreeMap<PathBuf, ConflictChoice> = BTreeMap::new();
+    for path in &conflicts {
+        if !interactive {
+            decisions.insert(path.clone(), ConflictChoice::Skip);
+            continue;
+        }
+        let choice = {
+            let _guard = services.progress.suspend_terminal_guard();
+            ask_conflict_choice(services, path, &input.cwd)?
+        };
+        decisions.insert(path.clone(), choice);
+    }
+
+    let mut resolved = Vec::with_capacity(files.len());
+    let mut skipped: Vec<PathBuf> = Vec::new();
+    for file in files {
+        match decisions.get(&file.path) {
+            None | Some(ConflictChoice::Overwrite) => resolved.push(file),
+            Some(ConflictChoice::Skip) => {
+                // 必须从写盘列表里**移除**：`write_files_with_hooks` 的 `overwrite=true`
+                // 只表达「允许覆盖」，不表达「用户选择不覆盖」。
+                notes.push(format!(
+                    "skipped existing {} (use --force to overwrite)",
+                    relative_display(&file.path, &input.cwd)
+                ));
+                skipped.push(file.path);
+            }
+            Some(ConflictChoice::Rename) => {
+                let renamed = unique_path(&file.path);
+                notes.push(format!(
+                    "renamed {} -> {}",
+                    relative_display(&file.path, &input.cwd),
+                    relative_display(&renamed, &input.cwd)
+                ));
+                resolved.push(PlannedFile {
+                    path: renamed,
+                    content: file.content,
+                });
+            }
+        }
+    }
+    // `skipped` 由调用方计入 `WorkflowExecution.conflicts`。
+    Ok((resolved, skipped))
+}
+
+fn ask_conflict_choice(
+    services: &WorkflowServices,
+    path: &Path,
+    cwd: &Path,
+) -> Result<ConflictChoice> {
+    let zh = services.locale == "zh";
+    let relative = relative_display(path, cwd);
+    let flow = PromptFlow {
+        steps: vec![PromptStep::new(
+            "conflict",
+            if zh {
+                format!("{relative} 已存在，如何处理？")
+            } else {
+                format!("{relative} already exists. What should we do?")
+            },
+            "conflict",
+        )
+        .kind(lania_prompt::PromptStepKind::Select)
+        .choice(if zh { "覆盖" } else { "Overwrite" }, json!("overwrite"))
+        .choice(if zh { "跳过" } else { "Skip" }, json!("skip"))
+        .choice(if zh { "重命名" } else { "Rename" }, json!("rename"))
+        .default_value(json!("skip"))],
+    };
+    let state = services.prompt.run_cli_with_options(
+        &flow,
+        lania_prompt::PromptRunOptions {
+            answers: BTreeMap::new(),
+            fallback: Some(lania_prompt::PromptFallbackStrategy::UseDefault),
+            ..lania_prompt::PromptRunOptions::default()
+        },
+    )?;
+    Ok(
+        match state.answers.get("conflict").and_then(Value::as_str) {
+            Some("overwrite") => ConflictChoice::Overwrite,
+            Some("rename") => ConflictChoice::Rename,
+            _ => ConflictChoice::Skip,
+        },
+    )
+}
+
+/// `foo.ts` → `foo-1.ts` / `foo-2.ts` …（保留扩展名，`.editorconfig` 这类点文件也正确）。
+pub(crate) fn unique_path(path: &Path) -> PathBuf {
+    let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("file");
+    let (stem, extension) = split_extension(file_name);
+    for index in 1..10_000 {
+        let candidate = match &extension {
+            Some(extension) => parent.join(format!("{stem}-{index}.{extension}")),
+            None => parent.join(format!("{stem}-{index}")),
+        };
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    parent.join(file_name)
+}
+
+fn split_extension(file_name: &str) -> (String, Option<String>) {
+    // `.gitignore` 这类以点开头的文件名没有扩展名，不能拆成 ("" , "gitignore")。
+    let dot = file_name.rfind('.');
+    match dot {
+        Some(index) if index > 0 => (
+            file_name[..index].to_string(),
+            Some(file_name[index + 1..].to_string()),
+        ),
+        _ => (file_name.to_string(), None),
+    }
+}
+
+fn relative_display(path: &Path, cwd: &Path) -> String {
+    path.strip_prefix(cwd)
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| path.display().to_string())
 }
 
 fn framework_label(detection: &FrameworkDetection) -> String {

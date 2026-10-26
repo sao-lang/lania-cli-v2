@@ -18,6 +18,32 @@ const repoRoot = path.resolve(
 );
 
 /**
+ * 读取 node-bridge 包的真实版本，供 compat 断言使用。
+ *
+ * `compat.nodeBridgeVersionRange` 的语义是「声明的 node-bridge 版本范围」，
+ * 拿真实版本去声明才能验证「匹配 → ready」；写死版本会在每次 bump 后假失败。
+ */
+async function readNodeBridgeVersion(): Promise<string> {
+  const pkg = JSON.parse(
+    await readFile(
+      path.join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'),
+      'utf8',
+    ),
+  ) as { version?: string };
+  assert.equal(typeof pkg.version, 'string', 'node-bridge package.json must declare a version');
+  return pkg.version!;
+}
+
+/** 读取官方 CLI 包版本（发布 tarball 名里带的就是它）。 */
+async function readCliPackageVersion(): Promise<string> {
+  const pkg = JSON.parse(
+    await readFile(path.join(repoRoot, 'npm', 'cli', 'package.json'), 'utf8'),
+  ) as { version?: string };
+  assert.equal(typeof pkg.version, 'string', 'npm/cli package.json must declare a version');
+  return pkg.version!;
+}
+
+/**
  * product.publish 测试只需要一个可解析的 npm pack 结果，不需要真的打包
  * 整个 node-bridge/node_modules。用 fake npm 把每次约 3 分钟的 pack 降到毫秒级。
  */
@@ -235,6 +261,9 @@ test('product.inspect --compat writes compat-report and returns summary', async 
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-product-inspect-compat-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
 
+  // 断言用真实包版本：包版本 bump 后这里的 range 也必须跟着变，
+  // 否则失败原因是「测试写死旧版本」而不是真实兼容性回归。
+  const nodeBridgeVersion = await readNodeBridgeVersion();
   await mkdir(path.join(cwd, 'product', 'templates', 'base'), { recursive: true });
   await writeFile(
     path.join(cwd, 'package.json'),
@@ -253,7 +282,7 @@ test('product.inspect --compat writes compat-report and returns summary', async 
         compat: {
           frameworkVersionRange: '>=0.1.0 <1.0.0',
           protocolVersionRange: '0.1.0',
-          nodeBridgeVersionRange: '0.1.0',
+          nodeBridgeVersionRange: '${nodeBridgeVersion}',
           productVersionRange: '^1.2.3'
         }
       },
@@ -292,8 +321,13 @@ test('product.inspect --compat writes compat-report and returns summary', async 
   assert.equal(result.compat?.verdict, 'ready');
   assert.equal(result.compat?.reportPath, '.lania/inspect/product/compat-report.json');
   assert.equal(result.compat?.declared?.protocolVersionRange, '0.1.0');
+  assert.equal(result.compat?.declared?.nodeBridgeVersionRange, nodeBridgeVersion);
   assert.equal(result.compat?.actual.hostVersion, '0.1.0');
   assert.equal(result.compat?.actual.protocolVersion, '0.1.0');
+  assert.equal(
+    (result.compat?.actual as { nodeBridgeVersion?: string }).nodeBridgeVersion,
+    nodeBridgeVersion,
+  );
   assert.equal(result.compat?.product.productVersion, '1.2.3');
 
   const compatReport = JSON.parse(
@@ -699,7 +733,11 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(result.wrapper, './bin/acme.mjs');
   assert.match(result.tarball, /^\.\/.*\.tgz$/);
   assert.equal(result.bundle.root, './bundle');
-  assert.equal(result.bundle.cliTarball, './bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz');
+  // tarball 名由 `npm/cli/package.json` 的版本决定，不写死以免版本 bump 后假失败。
+  assert.equal(
+    result.bundle.cliTarball,
+    `./bundle/cli-package/lania-cli-v2-cli-${await readCliPackageVersion()}.tgz`,
+  );
   assert.equal(result.bundle.platformTarball, null);
   assert.deepEqual(result.bundle.platformTarballs, []);
   assert.equal(result.productRoot, './lib/product');
@@ -758,15 +796,20 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(publishReport.reportVersion, 1);
   assert.match(publishReport.tarball, /^\.\/.*\.tgz$/);
   assert.equal(publishReport.bundle.root, './bundle');
-  assert.equal(publishReport.bundle.cliTarball, './bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz');
+  assert.equal(
+    publishReport.bundle.cliTarball,
+    `./bundle/cli-package/lania-cli-v2-cli-${await readCliPackageVersion()}.tgz`,
+  );
   assert.equal(publishReport.bundle.platformTarball, null);
   assert.equal(publishReport.experimental?.compat?.actual?.protocolVersion, '0.1.0');
   assert.deepEqual(publishReport.bundle.platformTarballs, []);
+  // 平台包版本来自各平台 package.json，这里统一用官方 CLI 版本做期望值。
+  const platformVersion = await readCliPackageVersion();
   const expectedMatrix = [
     {
       packageName: '@lania-cli-v2/cli-darwin-arm64',
       platform: 'darwin-arm64',
-      version: '0.1.0',
+      version: platformVersion,
       status: 'binary_missing',
       tarball: null,
       source: 'package_dir',
@@ -774,7 +817,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
     {
       packageName: '@lania-cli-v2/cli-linux-x64',
       platform: 'linux-x64',
-      version: '0.1.0',
+      version: platformVersion,
       status: 'binary_missing',
       tarball: null,
       source: 'package_dir',
@@ -782,7 +825,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
     {
       packageName: '@lania-cli-v2/cli-win32-x64',
       platform: 'win32-x64',
-      version: '0.1.0',
+      version: platformVersion,
       status: 'binary_missing',
       tarball: null,
       source: 'package_dir',
@@ -795,7 +838,9 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.ok(publishReport.generatedFiles.includes('./publish-manifest.json'));
   assert.ok(publishReport.generatedFiles.includes('./publish-report.json'));
   assert.ok(
-    publishReport.generatedFiles.includes('./bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz'),
+    publishReport.generatedFiles.includes(
+      `./bundle/cli-package/lania-cli-v2-cli-${platformVersion}.tgz`,
+    ),
   );
   assert.ok(
     publishReport.generatedFiles.some(
@@ -860,7 +905,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
     {
       packageName: '@lania-cli-v2/cli-darwin-arm64',
       platform: 'darwin-arm64',
-      version: '0.1.0',
+      version: platformVersion,
       status: 'binary_missing',
       tarball: null,
       source: 'package_dir',
@@ -868,7 +913,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
     {
       packageName: '@lania-cli-v2/cli-linux-x64',
       platform: 'linux-x64',
-      version: '0.1.0',
+      version: platformVersion,
       status: 'binary_missing',
       tarball: null,
       source: 'package_dir',
@@ -876,7 +921,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
     {
       packageName: '@lania-cli-v2/cli-win32-x64',
       platform: 'win32-x64',
-      version: '0.1.0',
+      version: platformVersion,
       status: 'binary_missing',
       tarball: null,
       source: 'package_dir',
@@ -899,7 +944,7 @@ test('product.publish creates a publish-ready npm package layout from packed out
   assert.equal(publishManifest.steps[0]?.command.program, 'npm');
   assert.deepEqual(publishManifest.steps[0]?.command.args.slice(0, 6), [
     'publish',
-    './bundle/cli-package/lania-cli-v2-cli-0.1.0.tgz',
+    `./bundle/cli-package/lania-cli-v2-cli-${platformVersion}.tgz`,
     '--tag',
     'latest',
     '--access',
@@ -1029,7 +1074,7 @@ test('product.publish stages linux-x64 bundle from explicit env binary source', 
   assert.deepEqual(linuxMatrix, {
     packageName: '@lania-cli-v2/cli-linux-x64',
     platform: 'linux-x64',
-    version: '0.1.0',
+    version: await readCliPackageVersion(),
     status: 'ready',
     tarball: linuxTarball.tarball,
     source: 'environment',

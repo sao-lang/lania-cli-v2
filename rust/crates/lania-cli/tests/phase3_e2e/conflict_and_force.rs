@@ -299,3 +299,77 @@ fn lan_generate_module_with_force_overwrites_existing_file_e2e() {
 
     let _ = fs::remove_dir_all(root);
 }
+
+#[cfg(unix)]
+#[test]
+fn lan_add_conflict_interactively_renames_file_e2e() {
+    let root = temp_dir("add-conflict-rename");
+    write_file(
+        root.join("lan.config.js"),
+        "export default { buildTool: 'vite', language: 'TypeScript', cssProcessor: 'scss' };\n",
+    );
+    write_file(root.join("src/components/Button.tsx"), "// hand-written\n");
+
+    // 冲突询问只有一字：选择「重命名」（第 3 项）。
+    let output = run_cli_interactive(
+        &root,
+        &["add", "component", "Button", "--target", "src/components"],
+        &["2"],
+        &[],
+    );
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        fs::read_to_string(root.join("src/components/Button.tsx")).expect("original readable"),
+        "// hand-written\n",
+        "rename must not touch the existing file"
+    );
+    assert!(
+        root.join("src/components/Button-1.tsx").exists(),
+        "rename should write Button-1.tsx"
+    );
+    assert!(json["result"]["notes"]
+        .as_array()
+        .expect("notes array")
+        .iter()
+        .any(|note| note
+            .as_str()
+            .unwrap_or_default()
+            .contains("renamed src/components/Button.tsx -> src/components/Button-1.tsx")));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn lan_add_conflict_interactively_overwrites_file_e2e() {
+    let root = temp_dir("add-conflict-overwrite");
+    write_file(
+        root.join("lan.config.js"),
+        "export default { buildTool: 'vite', language: 'TypeScript', cssProcessor: 'scss' };\n",
+    );
+    write_file(root.join("src/components/Button.tsx"), "// hand-written\n");
+
+    let output = run_cli_interactive(
+        &root,
+        &["add", "component", "Button", "--target", "src/components"],
+        &["0"],
+        &[],
+    );
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0));
+    let content =
+        fs::read_to_string(root.join("src/components/Button.tsx")).expect("file readable");
+    assert!(
+        content.contains("export function Button"),
+        "choosing overwrite must replace the file: {content}"
+    );
+    assert!(json["result"]["conflicts"]
+        .as_array()
+        .expect("conflicts array")
+        .is_empty());
+
+    let _ = fs::remove_dir_all(root);
+}

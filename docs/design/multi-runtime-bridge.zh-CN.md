@@ -695,7 +695,7 @@ $ lan add component button
 - [x] `lan add <generator> <name>` 一次生成多个文件，路径与命名符合框架约定。
 - [x] `nest-cli.json` 存在时，`lan add resource users` 自动注册进 `app.module.ts`。
 - [x] 无框架项目执行 `lan add` 时，只列出通用的 `component` / `config` 生成器。
-- [x] 同名文件已存在时默认跳过并计入 `conflicts`，`--force` 直接覆盖。
+- [x] 同名文件已存在时询问（覆盖 / 跳过 / 重命名），`--force` 直接覆盖。
 - [x] 生成器表在仓库内**只有一处**定义（`lania-workflows/src/create/add/generators.rs`），
       TS 通过 bridge `addGenerator.list`（宿主 host RPC）读取。
 - [x] `lan add --list` 按框架分组输出所有可用生成器。
@@ -704,8 +704,8 @@ $ lan add component button
 > `create/add_workflow.rs`。注册锚点是 `// <lania:imports>`（`MarkerInsert`），
 > 标记缺失时只打印可复制的代码片段，不做 AST 改写（§4.5.5）。
 > 旧的平铺模板名（`rfc` / `eslint` …）保留为 `component` / `config` 生成器的 `variant`。
-> 「同名文件已存在时询问覆盖 / 跳过 / 重命名」中的交互式询问留到 B7，
-> 当前行为是跳过 + 冲突列表 + `--force` 覆盖。
+> 冲突处理：`--force` 直接覆盖；交互式终端逐条询问「覆盖 / 跳过 / 重命名」；
+> 非交互环境（CI / 管道）保持「跳过 + 计入 `conflicts`」，不会阻塞等待 stdin。
 
 ## 5. 运行时知识单点（解决问题 2）
 

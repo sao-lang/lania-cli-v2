@@ -15,6 +15,9 @@
 - **框架探测**：`lan.config` 的 `add.framework` → 特征文件（`nest-cli.json` / `next.config.*`）
   → 回退到通用生成器。**探测失败不猜框架**，只暴露 `component` / `config`。
 - **`lan add --list`**：按框架列出可用生成器；无框架项目只列通用生成器。
+- **冲突处理**：`--force` 直接覆盖；交互式终端逐条询问「覆盖 / 跳过 / 重命名」
+  （重命名会给出 `Button-1.tsx` 这类不冲突的候选路径）；非交互环境保持
+  「跳过 + 计入 `conflicts`」，不会阻塞等待 stdin。
 - **兼容**：旧的平铺模板名（`rfc` / `v3` / `eslint` …）继续可用，映射为
   `component` / `config` 生成器的 `variant`；`--template` 与 `--filepath` 保持兼容。
   新增位置参数 `lan add <generator> <name>`，`--name` 的既有用法不变。
