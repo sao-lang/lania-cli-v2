@@ -838,6 +838,7 @@ dependencies = [
  "lania-agent",
  "lania-command",
  "lania-config",
+ "lania-env",
  "lania-git",
  "lania-host",
  "lania-logger",
@@ -1114,6 +1115,7 @@ dependencies = [
  "lania-host",
  "lania-logger",
  "lania-node-bridge",
+ "lania-presentation",
  "serde_json",
 ]
 

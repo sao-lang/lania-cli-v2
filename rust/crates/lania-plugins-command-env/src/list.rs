@@ -306,6 +306,7 @@ pub(super) fn execute_doctor(service: &EnvService, cwd: &Path) -> Result<Value> 
                             "level": match item.level {
                                 lania_env::DiagnosticLevel::Error => "error",
                                 lania_env::DiagnosticLevel::Warn => "warn",
+                                lania_env::DiagnosticLevel::Info => "info",
                             },
                             "message": item.message,
                         })

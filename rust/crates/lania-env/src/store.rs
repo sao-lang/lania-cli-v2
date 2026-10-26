@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 
 use crate::archive;
 use crate::checksum;
-use crate::home::RuntimeHome;
+use crate::home::{RuntimeHome, PATH_ENV};
 use crate::http::HttpClient;
 use crate::provider::{self, ProviderContext, ProviderError, RuntimeProvider};
 use crate::shims;
@@ -484,14 +484,35 @@ impl RuntimeStore {
         let mut out = Vec::new();
 
         let shims_dir = self.home.shims_dir();
-        let on_path = std::env::var_os("PATH")
+        // 两条独立诊断：`lan` 每次启动都会 `activate()`，所以「本进程 PATH 是否前置」
+        // 只反映内部健康度；真正需要用户动手的是「shell profile 是否固化」。
+        let on_path = std::env::var_os(PATH_ENV)
             .map(|value| std::env::split_paths(&value).any(|dir| dir == shims_dir))
             .unwrap_or(false);
-        if !on_path {
+        if !shims_dir.is_dir() {
             out.push(Diagnostic {
                 level: DiagnosticLevel::Warn,
                 message: format!(
-                    "{} is not on PATH; run `lan env init` and reload your shell",
+                    "{} does not exist yet; it is created on the first `lan env install`",
+                    shims_dir.display()
+                ),
+            });
+        } else if !on_path {
+            out.push(Diagnostic {
+                level: DiagnosticLevel::Warn,
+                message: format!(
+                    "{} is not prepended to this process PATH; commands may use system runtimes instead. \
+                     This indicates a lania bug — please report it",
+                    shims_dir.display()
+                ),
+            });
+        }
+        if !self.shell_profile_has_shims() {
+            out.push(Diagnostic {
+                level: DiagnosticLevel::Info,
+                message: format!(
+                    "{} is not in your shell profile; run `lan env init` and append the snippet \
+                     so external shells also use managed runtimes",
                     shims_dir.display()
                 ),
             });
@@ -532,6 +553,41 @@ impl RuntimeStore {
             }
         }
         Ok(out)
+    }
+
+    /// shell profile 是否已经把 shims 目录写死（只有外部终端才需要它）。
+    ///
+    /// 必须真的读文件：PATH 里出现 shims 目录也可能是 `lan` 自己注入的，
+    /// 那不能证明外部终端也生效。
+    fn shell_profile_has_shims(&self) -> bool {
+        let needle = self.home.display_for_shell(&self.home.shims_dir());
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from);
+        let Some(home) = home else {
+            return false;
+        };
+        let mut candidates = vec![
+            home.join(".bashrc"),
+            home.join(".zshrc"),
+            home.join(".profile"),
+            home.join(".bash_profile"),
+            home.join(".config").join("fish").join("config.fish"),
+        ];
+        // Windows PowerShell：`$PROFILE` 通常位于 Documents/PowerShell（或 WindowsPowerShell）。
+        for dir in ["PowerShell", "WindowsPowerShell"] {
+            candidates.push(
+                home.join("Documents")
+                    .join(dir)
+                    .join("Microsoft.PowerShell_profile.ps1"),
+            );
+            candidates.push(home.join("Documents").join(dir).join("profile.ps1"));
+        }
+        candidates.iter().any(|path| {
+            std::fs::read_to_string(path)
+                .map(|content| content.contains(&needle))
+                .unwrap_or(false)
+        })
     }
 
     fn installed_versions_paths(&self, language_id: &str) -> Vec<PathBuf> {
@@ -665,6 +721,8 @@ impl RuntimeStore {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticLevel {
+    /// 纯提示：不修也能用，修了更好（例如 shell profile 未固化）。
+    Info,
     Warn,
     Error,
 }
@@ -1082,6 +1140,47 @@ mod tests {
                 .any(|item| item.level == DiagnosticLevel::Warn && item.message.contains("shim")),
             "{diagnostics:?}"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn diagnose_separates_process_path_from_shell_profile() {
+        let root =
+            std::env::temp_dir().join(format!("lania-store-diag-split-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let store = store_at(&root);
+
+        // shims 目录还不存在：只报「尚未创建」，不报 PATH 问题（前置不存在的目录没有意义）。
+        let diagnostics = store.diagnose().unwrap();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|item| item.message.contains("does not exist yet")),
+            "{diagnostics:?}"
+        );
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|item| item.message.contains("not prepended")),
+            "{diagnostics:?}"
+        );
+
+        // shims 目录存在但本进程 PATH 没前置 → 报内部健康度问题。
+        store.home().ensure_dirs().unwrap();
+        let diagnostics = store.diagnose().unwrap();
+        let path_diag = diagnostics
+            .iter()
+            .find(|item| item.message.contains("not prepended"));
+        let profile_diag = diagnostics
+            .iter()
+            .find(|item| item.message.contains("shell profile"));
+        if path_diag.is_some() {
+            assert_eq!(path_diag.unwrap().level, DiagnosticLevel::Warn);
+        }
+        // shell profile 诊断是独立的一条，且永远只是 Info 级提示。
+        assert_eq!(profile_diag.unwrap().level, DiagnosticLevel::Info);
+
         let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -31,7 +31,7 @@ pub use archive::{extract as extract_archive, verify_integrity, ArchiveFormat};
 pub use checksum::{find_in_manifest, hex_digest_sha256, verify_file};
 pub use detect::{extract_semver, which, EnvService, InstalledVersion, ProjectVersion, ToolStatus};
 pub use error::{ArchiveError, NetworkError, PlatformError, RuntimeError, VerifyError};
-pub use home::{RuntimeHome, HOME_ENV, META_FILE};
+pub use home::{RuntimeHome, HOME_ENV, META_FILE, PATH_ENV};
 pub use http::HttpClient;
 pub use language::Language;
 pub use plan::{build_plan, execute_plan, validate_version, EnvAction, EnvPlan, PlanStep};

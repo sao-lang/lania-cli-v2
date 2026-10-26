@@ -679,6 +679,7 @@ impl App {
                         let prefix = match diagnostic.level {
                             lania_env::DiagnosticLevel::Error => "✗",
                             lania_env::DiagnosticLevel::Warn => "!",
+                            lania_env::DiagnosticLevel::Info => "·",
                         };
                         lines.push(format!("{prefix} {}", diagnostic.message));
                     }

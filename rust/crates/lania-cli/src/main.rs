@@ -42,6 +42,10 @@ use profile::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // 必须最先执行：之后所有子进程（Rust exec / node bridge / compiler worker / 工具链）
+    // 都继承本进程 PATH，`lan env use <runtime> <ver>` 才会真正生效。
+    activate_managed_runtimes();
+
     let mut host = HostRuntime::new();
     // 插件注册顺序会影响：
     // - CLI 命令树的展示顺序
@@ -79,6 +83,21 @@ async fn main() -> Result<()> {
     let mut output_profile = output_profile_from_sources(project_config.as_ref(), &preferences);
     output_profile.locale = locale.clone();
     host.set_locale(&locale);
+
+    // 配置校验/加载问题必须让用户看见（§6.5.9），但不阻断命令。
+    // 之前 `validation_errors` 只存在于 snapshot 里，没有任何一处渲染它。
+    if let Some(config) = project_config.as_ref() {
+        let message_renderer = cli_message_renderer(locale.as_str(), &preferences, &output_profile);
+        for error in &config.validation_errors {
+            eprintln!(
+                "{}",
+                message_renderer.render(
+                    CliMessageLevel::Warn,
+                    format!("lan.config {}: {}", error.position.path, error.message),
+                )
+            );
+        }
+    }
     let _ = host
         .bootstrap_project_extensions_from_cwd_async(cwd.clone())
         .await?;
@@ -222,4 +241,13 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// 把 `~/.runex/shims` 前置到本进程 PATH（幂等）。
+///
+/// 失败必须**静默忽略**：自管运行时是可选能力，任何解析/权限问题都不应阻断命令本身。
+fn activate_managed_runtimes() {
+    if let Ok(home) = lania_env::RuntimeHome::resolve() {
+        home.activate();
+    }
 }

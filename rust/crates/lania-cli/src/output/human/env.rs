@@ -419,7 +419,8 @@ fn render_doctor(value: &Value, locale: &str) -> String {
             for item in diagnostics {
                 let marker = match text(item, "level").as_str() {
                     "error" => "x",
-                    _ => "!",
+                    "warn" => "!",
+                    _ => "i",
                 };
                 lines.push(format!("  {marker} {}", text(item, "message")));
             }
