@@ -84,20 +84,42 @@ test('vite adapter handles dev runtime flow', async (t) => {
   assert.ok(events?.some((event) => event.method === 'event.compiler_start'));
   assert.ok(events?.some((event) => event.method === 'event.compiler_server_ready'));
   assert.ok(events?.some((event) => event.method === 'event.compiler_done'));
+  // §7.2：worker 的 stdout/stderr 现在是保真的 `event.diag`（channel=build），
+  // 不再压平成 `event.log`，也不再无条件造 `event.compiler_issue`。
   assert.ok(
     events?.some(
       (event) =>
-        event.method === 'event.log' &&
-        String(event.params?.message ?? '').includes('vite worker stdout'),
+        event.method === 'event.diag' &&
+        event.params?.channel === 'build' &&
+        event.params?.stream === 'stdout' &&
+        String(event.params?.text ?? '').includes('vite worker stdout'),
     ),
   );
+  const stderrDiag = events?.find(
+    (event) =>
+      event.method === 'event.diag' &&
+      event.params?.stream === 'stderr' &&
+      String(event.params?.text ?? '').includes('vite worker stderr'),
+  );
+  // stderr 只是流，不等于 warning：这行没有错误关键字，level 必须是 info（§7.2 禁止事项 1）。
+  assert.equal(stderrDiag?.params?.level, 'info');
+  // 由于 level=info，不应再额外生成 compiler_issue。
   assert.ok(
-    events?.some(
+    !events?.some(
       (event) =>
         event.method === 'event.compiler_issue' &&
         String(event.params?.message ?? '').includes('vite worker stderr'),
     ),
   );
+  const seqs = (events ?? [])
+    .filter((event) => event.method === 'event.diag')
+    .map((event) => Number(event.params?.seq ?? 0));
+  assert.deepEqual(
+    seqs,
+    [...seqs].sort((left, right) => left - right),
+    'event.diag.seq must increase monotonically across stdout/stderr',
+  );
+  assert.ok(seqs.every((seq) => seq > 0));
   assert.equal(
     events?.find((event) => event.method === 'event.dev_url')?.params.url,
     'http://127.0.0.1:4100',

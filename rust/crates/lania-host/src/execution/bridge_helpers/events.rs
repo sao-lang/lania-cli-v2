@@ -1,9 +1,29 @@
 //! bridge events 到宿主副作用的映射逻辑。
 
 use lania_logger::LogLevel;
-use lania_node_bridge::{BridgeEvent, BridgeEventMethod, BridgeExchange, BridgeRequest};
+use lania_node_bridge::{
+    BridgeEvent, BridgeEventMethod, BridgeExchange, BridgeRequest, DiagChannel,
+};
 
 use super::super::context::CommandExecutionContext;
+
+/// 通道前缀标签（§7.5.3）。
+fn diag_channel_label(channel: DiagChannel) -> &'static str {
+    match channel {
+        DiagChannel::App => "app",
+        DiagChannel::Dev => "dev",
+        DiagChannel::Lint => "lint",
+        DiagChannel::Build => "build",
+    }
+}
+
+/// `event.diag` 的人类可读一行（`[app] GET /api/user 200`）。
+///
+/// `channel: "app"` 用 `[app]` 前缀与构建/工具链日志做视觉分离；
+/// 前缀在纯文本与彩色终端下都保留，因此不需要额外依赖 ANSI 能力。
+pub(crate) fn format_diag_line(channel: DiagChannel, text: &str) -> String {
+    format!("[{}] {text}", diag_channel_label(channel))
+}
 
 impl<'a> CommandExecutionContext<'a> {
     pub(in crate::execution) fn apply_bridge_events(
@@ -328,10 +348,16 @@ impl<'a> CommandExecutionContext<'a> {
     /// - `channel = app` 是应用自身日志（服务端 HTTP 访问日志等），用 `[app]` 前缀区分；
     /// - `channel = build/dev` 是工具链日志，用 `[dev]` 之类的通道前缀；
     /// - stderr 不再一律冒充 warning —— level 由 bridge 按内容推断。
+    ///
+    /// `channel: "app"` 默认开启（否则用户看不到服务端接口日志），可被
+    /// `ui.dev.quietApp` 或 `dev --quiet-app` 关闭（§7.5.3）。
     fn apply_diag_event(&self, request: &BridgeRequest, event: &BridgeEvent) {
         let Some(line) = lania_node_bridge::parse_diag_line(&event.params) else {
             return;
         };
+        if line.channel == DiagChannel::App && self.suppresses_app_logs() {
+            return;
+        }
         let level = match line.level {
             lania_node_bridge::LogLevelName::Trace => LogLevel::Trace,
             lania_node_bridge::LogLevelName::Debug => LogLevel::Debug,
@@ -339,18 +365,22 @@ impl<'a> CommandExecutionContext<'a> {
             lania_node_bridge::LogLevelName::Error => LogLevel::Error,
             lania_node_bridge::LogLevelName::Info => LogLevel::Info,
         };
-        let channel = match line.channel {
-            lania_node_bridge::DiagChannel::App => "app",
-            lania_node_bridge::DiagChannel::Dev => "dev",
-            lania_node_bridge::DiagChannel::Lint => "lint",
-            lania_node_bridge::DiagChannel::Build => "build",
-        };
         self.log(
             level,
             "command_execute",
             Some(request.method.clone()),
-            format!("[{channel}] {}", line.text),
+            format_diag_line(line.channel, &line.text),
         );
+    }
+
+    /// `channel: "app"` 是否应当被抑制（`ui.dev.quietApp` 或 `dev --quiet-app`）。
+    fn suppresses_app_logs(&self) -> bool {
+        if self.quiet_app_logs.get() {
+            return true;
+        }
+        self.project_config()
+            .map(|config| config.ui.dev.quiet_app)
+            .unwrap_or(false)
     }
 
     fn progress_id_for_event(&self, request: &BridgeRequest, event: &BridgeEvent) -> String {

@@ -10,6 +10,7 @@ import path from 'node:path';
 
 import type { BridgeEvent } from '../../protocol/events.js';
 import { asRecord, loadToolConfig, normalizeError } from '../../core/runtime.js';
+import { createDiagEmitter, type DiagLevel } from '../diag.js';
 import {
   buildResult,
   compilerAssetEvent,
@@ -57,22 +58,24 @@ export const viteCompilerAdapter: CompilerAdapter = {
       buffered.push(event);
       emit?.(event);
     };
+    // vite 内嵌在 bridge 进程里，它的日志不会经过子进程劫持，必须从 logger 层转成 `event.diag`，
+    // 否则 `lan dev` 里只剩 `event.log`，与 `[app]` 运行期日志无法在视觉上区分（§7.5.3）。
+    const diag = createDiagEmitter(emit, { channel: 'dev', tool: 'vite', source: 'tool' });
     const customLogger = vite.createLogger
       ? (() => {
           const logger = vite.createLogger('info', {
             allowClearScreen: false,
           });
-          const wrap = (level: 'info' | 'warn' | 'error') => (msg: string) => {
+          const wrap = (level: DiagLevel) => (msg: string) => {
             const text = String(msg ?? '').trim();
             if (!text) {
               return;
             }
+            diag(text, 'stdout', level);
             if (level === 'error') {
               record(compilerIssueEvent('vite', 'error', text));
-              record(logEvent(`[vite] ${text}`, 'warn'));
             } else if (level === 'warn') {
               record(compilerIssueEvent('vite', 'warning', text));
-              record(logEvent(`[vite] ${text}`, 'warn'));
             } else {
               record(logEvent(`[vite] ${text}`, 'info'));
             }

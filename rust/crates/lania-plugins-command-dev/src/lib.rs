@@ -90,7 +90,7 @@ mod tests {
             .find(|spec| spec.name == "dev")
             .expect("dev spec registered");
         assert_eq!(dev_spec.handler_id, "command.dev");
-        assert_eq!(dev_spec.options.len(), 8);
+        assert_eq!(dev_spec.options.len(), 9);
         assert_eq!(dev_spec.subcommands.len(), 0);
         let product_spec = specs
             .iter()

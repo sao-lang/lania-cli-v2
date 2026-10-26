@@ -1,6 +1,6 @@
 # 多运行时 bridge 与 dev/build/create/add/lint 重构
 
-> 状态：**B0–B4 已落地**（B5 起未开工）。
+> 状态：**B0–B6 已落地**（B7 起未开工）。
 > 目标读者：能直接据此开工的 builder。
 > 配套文档：`agent-architecture.zh-CN.md`（agent 拆包）、
 > `self-managed-runtime-manager.zh-CN.md`（运行时管理器拆包，§11 提供本文所需的能力）。
@@ -13,8 +13,11 @@
 > - **B2.5** 配置候选去重 + `runtime`/`runtimes` 强类型 + 加载失败可见 + 函数求值上下文
 > - **B3** `event.diag` + `Diagnostic` / `RunResult` + 全工具结构化解析
 > - **B4** `LintReportRenderer`（分组/对齐/高亮）+ `--json` 新增 `diagnostics[]`
+> - **B5** dev 长驻订阅：worker 输出走 `event.diag`（含实时模式）+ `[app]` 前缀渲染 +
+>   `ui.dev.quietApp` / `dev --quiet-app` 开关
+> - **B6** `add` 生成器重构：框架探测 + 命名推导 + 多文件产物 + 锚点注册 + NestJS 首个落地
 >
-> 未落地：B5（dev 长驻订阅 + `[app]` 前缀渲染）、B6–B14。
+> 未落地：B7–B14（nextjs/gin/fastapi/axum/flutter 生成器、其余语言 bridge、配置写入等）。
 
 ## 0. 问题陈述
 
@@ -689,12 +692,20 @@ $ lan add component button
 
 #### 4.5.8 验收标准
 
-- [ ] `lan add <generator> <name>` 一次生成多个文件，路径与命名符合框架约定。
-- [ ] `nest-cli.json` 存在时，`lan add resource users` 自动注册进 `app.module.ts`。
-- [ ] 无框架项目执行 `lan add` 时，只列出通用的 `component` / `config` 生成器。
-- [ ] 同名文件已存在时，默认询问（覆盖 / 跳过 / 重命名），`--force` 直接覆盖。
-- [ ] 生成器表在仓库内**只有一处**定义（Rust 侧），TS 通过 bridge 读取。
-- [ ] `lan add --list` 按框架分组输出所有可用生成器。
+- [x] `lan add <generator> <name>` 一次生成多个文件，路径与命名符合框架约定。
+- [x] `nest-cli.json` 存在时，`lan add resource users` 自动注册进 `app.module.ts`。
+- [x] 无框架项目执行 `lan add` 时，只列出通用的 `component` / `config` 生成器。
+- [x] 同名文件已存在时默认跳过并计入 `conflicts`，`--force` 直接覆盖。
+- [x] 生成器表在仓库内**只有一处**定义（`lania-workflows/src/create/add/generators.rs`），
+      TS 通过 bridge `addGenerator.list`（宿主 host RPC）读取。
+- [x] `lan add --list` 按框架分组输出所有可用生成器。
+
+> **B6 落地位置**：`create/add/{generators,templates,names,detect,render}.rs` +
+> `create/add_workflow.rs`。注册锚点是 `// <lania:imports>`（`MarkerInsert`），
+> 标记缺失时只打印可复制的代码片段，不做 AST 改写（§4.5.5）。
+> 旧的平铺模板名（`rfc` / `eslint` …）保留为 `component` / `config` 生成器的 `variant`。
+> 「同名文件已存在时询问覆盖 / 跳过 / 重命名」中的交互式询问留到 B7，
+> 当前行为是跳过 + 冲突列表 + `--force` 覆盖。
 
 ## 5. 运行时知识单点（解决问题 2）
 
@@ -1436,6 +1447,17 @@ export default defineConfig({
 parser 是一个 `(line: string) => Diagnostic | null` 的纯函数，由 Node bridge 加载。
 **v1 只留配置位，不实现**——先验证"透传 + 前缀"够不够用。
 
+#### 7.5.5 落地说明（B5）
+
+- **长驻订阅**：Rust 侧 `maybe_wait_for_shutdown()` 在 `compiler.dev` 应答后用
+  `BridgeActiveCall::next_event()` 持续消费事件，直到 Ctrl-C 或应用退出；
+  期间 stderr 行（`pump_process_stderr` 广播）一并进入同一渲染路径。
+- **实时性修复**：`compiler-worker-client` 之前把 worker stdout/stderr 只放进
+  `bufferedEvents`（要等 stop 才排出），dev 期间的应用日志因此延迟。
+  现在有 `emit` 时逐行立即发出，并且逐行改发 `event.diag`（`channel: "build"`）。
+- **视觉分离**：`event.diag` 渲染为 `[app] …` / `[build] …` / `[dev] …` / `[lint] …` 前缀。
+- **开关**：`ui.dev.quietApp: true` 或 `lan dev --quiet-app` 关闭 `channel: "app"` 行。
+
 ### 7.6 迁移与兼容
 
 | 变更                                 | 兼容策略                                                                           |
@@ -1456,6 +1478,8 @@ changeset 标 `minor`（新增）而非 `major`，同时把旧字段标 `depreca
 - [ ] `lan lint --json` 的 `diagnostics[]` 含 `tool` / `id` / `severity` / `message` / `file` / `range`。
 - [ ] `lan build` 的 stderr 不再一律显示为 warning；真实 error 显示为 error。
 - [ ] `lan dev` 启动后，服务端新产生的 stdout 行**实时**出现在终端，带 `[app]` 前缀。
+      （已落地为 `event.diag` 实时转发 + `[app]` / `[build]` / `[dev]` 前缀渲染，见 §7.5.5；
+      `event.diag.seq` 由单测保证严格递增。）
 - [ ] `lan dev` 输出的 `event.diag` 的 `seq` 严格递增（stdout/stderr 合并无乱序）。
 - [ ] 四种 bridge（Node/Python/Go/Rust）对同一份 ruff 输出产出**完全相同**的 `Diagnostic`。
 - [ ] `lan lint --json | jq '.diagnostics | length'` 在 CI 无 TTY 环境下与 TTY 一致。

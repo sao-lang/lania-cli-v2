@@ -29,6 +29,7 @@ import {
   type CompilerAdapterParams,
   type CompilerExecution,
 } from './compiler-shared.js';
+import { buildDiagLine, type DiagLevel } from './diag.js';
 import type {
   CompilerWorkerMessage,
   CompilerWorkerMethod,
@@ -52,9 +53,15 @@ export async function runCompilerInWorker(
   });
 
   const bufferedEvents: BridgeEvent[] = [];
-  // 将 worker 的 stdout/stderr 转成 bridge events 缓存起来，最后并入 execution.events。
-  attachStreamCapture(child.stdout, context.tool, 'stdout', bufferedEvents);
-  attachStreamCapture(child.stderr, context.tool, 'stderr', bufferedEvents);
+  // worker 进程自身的 stdout/stderr 是**工具链**输出（不是应用输出），
+  // 与 runtime adapter 内部 spawn 的子进程保持同一口径：`channel: "build"`。
+  // 有 onEvent 时立刻发出，让长驻 dev 期间的尾部日志也能实时到达宿主；
+  // 没有 onEvent（一次性请求）时仍按旧行为缓存在 events 里随 response 返回。
+  const emitNow = onEvent;
+  const capture = (stream: NodeJS.ReadableStream | null, source: 'stdout' | 'stderr') =>
+    attachStreamCapture(stream, context.tool, source, bufferedEvents, emitNow);
+  capture(child.stdout, 'stdout');
+  capture(child.stderr, 'stderr');
 
   return await new Promise<CompilerExecution>((resolve, reject) => {
     let settled = false;
@@ -212,6 +219,7 @@ function attachStreamCapture(
   tool: Tool,
   source: 'stdout' | 'stderr',
   bufferedEvents: BridgeEvent[],
+  emit?: (event: BridgeEvent) => void,
 ) {
   if (!stream) {
     return;
@@ -225,21 +233,37 @@ function attachStreamCapture(
     if (!text) {
       return;
     }
-    bufferedEvents.push(...workerOutputEvents(tool, source, text));
+    for (const event of workerOutputEvents(tool, source, text)) {
+      bufferedEvents.push(event);
+      // 实时模式下只发一次，避免进程退出时再从 bufferedEvents 重放一遍。
+      if (emit) {
+        emit(event);
+      }
+    }
   });
 }
 
 function workerOutputEvents(tool: Tool, source: 'stdout' | 'stderr', text: string): BridgeEvent[] {
-  // 约定：
-  // - stderr 一律视作“至少是 warning”，同时也作为 log 事件回传，便于用户侧排查
-  // - stdout 仅作为 info 日志回传，不做结构化解析（避免引入对编译器输出格式的耦合）
-  if (source === 'stderr') {
-    return [
-      compilerIssueEvent(tool, 'warning', `[worker stderr] ${text}`),
-      logEvent(`[${tool}:worker:${source}] ${text}`, 'warn'),
-    ];
+  // worker 的 stdout/stderr 是**工具链**输出，统一走 `event.diag`（`channel: "build"`），
+  // 携带真实 stream 与按内容推断的 level；不再把 stderr 一律冒充 warning（§7.2）。
+  const line = buildDiagLine(text, source, { channel: 'build', tool, source: 'tool' });
+  if (!line) {
+    return [];
   }
-  return [logEvent(`[${tool}:worker:${source}] ${text}`, 'info')];
+  const diag: BridgeEvent = { method: 'event.diag', params: line };
+  const severity = diagLevel(line.level);
+  // `event.compiler_issue` 只表达「真的有问题」，因此 info 级 stderr 不再额外造一条 issue。
+  return severity
+    ? [diag, compilerIssueEvent(tool, severity, `[worker stderr] ${line.text}`)]
+    : [diag];
+}
+
+/** `event.diag.level` → `event.compiler_issue.severity`（后者只认 warning/error）。 */
+function diagLevel(level: DiagLevel): 'warning' | 'error' | null {
+  if (level === 'error') {
+    return 'error';
+  }
+  return level === 'warn' ? 'warning' : null;
 }
 
 function drainWorkerEvents(bufferedEvents: BridgeEvent[]) {

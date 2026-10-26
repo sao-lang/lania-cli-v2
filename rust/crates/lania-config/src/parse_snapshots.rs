@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use crate::{
     as_string_vec, CommandsSnapshot, HookBinding, HookBindingKind, HookBindingSource,
     LanExtensionsSnapshot, ReleaseConfigSnapshot, ReleaseProfile, SchemaDiscoverySnapshot,
-    UiInteractionSnapshot, UiOutputSnapshot, UiProgressSnapshot, UiSnapshot, Value,
+    UiDevSnapshot, UiInteractionSnapshot, UiOutputSnapshot, UiProgressSnapshot, UiSnapshot, Value,
 };
 
 use crate::parse_release::{
@@ -78,6 +78,20 @@ pub(crate) fn parse_ui_snapshot(value: Option<&Value>) -> UiSnapshot {
             snapshot.progress = parse_ui_progress_snapshot(object_value(object, "progress"));
             snapshot.interaction =
                 parse_ui_interaction_snapshot(object_value(object, "interaction"));
+            snapshot.dev = parse_ui_dev_snapshot(object_value(object, "dev"));
+        }
+    }
+    snapshot
+}
+
+pub(crate) fn parse_ui_dev_snapshot(value: Option<&Value>) -> UiDevSnapshot {
+    let mut snapshot = UiDevSnapshot::default();
+    if let Some(raw) = value {
+        snapshot.raw = raw.clone();
+        if let Some(object) = raw.as_object() {
+            if let Some(quiet_app) = object_value(object, "quietApp").and_then(Value::as_bool) {
+                snapshot.quiet_app = quiet_app;
+            }
         }
     }
     snapshot

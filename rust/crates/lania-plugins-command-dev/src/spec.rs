@@ -133,6 +133,16 @@ impl DevCommandPlugin {
                     ],
                     negatable: false,
                 },
+                OptionSpec {
+                    long: "quiet-app".into(),
+                    short: None,
+                    help: "Hide application logs (channel: app) after the dev server is ready"
+                        .into(),
+                    value_kind: ValueKind::Bool,
+                    default_value: None,
+                    choices: vec![],
+                    negatable: true,
+                },
             ])
             .with_examples(vec![
                 Example {
@@ -142,6 +152,10 @@ impl DevCommandPlugin {
                 Example {
                     command: "lan dev --port 3001 --open --mode development".into(),
                     description: "Run the development workflow on a custom port".into(),
+                },
+                Example {
+                    command: "lan dev --quiet-app".into(),
+                    description: "Run dev without streaming the app's own runtime logs".into(),
                 },
             ])
     }

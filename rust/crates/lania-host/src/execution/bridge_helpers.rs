@@ -11,4 +11,6 @@ mod long_running;
 mod requests;
 mod state;
 
+#[cfg(test)]
+pub(crate) use events::format_diag_line;
 pub(in crate::execution) use requests::BridgeDispatchResult;

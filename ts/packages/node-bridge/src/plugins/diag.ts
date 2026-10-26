@@ -80,6 +80,35 @@ export interface DiagEmitterOptions {
 }
 
 /**
+ * 只构造一条 `event.diag`，不发送。
+ *
+ * 存在意义：有些来源（worker 自身的 stdout/stderr）需要**同时**保留旧事件
+ * （`event.log` / `event.compiler_issue`）和一帧保真的 `event.diag`。
+ * 直接复用 `createDiagEmitter` 会把发送时机与构造耦合在一起，无法先拿到事件再决定。
+ */
+export function buildDiagLine(
+  text: string,
+  stream: 'stdout' | 'stderr' | 'syslog',
+  options: DiagEmitterOptions,
+  level?: DiagLevel,
+): DiagLine | null {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return {
+    source: options.source ?? 'tool',
+    stream,
+    channel: options.channel,
+    level: level ?? inferLevel(trimmed, stream),
+    text: trimmed,
+    seq: nextDiagSeq(),
+    ts: Date.now(),
+    ...(options.tool ? { tool: options.tool } : {}),
+  };
+}
+
+/**
  * 创建一行一条的发射器。
  *
  * `emit` 可能为 undefined（非流式请求）；此时返回 no-op，调用方无需分支。
@@ -89,20 +118,10 @@ export function createDiagEmitter(
   options: DiagEmitterOptions,
 ) {
   return (text: string, stream: 'stdout' | 'stderr' | 'syslog' = 'stdout', level?: DiagLevel) => {
-    const trimmed = text.trim();
-    if (!trimmed) {
+    const line = buildDiagLine(text, stream, options, level);
+    if (!line) {
       return;
     }
-    const line: DiagLine = {
-      source: options.source ?? 'tool',
-      stream,
-      channel: options.channel,
-      level: level ?? inferLevel(trimmed, stream),
-      text: trimmed,
-      seq: nextDiagSeq(),
-      ts: Date.now(),
-      ...(options.tool ? { tool: options.tool } : {}),
-    };
     emit?.({
       method: 'event.diag',
       params: line,

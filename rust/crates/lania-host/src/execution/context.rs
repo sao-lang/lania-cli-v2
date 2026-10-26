@@ -11,8 +11,6 @@
 //! - 测试时更容易替换局部能力
 //! - “命令元信息”和“基础设施依赖”被清晰地收口在同一个入口里
 
-use std::{env, future::Future, pin::Pin, sync::Arc};
-
 use anyhow::{anyhow, Result};
 use lania_command::CommandContext;
 use lania_config::LanConfigSnapshot;
@@ -29,6 +27,7 @@ use lania_runtime::RuntimeService;
 use lania_task::{TaskDefinition, TaskRunMode, TaskRunOptions, TaskService};
 use lania_workflows::{WorkflowExecution, WorkflowServices};
 use serde::Serialize;
+use std::{env, future::Future, pin::Pin, sync::Arc};
 
 use crate::{
     runtime::bridges::SharedBridgeRegistry, CapabilityName, CapabilityResolver, RuntimeKind,
@@ -89,6 +88,11 @@ pub struct CommandExecutionContext<'a> {
     pub(super) policy: ExecutionPolicy,
     pub(super) project_config: Option<LanConfigSnapshot>,
     pub(super) locale: String,
+    /// `dev --quiet-app` 之类“本命令不渲染 app 日志”的开关（§7.5.3）。
+    ///
+    /// 用 `Cell` 而不是 `bool`：命令在执行期才解析出该选项，而 `apply_bridge_event`
+    /// 只拿得到 `&self`。这里只做一次性写入 + 读取，不涉及跨线程共享。
+    pub(super) quiet_app_logs: std::cell::Cell<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -156,7 +160,25 @@ impl<'a> CommandExecutionContext<'a> {
             hooks: services.hooks,
             project_config: services.project_config,
             locale: services.locale,
+            quiet_app_logs: std::cell::Cell::new(false),
         }
+    }
+
+    /// 读取 `command.<option>` 的布尔选项（缺省 `false`）。
+    ///
+    /// handler 在执行前用它把“本命令的渲染开关”同步到 context，例如 `dev --quiet-app`。
+    pub fn bool_option(&self, name: &str) -> bool {
+        self.command
+            .argv
+            .options
+            .get(name)
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    }
+
+    /// 关闭本命令期间的 `channel: "app"` 日志渲染（§7.5.3）。
+    pub fn set_quiet_app_logs(&self, quiet: bool) {
+        self.quiet_app_logs.set(quiet);
     }
 
     pub fn command(&self) -> &CommandContext {

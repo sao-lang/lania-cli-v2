@@ -192,11 +192,21 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "open", "开发服务器就绪后打开浏览器");
             set_option_help(spec, "mode", "转发 dev mode 到底层编译器");
             set_option_help(spec, "runtime", "覆盖运行时（web|python|go|rust|dart）");
+            set_option_help(
+                spec,
+                "quiet-app",
+                "开发服务器就绪后隐藏应用日志（channel: app）",
+            );
             set_example_desc(spec, "lan dev", "运行默认开发工作流");
             set_example_desc(
                 spec,
                 "lan dev --port 3001 --open --mode development",
                 "使用自定义端口运行开发工作流",
+            );
+            set_example_desc(
+                spec,
+                "lan dev --quiet-app",
+                "运行开发工作流但不透出应用自身运行日志",
             );
         }
 
@@ -273,17 +283,33 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         // add
         "command.add" => {
             spec.about = "向现有工作区添加生成内容".into();
+            set_arg_help(
+                spec,
+                "generator",
+                "生成器名称，例如 `resource`（NestJS）或 `component`",
+            );
+            set_arg_help(spec, "generator-name", "用于推导类名与文件路径的基础名称");
             set_option_help(spec, "name", "添加组件/模块时使用的基础名称");
-            set_option_help(spec, "template", "模板名称");
+            set_option_help(
+                spec,
+                "template",
+                "生成器名称，或旧的模板名（rfc/v3/eslint/...）",
+            );
             set_option_help(spec, "target", "目标相对路径或目录");
             set_option_help(spec, "filepath", "兼容参数：旧版目标路径参数名");
+            set_option_help(spec, "list", "按框架分组列出可用生成器后退出");
             set_option_help(spec, "force", "覆盖冲突文件");
-            set_example_desc(spec, "lan add --name button", "添加一个默认组件/模块");
             set_example_desc(
                 spec,
-                "lan add --name dashboard --template spa-react --target scaffolds",
-                "将脚手架添加到指定目录",
+                "lan add resource users",
+                "生成 NestJS 多文件资源（module/controller/service/dto/entity/spec）",
             );
+            set_example_desc(
+                spec,
+                "lan add component Button --target src/components",
+                "添加一个与框架无关的 UI 组件",
+            );
+            set_example_desc(spec, "lan add --list", "查看当前框架可用的生成器");
         }
 
         "command.template" => {

@@ -342,6 +342,24 @@ impl Default for UiInteractionSnapshot {
     }
 }
 
+/// `ui.dev`：开发态日志渲染开关（§7.5.3）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiDevSnapshot {
+    /// `true` 时不再渲染 `channel: "app"` 的应用日志（等价于 `--quiet-app`）。
+    pub quiet_app: bool,
+    pub raw: Value,
+}
+
+impl Default for UiDevSnapshot {
+    fn default() -> Self {
+        Self {
+            quiet_app: false,
+            raw: Value::Null,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UiSnapshot {
@@ -349,6 +367,7 @@ pub struct UiSnapshot {
     pub output: UiOutputSnapshot,
     pub progress: UiProgressSnapshot,
     pub interaction: UiInteractionSnapshot,
+    pub dev: UiDevSnapshot,
     pub raw: Value,
 }
 
