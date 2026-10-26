@@ -9,6 +9,10 @@
 
 不覆盖（有意）：内置桌面控制、浏览器、IDA、图像、TTS、PDF、Apple FM、插件市场、ACP、collab。它们只保留插件注册协议。
 
+> 配套文档：`self-managed-runtime-manager.zh-CN.md`（环境管理拆包）、
+> `multi-runtime-bridge.zh-CN.md`（多运行时 bridge 与命令重构）。
+> 本文 §3.1 定义 agent 的**包边界**，§4.7 定义**能力契约**。二者是本方案新增的施工依据。
+
 ## 1. 五条硬规则
 
 1. **Node 无 I/O**：`ts/packages/agent/**` 禁止 `import fs | child_process | net | http`。工具只能经 `hostCall('agent.tool.*')`。CI 用 eslint `no-restricted-imports` 强制。
@@ -55,6 +59,68 @@
 | `@lania-cli/agent`      | 新 TS 包 | pi 循环、provider、工具 schema 适配、MCP 之外的一切“纯编排” | `runAgent`             |
 
 复用既有：`lania-host`（插件/命令/钩子/输出）、`lania-node-bridge`（协议与 stream）、`lania-task`（并发/取消/重试）、`lania-fs`、`lania-git`、`lania-exec`、`lania-prompt`、`lania-hooks`、`lania-logger`。
+
+### 3.1 包边界（拆包决策）
+
+现状：`lania-agent`（363 行、单文件 `lib.rs`）把**命令入口**与**会话能力**混装，且能力层直接依赖 `lania-host`。
+后果：任何非 lania 宿主（GUI / IDE 插件 / CI 脚本）想复用「agent 会话」都不得不连带整套插件框架。
+
+拆成两个 crate：
+
+```text
+lania-agent-core                      ← 新增：能力层，禁止依赖 lania-host / lania-command
+├── Cargo.toml            deps: anyhow, async-trait, serde_json, lania-node-bridge
+└── src/
+    ├── lib.rs            re-export
+    ├── spec.rs           SessionSpec / PromptRequest / ApprovalMode
+    ├── event.rs          AgentEvent（与 BridgeEventMethod 一一映射）
+    ├── client.rs         trait AgentSessionClient
+    └── bridge.rs         BridgeAgentSessionClient（基于 lania-node-bridge 的默认实现）
+
+lania-agent                           ← 瘦身：只剩命令插件与终端渲染
+├── Cargo.toml            deps: + lania-agent-core, lania-host, lania-command
+└── src/
+    ├── lib.rs            AgentCommandPlugin / spec / Plugin impl
+    ├── handler.rs        execute：argv → SessionSpec → core client
+    └── render.rs         REPL、事件渲染、compact_json
+```
+
+依赖方向（单向，无环）：
+
+```text
+lania-cli ──▶ lania-agent ──▶ lania-agent-core ──▶ lania-node-bridge
+                   └──▶ lania-host ──▶ lania-node-bridge
+```
+
+**边界判定标准**（可作为 code review checklist）：
+
+| 判定项                                                | 归属               |
+| ----------------------------------------------------- | ------------------ |
+| `CommandSpec` / `Plugin` / `register_builtin_command` | `lania-agent`      |
+| argv 解析（`option_string` / `positional_prompt`）    | `lania-agent`      |
+| `eprintln!` / `print!` / `io::stdout().flush()`       | `lania-agent`      |
+| bridge 方法名与参数拼装（`agent.session.create` 等）  | `lania-agent-core` |
+| 事件结构（`AgentEvent`）与 `BridgeEventMethod` 的映射 | `lania-agent-core` |
+| 终端颜色、`/help` 文案、进度提示                      | `lania-agent`      |
+
+**验收标准**：
+
+- [ ] `cargo tree -p lania-agent-core` 中不出现 `lania-host` / `lania-command`。
+- [ ] `agent` 命令行为零变化：`--approval-mode`、`/help`、`/model`、`/quit`、事件渲染格式逐字节一致。
+- [ ] `lania-agent-core` 的 `AgentSessionClient` 可被单测 mock（不启动 node 进程）。
+
+### 3.2 与 TS 包的对应关系
+
+| Rust                                   | TypeScript                         | 职责                     |
+| -------------------------------------- | ---------------------------------- | ------------------------ |
+| `lania-agent-core::AgentSessionClient` | `@lania-cli-v2/agent`（`kernel/`） | 会话与模型循环的**边界** |
+| `lania-agent`（命令插件）              | —                                  | 仅终端交互               |
+| `lania-node-bridge`（传输）            | `@lania-cli-v2/node-bridge`        | 协议与进程管理           |
+
+⚠️ 跨语言边界只有一处：`agent.*` 5 个 bridge 方法与 `event.agent_*` 9 个事件。
+两侧的 Rust 结构体与 TS 类型必须逐字段对齐（见 §4.2、§4.3），改动需同 PR 完成。
+
+当前 TS 侧的耦合问题：`ts/packages/node-bridge/src/core/plugin-registry.ts` 在**模块顶层静态 import** `@lania-cli-v2/agent`，且 `node-bridge` 把它写在 `dependencies`。这让「装 CLI 必须拉 pi 依赖」。本方案不强制改（agent 是 CLI 的一等功能），但**在 `lania-agent-core` 落地后应改为动态 import**，使 bridge 可独立运行。
 
 ## 4. 关键接口
 
@@ -270,3 +336,19 @@ loop {
 | 子 agent 成本失控      | 并发上限 + 每 agent token 预算 + 总量告警                                               |
 | 压缩质量差导致行为退化 | 保留最近 40% 原文；摘要 entry 可见可回滚（rewind 到 compaction 之前）                   |
 | RPC 长任务超时         | 工具调用使用独立 timeout（默认 10 分钟），与 bridge 请求超时分离                        |
+
+## 10. 拆包施工计划（`lania-agent-core`）
+
+拆包本身不改行为，属**纯重构**，可在功能开发过程中穿插进行。
+
+| 阶段 | 内容                                                                                               | 验收                                               |
+| ---- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| A0   | 新建 `lania-agent-core`，把 `spec.rs` / `event.rs` / `client.rs` 写出来（先只放类型，不接 bridge） | `cargo check` 通过；无 host 依赖                   |
+| A1   | `bridge.rs` 承接现有 `create_session` / `run_prompt` 的请求构造逻辑                                | `lania-agent` 改为调用 core，`agent` 命令 e2e 全绿 |
+| A2   | 把 `render_event` / REPL / `compact_json` 收到 `render.rs`                                         | 输出与改造前逐字节 diff 为空                       |
+| A3   | 加 `AgentSessionClient` 的 mock 实现 + 单测                                                        | 无 node 进程也能跑通 handler 主流程                |
+| A4   | （配套）TS 侧 `plugin-registry.ts` 改动态 import，agent 变可选                                     | 移除 agent 依赖后 `lan build` / `lint` 仍可用      |
+
+**A4 的风险**：`readyEvent().plugins` 与 `HandshakeResponse.methods` 会随 agent 是否安装而变化。
+Rust 侧目前不校验 methods（只记录），因此安全；但**必须在 A4 同 PR 补一条 e2e**：临时将
+`node_modules/@lania-cli-v2/agent` 改名，验证 `lan --help` / `lan build` / `lan lint` 均不报错。

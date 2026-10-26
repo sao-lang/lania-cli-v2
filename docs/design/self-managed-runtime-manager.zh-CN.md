@@ -6,7 +6,9 @@
 > 范围为 **只管理运行时环境**（安装/切换/卸载/列举），**不做全局包管理**，
 > 覆盖代码中全部 40 种语言，并 **replace** 现有的探测/转发层。
 >
-> 落地情况见文末 §10「第一批实现记录」。
+> 落地情况见文末 §10「第一批实现记录」；**包边界与拆包方案见 §11**。
+> 配套文档：`agent-architecture.zh-CN.md`（agent 拆包）、
+> `multi-runtime-bridge.zh-CN.md`（多运行时 bridge 与 dev/build/create/add/lint 重构）。
 
 ## 1. 意图与动机
 
@@ -305,6 +307,7 @@ C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的�
 | 1   | 第三批语言范围      | **完整版**：全部 36 种语言都要自管下载安装，不做「只导入」降级            |
 | 2   | `LANIA_HOME` 目录名 | **改名**，避免与项目级 `.lania/`（release-state 等）混淆 → 用 `~/.runex/` |
 | 3   | `--manager` 逃生舱  | **不保留**。`lan env` 只有一条自管路径，不转发给外部管理器                |
+| 4   | 能力层包名          | **改名** `lania-env` → `lania-runtime-manager`（见 §11）                  |
 
 ### 9.1 关于决策 1 的影响
 
@@ -434,3 +437,103 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 - Java / Kotlin / Scala / Dart / Swift / D / V / Julia / Haskell 等：`provider::is_planned` 已列出，`install` 会明确提示尚未自管。
 - 第三批（Ruby / PHP / Lua / C / C++ / C# 等）仍需按 §6.3 逐条确认上游可行性。
 - `lan env gc`（清理未使用版本与下载缓存）尚未实现；当前缓存只增不减。
+
+## 11. 包边界：拆成「能力层 + 命令层」
+
+### 11.1 现状盘点
+
+与 agent 不同，env 的**能力层已经天然独立**：
+
+| crate                       | 行数 | 依赖 `lania-host` | 依赖 `lania-node-bridge` | 内容                      |
+| --------------------------- | ---- | ----------------- | ------------------------ | ------------------------- |
+| `lania-env`                 | 5837 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
+| `lania-plugins-command-env` | 3474 | ✅                | ❌                       | 命令 spec + TUI + 渲染    |
+
+`lania-env` 的全部内部依赖只有 `lania-exec`（用 `resolve_executable` 做 PATH 语义）。
+`lania-plugins-command-env` 的 `PluginMeta.requires` 只有 `Exec + Fs`，**从不触碰 bridge**。
+
+这说明 env 侧要做的不是「拆」，而是「**归位 + 冻结对外面**」。
+
+### 11.2 改名：`lania-env` → `lania-runtime-manager`
+
+理由：`lania-env` 与 `lan env` 命令同名，但两者层级完全不同（一个是能力库，一个是命令实现）。
+外部消费者读 `Cargo.toml` 时无法从名字判断该依赖哪个。改名后语义明确。
+
+**影响面（全仓穷举，共 4 处）**：
+
+| 文件                                               | 改动                                                   |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| `rust/Cargo.toml`                                  | `members` 里 `crates/lania-env` → 新目录名             |
+| `rust/crates/lania-env/Cargo.toml`                 | `name = "lania-runtime-manager"`                       |
+| `rust/crates/lania-plugins-command-env/Cargo.toml` | 依赖路径改名                                           |
+| `rust/crates/lania-plugins-command-env/src/lib.rs` | 5 处 `use lania_env::` → `use lania_runtime_manager::` |
+
+无外部消费者（34 个 crate 全部 `publish = false`，无 crates.io 发布），故为**零风险改动**。
+
+### 11.3 对外稳定面（冻结清单）
+
+改名后下列导出是**承诺稳定**的（供 GUI / IDE 插件 / CI 脚本嵌入）：
+
+```rust
+// 模型
+pub use language::Language;
+pub use platform::{Arch, Libc, Os, Platform};
+pub use version::{pick_best, VersionTag};
+pub use home::{RuntimeHome, HOME_ENV, META_FILE};
+
+// 服务
+pub use detect::{EnvService, InstalledVersion, ProjectVersion, ToolStatus};
+pub use store::{RuntimeStore, InstallOutcome, InstallEvent, Diagnostic};
+
+// 扩展点
+pub use provider::{RuntimeProvider, ProviderContext, ProviderArtifact, provider_for};
+
+// 计划与执行
+pub use plan::{build_plan, execute_plan, EnvPlan, EnvAction, PlanStep};
+```
+
+**不承诺稳定**（内部实现，可自由重构）：
+
+- `archive` / `checksum` / `http` / `shims` 的具体函数签名
+- `store.rs`（41.9KB）内部的存储布局细节
+
+### 11.4 新增：为多运行时 bridge 提供「工具链血缘」
+
+env 与其它命令之间当前唯一的接缝是 `~/.runex/shims` 目录，但**没有任何命令主动使用它**。
+`lan env use node 22` 只改 `state.json` + 重写 shim 文件，而 `build` / `lint` / `create` 全部
+直接继承父进程 PATH —— 于是 managed 版本不生效。
+
+在 `lania-runtime-manager` 增加两个函数（详见 `multi-runtime-bridge.zh-CN.md` §6）：
+
+```rust
+impl RuntimeHome {
+    /// 把 shims 目录前置到给定 PATH 值上（纯函数，可测）。
+    pub fn prepend_shims_to_path(&self, current: Option<&str>) -> String;
+
+    /// 让当前进程及其后续子进程优先使用自管运行时（幂等）。
+    pub fn activate(&self);
+}
+```
+
+**约束（必须写入代码注释，否则后续重构会踩雷）**：
+
+> `RuntimeStore::which` 只读 `state.json`，**不得回退到 PATH 扫描**。
+> POSIX shim 的实现是 `exec "$(lan env which <name> --resolve)" "$@"`，
+> 若 `which` 也走 PATH，就会命中 shim 自身形成自引用死循环。
+
+### 11.5 `lan env doctor` 的连带调整
+
+现状 `doctor` 会诊断「shims 是否在 PATH 中」。一旦 `lan` 每次都自动 `activate()`，
+该诊断将永远通过，失去意义。改为两条独立诊断：
+
+| 诊断项                 | 含义                                            | 修复建议                                   |
+| ---------------------- | ----------------------------------------------- | ------------------------------------------ |
+| 本进程 PATH 是否前置   | `lan` 自己是否成功注入（内部健康度）            | 报 bug；用户无需操作                       |
+| shell profile 是否固化 | 用户 `.bashrc` / `$PROFILE` 是否写了 shims 路径 | 提示 `lan env init` 片段（外部终端才需要） |
+
+### 11.6 验收标准
+
+- [ ] `cargo tree -p lania-runtime-manager` 中不出现 `lania-host` / `lania-node-bridge`。
+- [ ] 改名后 `cargo test --workspace` 全绿，`lan env` 全部 e2e 通过。
+- [ ] `prepend_shims_to_path` / `activate` 有单测覆盖幂等性与前置顺序。
+- [ ] `lan env use node 22` 后，同一 shell 内 `lan build` 使用 22（需配合 bridge 文档 §6 的落地）。
