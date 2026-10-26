@@ -6,9 +6,9 @@ use anyhow::Result;
 use std::sync::Arc;
 
 pub use client::{
-    AddTemplateBridgeCapability, BridgeActiveCall, BridgeClientConfig, CommitBridgeCapability,
-    CompilerBridgeCapability, ConfigBridgeCapability, LintBridgeCapability, NodeBridgeClient,
-    TemplateBridgeCapability,
+    AddTemplateBridgeCapability, BridgeActiveCall, BridgeClientConfig, BridgeLaunchSpec,
+    CommitBridgeCapability, CompilerBridgeCapability, ConfigBridgeCapability,
+    LintBridgeCapability, NodeBridgeClient, TemplateBridgeCapability,
 };
 pub use protocol::{
     BridgeError, BridgeEvent, BridgeEventMethod, BridgeExchange, BridgeFailureStrategy,

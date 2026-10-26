@@ -628,6 +628,66 @@ async fn end_to_end_host_rpc_tools_work_through_real_node_bridge_process() {
 }
 
 #[test]
+fn runtime_bridge_registry_dispatches_to_an_external_program() {
+    let root = temp_dir("runtime-bridge");
+    let script = root.join("bridge.mjs");
+    fs::write(
+        &script,
+        r#"
+import readline from 'node:readline';
+const rl = readline.createInterface({ input: process.stdin });
+process.stdout.write(JSON.stringify({ type: 'handshake', payload: {
+  protocolVersion: '0.1.0', bridgeName: 'fake-go-bridge', methods: ['bridge.ping'],
+  events: [], heartbeatIntervalMs: 1000, maxPendingEvents: 8,
+  failureStrategy: 'reconnect'
+}}) + '\n');
+rl.on('line', (line) => {
+  const envelope = JSON.parse(line);
+  if (envelope.type !== 'request') return;
+  process.stdout.write(JSON.stringify({ type: 'response', payload: {
+    id: envelope.payload.id, result: { runtime: 'go' }, error: null } }) + '\n');
+});
+"#,
+    )
+    .expect("bridge script written");
+
+    let host = HostRuntime::new();
+    // 未登记 → 明确报错，供上层回落（§5.3）。
+    assert!(!host.has_runtime_bridge(crate::RuntimeKind::Go));
+    assert!(host.bridge(crate::RuntimeKind::Go).is_err());
+
+    host.register_runtime_bridge(
+        crate::RuntimeKind::Go,
+        crate::BridgeProgram::new(
+            "node",
+            vec![script.display().to_string()],
+            root.display().to_string(),
+        ),
+    )
+    .expect("registration succeeds");
+    assert!(host.has_runtime_bridge(crate::RuntimeKind::Go));
+
+    let client = host.bridge(crate::RuntimeKind::Go).expect("bridge starts");
+    let exchange = client.call(client.ping_request());
+    assert!(
+        exchange.response.error.is_none(),
+        "{:?}",
+        exchange.response.error
+    );
+    assert_eq!(
+        exchange.response.result.as_ref().unwrap()["runtime"],
+        serde_json::json!("go")
+    );
+
+    // JS 簇永远走共享 node bridge，不受注册表影响。
+    assert!(host.bridge(crate::RuntimeKind::Deno).is_ok());
+    assert!(host.has_runtime_bridge(crate::RuntimeKind::Bun));
+
+    drop(host);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn classifies_external_project_plugins() {
     let host = HostRuntime::new();
     let root = temp_dir("external-project-plugins");

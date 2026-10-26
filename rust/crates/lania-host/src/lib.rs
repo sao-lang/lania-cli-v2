@@ -29,3 +29,4 @@ pub use registry::{
     PluginRegistry, PluginRegistryImpl,
 };
 pub use runtime::{Host, HostRuntime};
+pub use runtime::bridges::{BridgeProgram, BridgeRegistry, RuntimeKind};

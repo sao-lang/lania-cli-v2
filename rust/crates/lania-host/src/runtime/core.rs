@@ -25,6 +25,7 @@ use crate::{
     },
 };
 
+use super::bridges::RuntimeKind;
 use super::{
     host_rpc::{HostRpcAdapter, HostRpcAdapterDeps},
     HostRuntime, HostRuntimeRegistries, HostRuntimeServices, HostRuntimeState,
@@ -75,6 +76,7 @@ impl HostRuntime {
                 package_manager,
                 runtime,
                 node_bridge,
+                bridges: super::bridges::shared_registry(),
             },
             state: HostRuntimeState {
                 hooks: Arc::new(HookBusImpl::new()),
@@ -135,6 +137,31 @@ impl HostRuntime {
 
     pub fn node_bridge(&self) -> &NodeBridgeClient {
         &self.services.node_bridge
+    }
+
+    /// 按运行时取 bridge 客户端。
+    ///
+    /// JS 簇（node / bun / deno）永远返回共享的 node bridge；
+    /// 其他运行时若未登记/未启动，返回错误 —— 调用方据此回落到 CLI spawn（§5.3）。
+    pub fn bridge(&self, kind: RuntimeKind) -> Result<NodeBridgeClient> {
+        self.services
+            .bridges
+            .borrow()
+            .client_for(kind, &self.services.node_bridge)
+    }
+
+    /// 登记一个独立运行时 bridge 的可执行文件（不启动进程）。
+    pub fn register_runtime_bridge(
+        &self,
+        kind: RuntimeKind,
+        program: crate::runtime::bridges::BridgeProgram,
+    ) -> Result<()> {
+        self.services.bridges.borrow_mut().register(kind, program)
+    }
+
+    /// 该运行时的 bridge 是否可用（用于 `doctor` / 回落决策）。
+    pub fn has_runtime_bridge(&self, kind: RuntimeKind) -> bool {
+        self.services.bridges.borrow().is_registered(kind)
     }
 }
 

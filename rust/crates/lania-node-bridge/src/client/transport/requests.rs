@@ -39,6 +39,22 @@ impl NodeBridgeClient {
         self
     }
 
+    /// 用一个显式的启动描述替换默认的 node-bridge 定位逻辑。
+    pub fn with_launch_spec(mut self, spec: BridgeLaunchSpec) -> Self {
+        self.config.launch_spec = Some(spec);
+        self
+    }
+
+    /// 直接指定 `program` / `args` / `cwd`（`launch_spec` 的便捷写法）。
+    pub fn with_program(
+        self,
+        program: impl Into<PathBuf>,
+        args: Vec<String>,
+        dir: impl Into<PathBuf>,
+    ) -> Self {
+        self.with_launch_spec(BridgeLaunchSpec::for_program(program, args, dir))
+    }
+
     pub fn handshake_request(&self) -> HandshakeRequest {
         HandshakeRequest {
             protocol_version: self.config.protocol_version.clone(),

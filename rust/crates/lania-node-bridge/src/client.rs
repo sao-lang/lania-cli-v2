@@ -55,6 +55,12 @@ pub struct BridgeClientConfig {
     pub event_buffer_capacity: usize,
     pub max_pending_requests: usize,
     pub heartbeat_timeout: Duration,
+    /// 覆盖默认的 node-bridge 启动方式。
+    ///
+    /// 设为 `Some` 后客户端不再自动定位 node-bridge 包目录，
+    /// 而是直接启动调用方给出的可执行文件 —— 这是多运行时 bridge
+    /// （`lan-py-bridge` / `lan-go-bridge` / …）复用同一套客户端的入口。
+    pub launch_spec: Option<BridgeLaunchSpec>,
 }
 
 impl Default for BridgeClientConfig {
@@ -68,6 +74,7 @@ impl Default for BridgeClientConfig {
             event_buffer_capacity: 32,
             max_pending_requests: 32,
             heartbeat_timeout: Duration::from_secs(45),
+            launch_spec: None,
         }
     }
 }
@@ -144,11 +151,33 @@ struct PendingRequest {
 }
 
 #[derive(Debug, Clone)]
-struct BridgeLaunchSpec {
-    package_dir: PathBuf,
-    program: PathBuf,
-    args: Vec<String>,
-    mode: &'static str,
+pub struct BridgeLaunchSpec {
+    /// 子进程工作目录（bridge 包目录 / bridge 二进制的家目录）。
+    pub package_dir: PathBuf,
+    /// 实际要启动的可执行文件（`node` / `lan-go-bridge` / …）。
+    pub program: PathBuf,
+    pub args: Vec<String>,
+    /// 启动模式（`dev_source` / `installed_dist` / `external`），仅用于诊断信息。
+    pub mode: &'static str,
+}
+
+impl BridgeLaunchSpec {
+    /// 用调用方指定的可执行文件与工作目录构造一个 spec。
+    ///
+    /// 这是多运行时 bridge 的入口：只要对方说同一套 jsonl 协议，
+    /// 用什么语言实现都无关 —— Rust 侧只关心 `program + args + cwd`。
+    pub fn for_program(
+        program: impl Into<PathBuf>,
+        args: Vec<String>,
+        dir: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            package_dir: dir.into(),
+            program: program.into(),
+            args,
+            mode: "external",
+        }
+    }
 }
 
 #[derive(Debug)]

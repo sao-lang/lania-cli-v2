@@ -29,6 +29,8 @@ use crate::{
     CapabilityResolver,
 };
 
+use self::bridges::SharedBridgeRegistry;
+
 pub use self::config::{
     PluginManifest, ProjectExtensionBootstrapSummary, ProjectPluginReport, RuntimeSummary,
 };
@@ -58,7 +60,10 @@ pub(super) struct HostRuntimeServices {
     pub(super) git: GitService,
     pub(super) package_manager: PackageManagerService,
     pub(super) runtime: RuntimeService,
+    /// JS 簇（node / bun / deno）共用的 bridge 客户端。
     pub(super) node_bridge: NodeBridgeClient,
+    /// 其他运行时的 bridge 注册表（懒加载）。
+    pub(super) bridges: SharedBridgeRegistry,
 }
 
 pub(super) struct HostRuntimeState {
@@ -102,3 +107,5 @@ mod lifecycle;
 
 #[cfg(test)]
 mod tests;
+
+pub mod bridges;

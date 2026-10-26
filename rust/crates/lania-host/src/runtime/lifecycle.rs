@@ -55,8 +55,8 @@ impl HostRuntime {
         );
         // setup 阶段要求 hooks 被唯一持有（Arc::get_mut）：
         // 这里会注册 invokers/handlers 等可变结构，避免运行中并发修改。
-        let hooks = Arc::get_mut(&mut self.state.hooks)
-            .expect("hooks must be uniquely held during setup");
+        let hooks =
+            Arc::get_mut(&mut self.state.hooks).expect("hooks must be uniquely held during setup");
         self.registries.plugin_registry.setup_all(
             &mut self.registries.commands,
             hooks,
@@ -120,6 +120,7 @@ impl HostRuntime {
             .await
             .ok();
         self.services.node_bridge.shutdown_async().await?;
+        self.services.bridges.borrow().shutdown();
         self.state.phase_history.push(LifecyclePhase::Shutdown);
         Ok(())
     }
@@ -167,7 +168,9 @@ impl HostRuntime {
     }
 
     pub fn record_command_execution(&mut self) {
-        self.state.phase_history.push(LifecyclePhase::CommandExecute);
+        self.state
+            .phase_history
+            .push(LifecyclePhase::CommandExecute);
     }
 
     pub fn shutdown(&mut self) {
@@ -180,6 +183,7 @@ impl HostRuntime {
             None,
         );
         self.services.node_bridge.shutdown();
+        self.services.bridges.borrow().shutdown();
         self.state.phase_history.push(LifecyclePhase::Shutdown);
     }
 }

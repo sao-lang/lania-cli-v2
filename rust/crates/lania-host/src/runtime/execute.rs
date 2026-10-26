@@ -126,6 +126,7 @@ impl HostRuntime {
                 package_manager: &self.services.package_manager,
                 runtime: &self.services.runtime,
                 node_bridge: &self.services.node_bridge,
+                bridges: Some(&self.services.bridges),
                 hooks: Arc::clone(&self.state.hooks) as Arc<dyn HookRuntime>,
                 project_config,
                 locale: self.state.locale.clone(),

@@ -95,6 +95,68 @@ fn generates_incrementing_request_ids() {
     assert_eq!(second.id, "req-2");
 }
 
+/// 任意程序只要说同一套 jsonl 协议，就能被当作 bridge 使用 —— 这是多运行时的前提。
+#[test]
+fn launches_an_arbitrary_program_that_speaks_the_bridge_protocol() {
+    let dir = temp_dir("custom-program");
+    fs::create_dir_all(&dir).expect("dir created");
+    let script = dir.join("bridge.mjs");
+    // 最小可用 bridge：回答握手，并对所有请求回一个 echo 响应。
+    fs::write(
+        &script,
+        r#"
+import readline from 'node:readline';
+const rl = readline.createInterface({ input: process.stdin });
+process.stdout.write(JSON.stringify({ type: 'handshake', payload: {
+  protocolVersion: '0.1.0', bridgeName: 'fake-bridge', methods: ['bridge.ping'],
+  events: [], heartbeatIntervalMs: 1000, maxPendingEvents: 8,
+  failureStrategy: 'reconnect'
+}}) + '\n');
+rl.on('line', (line) => {
+  const envelope = JSON.parse(line);
+  if (envelope.type !== 'request') return;
+  process.stdout.write(JSON.stringify({ type: 'response', payload: {
+    id: envelope.payload.id, result: { pong: true }, error: null } }) + '\n');
+});
+"#,
+    )
+    .expect("script written");
+
+    let client = NodeBridgeClient::new(BridgeClientConfig::default()).with_program(
+        "node",
+        vec![script.display().to_string()],
+        &dir,
+    );
+    let exchange = client.call(client.ping_request());
+
+    assert!(
+        exchange.response.error.is_none(),
+        "unexpected bridge error: {:?}",
+        exchange.response.error
+    );
+    assert_eq!(
+        exchange.response.result.as_ref().unwrap()["pong"],
+        serde_json::Value::Bool(true)
+    );
+    client.shutdown();
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn launch_spec_for_program_carries_explicit_inputs() {
+    let spec = super::BridgeLaunchSpec::for_program(
+        PathBuf::from("lan-go-bridge"),
+        vec!["--stdio".into()],
+        PathBuf::from("/opt/lania"),
+    );
+
+    assert_eq!(spec.program, PathBuf::from("lan-go-bridge"));
+    assert_eq!(spec.args, vec!["--stdio".to_string()]);
+    assert_eq!(spec.package_dir, PathBuf::from("/opt/lania"));
+    assert_eq!(spec.mode, "external");
+}
+
 #[test]
 fn builds_domain_specific_requests() {
     let client = NodeBridgeClient::new(BridgeClientConfig {

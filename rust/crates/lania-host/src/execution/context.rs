@@ -30,7 +30,9 @@ use lania_task::{TaskDefinition, TaskRunMode, TaskRunOptions, TaskService};
 use lania_workflows::{WorkflowExecution, WorkflowServices};
 use serde::Serialize;
 
-use crate::{CapabilityName, CapabilityResolver};
+use crate::{
+    runtime::bridges::SharedBridgeRegistry, CapabilityName, CapabilityResolver, RuntimeKind,
+};
 
 use super::types::EXIT_RUNTIME_ERROR;
 
@@ -51,6 +53,8 @@ pub struct HostExecutionServices<'a> {
     pub package_manager: &'a PackageManagerService,
     pub runtime: &'a RuntimeService,
     pub node_bridge: &'a NodeBridgeClient,
+    /// 其他运行时的 bridge 注册表（`None` 时只能走 JS 簇 / 回落）。
+    pub bridges: Option<&'a SharedBridgeRegistry>,
     pub hooks: Arc<dyn HookRuntime>,
     pub project_config: Option<LanConfigSnapshot>,
     pub locale: String,
@@ -76,6 +80,7 @@ pub struct CommandExecutionContext<'a> {
     pub(super) package_manager: &'a PackageManagerService,
     pub(super) runtime: &'a RuntimeService,
     pub(super) node_bridge: &'a NodeBridgeClient,
+    pub(super) bridges: Option<&'a SharedBridgeRegistry>,
     // `hooks` 使用 `Arc<dyn HookRuntime>` 而不是 `&dyn HookRuntime`：
     // - workflow / task 往往会跨异步边界、跨闭包 move；
     // - 普通借用 `&T` 生命周期更短，不容易安全地传进 `'static` 异步任务；
@@ -146,6 +151,7 @@ impl<'a> CommandExecutionContext<'a> {
             package_manager: services.package_manager,
             runtime: services.runtime,
             node_bridge: services.node_bridge,
+            bridges: services.bridges,
             policy: ExecutionPolicy::from_env(services.node_bridge),
             hooks: services.hooks,
             project_config: services.project_config,
@@ -196,6 +202,31 @@ impl<'a> CommandExecutionContext<'a> {
 
     pub fn node_bridge(&self) -> &NodeBridgeClient {
         self.node_bridge
+    }
+
+    /// 按运行时取得 bridge 客户端（JS 簇恒返回共享 node bridge）。
+    /// 未登记/不可用时返回错误，调用方据此回落到 CLI spawn。
+    pub fn bridge(&self, kind: RuntimeKind) -> Result<NodeBridgeClient> {
+        if kind.is_js_cluster() {
+            return Ok(self.node_bridge.clone());
+        }
+        let Some(bridges) = self.bridges else {
+            return Err(anyhow!(
+                "no runtime bridge registry available for `{}`",
+                kind.id()
+            ));
+        };
+        bridges.borrow().client_for(kind, self.node_bridge)
+    }
+
+    /// 该运行时的 bridge 是否可用（不启动进程）。
+    pub fn has_bridge(&self, kind: RuntimeKind) -> bool {
+        if kind.is_js_cluster() {
+            return true;
+        }
+        self.bridges
+            .map(|bridges| bridges.borrow().is_registered(kind))
+            .unwrap_or(false)
     }
 
     pub fn exec(&self) -> &ExecService {

@@ -63,7 +63,12 @@ impl NodeBridgeClient {
     }
 
     pub(super) fn spawn_process(&self, state: &mut BridgeState) -> Result<BridgeProcess> {
-        let spec = bridge_launch_spec()?;
+        // 调用方显式给了启动方式（多运行时 bridge）时直接用它，
+        // 否则回落到 node-bridge 的自动定位逻辑。
+        let spec = match self.config.launch_spec.clone() {
+            Some(spec) => spec,
+            None => bridge_launch_spec()?,
+        };
         // 这里启动的是一个真正的 Node 子进程，而不是库内线程。
         // 这样 Rust 和 Node 的职责边界非常清晰：
         // - Rust 不直接解释 JS/TS
