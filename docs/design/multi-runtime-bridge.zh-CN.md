@@ -1,7 +1,6 @@
 # 多运行时 bridge 与 dev/build/create/add/lint 重构
 
-> 状态：**B0–B6 已落地**（B7 起未开工）。
-> 目标读者：能直接据此开工的 builder。
+> 状态：**B0–B6、B12 已落地**（B7–B11、B13、B14 未开工）。> 目标读者：能直接据此开工的 builder。
 > 配套文档：`agent-architecture.zh-CN.md`（agent 拆包）、
 > `self-managed-runtime-manager.zh-CN.md`（运行时管理器拆包，§11 提供本文所需的能力）。
 >
@@ -16,8 +15,15 @@
 > - **B5** dev 长驻订阅：worker 输出走 `event.diag`（含实时模式）+ `[app]` 前缀渲染 +
 >   `ui.dev.quietApp` / `dev --quiet-app` 开关
 > - **B6** `add` 生成器重构：框架探测 + 命名推导 + 多文件产物 + 锚点注册 + NestJS 首个落地
+> - **B12** 诊断字段补全（行号/规则/修复）+ `create` 补 4 个 Rust fallback
+>   （`go-service` / `rust-lib` / `python-cli` / `dart-cli`）；`--template` 候选改为由
+>   `lania_workflows::declared_template_names` 单点派生，不再手写第二份清单。
+>   §7.3 映射表 12 行已全部收口：新增 `deno-lint`（`--json`/文本双形态）、`deno-fmt`
+>   （文件级）、`oxfmt`（文件级，此前只数文件不产诊断）、`bun build`（编译器 stderr →
+>   `Diagnostic` + `event.diag`，`channel: "build"`）。
 >
-> 未落地：B7–B14（nextjs/gin/fastapi/axum/flutter 生成器、其余语言 bridge、配置写入等）。
+> 未落地：B7–B11、B13、B14（其余框架生成器、Python/Dart/Go/Rust bridge、
+> `lan config init/doctor/sync`、`RuntimeToolchain.presentation`）。
 
 ## 0. 问题陈述
 
@@ -491,7 +497,24 @@ Rust 项目   → rust bridge（clippy 走 spawn）
 **为什么只补这 4 个**：bridge 不可用时的损失集中在非 Node 语言项目，
 因为 Node 项目不可能没有 bridge（bridge 就是 Node 进程）。
 
-**依赖安装不变**：继续走 `lania-pm` + `lania-exec`（Rust 侧），这是正确的。
+**B12 落地说明**（`rust/crates/lania-workflows/src/create/templates.rs`）：
+
+- 文件集合与条件分支按各语言的 `templates/<name>/config.ts` 逐条对齐，
+  `DeclaredFileRule::when` 支持 `key:value`（列表包含）/ `key=value` / `key!=value`。
+- 派生字段（`packageName` / `modulePath` / `goVersion` / `lintToolsJson` /
+  `devRequirementList` / `dartDevDependencies`）在 `with_defaults()` 里补齐，
+  与 TS 的 `options.ts` / `template-runtime.ts` 同值。
+- `python-cli` 的 dev 依赖由 `computed_dependencies` 按选项渲染 —— 否则兜底路径的
+  `requirements-dev.txt` 会是空文件。
+- 问题项带 `default`（JSON 字面量），保证非交互场景下 `lintTools` / `testTool`
+  不会因为拿不到答案而退化成「没有任何工具配置」。
+- 两处**有意偏离** TS 模板，目的是让产物可运行：`rust-lib` 的 `lan.config.js` 只留
+  clippy（`rustfmt` 不是 `cargo` 子命令），`go-service` 去掉 `gofmt`（独立二进制）。
+
+**`--template` 候选单点化**：候选由 `BRIDGE_TEMPLATES`（只有 bridge 能渲染的 4 个）
+加上 `lania_workflows::declared_template_names()` 合并而成。此前候选是手写列表、
+比兜底集合大 4 项，等于给用户 4 个必然失败的选项；`every_declared_fallback_template_is_selectable`
+测试锁住这个不变量。
 
 ### 4.5 `add`：从「平铺模板」重构为「框架感知的生成器」
 
@@ -1270,20 +1293,33 @@ Rust 侧的消费同样压平：`bridge_helpers/events.rs` 把每类事件都转
 
 **现有各解析器 → `Diagnostic` 的映射工作量**：
 
-| 工具             | 现状产出                                                         | 需要补的字段                                                              | 难度                |
-| ---------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------- |
-| ruff（JSON）     | `filename`                                                       | `code` / `location` / `message` / `fix`                                   | 低（JSON 已含全部） |
-| golangci（JSON） | `Pos.Filename`                                                   | `FromLinter` / `Text` / `Pos.Line` / `Replacement`                        | 低                  |
-| clippy（JSON）   | `spans[0].file_name`                                             | `code.code` / `message` / `spans[0].line_start` / `suggested_replacement` | 低                  |
-| mypy（文本）     | `file:line: severity:`                                           | 全部（需正则解析）                                                        | 中                  |
-| flake8（文本）   | `file:line:col: code`                                            | `message`                                                                 | 中                  |
-| go vet（文本）   | `file.go:line:col:`                                              | `message`                                                                 | 中                  |
-| dart analyze     | `severity\|type\|code\|file\|line\|col\|len\|msg`                | `code` / `message`（已含）                                                | 低                  |
-| ESLint           | `errorCount` / `warningCount`                                    | 全部（ESLint API 直接给 `messages[]`）                                    | 低                  |
-| oxlint / oxfmt   | 文本                                                             | 全部                                                                      | 中                  |
-| **deno lint**    | `--json`（v2+）：`{diagnostics:[{filename,range,code,message}]}` | v2 全部可得；**v1 无 `--json`，需正则**                                   | 低（v2）/ 中（v1）  |
-| **deno fmt**     | `--check` 仅退出码 + 文件名列表                                  | `file` / `fix.available`（无行列）                                        | 低                  |
-| **bun build**    | 文本 + 退出码                                                    | 全部（需解析 bun 的构建错误格式）                                         | 中                  |
+> **状态：12 行全部已落地**（B12）。下表保留原始工作量评估，便于回溯为什么某些工具
+> 只能给到文件级诊断。
+
+| 工具             | 现状产出                                                         | 需要补的字段                                                              | 难度                | 落地                                           |
+| ---------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------- | ---------------------------------------------- |
+| ruff（JSON）     | `filename`                                                       | `code` / `location` / `message` / `fix`                                   | 低（JSON 已含全部） | ✅ 全字段                                      |
+| golangci（JSON） | `Pos.Filename`                                                   | `FromLinter` / `Text` / `Pos.Line` / `Replacement`                        | 低                  | ✅ 全字段                                      |
+| clippy（JSON）   | `spans[0].file_name`                                             | `code.code` / `message` / `spans[0].line_start` / `suggested_replacement` | 低                  | ✅ 全字段                                      |
+| mypy（文本）     | `file:line: severity:`                                           | 全部（需正则解析）                                                        | 中                  | ✅ 含规则号（末尾 `[code]`）                   |
+| flake8（文本）   | `file:line:col: code`                                            | `message`                                                                 | 中                  | ✅ 全字段                                      |
+| go vet（文本）   | `file.go:line:col:`                                              | `message`                                                                 | 中                  | ✅ 全字段                                      |
+| dart analyze     | `severity\|type\|code\|file\|line\|col\|len\|msg`                | `code` / `message`（已含）                                                | 低                  | ✅ 全字段                                      |
+| ESLint           | `errorCount` / `warningCount`                                    | 全部（ESLint API 直接给 `messages[]`）                                    | 低                  | ✅ 读 `messages[]`                             |
+| oxlint / oxfmt   | 文本                                                             | 全部                                                                      | 中                  | ✅ oxlint 全字段；**oxfmt 仅文件级**（无行列） |
+| **deno lint**    | `--json`（v2+）：`{diagnostics:[{filename,range,code,message}]}` | v2 全部可得；**v1 无 `--json`，需正则**                                   | 低（v2）/ 中（v1）  | ✅ 双形态：JSON 优先，失败回落文本             |
+| **deno fmt**     | `--check` 仅退出码 + 文件名列表                                  | `file` / `fix.available`（无行列）                                        | 低                  | ✅ 文件级诊断，`fix.available = true`          |
+| **bun build**    | 文本 + 退出码                                                    | 全部（需解析 bun 的构建错误格式）                                         | 中                  | ✅ `error:` + `at file:line:col`，多错误全收   |
+
+**三处只能做到文件级 / 需要注意的地方**：
+
+- `oxfmt --list-different` 与 `deno fmt --check` 只输出文件路径，拿不到行列，
+  因此产出 `file` 有值、`range` 缺省的文件级诊断（符合 §7.3 的可选性约定）。
+- `bun build` 的错误落在 **stderr**，且一个 `error:` 后跟一行 `at <file>:<line>:<col>`；
+  解析按「段」切分而不是按行，避免多错误时后一个覆盖前一个。
+- `bun` 目前**没有注册 spawn 运行时适配器**（`SpawnRuntime` 不含 `bun`/`deno`），
+  所以 `bun build` 的诊断解析器已就绪并单独测试，但要等 bun 的 build 适配器接上
+  才会在真实 `lan build` 路径里生效。
 
 **③ `RunResult`（宿主侧统一）**：
 
@@ -1656,7 +1692,8 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
 - [ ] **运行时判定顺序固定**：`deno.json` > `bun.lockb` > `package.json`；判定结果有提示。
 - [ ] 特性文件、默认命令、lint 工具集在仓库内**只有一处**定义，且所有 bridge 均从该处读取。
 - [ ] `BridgeEventMethod` 枚举未新增运行时相关变体（保持中立）。
-- [ ] **每个 `Diagnostic` 含 `tool` / `id` / `severity` / `message` / `file` / `range` / `fix`（可选字段可缺）。**
+- [x] **每个 `Diagnostic` 含 `tool` / `id` / `severity` / `message` / `file` / `range` / `fix`（可选字段可缺）。**
+      §7.3 映射表 12 行全部收口；`oxfmt` / `deno fmt` 受工具输出限制只给文件级诊断。
 - [ ] **`lan lint` TTY 输出按文件分组、列对齐、severity 高亮；`NO_COLOR=1` 时无 ANSI 转义。**
 - [ ] **`lan dev` 期间服务端新日志实时输出，带 `[app]` 前缀；`event.diag.seq` 严格递增。**
 - [ ] **同一份 ruff 输出经 Python bridge 与 Rust 回落路径解析，`Diagnostic` 深度相等。**
@@ -1669,5 +1706,6 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
 - [ ] **`LanConfigSnapshot.runtime` / `.runtimes` 是强类型字段。**
 - [ ] **`lan config set` 检测到函数/import 时只打印建议，不写入文件。**
 - [ ] **`lan config init` 生成的模板使用 `defineConfig` 且有类型提示。**
-- [ ] `lan create --template {go-service,rust-lib,python-cli,dart-cli}` 在无 JS 簇 bridge 环境可用。
+- [x] `lan create --template {go-service,rust-lib,python-cli,dart-cli}` 在无 JS 簇 bridge 环境可用
+      （`create_workflow_falls_back_to_declared_language_templates` 以不可达 bridge 验证）。
 - [ ] `cargo test --workspace` 与 `pnpm -C ts test` 全绿。
