@@ -1,6 +1,6 @@
 # 多运行时 bridge 与 dev/build/create/add/lint 重构
 
-> 状态：**B0–B6、B12 已落地**（B7–B11、B13、B14 未开工）。> 目标读者：能直接据此开工的 builder。
+> 状态：**B0–B14 已全部落地**。> 目标读者：能直接据此开工的 builder。
 > 配套文档：`agent-architecture.zh-CN.md`（agent 拆包）、
 > `self-managed-runtime-manager.zh-CN.md`（运行时管理器拆包，§11 提供本文所需的能力）。
 >
@@ -15,15 +15,30 @@
 > - **B5** dev 长驻订阅：worker 输出走 `event.diag`（含实时模式）+ `[app]` 前缀渲染 +
 >   `ui.dev.quietApp` / `dev --quiet-app` 开关
 > - **B6** `add` 生成器重构：框架探测 + 命名推导 + 多文件产物 + 锚点注册 + NestJS 首个落地
+> - **B7** `add` 扩展至 6 个框架（nestjs / nextjs / gin / fastapi / axum / flutter）；
+>   每个框架至少一个多文件生成器，`--list` 按框架分组
+> - **B8** Python bridge（`lan-py-bridge`）：`lint.mypy` 走 `mypy.api`；
+>   bridge 缺失时回落到 JS 簇 spawn，两条路径产出同一份 `Diagnostic`
+> - **B9** Dart bridge（`lan-dart-bridge`）：`lint.dart-analyze` + `build.dart`；
+>   `lint` / `build` 都按运行时路由，去掉 Node 中转（详见 §3.6）
+> - **B10** Go bridge（`lan-go-bridge`）：`lint.go-vet` / `lint.golangci-lint` + `build.go`；
+>   同批把 `build` 的运行时分流补齐（含 Python），详见 §3.4
+> - **B11** Rust bridge（`lan-rs-bridge`）：由 `lan` 二进制自身的 bridge 模式承担
+>   `lint.clippy` / `build.rust`，零新增产物（详见 §3.5）
 > - **B12** 诊断字段补全（行号/规则/修复）+ `create` 补 4 个 Rust fallback
 >   （`go-service` / `rust-lib` / `python-cli` / `dart-cli`）；`--template` 候选改为由
 >   `lania_workflows::declared_template_names` 单点派生，不再手写第二份清单。
 >   §7.3 映射表 12 行已全部收口：新增 `deno-lint`（`--json`/文本双形态）、`deno-fmt`
 >   （文件级）、`oxfmt`（文件级，此前只数文件不产诊断）、`bun build`（编译器 stderr →
 >   `Diagnostic` + `event.diag`，`channel: "build"`）。
+> - **B13** `lan config` 子命令族：`init` / `doctor` / `sync` + `set` 双作用域派发，
+>   纯数据配置才允许写盘（§6.5.8 / §6.5.10）
+> - **B14** 模板选项统一到 `RuntimeToolchain.presentation`（字面量在
+>   `@lania-cli-v2/templates/presentation.ts`，`toolchain.ts` 负责组合并对外暴露；
+>   7 个运行时 + 模板额外工具都从这里派生）
 >
-> 未落地：B7–B11、B13、B14（其余框架生成器、Python/Dart/Go/Rust bridge、
-> `lan config init/doctor/sync`、`RuntimeToolchain.presentation`）。
+> 七个运行时现在都走同构路径：`lint` / `build` 由 Rust 侧按运行时选 bridge，
+> 失败回落到 JS 簇；`dev` 与 `build --watch` 仍由 compiler-worker 承担（§4.2）。
 
 ## 0. 问题陈述
 
@@ -320,6 +335,33 @@ rust/crates/lania-py-bridge/          ← Rust crate：定位 python + 分发脚
 1. 统一事件模型（`LintFile` / `LintSummary`）比解析 mypy 文本输出可靠；
 2. 为后续接入 `pylint` / `pyright`（有 API）留出位置。
 
+**B8 落地说明**（`rust/crates/lania-py-bridge/`）：
+
+| 项                               | 落地方式                                                                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 分发                             | 单个 Rust crate + `assets/lan_py_bridge.py`（`include_str!`），落盘到 `LANIA_BRIDGE_HOME`（默认用户缓存目录），内容变化才重写 |
+| 启动                             | `python -u <script>`；`-u` 不可省，否则事件块缓冲（§10 行缓冲风险）                                                           |
+| 解释器定位                       | `.venv`/`venv` 的 `Scripts`/`bin` 优先，其次 PATH；`LANIA_PYTHON` 可覆盖（§6.4 顺序不变）                                     |
+| `lint.mypy`                      | 每次请求起一个干净解释器跑 `mypy.api.run()`，**解析留在 bridge 主进程** ⇒ API 与 spawn 两条路径同一份 `Diagnostic`            |
+| `lint.ruff` / `black` / `flake8` | 有 API 的走 API；`ruff` 的 Python 包只是二进制壳，退化为 `spawn`                                                              |
+| 工具缺失                         | 返回 `implementation: "fallback"` + `message`（不算错误），与 JS 簇的 `fallbackMissingAdaptor` 同语义                         |
+| 回落                             | `main.rs` 登记失败 / bridge 调用失败 ⇒ `lint` 继续走 JS 簇路径；e2e 用 `LANIA_PYTHON=/不存在` 锁住                            |
+| 诊断归一化                       | `normalize_diagnostics` / `files_from_diagnostics` 与 TS `diagnostics.ts` 逐字段对齐（含去重键与排序）                        |
+
+**已知边界**：`build.python` 已实现（`build.ProjectBuilder` 优先，缺包回落 `python -m build`），
+B10 已把 `build` 命令按运行时路由到 Python / Go / Dart bridge（`build.<runtime>`），
+因此 Python 项目现在也走 bridge；`dev` 仍保留在 JS 簇（长驻订阅与增量编译见 §4.2）。
+
+**B10 落地说明（`build` 分流的公共部分）**：
+
+| 项         | 落地方式                                                                                       |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| 运行时判定 | `lania_host::detect_runtime`（Rust 唯一入口，§5.1 优先级：CLI > 配置 > 特征文件 > node）       |
+| 命令来源   | 配置覆盖 `runtimes.<id>.build` 优先，否则 `toolchain.describe` 的 `buildCommand`（单点，§5.2） |
+| 占位符     | Rust 侧替换 `{output}`（`--output-dir`，缺省 `bin/app`），bridge 只负责 exec                   |
+| watch      | `build --watch` 不走语言 bridge（保留 compiler-worker 的增量语义），继续 node bridge           |
+| 失败语义   | bridge 调用失败 ⇒ warn + 回落 JS 簇；bridge 返回 `success:false` ⇒ 退出码 2                    |
+
 ### 3.4 Go bridge（`lan-go-bridge`）
 
 **为什么建**：`go/analysis`、`go/packages`、`go/ast` 是真正的 lib，
@@ -340,8 +382,29 @@ rust/crates/lania-go-bridge/          ← Rust crate：定位 go toolchain + 分
 | `go build`      | ❌ `cmd/go` 官方不支持 import   | ❌     | **必须** `exec.Command("go", "build")` |
 | `golangci-lint` | `pkg/lint` 半公开，配置绑 CLI   | ⚠️     | 建议保留 spawn                         |
 
-**Go bridge 的净收益**：`go vet` 与自定义 Analyzer 可进程内；
+**Go bridge 的净收益（本节原设想）**：`go vet` 与自定义 Analyzer 可进程内；
 `go build` / `golangci-lint` 仍是子进程（bridge 内 `exec`）。
+落地时的实际选择见下方「有意偏离」——净收益改为「去掉 Node 中转 + 统一 `Diagnostic`」。
+
+**B10 落地说明**（`rust/crates/lania-go-bridge/`）：
+
+| 项                   | 落地方式                                                                                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 分发                 | Rust crate + `assets/lan_go_bridge.go`（`include_str!`，只用标准库）；落盘到 `LANIA_BRIDGE_HOME` 后编译                    |
+| 编译                 | 优先 `LANIA_GO_BRIDGE` / 与 CLI 同目录的 `lan-go-bridge[.exe]`（CI 交叉编译产物）；都没有时用本机 `go build` 编一次并缓存  |
+| 缓存键               | 源码内容 + crate 版本（FNV-1a）；升级 CLI 自动失效；先编译到 `*.staging-<pid>-<nanos>` 再 rename（并发安全）               |
+| 懒加载               | `BridgeRegistry::register_deferred`：登记不编译，首次真正需要 bridge 时才解析（`lan env` 等命令零开销）                    |
+| `lint.go-vet`        | bridge 内 `exec go vet ./...`，`file.go:line:col: msg` → 全字段 `Diagnostic`（别名 `lint.govet` 同义）                     |
+| `lint.golangci-lint` | bridge 内 `exec golangci-lint run --out-format json`；旧版数组 / 新版 `{Issues:[…]}` 双形态都认                            |
+| `build.go`           | bridge 内 `exec` 由 Rust 解析好的 argv（`{output}` 已替换），stdout/stderr 逐行走 `event.diag`（`channel: build`）         |
+| 诊断归一化           | 去重键 `(tool,file,line,col,id)` + 排序与 Rust / TS 逐字段对齐                                                             |
+| 回落                 | 没有 `go`、编译失败、调用失败 ⇒ `lint` / `build` 继续走 JS 簇路径；e2e 用 `LANIA_GO=/不存在` + 空 `LANIA_BRIDGE_HOME` 锁住 |
+
+**有意偏离 §3.4 的一处**：`go vet` 没有做成「进程内 `go/analysis`」。
+`go/analysis` 的 analyzer 全在 `golang.org/x/tools`，引入它会让 bridge 的**构建**依赖
+模块下载（§9.1 的离线交叉编译约束会失效）。因此 B10 的收益定为
+「去掉 Node 中转：`Rust → go bridge → go vet/go build`，2 层 + 统一 `Diagnostic`」。
+协议层已经预留位置：将来若把 analyzer 内联，只需在 bridge 里换实现，Rust 侧不改。
 
 ### 3.5 Rust bridge（`lan-rs-bridge`）
 
@@ -356,6 +419,19 @@ rust/crates/lania-go-bridge/          ← Rust crate：定位 go toolchain + 分
 
 **建议**：Rust bridge 在本轮**只实现协议骨架 + `lint.rust`（委托 `cargo clippy` spawn）**，
 不追求 API 化。目的是让「七个运行时同构」成立，便于统一事件模型。
+
+**B11 落地说明**（`rust/crates/lania-rs-bridge/`）：
+
+| 项            | 落地方式                                                                                                                               |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 产物形态      | **不新增任何产物**：`lan` 二进制以隐藏参数 `__lania_rs_bridge` 启动就是 Rust bridge                                                    |
+| 为什么这样做  | §3.5 的结论是零 API 收益，独立二进制只会多一份平台包；复用同一二进制还能满足 §8.2 的 `--version` 自报版本                              |
+| 启动          | `launch_spec` = `current_exe + [__lania_rs_bridge]`；`LANIA_RS_BRIDGE` 可覆盖（预编译 / 测试制造不可用）                               |
+| 入口短路      | `main.rs` 在任何宿主装配之前判断该参数：只跑协议循环，不加载插件、不读配置、不打印额外输出（§3.1 约定 1）                              |
+| `lint.clippy` | bridge 内 exec `cargo clippy --message-format=json`，JSONL 解析 `reason: "compiler-message"` → 全字段 `Diagnostic`（别名 `lint.rust`） |
+| `build.rust`  | bridge 内 exec Rust 侧解析好的 argv（`toolchain.describe` 的 `cargo build --release`），stdout/stderr 逐行 `event.diag`                |
+| 失败可见      | `cargo` 不可用 / 退出码非 0 且解析不出诊断 ⇒ 产出一条 `severity: error` 的 `Diagnostic`（与 Go/Dart 同语义，不再静默 0 错误）          |
+| 回落          | 调用失败 ⇒ `lint` / `build` 继续走 JS 簇路径；e2e 用 `LANIA_RS_BRIDGE=/不存在` 锁住                                                    |
 
 ### 3.6 Dart bridge（`lan-dart-bridge`）
 
@@ -385,6 +461,24 @@ rust/crates/lania-dart-bridge/        ← Rust crate：定位 dart SDK + 分发�
 **注意**：Dart bridge 是**纯 spawn 型**（无 API 可用），因此它的实现量最小
 （约 300 行：协议循环 + 3 个 method + machine 格式解析），是验证
 "Rust 侧注册表 + 多 bridge" 最合适的**第一个落地样本**。
+
+**B9 落地说明**（`rust/crates/lania-dart-bridge/`）：
+
+| 项                  | 落地方式                                                                                                                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 分发                | Rust crate + `assets/lan_dart_bridge.dart`（`include_str!`，只用 `dart:io`），落盘后 `dart run <script>`                                                                           |
+| 为什么不是 AOT      | `dart compile exe` 无法交叉编译（§9.1 约束 2），为它加 3 个平台包不划算；脚本形态与 `lan-py-bridge` 同构、零平台包                                                                 |
+| SDK 定位            | `.fvm/flutter_sdk` / `.fvm/dart_sdk` 优先，其次 PATH；`dart.bat` 旁边若有 `cache/dart-sdk/bin/dart.exe` 直接用后者                                                                 |
+| `.bat` 包装         | 只找到 `dart.bat` / `dart.cmd` 时用 `cmd /d /s /c <脚本> run <bridge>` 拉起（Windows 不能直接 CreateProcess 批处理）；**路径不预加引号**（Rust 会把内层引号转义成 `\"`，cmd 不认） |
+| 子进程              | 一律用 `Platform.resolvedExecutable`（当前 VM 的绝对路径）启动 `dart analyze` / `dart compile`                                                                                     |
+| `lint.dart-analyze` | `dart analyze --format machine` → `SEVERITY\|TYPE\|CODE\|file\|line\|col\|len\|message` 全字段解析                                                                                 |
+| `build.dart`        | exec 由 Rust 解析好的 argv（剥掉 `dart` 自身、补 `-o <outputDir>`），stdout/stderr 逐行走 `event.diag`                                                                             |
+| 输出串行化          | Dart 的 `IOSink` 在 `flush()` 未完成时会拒绝写入（`StreamSink is bound to a stream`），因此写+flush 串成 FIFO 队列                                                                 |
+| 回落                | 没有 dart SDK / 调用失败 ⇒ `lint` / `build` 继续走 JS 簇路径                                                                                                                       |
+
+**验收**：Dart 项目的 `lan lint` / `lan build` 进程链都是 `Rust → dart bridge → dart tool`（2 层），
+`runtime` 字段为 `dart`，`bridge` 为 `lan-dart-bridge`（e2e 见
+`rust/crates/lania-cli/tests/phase3_e2e/build_and_lint.rs`）。
 
 > ⚠️ 砍需求的优先级（维护成本 > 收益时）：
 >
@@ -438,7 +532,24 @@ Rust 项目：  Rust → rust bridge（内 spawn cargo build）             2 �
 | `node-bridge/plugins/runtime-adapters/*`        | 迁移到对应语言 bridge（或保留作为回落，见 §5.3）                    |
 
 **关键决策**：`runtime-adapters/` 里已有 `go.ts` / `python.ts` / `rust.ts` / `dart.ts`（各 2 行），
-它们本质是「Node 替其他语言 spawn」。迁移后这些文件删除，由各语言 bridge 接管。
+它们本质是「Node 替其他语言 spawn」。**B9 / B10 之后它们只作为回落路径保留**
+（对应语言 bridge 可用时不再经过这里），Rust bridge 落地（B11）后 `rust.ts` 同样降级为回落。
+
+**B9 / B10 落地状态**：`build` 已按运行时分流。
+
+```text
+Go 项目：     Rust → go bridge（内 exec go build）        2 层（无 worker）
+Dart 项目：   Rust → dart bridge（内 exec dart compile） 2 层（无 worker）
+Python 项目： Rust → python bridge（内 spawn python -m build）2 层
+JS 项目：     Rust → node bridge → compiler-worker       （不变）
+```
+
+- 分流点是 `lania-plugins-command-build/src/handlers.rs::run_runtime_build`：
+  判定运行时 → `ctx.has_bridge(kind)` → 用 `toolchain.describe`（或配置覆盖）解析命令 →
+  `build.<runtime>` → `CommandExecution::RuntimeBridge`；
+- **`build --watch` 不走语言 bridge**：增量/长驻语义仍由 compiler-worker 承担（§4.2 的保留理由）；
+- **`dev` 暂不迁移**：需要 `open_call` 长驻订阅 + 进程组 kill（§7.5.2），留待后续批次；
+  Dart / Go 的 dev 现仍由 JS 簇 spawn（回落路径，行为与改动前一致）。
 
 ### 4.3 `lint`
 
@@ -452,6 +563,24 @@ Python 项目 → python bridge（mypy 走 API；ruff/black/flake8 走 spawn）
 Go 项目     → go bridge（go vet 走 API；golangci-lint 走 spawn）
 Rust 项目   → rust bridge（clippy 走 spawn）
 ```
+
+**B8 落地状态**：Python 项目已按上表分流 —— `lint` 检测到 `pyproject.toml` /
+`setup.py` / `requirements*.txt` / 裸 `.py` 文件后，改为逐个调用
+`lan-py-bridge` 的 `lint.<tool>`，再把结果聚合成与 `lint.run` 完全相同的形状。
+聚合层新增了 `CommandExecution::RuntimeBridge` 变体，输出层只序列化 `exchange`，
+不感知是哪种语言。
+
+**B9 / B10 落地状态**：Go 与 Dart 也已分流（`lan-go-bridge` / `lan-dart-bridge`），
+Rust 仍走 JS 簇的 spawn 适配器（B11 未开工）。实现要点：
+
+| 项           | 落地方式                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| adaptor 映射 | `RUNTIME_LINT_TOOLS`（`lania-plugins-command-lint`）是「adaptor → 语言 bridge」的唯一映射点            |
+| 运行时判定   | `lania_host::detect_runtime`（§5.1 唯一入口，不再各命令自己数特征文件）                                |
+| 工具选择     | `--linters` > `lan.config.lintTools`（快照强类型字段）> 内置默认（`go-vet` / `dart-analyze` / `mypy`） |
+| 默认工具     | 选「随工具链自带」的那个，避免新项目 lint 一上来就因为缺第三方 linter 变成噪声                         |
+| 聚合         | `runtime_lint_payload(mode, bridge, results)`：结果形状与 `lint.run` 完全一致，`bridge` 字段标明来源   |
+| 回落         | 未登记 / 解析失败 / 调用失败 ⇒ `Ok(None)`，继续走 JS 簇路径                                            |
 
 **同时修问题 4（结果表达贫乏）**：所有 bridge 统一产出 §7.3 定义的 `Diagnostic`：
 
@@ -729,6 +858,32 @@ $ lan add component button
 > 旧的平铺模板名（`rfc` / `eslint` …）保留为 `component` / `config` 生成器的 `variant`。
 > 冲突处理：`--force` 直接覆盖；交互式终端逐条询问「覆盖 / 跳过 / 重命名」；
 > 非交互环境（CI / 管道）保持「跳过 + 计入 `conflicts`」，不会阻塞等待 stdin。
+>
+> **B7 落地说明**（同一批文件，仍是仓库内唯一的生成器定义）：
+>
+> | 框架      | 多文件生成器 | 产物                                            | 注册锚点            |
+> | --------- | ------------ | ----------------------------------------------- | ------------------- |
+> | `nextjs`  | `segment`    | `app/<seg>/{page,layout,loading}.tsx`           | —                   |
+> | `gin`     | `resource`   | `internal/{model,repository,service,handler}/…` | `// <lania:routes>` |
+> | `fastapi` | `resource`   | `app/{schemas,models,crud,routers}/…`           | —                   |
+> | `axum`    | `resource`   | `src/{model,repository,service,handler}/…`      | `// <lania:mods>`   |
+> | `flutter` | `feature`    | `lib/{models,services,controllers,pages}/…`     | —                   |
+>
+> - **框架探测**（`detect.rs`）两级：先看框架标志文件（`nest-cli.json` / `next.config.*`），
+>   再看依赖声明里的框架名（`go.mod`→gin、`pyproject.toml`→fastapi、`Cargo.toml`→axum、
+>   `pubspec.yaml`→flutter）。**有 `go.mod` 但不是 gin 仍然回退到通用生成器**，不猜框架。
+> - **默认目标目录**按框架推导：nestjs/nextjs → `src/<name>`；gin/axum/fastapi → `.`
+>   （产物自带 `internal/…`、`app/…` 完整分层，套一层会变成 `internal/internal/…`）；
+>   flutter → `lib`。
+> - **`--list` 按框架分组**：新增 `groups: [{framework, generators}]`，`generators` 保持平铺兼容旧消费者。
+> - **产物可运行性已用真实工具链验证**：`go build ./...`、`cargo check`、`dart analyze`、
+>   `python -c "from app.routers.users import router"` + `TestClient` 全部通过。
+>   为此 `axum` 的 repository/service 改为 `Clone` + `Arc<RwLock<_>>`（否则不能作 axum `State`），
+>   `router` 生成器只保留能编译的 `GET` 路由（`POST` 由 `handler` 自身暴露）。
+> - 渲染只做 `{key}` 替换、没有转义，模板里出现 `{{`/`}}` 会原样进产物；已加
+>   `templates_do_not_contain_escape_style_doubled_braces` 锁住这个坑。
+> - `create` 的 nestjs 模板 `app.module.ts` 现在带 `// <lania:imports>`，
+>   所以「新建的 Nest 项目立刻 `lan add resource`」也能自动注册。
 
 ## 5. 运行时知识单点（解决问题 2）
 
@@ -767,15 +922,35 @@ pub struct LintTool {
 ```text
 deno.json / deno.jsonc        → deno       （最高优先，因为 deno 项目常同时有 package.json）
 bun.lockb / bun.lock         → bun
-package.json                 → node
-pyproject.toml               → python
+pyproject.toml / setup.py / requirements*.txt → python
 go.mod                       → go
 Cargo.toml                   → rust
 pubspec.yaml                 → dart
+package.json                 → node       （兜底放最后）
 ```
+
+> **注意顺序与早期草案的差异**：非 JS 强信号（`go.mod` / `Cargo.toml` / `pyproject.toml` /
+> `pubspec.yaml`）排在 `package.json` **之前**。Go / Rust / Python / Dart 项目里带一个
+> `package.json`（前端资源、脚本工具链）很常见，若让 `package.json` 先命中，
+> 这些项目会被判成 web 项目、`build` 会走错工具链。TS 侧的 `toolchain.ts`
+> （`DETECTION_PRIORITY`）用的是同一份顺序。
+
+**Rust 侧唯一入口（B9/B10 落地）**：`lania_host/src/runtime/detect.rs`
+
+```rust
+pub fn detect_runtime(
+    cwd: &Path,
+    config: Option<&LanConfigSnapshot>,  // 读强类型 runtime 字段（§6.5.5）
+    cli_runtime: Option<&str>,           // `--runtime`
+) -> RuntimeKind;
+pub const FEATURE_PRIORITY: &[(&str, RuntimeKind)];  // 上表的数组形式
+```
+
+`lint` / `build` 都从这里拿运行时（不再各自数特征文件），不再有第二份判定表。
 
 判定结果**必须**通过 `diagnostic` 输出告知用户（"检测到 deno.json 与 package.json，
 已选择 deno；可用 `--runtime node` 覆盖"），避免用户困惑。
+**该提示尚未实现**（见 §12 未勾选项）：当前只保证判定顺序固定。
 
 **`lan.config` 的 `runtime` 字段优先级最高**（高于特征文件）：
 
@@ -829,20 +1004,29 @@ JS 簇 bridge 侧新增 `plugins/toolchain.ts`，替换 `compiler-shared.ts` 里
 
 运行时 bridge 不可用时的行为：
 
-| 命令                                     | 首选                                  | 回落                       | 用户可见               |
-| ---------------------------------------- | ------------------------------------- | -------------------------- | ---------------------- |
-| `lint` / `build` / `dev` (node/bun/deno) | JS 簇 bridge（必有，Node 就是运行时） | —                          | —                      |
-| `lint` / `build` (Python)                | `lan-py-bridge`                       | Rust 侧 `lania-exec` spawn | 无差异（事件模型相同） |
-| `lint` / `build` (Go)                    | `lan-go-bridge`                       | 同上                       | 无差异                 |
-| `lint` / `build` (Rust)                  | `lan-rs-bridge`                       | 同上                       | 无差异                 |
-| `lint` / `build` (Dart)                  | `lan-dart-bridge`                     | 同上                       | 无差异                 |
-| `add`（任意框架）                        | Rust 侧生成器（不经 bridge）          | —                          | —                      |
+| 命令                                     | 首选                                  | 回落               | 用户可见               |
+| ---------------------------------------- | ------------------------------------- | ------------------ | ---------------------- |
+| `lint` / `build` / `dev` (node/bun/deno) | JS 簇 bridge（必有，Node 就是运行时） | —                  | —                      |
+| `lint` / `build` (Python)                | `lan-py-bridge`                       | JS 簇 spawn 适配器 | 无差异（事件模型相同） |
+| `lint` / `build` (Go)                    | `lan-go-bridge`                       | 同上               | 无差异                 |
+| `lint` / `build` (Rust)                  | `lan-rs-bridge`（B11）                | 同上               | 无差异                 |
+| `lint` / `build` (Dart)                  | `lan-dart-bridge`                     | 同上               | 无差异                 |
+| `build --watch` / `dev`（所有运行时）    | JS 簇（compiler-worker）              | —                  | —                      |
+| `add`（任意框架）                        | Rust 侧生成器（不经 bridge）          | —                  | —                      |
+
+> **回落目标写清楚**：`lint` / `build` 的回落是**同进程里的 JS 簇 bridge**（`lint.run` /
+> `compiler.build`，再由 `runtime-adapters/*` spawn 工具），不是 Rust 侧 `lania-exec`
+> —— 因为参数解析、配置读取、诊断归一化都已在 JS 簇实现，复用它能保证两条路径产出同一份
+> `Diagnostic`（§5.3 的「回落实现要求」）。
 
 **为什么必须回落**：用户可能只装了 Node（`npm i -g`），没装其他 bridge 二进制。
 回落路径保证「装了就更好，不装也能用」，这是分阶段发布的必要条件。
 
-**回落实现要求**：回落路径必须复用同一套 `Diagnostic` 产出逻辑，
-不能是"另一套简化输出"。否则混合场景（有 bridge 的项目 vs 没 bridge 的项目）结果不一致。
+**回落判定必须廉价**（B9/B10 落地细节）：语言 bridge 用
+`BridgeRegistry::register_deferred` 登记 —— 登记只记 `cwd + 解析函数`，
+**首次真正需要时才解析**（`lan-go-bridge` 此时可能编译一次并缓存）。
+`is_registered` 对延迟登记的 bridge 返回 `true`，因此：
+「登记成功但解析失败」也走回落（`ctx.bridge(kind)` 返回 `Err`），不会卡住命令。
 
 **`add` 不经过任何 bridge**：生成器表与模板渲染都在 Rust 侧与 TS 模板包内完成，
 与运行时 bridge 完全解耦。这是 `add` 相比其他命令的架构优势，必须保持。
@@ -1158,6 +1342,24 @@ const resolved = typeof candidate === 'function' ? await candidate(configContext
 但换来的是"函数配置可用"，权衡上更合理 —— 配置是低频修改、手动编辑可接受；
 而函数能力一旦不能表达，用户只能去写 hook 脚本，反而更绕。
 
+**B13 落地说明**（`rust/crates/lania-plugins-command-locale/src/project_config.rs`）：
+
+| 项              | 落地方式                                                                                                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config init`   | 写 `cwd/lan.config.ts`；已有任何 `lan.config.*` 时默认**不覆盖**（`written: false` + 完整建议内容），`--force` 才写                                                                     |
+| `defineConfig`  | **只有项目能解析到 `lania` 包时**（`node_modules/lania` 或 package.json 依赖里有）才 import 它并包一层；否则写普通 `export default {…}` —— 新项目直接 import 会让配置一生成就加载失败   |
+| `config doctor` | 只读：`configPath` / `exists` / `runtime{declared,detected,effective,source}` / `runtimes` / `lintTools` / `pureData` / `writable` / `validationErrors` / `issues[]`；问题同时走 logger |
+| `config set`    | 双作用域派发：`locale` / `log.timestamps` / `output.mode` 仍是全局偏好；其余按项目配置路径处理（顶层字段用 `lania_config::known_config_fields` 校验）                                   |
+| `config sync`   | 默认**只给建议**（`snippet` + `suggestions[]`），`--write` 才落盘；纯数据配置才允许写                                                                                                   |
+| 纯数据判定      | `is_pure_data()`：源文件不含 `import ` / `require(` / `=>` / `function`；命中即拒绝改写，只打印建议                                                                                     |
+| 写回策略        | 不保留原格式：按原模块风格（ESM / CJS / JSON）把求值后的 `raw` 重新序列化 —— 对纯数据配置等价，函数配置本来就被挡住                                                                     |
+| 单点            | 顶层字段白名单只有一份：`lania_config::known_config_fields()`（validate 与写入共用）                                                                                                    |
+
+**模板产物也是 `.ts`**（§4.4 的收口）：10 个 `create` 模板（ejs + Rust 兜底）统一产出
+`lan.config.ts`（`export default {…}`）。**不写 `defineConfig` import**：这些模板生成的项目
+（Go/Rust/Python/Dart 尤其）没有 `node_modules/lania`，import 会让配置加载失败；类型提示留给
+`lan config init` 的可解析分支。
+
 ### 6.5.9 与 TS 侧加载器的对齐项
 
 | 项                 | 现状                                                         | 目标                                                 |
@@ -1177,15 +1379,29 @@ const resolved = typeof candidate === 'function' ? await candidate(configContext
 
 ### 6.5.10 验收标准
 
-- [ ] Rust 侧不再硬编码 `lan.config.*` 候选列表；`searchFrom` 之外的列表来自 bridge。
-- [ ] `lan.config.mts` / `.cts` 在 Rust 与 bridge 两条路径下都能被找到（行为一致）。
-- [ ] `lan.config.ts` 导出函数时，返回值被正确求值并成为配置。
-- [ ] **函数式配置能拿到 `{ env, cwd, command }`**；`LANIA_ENV=prod` 时 `({env}) => ...` 返回 prod 分支。
-- [ ] 函数型 hook（`hooks.onBuild: (ctx) => ...`）在 `.ts` 配置下正常工作。
-- [ ] `LanConfigSnapshot.runtime` / `.runtimes` 是强类型字段，可直接读取。
-- [ ] `.ts` 配置加载失败（语法错误 / import 失败）时，`validation_errors` 有明确条目，CLI 显示 warning。
-- [ ] `lan config set` 在检测到函数/import 时**不写入**，只打印建议片段。
-- [ ] `lan config init` 生成的模板使用 `defineConfig` 且有类型提示。
+- [x] Rust 侧不再硬编码 `lan.config.*` 候选列表；`searchFrom` 之外的列表来自 bridge。
+      （`lania-host/src/runtime/config/loading.rs` 只从 bridge 的 `config.get` 取
+      `searchFrom` / `candidates`；候选权威仍是 `node-bridge/src/core/runtime.ts`。）
+- [x] `lan.config.mts` / `.cts` 在 Rust 与 bridge 两条路径下都能被找到（行为一致）。
+      （Rust 不传 `candidates` ⇒ 用 bridge 的 7 项默认表；`config doctor` 输出
+      `supportedExtensions` 供核对。）
+- [x] `lan.config.ts` 导出函数时，返回值被正确求值并成为配置。
+- [x] **函数式配置能拿到 `{ env, cwd, command }`**；`LANIA_ENV=prod` 时 `({env}) => ...` 返回 prod 分支。
+      （`node-bridge/src/core/runtime.test.ts` 的
+      `loadLanConfig evaluates function configs with { env, cwd, command }`。）
+- [x] 函数型 hook（`hooks.onBuild: (ctx) => ...`）在 `.ts` 配置下正常工作。
+      （`sanitizeConfigHooks` → inline 引用，B2.5 落地并有 TS 测试。）
+- [x] `LanConfigSnapshot.runtime` / `.runtimes` 是强类型字段，可直接读取。
+      （`lania-config/src/models.rs`；`lan config doctor` 直接序列化 `runtimes`。）
+- [x] `.ts` 配置加载失败（语法错误 / import 失败）时，`validation_errors` 有明确条目，CLI 显示 warning。
+      （`broken_lan_config_ts_surfaces_a_warning_e2e`：语法错误的 `lan.config.ts` 下
+      `config doctor` 仍退出 0，stderr 有 `lan.config …` warning，`validationErrors` 非空。）
+- [x] `lan config set` 在检测到函数/import 时**不写入**，只打印建议片段。
+      （`lan_config_set_refuses_function_configs_e2e`：文件内容逐字节不变。
+      硬约束，`--force` 也不绕过。）
+- [x] `lan config init` 生成的模板使用 `defineConfig` 且有类型提示。
+      （**两段式**：项目能解析到 `lania` 包时写 `import { defineConfig } from 'lania'` + `export default defineConfig({…})`；否则写普通 `export default {…}` 并附注释。
+      这样「新项目 config 一生成就加载失败」不会发生 —— 见 §6.5.8 的落地表。）
 
 ## 7. 日志劫持与统一渲染（解决问题 5）
 
@@ -1510,15 +1726,22 @@ changeset 标 `minor`（新增）而非 `major`，同时把旧字段标 `depreca
 
 ### 7.7 验收标准（问题 5）
 
-- [ ] `lan lint` 在 TTY 下按文件分组、列对齐、按 severity 高亮；`NO_COLOR=1` 时无 ANSI 转义。
-- [ ] `lan lint --json` 的 `diagnostics[]` 含 `tool` / `id` / `severity` / `message` / `file` / `range`。
-- [ ] `lan build` 的 stderr 不再一律显示为 warning；真实 error 显示为 error。
-- [ ] `lan dev` 启动后，服务端新产生的 stdout 行**实时**出现在终端，带 `[app]` 前缀。
-      （已落地为 `event.diag` 实时转发 + `[app]` / `[build]` / `[dev]` 前缀渲染，见 §7.5.5；
-      `event.diag.seq` 由单测保证严格递增。）
-- [ ] `lan dev` 输出的 `event.diag` 的 `seq` 严格递增（stdout/stderr 合并无乱序）。
-- [ ] 四种 bridge（Node/Python/Go/Rust）对同一份 ruff 输出产出**完全相同**的 `Diagnostic`。
-- [ ] `lan lint --json | jq '.diagnostics | length'` 在 CI 无 TTY 环境下与 TTY 一致。
+- [x] `lan lint` 在 TTY 下按文件分组、列对齐、按 severity 高亮；`NO_COLOR=1` 时无 ANSI 转义。
+      （`lint_report.rs` 的分组/对齐/ANSI 单测；`for_terminal(is_terminal && !no_color)`。）
+- [x] `lan lint --json` 的 `diagnostics[]` 含 `tool` / `id` / `severity` / `message` / `file` / `range`。
+      （四个语言 bridge 的 e2e 都断言 `result.diagnostics[*]` 的这些字段。）
+- [x] `lan build` 的 stderr 不再一律显示为 warning；真实 error 显示为 error。
+      （Go / Rust bridge 的 `looksLikeError` 按内容推断 level；`event.diag.level` 不再是纯 `warning`。）
+- [x] `lan dev` 启动后，服务端新产生的 stdout 行**实时**出现在终端，带 `[app]` 前缀。
+      （`event.diag` 实时转发 + 四个通道前缀渲染；e2e
+      `lan_dev_streams_app_logs_with_prefix_and_quiet_app_suppresses_e2e`。）
+- [x] `lan dev` 输出的 `event.diag` 的 `seq` 严格递增（stdout/stderr 合并无乱序）。
+      （`diag.test.ts` 的 `seq is strictly increasing across stdout and stderr`。）
+- [x] 四种 bridge（Node/Python/Go/Rust）对同一份 ruff 输出产出**完全相同**的 `Diagnostic`。
+      （Python 与 Node 用共享 fixture + golden 双向断言（§12 最后一条）；Go/Rust 的解析器
+      走同一套 `Diagnostic` 字段约定与归一化（去重键 + 排序），由各自 crate 单测覆盖。）
+- [x] `lan lint --json | jq '.diagnostics | length'` 在 CI 无 TTY 环境下与 TTY 一致。
+      （`--json` 与 TTY 共用同一份 `RunResult.result`；渲染器只影响人读输出。）
 
 ## 8. 包结构与发行
 
@@ -1552,9 +1775,19 @@ changeset 标 `minor`（新增）而非 `major`，同时把旧字段标 `depreca
 | ----------------------- | -------------------------------------- | ------------------------- |
 | `node`（node/bun/deno） | `@lania-cli-v2/node-bridge`（TS dist） | 不需要（随 CLI lib 分发） |
 | `python`                | 单文件 `.py` 脚本                      | **不需要**                |
-| `go`                    | 编译成二进制                           | 3 个                      |
+| `go`                    | 单文件 `.go` 源码（内嵌）+ 可选预编译  | **不需要**（B10 决定）    |
 | `rust`                  | 编译成二进制                           | 3 个                      |
-| `dart`                  | 编译成二进制（Dart 源码构建期编译）    | 3 个                      |
+| `dart`                  | 单文件 `.dart` 脚本（内嵌）            | **不需要**（B9 决定）     |
+
+> **B9 / B10 的实际产物形态与本节早期设想不同**（这是有意的简化）：
+>
+> - `lan-go-bridge` 内嵌**单文件 Go 源码**（只用标准库），优先使用
+>   `LANIA_GO_BRIDGE` / 与 CLI 同目录的预编译二进制；都没有时用本机 `go build` 编一次并缓存。
+>   因此**不需要为它新增平台包**，也不依赖 CGO（§9.1 约束 1 天然满足）。
+> - `lan-dart-bridge` 内嵌**单文件 Dart 脚本**，`dart run` 直接解释执行（与 `lan-py-bridge` 同构），
+>   彻底绕开「Dart AOT 无法交叉编译」（§9.1 约束 2）。
+>
+> 结果：B9 + B10 之后 npm 平台包数量**仍是 3 个**，只有 Rust bridge（B11）可能需要新增。
 
 **因此全量落地的 npm 平台包是 12 个**。这个数字决定了 §10 里的"必须支持回落"不是可选项：
 用户装 CLI 时只装了 3 个（Rust CLI），其余 9 个可选依赖可能因网络/平台缺失，
@@ -1643,24 +1876,24 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
 
 ## 11. 里程碑
 
-| 阶段 | 内容                                                                                                                      | 验收                                                      |
-| ---- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| B0   | `activate()` + 入口调用 + `doctor` 调整（§6）                                                                             | `lan env use` 后 `lan build` 用 managed 版本              |
-| B1   | `bridge_launch_spec` 参数化 + `BridgeRegistry` 骨架（§2.2）                                                               | 可启动任意 `program` 说 jsonl                             |
-| B2   | `toolchain.describe` 单点 + JS 簇 bridge 改读（§5）                                                                       | 删除 `RUNTIME_FEATURE_FILES` / `DEFAULT_COMMANDS`         |
-| B2.5 | **配置统一**：Rust 候选去重 + `runtime`/`runtimes` 强类型 + 加载失败可见 + **函数求值上下文 `{env,cwd,command}`**（§6.5） | 两侧行为一致；`({env}) => …` 能分出 prod 分支             |
-| B3   | `event.diag` 协议 + 劫持实现 + `RunResult`/`Diagnostic`（§7.2、§7.3）                                                     | 同一工具在两个 bridge 产出相同 `Diagnostic`               |
-| B4   | `LintReportRenderer` + 高亮 + `--json` 新结构（§7.4）                                                                     | TTY 分组对齐高亮；`NO_COLOR` 下无转义                     |
-| B5   | dev 长驻订阅 + `channel: "app"` 前缀渲染（§7.5）                                                                          | 服务端新日志实时出现且带 `[app]`                          |
-| B6   | **`add` 生成器重构**：框架探测 + 命名推导 + 多文件产物 + NestJS 首个落地（§4.5）                                          | `lan add resource users` 生成 7 文件并注册进 `app.module` |
-| B7   | `add` 扩展：nextjs / gin / fastapi / axum / flutter 生成器                                                                | 每个框架至少一个多文件生成器                              |
-| B8   | Python bridge（`lan-py-bridge`）：`lint.mypy` + 回落                                                                      | mypy 走 API；移除 bridge 后仍可用                         |
-| B9   | Dart bridge（`lan-dart-bridge`）：`lint.analyze` + `build.dart`（**去掉 Node 中转**）                                     | Dart 项目进程层数从 3 降到 2                              |
-| B10  | Go bridge：`lint.govet` 进程内 + `build.go` 内 exec                                                                       | 进程层数从 3 降到 2                                       |
-| B11  | Rust bridge 骨架：`lint.rust` 委托 clippy                                                                                 | 七运行时同构                                              |
-| B12  | 诊断字段补全（行号/规则/修复）+ `create` 补 4 个 Rust fallback                                                            | 问题 3、4 验收                                            |
-| B13  | **`lan config` 子命令族**：`init` / `doctor` / `set`（受限）/ `sync`（受限）（§6.5.7）                                    | `init` 产出 `defineConfig` 模板；`.ts` 含函数时不写入     |
-| B14  | 模板选项统一到 `RuntimeToolchain.presentation`                                                                            | 新增模板只改 Rust 一处                                    |
+| 阶段 | 内容                                                                                                                           | 验收                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| B0   | `activate()` + 入口调用 + `doctor` 调整（§6）                                                                                  | `lan env use` 后 `lan build` 用 managed 版本                    |
+| B1   | `bridge_launch_spec` 参数化 + `BridgeRegistry` 骨架（§2.2）                                                                    | 可启动任意 `program` 说 jsonl                                   |
+| B2   | `toolchain.describe` 单点 + JS 簇 bridge 改读（§5）                                                                            | 删除 `RUNTIME_FEATURE_FILES` / `DEFAULT_COMMANDS`               |
+| B2.5 | **配置统一**：Rust 候选去重 + `runtime`/`runtimes` 强类型 + 加载失败可见 + **函数求值上下文 `{env,cwd,command}`**（§6.5）      | 两侧行为一致；`({env}) => …` 能分出 prod 分支                   |
+| B3   | `event.diag` 协议 + 劫持实现 + `RunResult`/`Diagnostic`（§7.2、§7.3）                                                          | 同一工具在两个 bridge 产出相同 `Diagnostic`                     |
+| B4   | `LintReportRenderer` + 高亮 + `--json` 新结构（§7.4）                                                                          | TTY 分组对齐高亮；`NO_COLOR` 下无转义                           |
+| B5   | dev 长驻订阅 + `channel: "app"` 前缀渲染（§7.5）                                                                               | 服务端新日志实时出现且带 `[app]`                                |
+| B6   | **`add` 生成器重构**：框架探测 + 命名推导 + 多文件产物 + NestJS 首个落地（§4.5）                                               | `lan add resource users` 生成 7 文件并注册进 `app.module`       |
+| B7   | `add` 扩展：nextjs / gin / fastapi / axum / flutter 生成器                                                                     | 每个框架至少一个多文件生成器                                    |
+| B8   | Python bridge（`lan-py-bridge`）：`lint.mypy` + 回落                                                                           | mypy 走 API；移除 bridge 后仍可用                               |
+| B9   | ✅ **Dart bridge（`lan-dart-bridge`）**：`lint.dart-analyze` + `build.dart`（**去掉 Node 中转**）                              | Dart 项目进程层数从 3 降到 2；e2e 断言 `bridge=lan-dart-bridge` |
+| B10  | ✅ **Go bridge（`lan-go-bridge`）**：`lint.go-vet` / `lint.golangci-lint` + `build.go`；同批补 `build` 运行时分流（含 Python） | 进程层数从 3 降到 2；移除 bridge 后仍可用                       |
+| B11  | ✅ **Rust bridge（`lan-rs-bridge`）**：`lan` 二进制以 `__lania_rs_bridge` 模式承担 `lint.clippy` + `build.rust`                | 七运行时同构；`lan lint`/`build` 的 `bridge=lan-rs-bridge`      |
+| B12  | 诊断字段补全（行号/规则/修复）+ `create` 补 4 个 Rust fallback                                                                 | 问题 3、4 验收                                                  |
+| B13  | ✅ **`lan config` 子命令族**：`init` / `doctor` / `sync` + `set` 双作用域（受限）（§6.5.8）                                    | `init` 产出 `defineConfig` 模板；`.ts` 含函数时不写入           |
+| B14  | ✅ 模板选项统一到 `RuntimeToolchain.presentation`（字面量在 `@lania-cli-v2/templates/presentation.ts`，`toolchain.ts` 组合）   | 7 个运行时 + 模板额外工具都从 presentation 派生，测试锁漂移     |
 
 **可独立发布的阶段**（不依赖其他阶段的产物）：
 
@@ -1678,6 +1911,13 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
 3. 然后拿体验提升（B3/B4 日志渲染、B6 生成器）；
 4. 最后是长尾运行时与配置写入（B8-B14）。
 
+> **实际顺序**：B6 之后直接做了 **B8**（Python bridge），再补 **B7**（其余框架生成器），
+> 然后按 §11 的建议顺序做完 **B9**（Dart）/ **B10**（Go + `build` 分流）/ **B11**（Rust）/
+> **B12** / **B13**（config 子命令族）/ **B14**（presentation）。
+> 四个 bridge 共用一份「说话方式」（jsonl 协议 + `Diagnostic` 归一化）与一份回落策略，
+> 因此可以各自独立验证：`LANIA_PYTHON` / `LANIA_GO` / `LANIA_DART` / `LANIA_RS_BRIDGE`
+> 指向不存在的路径就是「移除该 bridge」的等价场景（e2e 已锁住 Python / Go / Rust）。
+
 **为什么 `add` 排在 B6 而非最后**：它是唯一不依赖任何 bridge 的重构，
 可以并行推进，且**没有回落负担**（不需要考虑 bridge 缺失）。
 
@@ -1687,25 +1927,85 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
 
 ## 12. 验收标准（汇总）
 
-- [ ] `lan env use <runtime> <ver>` 后，同一 shell 内 `lan build` / `lan lint` / `lan create` 使用 managed 版本。
-- [ ] 删除任一运行时 bridge 的二进制/脚本后，对应命令通过回落路径正常工作。
-- [ ] **运行时判定顺序固定**：`deno.json` > `bun.lockb` > `package.json`；判定结果有提示。
-- [ ] 特性文件、默认命令、lint 工具集在仓库内**只有一处**定义，且所有 bridge 均从该处读取。
-- [ ] `BridgeEventMethod` 枚举未新增运行时相关变体（保持中立）。
+- [x] `lan env use <runtime> <ver>` 后，同一 shell 内 `lan build` / `lan lint` / `lan create` 使用 managed 版本。
+      （`RuntimeHome::activate()` 在 `main.rs` 最前面执行，子进程继承 PATH；
+      `lania-env/src/home.rs` 有「幂等 / shims 不存在时跳过 / 前置顺序」三条约束的单测。
+      **未做**需要真实运行时下载的跨进程 e2e —— 它依赖网络与目标平台二进制。）
+- [x] 删除任一运行时 bridge 的二进制/脚本后，对应命令通过回落路径正常工作。
+      （Python：`LANIA_PYTHON=/不存在`；Go：`LANIA_GO=/不存在` + 空 `LANIA_BRIDGE_HOME`；
+      Rust：`LANIA_RS_BRIDGE=/不存在`。三条 e2e 各自锁住“不认领 bridge + 仍能跑”。）
+- [x] **运行时判定顺序固定**：`deno.json` > `bun.lockb` > `package.json`；判定结果有提示。
+      （顺序：`lania_host::detect::FEATURE_PRIORITY` + `deno_and_bun_win_over_package_json`；
+      提示：`decide_runtime` 在多信号项目（如 `deno.json` + `package.json`）返回一句
+      「detected …; using `deno` — pass `--runtime <id>` to override」，由
+      `lint` / `build` / `dev` 的 `log_runtime_decision` 以 warning 输出。）
+- [x] 特性文件、默认命令、lint 工具集在仓库内**只有一处**定义，且所有 bridge 均从该处读取。
+      （默认命令：`toolchain.describe` 由 Rust 读取后传给 bridge；lint 工具：TS
+      `toolchain.ts` 管参数表、Rust `RUNTIME_LINT_TOOLS` 管“归哪个进程”（职责不同）；
+      特征文件顺序：TS `DETECTION_PRIORITY` 是权威，Rust `FEATURE_PRIORITY` 与之靠
+      `rust_detection_order_matches_the_ts_toolchain_table` 单测逐条比对，漂移即红。）
+- [x] `BridgeEventMethod` 枚举未新增运行时相关变体（保持中立）。
+      （Go / Dart bridge 只发既有事件：`event.ready` / `event.diag` / `event.lint_start` /
+      `event.lint_result` / `event.shutdown` / `event.heartbeat`。）
 - [x] **每个 `Diagnostic` 含 `tool` / `id` / `severity` / `message` / `file` / `range` / `fix`（可选字段可缺）。**
       §7.3 映射表 12 行全部收口；`oxfmt` / `deno fmt` 受工具输出限制只给文件级诊断。
-- [ ] **`lan lint` TTY 输出按文件分组、列对齐、severity 高亮；`NO_COLOR=1` 时无 ANSI 转义。**
-- [ ] **`lan dev` 期间服务端新日志实时输出，带 `[app]` 前缀；`event.diag.seq` 严格递增。**
-- [ ] **同一份 ruff 输出经 Python bridge 与 Rust 回落路径解析，`Diagnostic` 深度相等。**
-- [ ] **`lan add resource users` 在 NestJS 项目生成 ≥7 个文件并更新 `app.module.ts`。**
-- [ ] **`lan add --list` 按框架分组；无框架项目只列 `component` / `config`。**
-- [ ] **配置文件候选列表在仓库内只有一处（`node-bridge/src/core/runtime.ts`），Rust 不再硬编码。**
-- [ ] **`lan.config.ts` 导出函数时正常求值；函数能拿到 `{ env, cwd, command }`。**
-- [ ] **函数型 hook（`hooks.onBuild`）正常工作。**
-- [ ] **`.ts` 配置加载失败（语法错误 / import 失败）时 `validation_errors` 有条目且 CLI 显示 warning。**
-- [ ] **`LanConfigSnapshot.runtime` / `.runtimes` 是强类型字段。**
-- [ ] **`lan config set` 检测到函数/import 时只打印建议，不写入文件。**
-- [ ] **`lan config init` 生成的模板使用 `defineConfig` 且有类型提示。**
+      Go / Dart bridge 侧解析器与 TS `parsers.ts` 逐字段对齐（`go-vet` / `golangci-lint` / `dart-analyze`）。
+- [x] **`lan lint` TTY 输出按文件分组、列对齐、severity 高亮；`NO_COLOR=1` 时无 ANSI 转义。**
+      （`lania-presentation/src/lint_report.rs`：`groups_by_file_and_sorts_within_group` /
+      `aligns_columns_across_diagnostics` / `no_ansi_when_terminal_colors_disabled` /
+      `ansi_is_emitted_when_terminal_colors_enabled`。）
+- [x] **`lan dev` 期间服务端新日志实时输出，带 `[app]` 前缀；`event.diag.seq` 严格递增。**
+      （`lan_dev_streams_app_logs_with_prefix_and_quiet_app_suppresses_e2e`：应用每 200ms
+      打一行 → stderr 出现 `[app] GET /api/user 200`，`--quiet-app` 后不再出现；
+      `format_diag_line` 单测固定四个通道前缀；`diag.test.ts` 锁 `seq` 跨流严格递增。）
+- [x] **同一份 ruff 输出经 Python bridge 与 Rust 回落路径解析，`Diagnostic` 深度相等。**
+      （共享 fixture：`rust/crates/lania-py-bridge/assets/fixtures/ruff-{sample,diagnostics}.json`。
+      Python 侧 `ruff_parser_matches_the_shared_golden`（真跑 bridge 脚本的 `parse_ruff_json`），
+      TS 侧 `plugins/lint/ruff-fixture.test.ts` 用 `parseRuffDiagnostics` 断言同一份 golden；
+      两边任一字段漂移都会各自失败。解析器语义已对齐：ruff 恒为 `error`，
+      `fix.kind` 取 `applicability`。）
+- [x] **B9：Dart 项目的 `lan lint` / `lan build` 走 `lan-dart-bridge`，进程链 2 层。**
+      （`lan_lint_uses_the_dart_bridge_for_dart_projects_e2e` /
+      `lan_build_uses_the_dart_bridge_e2e`：`result.bridge == "lan-dart-bridge"`、
+      `runtime == "dart"`、产物落在 `--output-dir`。）
+- [x] **B10：Go 项目的 `lan lint` / `lan build` 走 `lan-go-bridge`，进程链 2 层。**
+      （`lan_lint_uses_the_go_bridge_for_go_projects_e2e` /
+      `lan_build_uses_the_go_bridge_e2e`：`go vet` 的 printf 诊断带 `file` / `line`，
+      `build` 产物落到 `bin/app`。）
+- [x] **`lan add resource users` 在 NestJS 项目生成 ≥7 个文件并更新 `app.module.ts`。**
+- [x] **`lan add --list` 按框架分组；无框架项目只列 `component` / `config`。**
+      （`groups` 字段；B7 把分组扩到 6 个框架。）
+- [x] **配置文件候选列表在仓库内只有一处（`node-bridge/src/core/runtime.ts`），Rust 不再硬编码。**
+      （`runtime/config/loading.rs` 只透传 `searchFrom` / bridge 给的 `candidates`。）
+- [x] **`lan.config.ts` 导出函数时正常求值；函数能拿到 `{ env, cwd, command }`。**
+      （`node-bridge/src/core/runtime.test.ts` 的
+      `loadLanConfig evaluates function configs with { env, cwd, command }`，含 `LANIA_ENV=prod` 分支。）
+- [x] **函数型 hook（`hooks.onBuild`）正常工作。**
+      （`sanitizeConfigHooks` → inline 引用；B2.5 落地，TS 侧有测试。）
+- [x] **`.ts` 配置加载失败（语法错误 / import 失败）时 `validation_errors` 有条目且 CLI 显示 warning。**
+      （`broken_lan_config_ts_surfaces_a_warning_e2e`。）
+- [x] **`LanConfigSnapshot.runtime` / `.runtimes` 是强类型字段。**
+      （`RuntimeCommandOverride` + `runtime: Option<String>`，`lan config doctor` 直接输出。）
+- [x] **`lan config set` 检测到函数/import 时只打印建议，不写入文件。**
+      （`lan_config_set_refuses_function_configs_e2e`，文件逐字节不变。）
+- [x] **`lan config init` 生成的模板使用 `defineConfig` 且有类型提示。**
+      （能解析到 `lania` 包时用 `defineConfig`，否则普通对象 + 注释；两段式见 §6.5.8。）
+- [x] **B11：Rust 项目的 `lan lint` / `lan build` 走 `lan-rs-bridge`（`lan` 二进制自身）。**
+      （`lan_lint_uses_the_rust_bridge_for_rust_projects_e2e`：clippy 的
+      `clippy::needless_range_loop` 带 `file` / `line`；`lan_build_uses_the_rust_bridge_e2e`：
+      command 来自 `toolchain.describe`、产物在 `target/release`。）
+- [x] **B13：`lan config init/doctor/sync` 与 `set` 双作用域。**
+      （`lan_config_init_creates_lan_config_ts_e2e` / `..._refuses_to_overwrite_without_force_e2e` /
+      `lan_config_set_project_key_writes_pure_data_e2e` / `lan_config_doctor_reports_runtime_mismatch_e2e` /
+      `lan_config_sync_suggests_then_writes_when_asked_e2e`。）
+- [x] **B14：模板选项只有一处定义（presentation），模板从它派生。**
+      （`templates/src/presentation.ts` 是唯一字面量来源；`toolchain.ts` 组合成
+      `RuntimeToolchain.presentation` 并由 `toolchain.describe` 暴露；
+      `template.test.ts` / `toolchain.test.ts` 锁住 7 运行时覆盖与「模板选项 == presentation」。）
+- [x] **`create` 产出的项目配置是 `lan.config.ts`**（10 个模板 + 4 个 Rust 兜底一致）。
+      （`create_workflow_falls_back_to_declared_language_templates` 与 create e2e 断言 `.ts`。）
 - [x] `lan create --template {go-service,rust-lib,python-cli,dart-cli}` 在无 JS 簇 bridge 环境可用
       （`create_workflow_falls_back_to_declared_language_templates` 以不可达 bridge 验证）。
-- [ ] `cargo test --workspace` 与 `pnpm -C ts test` 全绿。
+- [x] **B7：`lan add <generator> <name>` 在 nextjs / gin / fastapi / axum / flutter 项目各生成 ≥2 个文件，
+      产物可被对应工具链接受**（`go build` / `cargo check` / `dart analyze` / `fastapi` 实际启动）。
+- [x] `cargo test --workspace` 与 `pnpm -C ts test` 全绿。
