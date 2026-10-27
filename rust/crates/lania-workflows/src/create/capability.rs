@@ -21,7 +21,9 @@ use serde_json::{json, Value};
 
 use crate::models::{step, TemplateCapability, WorkflowBridgeStep};
 
-use super::templates::{declared_template, declared_template_names, render_declared_template};
+use super::templates::{
+    declared_dependencies, declared_template, declared_template_names, render_declared_template,
+};
 
 impl<'a> TemplateCapability<'a> {
     pub fn new(bridge: &'a NodeBridgeClient) -> Self {
@@ -86,10 +88,17 @@ impl<'a> TemplateCapability<'a> {
                         .questions
                         .iter()
                         .map(|question| {
-                            json!({
+                            let mut value = json!({
                                 "name": question.name,
                                 "type": question.question_type,
-                            })
+                            });
+                            if let Some(default) = question.default {
+                                // 兜底默认值以 JSON 字面量书写，解析失败则原样当字符串用。
+                                let parsed = serde_json::from_str::<Value>(default)
+                                    .unwrap_or_else(|_| json!(default));
+                                value["default"] = parsed;
+                            }
+                            value
                         })
                         .collect();
                     Ok((questions, None))
@@ -110,7 +119,7 @@ impl<'a> TemplateCapability<'a> {
             .template_dependencies_request(template, options.clone());
         match self
             .bridge
-            .get_template_dependencies(template.to_string(), options)
+            .get_template_dependencies(template.to_string(), options.clone())
             .await
         {
             Ok(exchange) => {
@@ -139,19 +148,11 @@ impl<'a> TemplateCapability<'a> {
             }
             Err(error) => {
                 if let Some(template) = declared_template(template) {
-                    Ok((
-                        template
-                            .dependencies
-                            .iter()
-                            .map(|value| (*value).to_string())
-                            .collect(),
-                        template
-                            .dev_dependencies
-                            .iter()
-                            .map(|value| (*value).to_string())
-                            .collect(),
-                        None,
-                    ))
+                    // 依赖随选项变化的模板（如 `python-cli`）在这里按同一份选项渲染，
+                    // 否则兜底路径的 `requirements-dev.txt` 会是空文件。
+                    let (dependencies, dev_dependencies) =
+                        declared_dependencies(template, &options);
+                    Ok((dependencies, dev_dependencies, None))
                 } else {
                     Err(error)
                 }

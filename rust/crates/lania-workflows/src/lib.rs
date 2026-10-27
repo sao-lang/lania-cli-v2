@@ -11,6 +11,7 @@ mod workflow_hooks;
 mod tests;
 
 pub use create::add_workflow::generator_catalog;
+pub use create::templates::declared_template_names;
 pub(crate) use generate::api_support as generate_api_support;
 pub(crate) use generate::module_inject as generate_module_inject;
 pub(crate) use generate::module_manifest as generate_module_manifest;

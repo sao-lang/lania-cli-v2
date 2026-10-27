@@ -8,7 +8,7 @@ mod capability;
 mod create_workflow;
 mod helpers;
 mod prompts;
-mod templates;
+pub(crate) mod templates;
 
 #[cfg(test)]
 mod tests;

@@ -34,6 +34,70 @@ async fn create_workflow_writes_template_files() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+/// B12：Node bridge 不可用时，非 Node 语言模板仍要产出与 TS 侧一致的骨架。
+///
+/// `services()` 起的是连不上任何进程的 `NodeBridgeClient`，所以这里走的就是
+/// `capability` 的 Rust 兜底分支（`template.list` 先失败，后续调用亦然）。
+#[tokio::test]
+async fn create_workflow_falls_back_to_declared_language_templates() {
+    for (template, expected) in [
+        ("go-service", vec!["go.mod", "main.go", "lan.config.js"]),
+        (
+            "rust-lib",
+            vec!["Cargo.toml", "src/lib.rs", "lan.config.js"],
+        ),
+        (
+            "python-cli",
+            vec!["pyproject.toml", "src/main.py", "requirements-dev.txt"],
+        ),
+        (
+            "dart-cli",
+            vec!["pubspec.yaml", "bin/main.dart", "lan.config.js"],
+        ),
+    ] {
+        let (services, root) = services(ExecService::dry_run());
+        let project = format!("{template}-app");
+        CreateWorkflow
+            .run(
+                &services,
+                CreateWorkflowInput {
+                    cwd: root.clone(),
+                    path: None,
+                    project_name: Some(project.clone()),
+                    template: Some(template.to_string()),
+                    package_manager: None,
+                    lint_tools: None,
+                    language: None,
+                    init_git: false,
+                    skip_install: true,
+                    skip_install_specified: true,
+                    dry_run: false,
+                    preview: false,
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("{template} fallback failed: {error}"));
+
+        for file in expected {
+            assert!(
+                root.join(&project).join(file).exists(),
+                "{template} missing {file}"
+            );
+        }
+        let config = std::fs::read_to_string(root.join(&project).join("lan.config.js"))
+            .expect("lan.config.js readable");
+        assert!(
+            config.contains("runtime:"),
+            "{template} config not rendered"
+        );
+        assert!(
+            !config.contains("{{"),
+            "{template} config still contains placeholders: {config}"
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+}
+
 #[tokio::test]
 async fn add_workflow_detects_conflicts() {
     let (services, root) = services(ExecService::dry_run());

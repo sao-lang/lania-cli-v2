@@ -13,10 +13,13 @@ use lania_host::{
     plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
 };
 use lania_logger::{render_ascii_banner, LogLevel};
-use lania_workflows::{CreateWorkflow, CreateWorkflowInput};
+use lania_workflows::{declared_template_names, CreateWorkflow, CreateWorkflowInput};
 use std::io::IsTerminal;
 
 pub const HANDLER_ID: &str = "command.create";
+
+/// 只有 Node bridge 模板运行时才能渲染的模板；与 Rust 兜底清单合并成 `--template` 候选。
+const BRIDGE_TEMPLATES: &[&str] = &["toolkit", "toolkit-monorepo", "nestjs", "express"];
 
 #[derive(Debug, Default)]
 pub struct CreateCommandPlugin;
@@ -48,18 +51,14 @@ impl CreateCommandPlugin {
                     help: "Template name".into(),
                     value_kind: ValueKind::String,
                     default_value: None,
-                    choices: vec![
-                        "spa-react".into(),
-                        "spa-vue".into(),
-                        "toolkit".into(),
-                        "toolkit-monorepo".into(),
-                        "go-service".into(),
-                        "rust-lib".into(),
-                        "python-cli".into(),
-                        "dart-cli".into(),
-                        "nestjs".into(),
-                        "express".into(),
-                    ],
+                    // 候选由「bridge 专属模板 + Rust 兜底模板」合并而成：
+                    // 前者需要模板运行时，后者在没有 bridge 时仍可渲染。
+                    // 兜底清单只有 `lania_workflows::declared_template_names` 一处定义。
+                    choices: BRIDGE_TEMPLATES
+                        .iter()
+                        .map(|name| (*name).to_string())
+                        .chain(declared_template_names())
+                        .collect(),
                     negatable: false,
                 },
                 OptionSpec {
@@ -377,6 +376,7 @@ mod tests {
         },
         HookBusImpl,
     };
+    use lania_workflows::declared_template_names;
     use serde_json::json;
 
     use super::{CreateCommandPlugin, HANDLER_ID};
@@ -424,6 +424,24 @@ mod tests {
             assert!(
                 template.choices.iter().any(|choice| choice == name),
                 "missing {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_declared_fallback_template_is_selectable() {
+        let spec = CreateCommandPlugin::spec();
+        let template = spec
+            .options
+            .iter()
+            .find(|option| option.long == "template")
+            .expect("template option exists");
+        // 兜底模板必须全部出现在候选里，否则 `lan create --template <fallback>`
+        // 在解析阶段就被拒绝，兜底路径等于不存在。
+        for name in declared_template_names() {
+            assert!(
+                template.choices.iter().any(|choice| choice == &name),
+                "fallback template {name} missing from --template choices"
             );
         }
     }
