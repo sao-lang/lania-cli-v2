@@ -22,6 +22,33 @@ use crate::validate_sections::{
 
 type JsonObject = serde_json::Map<String, Value>;
 
+/// `lan.config` 的顶层字段白名单。
+///
+/// 同时被 `validate_lan_config` 与 `lan config set/sync` 使用（见 `lib.rs::known_config_fields`），
+/// 这样「校验」「写入」不会各维护一份。
+pub(crate) const ALLOWED_TOP_LEVEL_FIELDS: &[&str] = &[
+    "version",
+    "buildTool",
+    "runtime",
+    "runtimes",
+    "buildAdaptors",
+    "lintAdaptors",
+    "lintTools",
+    "plugins",
+    "extensions",
+    "ui",
+    "schemaDiscovery",
+    "commands",
+    "hooks",
+    "release",
+    "custom",
+    "pluginAllowlist",
+    "pluginMethodAllowlist",
+    "pluginTrustedSources",
+    "pluginRequireSignature",
+    "pluginSignatureAllowlist",
+];
+
 fn raw_value<'a>(raw: &'a Value, key: &str) -> Option<&'a Value> {
     raw.get(key)
 }
@@ -73,28 +100,7 @@ pub(crate) fn validate_lan_config(raw: &Value, schema_version: u32) -> Vec<Confi
         );
     }
 
-    let allowed = [
-        "version",
-        "buildTool",
-        "runtime",
-        "runtimes",
-        "buildAdaptors",
-        "lintAdaptors",
-        "lintTools",
-        "plugins",
-        "extensions",
-        "ui",
-        "schemaDiscovery",
-        "commands",
-        "hooks",
-        "release",
-        "custom",
-        "pluginAllowlist",
-        "pluginMethodAllowlist",
-        "pluginTrustedSources",
-        "pluginRequireSignature",
-        "pluginSignatureAllowlist",
-    ];
+    let allowed = ALLOWED_TOP_LEVEL_FIELDS;
     // 顶层白名单的作用不是“替用户猜字段名”，而是尽快把拼写错误显式指出来。
     // 否则用户把 `buildTool` 写成 `buildtool` 时，normalize 往往只会默默回退默认值，定位更难。
     for key in object.keys() {

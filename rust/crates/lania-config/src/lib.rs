@@ -34,6 +34,19 @@ pub fn known_runtime_ids() -> &'static [&'static str] {
     &["node", "bun", "deno", "python", "go", "rust", "dart"]
 }
 
+/// `lan.config` 允许的顶层字段（validate 与 `lan config set/sync` 共用一份）。
+///
+/// 单一来源：`validate_lan.rs` 的白名单从这里取，`lan config set` 写盘前也用它校验，
+/// 避免「校验认、写入不认」或反过来。
+pub fn known_config_fields() -> &'static [&'static str] {
+    validate_lan::ALLOWED_TOP_LEVEL_FIELDS
+}
+
+/// `lan.config` 当前 schema 版本（`config init` / `sync` 写盘时使用）。
+pub fn current_config_version() -> u32 {
+    CURRENT_LAN_CONFIG_VERSION
+}
+
 pub use models::*;
 pub use service::ConfigService;
 

@@ -1,4 +1,4 @@
-﻿//! 帮助与全局配置类 e2e。
+//! 帮助与全局配置类 e2e。
 use super::common::*;
 use super::*;
 
@@ -438,6 +438,248 @@ fn lan_config_set_output_mode_human_returns_raw_value_e2e() {
     assert_eq!(stdout.trim(), "human");
     let prefs = read_json_file(Path::new(&home).join(".lania").join("preferences.json"));
     assert_eq!(prefs["outputMode"], "human");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+// ---- B13：`lan config init / doctor / set / sync`（项目 `lan.config.ts`）----
+
+fn write_go_project(root: &Path) {
+    write_file(root.join("go.mod"), "module demo\n\ngo 1.21\n");
+    write_file(root.join("main.go"), "package main\n\nfunc main() {}\n");
+}
+
+#[test]
+fn lan_config_init_creates_lan_config_ts_e2e() {
+    let root = temp_dir("config-init");
+    let home = isolated_home(&root);
+    write_go_project(&root);
+
+    let output = run_cli(&root, &["config", "init"], &[("HOME", home.as_str())]);
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0), "{json}");
+    assert_eq!(json["result"]["kind"], "config_init");
+    assert_eq!(json["result"]["written"], true);
+    assert_eq!(json["result"]["scope"], "project");
+    // 新项目没有 `lania` 包 ⇒ 用普通对象模板，避免 config 一生成就加载失败。
+    assert_eq!(json["result"]["mode"], "plain");
+
+    let config = fs::read_to_string(root.join("lan.config.ts")).expect("lan.config.ts written");
+    assert!(config.contains("export default {"), "{config}");
+    assert!(config.contains("\"runtime\": \"go\""), "{config}");
+    assert!(config.contains("\"lintTools\""), "{config}");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_config_init_refuses_to_overwrite_without_force_e2e() {
+    let root = temp_dir("config-init-exists");
+    let home = isolated_home(&root);
+    write_go_project(&root);
+    write_file(
+        root.join("lan.config.js"),
+        "module.exports = { runtime: 'go' };\n",
+    );
+
+    let output = run_cli(&root, &["config", "init"], &[("HOME", home.as_str())]);
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0), "{json}");
+    assert_eq!(json["result"]["written"], false);
+    assert_eq!(json["result"]["reason"], "exists");
+    assert!(json["result"]["suggestion"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("export default"));
+    assert!(!root.join("lan.config.ts").exists(), "must not write");
+    assert_eq!(
+        fs::read_to_string(root.join("lan.config.js")).expect("old config kept"),
+        "module.exports = { runtime: 'go' };\n"
+    );
+
+    // `--force` 会写 `.ts`，但不会删掉旧的 `.js`（用户自己决定留哪个）。
+    let output = run_cli(
+        &root,
+        &["config", "init", "--force"],
+        &[("HOME", home.as_str())],
+    );
+    let json = parse_stdout_json(&output);
+    assert_eq!(json["result"]["written"], true, "{json}");
+    assert!(root.join("lan.config.ts").exists());
+    assert!(root.join("lan.config.js").exists());
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_config_set_project_key_writes_pure_data_e2e() {
+    let root = temp_dir("config-set-project");
+    let home = isolated_home(&root);
+    write_go_project(&root);
+    write_file(
+        root.join("lan.config.ts"),
+        "export default { lintTools: [] };\n",
+    );
+
+    let output = run_cli(
+        &root,
+        &["config", "set", "runtime", "go"],
+        &[("HOME", home.as_str())],
+    );
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0), "{json}");
+    assert_eq!(json["result"]["kind"], "config_set");
+    assert_eq!(json["result"]["written"], true);
+    assert_eq!(json["result"]["scope"], "project");
+
+    let config = fs::read_to_string(root.join("lan.config.ts")).expect("config rewritten");
+    assert!(config.contains("\"runtime\": \"go\""), "{config}");
+    assert!(
+        config.contains("lintTools"),
+        "existing keys must be kept: {config}"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_config_set_refuses_function_configs_e2e() {
+    let root = temp_dir("config-set-fn");
+    let home = isolated_home(&root);
+    write_go_project(&root);
+    let original = "export default () => ({ runtime: 'node' });\n";
+    write_file(root.join("lan.config.ts"), original);
+
+    let output = run_cli(
+        &root,
+        &["config", "set", "runtime", "go"],
+        &[("HOME", home.as_str())],
+    );
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0), "{json}");
+    assert_eq!(json["result"]["written"], false);
+    assert_eq!(json["result"]["pureData"], false);
+    assert!(json["result"]["suggestion"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("\"runtime\": \"go\""));
+    // 硬约束：函数配置一个字都不能改。
+    assert_eq!(
+        fs::read_to_string(root.join("lan.config.ts")).expect("config kept"),
+        original
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_config_doctor_reports_runtime_mismatch_e2e() {
+    let root = temp_dir("config-doctor");
+    let home = isolated_home(&root);
+    write_go_project(&root);
+    write_file(
+        root.join("lan.config.ts"),
+        "export default { runtime: 'python', lintTools: ['mypy'] };\n",
+    );
+
+    let output = run_cli(&root, &["config", "doctor"], &[("HOME", home.as_str())]);
+    let json = parse_stdout_json(&output);
+
+    assert_eq!(output.status.code(), Some(0), "{json}");
+    assert_eq!(json["result"]["kind"], "config_doctor");
+    assert_eq!(json["result"]["exists"], true);
+    assert_eq!(json["result"]["runtime"]["declared"], "python");
+    assert_eq!(json["result"]["runtime"]["detected"], "go");
+    assert_eq!(json["result"]["runtime"]["effective"], "python");
+    assert_eq!(json["result"]["runtime"]["source"], "config");
+    let codes: Vec<&str> = json["result"]["issues"]
+        .as_array()
+        .expect("issues array")
+        .iter()
+        .filter_map(|issue| issue["code"].as_str())
+        .collect();
+    assert!(codes.contains(&"runtime_mismatch"), "{codes:?}");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_config_sync_suggests_then_writes_when_asked_e2e() {
+    let root = temp_dir("config-sync");
+    let home = isolated_home(&root);
+    write_file(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write_file(root.join("src/main.rs"), "fn main() {}\n");
+
+    // 默认只给建议，不写盘。
+    let output = run_cli(&root, &["config", "sync"], &[("HOME", home.as_str())]);
+    let json = parse_stdout_json(&output);
+    assert_eq!(output.status.code(), Some(0), "{json}");
+    assert_eq!(json["result"]["kind"], "config_sync");
+    assert_eq!(json["result"]["written"], false);
+    assert_eq!(json["result"]["writable"], true);
+    let keys: Vec<&str> = json["result"]["suggestions"]
+        .as_array()
+        .expect("suggestions array")
+        .iter()
+        .filter_map(|suggestion| suggestion["key"].as_str())
+        .collect();
+    assert_eq!(keys, vec!["runtime", "lintTools"]);
+    assert!(
+        !root.join("lan.config.ts").exists(),
+        "sync must not write by default"
+    );
+
+    // `--write` 才落盘（纯数据配置）。
+    let output = run_cli(
+        &root,
+        &["config", "sync", "--write"],
+        &[("HOME", home.as_str())],
+    );
+    let json = parse_stdout_json(&output);
+    assert_eq!(json["result"]["written"], true, "{json}");
+    let config = fs::read_to_string(root.join("lan.config.ts")).expect("config written");
+    assert!(config.contains("\"runtime\": \"rust\""), "{config}");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn broken_lan_config_ts_surfaces_a_warning_e2e() {
+    // §6.5.9 验收：`.ts` 配置加载失败（语法错误）时不能静默吞掉 ——
+    // `validation_errors` 里要有条目，CLI 以 warning 显示，但**不阻断**命令。
+    let root = temp_dir("config-broken");
+    let home = isolated_home(&root);
+    write_go_project(&root);
+    // 故意少一个右花括号。
+    write_file(
+        root.join("lan.config.ts"),
+        "export default {\n  runtime: 'go',\n",
+    );
+
+    let output = run_cli(&root, &["config", "doctor"], &[("HOME", home.as_str())]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(0), "must not block: {stderr}");
+    assert!(
+        stderr.contains("lan.config"),
+        "the load failure must be visible as a warning: {stderr}"
+    );
+
+    let json = parse_stdout_json(&output);
+    let errors = json["result"]["validationErrors"]
+        .as_array()
+        .expect("validationErrors array");
+    assert!(
+        !errors.is_empty(),
+        "load failure must be recorded in validation_errors: {json}"
+    );
 
     let _ = fs::remove_dir_all(root);
 }

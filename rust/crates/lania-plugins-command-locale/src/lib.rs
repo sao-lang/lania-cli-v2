@@ -1,7 +1,20 @@
-//! `config` command: manage global CLI preferences.
+//! `config` command: manage global CLI preferences **and** the project `lan.config.ts`.
+//!
+//! 两类作用域刻意共用一个命令（`docs/design/multi-runtime-bridge.zh-CN.md` §6.5.8）：
+//!
+//! - **全局**（`~/.lan/preferences.json`）：`lan config` / `get` / `set locale zh`；
+//! - **项目**（`lan.config.ts`）：`init` / `doctor` / `sync`，以及 `set <配置路径> <值>`。
+//!
+//! `set` 的派发规则是「先看是不是全局键」：全局键只有 3 个（`locale` / `log.timestamps` /
+//! `output.mode`），其余一律按项目配置路径处理（写盘前用 `lania_config::known_config_fields`
+//! 校验顶层字段）。这样既保住既有用法，又不会把两种语义混在一个 key 上。
+mod project_config;
+
+use std::path::PathBuf;
+
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
-use lania_command::{ArgSpec, CommandContext, CommandSpec, Example};
+use lania_command::{ArgSpec, CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
 use lania_host::{
     capability::CapabilityName,
     execution::{CommandExecution, CommandExecutionContext, CommandHandler},
@@ -9,6 +22,7 @@ use lania_host::{
         register_builtin_command_handlers, Plugin, PluginKind, PluginMeta, PluginSetupContext,
     },
 };
+use lania_logger::LogLevel;
 use lania_preferences::{
     load_preferences, normalize_locale, normalize_output_mode, save_preferences, UserPreferences,
 };
@@ -17,6 +31,9 @@ use serde_json::json;
 pub const HANDLER_ID: &str = "command.config";
 pub const GET_HANDLER_ID: &str = "command.config.get";
 pub const SET_HANDLER_ID: &str = "command.config.set";
+pub const INIT_HANDLER_ID: &str = "command.config.init";
+pub const DOCTOR_HANDLER_ID: &str = "command.config.doctor";
+pub const SYNC_HANDLER_ID: &str = "command.config.sync";
 
 #[derive(Debug, Default)]
 pub struct ConfigCommandPlugin;
@@ -24,6 +41,9 @@ pub struct ConfigCommandPlugin;
 struct ConfigRootHandler;
 struct ConfigGetHandler;
 struct ConfigSetHandler;
+struct ConfigInitHandler;
+struct ConfigDoctorHandler;
+struct ConfigSyncHandler;
 
 impl ConfigCommandPlugin {
     pub fn spec() -> CommandSpec {
@@ -53,8 +73,30 @@ impl ConfigCommandPlugin {
                     command: "lan config set output.mode human".into(),
                     description: "Switch terminal output to human mode".into(),
                 },
+                Example {
+                    command: "lan config init".into(),
+                    description: "Create a lan.config.ts for the current project".into(),
+                },
+                Example {
+                    command: "lan config doctor".into(),
+                    description: "Diagnose the project lan.config (read-only)".into(),
+                },
+                Example {
+                    command: "lan config set runtime go".into(),
+                    description: "Pin the project runtime in lan.config.ts".into(),
+                },
+                Example {
+                    command: "lan config sync".into(),
+                    description: "Suggest project config entries that are missing".into(),
+                },
             ])
-            .with_subcommands(vec![Self::get_spec(), Self::set_spec()])
+            .with_subcommands(vec![
+                Self::get_spec(),
+                Self::set_spec(),
+                Self::init_spec(),
+                Self::doctor_spec(),
+                Self::sync_spec(),
+            ])
     }
 
     fn get_spec() -> CommandSpec {
@@ -69,20 +111,69 @@ impl ConfigCommandPlugin {
     }
 
     fn set_spec() -> CommandSpec {
-        CommandSpec::new("set", "Update global CLI configuration", SET_HANDLER_ID).with_args(vec![
+        CommandSpec::new(
+            "set",
+            "Update global CLI configuration or the project lan.config",
+            SET_HANDLER_ID,
+        )
+        .with_args(vec![
             ArgSpec {
                 name: "key".into(),
                 required: true,
                 multiple: false,
-                help: "Config key: locale | log.timestamps | output.mode".into(),
+                help: "Global key (locale | log.timestamps | output.mode) or project config path \
+                       (runtime | lintTools | runtimes.go.build | ...)"
+                    .into(),
             },
             ArgSpec {
                 name: "value".into(),
                 required: true,
                 multiple: false,
-                help: "Config value".into(),
+                help: "Config value (lists accept comma-separated values or JSON)".into(),
             },
         ])
+    }
+
+    fn init_spec() -> CommandSpec {
+        CommandSpec::new(
+            "init",
+            "Create lan.config.ts for the current project",
+            INIT_HANDLER_ID,
+        )
+        .with_options(vec![OptionSpec {
+            long: "force".into(),
+            short: Some('f'),
+            help: "Overwrite lan.config.ts even when a config file already exists".into(),
+            value_kind: ValueKind::Bool,
+            default_value: None,
+            choices: vec![],
+            negatable: true,
+        }])
+    }
+
+    fn doctor_spec() -> CommandSpec {
+        CommandSpec::new(
+            "doctor",
+            "Diagnose the project lan.config (read-only)",
+            DOCTOR_HANDLER_ID,
+        )
+    }
+
+    fn sync_spec() -> CommandSpec {
+        CommandSpec::new(
+            "sync",
+            "Suggest (or write) the project config entries that are missing",
+            SYNC_HANDLER_ID,
+        )
+        .with_options(vec![OptionSpec {
+            long: "write".into(),
+            short: None,
+            help: "Write the suggestions when the config is pure data".into(),
+            value_kind: ValueKind::Bool,
+            default_value: None,
+            choices: vec![],
+            negatable: true,
+        }])
     }
 
     fn is_zh(locale: &str) -> bool {
@@ -232,6 +323,9 @@ impl Plugin for ConfigCommandPlugin {
                 (HANDLER_ID, Box::new(ConfigRootHandler)),
                 (GET_HANDLER_ID, Box::new(ConfigGetHandler)),
                 (SET_HANDLER_ID, Box::new(ConfigSetHandler)),
+                (INIT_HANDLER_ID, Box::new(ConfigInitHandler)),
+                (DOCTOR_HANDLER_ID, Box::new(ConfigDoctorHandler)),
+                (SYNC_HANDLER_ID, Box::new(ConfigSyncHandler)),
             ],
         )
     }
@@ -272,11 +366,144 @@ impl CommandHandler for ConfigSetHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         let key = ConfigCommandPlugin::read_arg(ctx.command(), ctx.locale(), "key")?;
         let value = ConfigCommandPlugin::read_arg(ctx.command(), ctx.locale(), "value")?;
+
+        // 先看是不是全局键（只有 3 个）；否则按项目配置路径处理。
+        let Some(normalized_key) = ConfigCommandPlugin::normalize_key(&key) else {
+            return set_project_config(ctx, &key, &value);
+        };
         let mut prefs = load_preferences();
-        let normalized_key =
-            ConfigCommandPlugin::apply_config_value(ctx.locale(), &mut prefs, &key, &value)?;
+        ConfigCommandPlugin::apply_config_value(ctx.locale(), &mut prefs, normalized_key, &value)?;
         save_preferences(&prefs)?;
         let output = ConfigCommandPlugin::config_value_output(normalized_key, &prefs);
+        Ok(ctx.complete_template_info(output, 0))
+    }
+}
+
+/// 命令的 cwd（`ProjectView` 只借用它，所以必须由调用方持有）。
+fn command_cwd(ctx: &CommandExecutionContext<'_>) -> PathBuf {
+    let raw = &ctx.command().cwd;
+    PathBuf::from(if raw.is_empty() { "." } else { raw.as_str() })
+}
+
+/// `lan config set <项目配置路径> <值>`（§6.5.8：只有纯数据配置才写盘）。
+fn set_project_config(
+    ctx: &CommandExecutionContext<'_>,
+    key: &str,
+    raw_value: &str,
+) -> Result<CommandExecution> {
+    let cwd = command_cwd(ctx);
+    let view = project_config::ProjectView::new(&cwd, ctx.project_config());
+    let value = project_config::parse_value(key, raw_value);
+    let plan = project_config::plan_set(&view, key, value.clone()).map_err(|error| {
+        // 既不是全局键、也不是项目配置字段：把两类合法取值都列出来，避免“猜”。
+        anyhow!("{error}\nglobal keys: locale, log.timestamps, output.mode")
+    })?;
+
+    let mut output = json!({
+        "kind": "config_set",
+        "scope": "project",
+        "path": plan.path.display().to_string(),
+        "key": key,
+        "value": value,
+        "written": false,
+        "pureData": plan.writable,
+    });
+    if plan.writable {
+        project_config::write_config(&plan.path, &plan.contents)?;
+        output["written"] = json!(true);
+    } else {
+        // 非纯数据：给出完整建议文件内容，用户手动粘贴（§6.5.8 的硬约束）。
+        output["suggestion"] = json!(plan.contents);
+        output["reason"] = json!("config uses functions/imports; not rewritten");
+    }
+    Ok(ctx.complete_template_info(output, 0))
+}
+
+#[async_trait(?Send)]
+impl CommandHandler for ConfigInitHandler {
+    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let cwd = command_cwd(ctx);
+        let view = project_config::ProjectView::new(&cwd, ctx.project_config());
+        let plan = project_config::plan_init(&view, ctx.bool_option("force"));
+        let mut output = json!({
+            "kind": "config_init",
+            "scope": "project",
+            "path": plan.path.display().to_string(),
+            "written": false,
+            "mode": plan.mode,
+            "runtime": plan.runtime.id(),
+            "existing": plan
+                .existing
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>(),
+        });
+        if plan.written {
+            project_config::write_config(&plan.path, &plan.contents)?;
+            output["written"] = json!(true);
+        } else {
+            output["reason"] = json!("exists");
+            output["suggestion"] = json!(plan.contents);
+        }
+        Ok(ctx.complete_template_info(output, 0))
+    }
+}
+
+#[async_trait(?Send)]
+impl CommandHandler for ConfigDoctorHandler {
+    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let cwd = command_cwd(ctx);
+        let view = project_config::ProjectView::new(&cwd, ctx.project_config());
+        let (report, issues) = project_config::doctor_report(&view);
+        // 只读诊断：问题同时走 logger，人在终端里能直接看到（JSON 里也有结构化副本）。
+        let logger = ctx.workflow_services().logger.scoped("command.config");
+        for issue in &issues {
+            let level = if issue.severity == "error" {
+                LogLevel::Warn
+            } else {
+                LogLevel::Info
+            };
+            logger.log(
+                level,
+                format!("config doctor [{}]: {}", issue.code, issue.message),
+            );
+        }
+        Ok(ctx.complete_template_info(report, 0))
+    }
+}
+
+#[async_trait(?Send)]
+impl CommandHandler for ConfigSyncHandler {
+    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let cwd = command_cwd(ctx);
+        let view = project_config::ProjectView::new(&cwd, ctx.project_config());
+        let plan = project_config::plan_sync(&view);
+        let should_write =
+            ctx.bool_option("write") && plan.writable && !plan.suggestions.is_empty();
+        let mut output = json!({
+            "kind": "config_sync",
+            "scope": "project",
+            "path": plan.path.display().to_string(),
+            "written": false,
+            "writable": plan.writable,
+            "patched": plan.patched,
+            "suggestions": plan
+                .suggestions
+                .iter()
+                .map(|suggestion| json!({
+                    "key": suggestion.key,
+                    "value": suggestion.value,
+                    "reason": suggestion.reason,
+                }))
+                .collect::<Vec<_>>(),
+            "snippet": plan.snippet,
+        });
+        if should_write {
+            project_config::write_config(&plan.path, &plan.snippet)?;
+            output["written"] = json!(true);
+        } else if !plan.writable && !plan.suggestions.is_empty() {
+            output["reason"] = json!("config uses functions/imports; not rewritten");
+        }
         Ok(ctx.complete_template_info(output, 0))
     }
 }

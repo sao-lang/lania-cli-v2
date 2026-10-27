@@ -121,7 +121,12 @@ pub(crate) fn validate_release_config(
         "string",
         errors,
     );
-    validate_release_stage_object(object_value(object, "verify"), "$.release.verify", true, errors);
+    validate_release_stage_object(
+        object_value(object, "verify"),
+        "$.release.verify",
+        true,
+        errors,
+    );
     validate_release_stage_object(
         object_value(object, "versioning"),
         "$.release.versioning",
@@ -133,9 +138,22 @@ pub(crate) fn validate_release_config(
     // - `stage_leaf`：允许 bool/string/object 三种紧凑写法
     //
     // 这种区分正好对应 parser 里的容错能力，但 validator 会更明确地指出“哪种写法是允许的”。
-    validate_release_stage_leaf(object_value(object, "changelog"), "$.release.changelog", errors);
-    validate_release_stage_leaf(object_value(object, "artifact"), "$.release.artifact", errors);
-    validate_release_stage_object(object_value(object, "deploy"), "$.release.deploy", false, errors);
+    validate_release_stage_leaf(
+        object_value(object, "changelog"),
+        "$.release.changelog",
+        errors,
+    );
+    validate_release_stage_leaf(
+        object_value(object, "artifact"),
+        "$.release.artifact",
+        errors,
+    );
+    validate_release_stage_object(
+        object_value(object, "deploy"),
+        "$.release.deploy",
+        false,
+        errors,
+    );
     validate_release_stage_object(
         object_value(object, "postCheck"),
         "$.release.postCheck",

@@ -147,7 +147,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
     match spec.handler_id.as_str() {
         // config
         "command.config" => {
-            spec.about = "管理全局 CLI 配置".into();
+            spec.about = "管理全局 CLI 配置与项目 lan.config".into();
             set_example_desc(spec, "lan config", "查看当前全局 CLI 配置");
             set_example_desc(spec, "lan config get locale", "读取当前语言配置");
             set_example_desc(spec, "lan config set locale zh", "切换 CLI 语言为中文");
@@ -166,15 +166,38 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "lan config set output.mode human",
                 "切换终端输出为人类可读模式",
             );
+            set_example_desc(spec, "lan config init", "为当前项目创建 lan.config.ts");
+            set_example_desc(spec, "lan config doctor", "只读诊断项目 lan.config");
+            set_example_desc(
+                spec,
+                "lan config set runtime go",
+                "在 lan.config.ts 里固定项目运行时",
+            );
+            set_example_desc(spec, "lan config sync", "列出项目配置缺失项的建议");
         }
         "command.config.get" => {
             spec.about = "读取全局 CLI 配置".into();
             set_arg_help(spec, "key", "配置项：locale | log.timestamps | output.mode");
         }
         "command.config.set" => {
-            spec.about = "更新全局 CLI 配置".into();
-            set_arg_help(spec, "key", "配置项：locale | log.timestamps | output.mode");
-            set_arg_help(spec, "value", "配置值");
+            spec.about = "更新全局 CLI 配置或项目 lan.config".into();
+            set_arg_help(
+                spec,
+                "key",
+                "全局配置项（locale | log.timestamps | output.mode）或项目配置路径（runtime | lintTools | runtimes.go.build | …）",
+            );
+            set_arg_help(spec, "value", "配置值（列表可用逗号分隔或 JSON）");
+        }
+        "command.config.init" => {
+            spec.about = "为当前项目创建 lan.config.ts".into();
+            set_option_help(spec, "force", "即使已有配置文件也覆盖 lan.config.ts");
+        }
+        "command.config.doctor" => {
+            spec.about = "只读诊断项目 lan.config".into();
+        }
+        "command.config.sync" => {
+            spec.about = "给出（或写入）项目配置缺失项的建议".into();
+            set_option_help(spec, "write", "纯数据配置时直接写入建议内容");
         }
 
         // dev
