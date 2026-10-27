@@ -127,6 +127,8 @@ impl LintCommandPlugin {
                                 | "go-vet"
                                 | "clippy"
                                 | "dart-analyze"
+                                | "deno-lint"
+                                | "deno-fmt"
                         )
                     })
                     .map(ToOwned::to_owned)
@@ -413,6 +415,30 @@ mod tests {
         assert_eq!(
             request.params["linters"],
             serde_json::json!(["ruff", "clippy", "dart-analyze", "golangci-lint"])
+        );
+    }
+
+    #[test]
+    fn accepts_deno_adaptors_and_drops_unknown_linters() {
+        let context = lania_command::CommandContext {
+            name: String::new(),
+            cwd: "/repo".into(),
+            argv: lania_command::ParsedArgv {
+                args: Default::default(),
+                options: [("linters".into(), json!("deno-lint, deno-fmt,bun,unknown"))]
+                    .into_iter()
+                    .collect(),
+            },
+            handler_id: "command.lint".into(),
+            trace_id: "trace-deno".into(),
+        };
+        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let request = LintCommandPlugin::build_request(&context, &bridge);
+
+        // `bun` 是 build 诊断的 tool 名，不是 lint adaptor，必须被过滤掉。
+        assert_eq!(
+            request.params["linters"],
+            serde_json::json!(["deno-lint", "deno-fmt"])
         );
     }
 

@@ -356,3 +356,164 @@ export function diagnosticsFromEslintMessages(filePath: string, messages: unknow
   }
   return diagnostics;
 }
+
+/**
+ * `deno lint --json`（v2+）：
+ * `{"diagnostics":[{"filename","range":{"start":{"line","col"},"end":{...}},"code","message"}]}`
+ *
+ * 行列号是 **1-based**，与 `Diagnostic` 一致，不做偏移（这一点与 oxlint 的 0-based 相反）。
+ */
+export function parseDenoLintDiagnostics(output: string): Diagnostic[] {
+  const trimmed = output.trim();
+  if (!trimmed) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    // v1 没有 `--json`：回落到文本形态 `error[code]: msg\n  --> file:line:col`。
+    return parseDenoLintText(trimmed);
+  }
+  const entries = asRecord(parsed).diagnostics;
+  if (!Array.isArray(entries)) {
+    return parseDenoLintText(trimmed);
+  }
+  const diagnostics: Diagnostic[] = [];
+  for (const entry of entries) {
+    const record = asRecord(entry);
+    const file = str(record.filename) ?? str(record.file);
+    if (!file) continue;
+    const range = asRecord(record.range);
+    const start = asRecord(range.start);
+    const end = asRecord(range.end);
+    diagnostics.push(
+      makeDiagnostic('deno-lint', {
+        id: str(record.code),
+        // deno lint 只报规则违规，没有 severity 字段；规则违反按 error 处理（与退出码一致）。
+        severity: severityFromText(record.severity ?? 'error'),
+        message: str(record.message) ?? '',
+        file,
+        line: num(start.line),
+        col: num(start.col),
+        endLine: num(end.line),
+        endCol: num(end.col),
+        fixable: true,
+      }),
+    );
+  }
+  return diagnostics;
+}
+
+/** deno lint 文本形态（v1）：`error[no-explicit-any]: \`any\` type is not allowed` + `--> file:l:c` */
+function parseDenoLintText(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const header = /^(?:error|warning)\[([^\]]+)\]:\s*(.*)$/;
+  for (const block of output.split(/\n\s*\n/)) {
+    const lines = block.split(/\r?\n/);
+    const title = header.exec(lines[0]?.trim() ?? '');
+    if (!title) continue;
+    const location = lines
+      .map((line) => /^\s*-->\s+(.+?):(\d+):(\d+)\s*$/.exec(line))
+      .find((match) => match !== null);
+    if (!location) continue;
+    diagnostics.push(
+      makeDiagnostic('deno-lint', {
+        id: title[1],
+        severity: 'error',
+        message: title[2].trim(),
+        file: location[1],
+        line: Number(location[2]),
+        col: Number(location[3]),
+        fixable: true,
+      }),
+    );
+  }
+  return diagnostics;
+}
+
+/**
+ * `deno fmt --check`：只打印待格式化文件清单（或 diff），**没有行列号**。
+ *
+ * 输出形如：
+ * ```text
+ * from /repo/main.ts:
+ *  ...
+ *
+ * Checked 3 files
+ * ```
+ * 因此只产出文件级诊断，`fix.available` 恒为 true（`deno fmt` 可直接改）。
+ */
+export function parseDenoFmtDiagnostics(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const seen = new Set<string>();
+  const push = (file: string) => {
+    const trimmed = file.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    diagnostics.push(
+      makeDiagnostic('deno-fmt', {
+        severity: 'warning',
+        message: 'not formatted',
+        file: trimmed,
+        fixable: true,
+      }),
+    );
+  };
+  for (const line of output.split(/\r?\n/)) {
+    const fromFile = /^from (.+):\s*$/.exec(line.trim());
+    if (fromFile) {
+      push(fromFile[1]);
+      continue;
+    }
+    // 无 diff 引擎时的紧凑形态：每行一个文件路径。
+    if (/^\S+\.(?:[cm]?[jt]sx?|json|jsonc|md)$/.test(line.trim())) {
+      push(line);
+    }
+  }
+  return diagnostics;
+}
+
+/**
+ * `bun build` 失败输出（stderr）：
+ * ```text
+ * 1 | import './missing.ts';
+ *           ^
+ * error: Could not resolve: "./missing.ts"
+ *     at /repo/entry.ts:1:8
+ * ```
+ * 一段一条诊断；`at <file>:<line>:<col>` 是定位行，缺失时退化为文件级诊断。
+ */
+export function parseBunBuildDiagnostics(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const lines = output.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = /^\s*error:\s*(.+?)\s*$/.exec(lines[index]);
+    if (!header) continue;
+    let file: string | null = null;
+    let line: number | null = null;
+    let col: number | null = null;
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const location = /^\s*at\s+(.+?):(\d+):(\d+)\s*$/.exec(lines[cursor]);
+      if (location) {
+        file = location[1];
+        line = Number(location[2]);
+        col = Number(location[3]);
+        index = cursor;
+        break;
+      }
+      // 下一条 error 说明这段已结束，且没有定位信息。
+      if (/^\s*error:/.test(lines[cursor])) {
+        break;
+      }
+    }
+    diagnostics.push(
+      makeDiagnostic('bun', {
+        severity: 'error',
+        message: header[1],
+        file,
+        line,
+        col,
+      }),
+    );
+  }
+  return diagnostics;
+}

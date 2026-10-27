@@ -8,8 +8,11 @@ import test from 'node:test';
 import { runLanguageAdaptor } from './language-runners.js';
 import {
   parseBlackDiagnostics,
+  parseBunBuildDiagnostics,
   parseClippyDiagnostics,
   parseDartAnalyzeDiagnostics,
+  parseDenoFmtDiagnostics,
+  parseDenoLintDiagnostics,
   parseFlake8Diagnostics,
   parseGolangciDiagnostics,
   parseGoVetDiagnostics,
@@ -167,4 +170,110 @@ test('missing language tools fall back instead of throwing', async () => {
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
+});
+
+test('deno lint/fmt and bun build adaptors are selectable', () => {
+  for (const adaptor of ['deno-lint', 'deno-fmt']) {
+    assert.ok((LINT_ADAPTORS as readonly string[]).includes(adaptor), adaptor);
+  }
+  assert.deepEqual(resolveLintTools({ lintTools: ['deno-lint', 'deno-fmt'] }), [
+    'deno-lint',
+    'deno-fmt',
+  ]);
+  // bun 只出现在 §7.3 的 build 诊断里，不是 lint adaptor —— 不应混进 lint 工具集。
+  assert.equal((LINT_ADAPTORS as readonly string[]).includes('bun'), false);
+});
+
+test('deno lint JSON output keeps rule id and 1-based position', () => {
+  const json = JSON.stringify({
+    diagnostics: [
+      {
+        filename: 'src/a.ts',
+        range: { start: { line: 12, col: 5 }, end: { line: 12, col: 9 } },
+        code: 'no-explicit-any',
+        message: '`any` type is not allowed',
+      },
+    ],
+  });
+  const diagnostics = parseDenoLintDiagnostics(json);
+  assert.deepEqual(diagnostics, [
+    {
+      tool: 'deno-lint',
+      id: 'no-explicit-any',
+      severity: 'error',
+      message: '`any` type is not allowed',
+      file: 'src/a.ts',
+      range: { start: { line: 12, col: 5 }, end: { line: 12, col: 9 } },
+      fix: { available: true, kind: 'safe' },
+    },
+  ]);
+});
+
+test('deno lint v1 text output is parsed instead of silently dropped', () => {
+  const text = [
+    'error[no-unused-vars]: `x` is never used',
+    ' --> /repo/main.ts:3:7',
+    '  |',
+    '3 |   const x = 1;',
+  ].join('\n');
+  const diagnostics = parseDenoLintDiagnostics(text);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].id, 'no-unused-vars');
+  assert.equal(diagnostics[0].file, '/repo/main.ts');
+  assert.deepEqual(diagnostics[0].range?.start, { line: 3, col: 7 });
+});
+
+test('deno fmt has no line info, so it emits file-level diagnostics', () => {
+  const output = 'from /repo/main.ts:\n  \n\nfrom /repo/util.ts:\n';
+  const diagnostics = parseDenoFmtDiagnostics(output);
+  assert.deepEqual(
+    diagnostics.map((item) => item.file),
+    ['/repo/main.ts', '/repo/util.ts'],
+  );
+  for (const diagnostic of diagnostics) {
+    assert.equal(diagnostic.tool, 'deno-fmt');
+    assert.equal(diagnostic.range, undefined);
+    assert.deepEqual(diagnostic.fix, { available: true, kind: 'safe' });
+  }
+});
+
+test('bun build stderr is parsed into located diagnostics', () => {
+  // 真实 `bun 1.3.0 build` 失败输出（stderr），见 PR 说明。
+  const stderr = [
+    "1 | import './does-not-exist.ts';",
+    '           ^',
+    'error: Could not resolve: "./does-not-exist.ts"',
+    '    at /repo/entry.ts:1:8',
+    '',
+  ].join('\n');
+  const diagnostics = parseBunBuildDiagnostics(stderr);
+  assert.deepEqual(diagnostics, [
+    {
+      tool: 'bun',
+      severity: 'error',
+      message: 'Could not resolve: "./does-not-exist.ts"',
+      file: '/repo/entry.ts',
+      range: { start: { line: 1, col: 8 } },
+    },
+  ]);
+});
+
+test('bun build reports every error, not just the last one', () => {
+  const stderr = [
+    '1 | const b = ;',
+    '              ^',
+    'error: Unexpected ;',
+    '    at /repo/b2.ts:1:11',
+    '',
+    '1 | const a = ;',
+    '              ^',
+    'error: Unexpected ;',
+    '    at /repo/b1.ts:1:11',
+  ].join('\n');
+  const diagnostics = parseBunBuildDiagnostics(stderr);
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(
+    diagnostics.map((item) => item.file),
+    ['/repo/b2.ts', '/repo/b1.ts'],
+  );
 });

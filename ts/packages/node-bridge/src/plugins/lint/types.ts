@@ -25,6 +25,8 @@ export const LINT_ADAPTORS = [
   'go-vet',
   'clippy',
   'dart-analyze',
+  'deno-lint',
+  'deno-fmt',
 ] as const;
 
 export type LintAdaptor = (typeof LINT_ADAPTORS)[number];

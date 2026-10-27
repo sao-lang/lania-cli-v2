@@ -1,4 +1,5 @@
 import { asRecord, loadToolConfig, resolveModuleFromCwd } from '../../core/runtime.js';
+import { makeDiagnostic } from '../diagnostics.js';
 import {
   aggregateDiagnostics,
   failedRuntimeResult,
@@ -11,7 +12,12 @@ import {
   runBinary,
 } from './shared.js';
 import { runLanguageAdaptor } from './language-runners.js';
-import { createLintRunResult, type LintAdaptor, type LintRunResult } from './types.js';
+import {
+  createLintRunResult,
+  filesFromDiagnostics,
+  type LintAdaptor,
+  type LintRunResult,
+} from './types.js';
 
 // 各 adaptor 的调用细节集中在这里，`plugin.ts` 只负责请求编排与事件输出。
 export async function runAdaptor(
@@ -170,16 +176,27 @@ async function runOxfmt(
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
+  // `--list-different` 只给文件路径（没有行列号），所以产出文件级诊断：
+  // 至少要让渲染层能显示「哪个文件没格式化」以及「可自动修复」，而不是只数一遍文件。
+  const diagnostics = changedFiles.map((filePath) =>
+    makeDiagnostic('oxfmt', {
+      severity: 'warning',
+      message: 'not formatted',
+      file: filePath,
+      fixable: true,
+    }),
+  );
+  if (diagnostics.length === 0) {
+    return createLintRunResult('oxfmt', 'runtime', []);
+  }
   return createLintRunResult(
     'oxfmt',
     'runtime',
-    changedFiles.map((filePath) => ({
-      filePath,
-      errors: 1,
-      warnings: 0,
-    })),
-    fix ? 0 : changedFiles.length,
+    filesFromDiagnostics(diagnostics),
     0,
+    diagnostics.length,
+    undefined,
+    diagnostics,
   );
 }
 

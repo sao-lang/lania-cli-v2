@@ -12,6 +12,9 @@ import {
   type CompilerExecution,
   type Tool,
 } from '../compiler-shared.js';
+import type { Diagnostic } from '../diagnostics.js';
+import { nextDiagSeq } from '../diag.js';
+import { parseBunBuildDiagnostics } from '../lint/parsers.js';
 import type { SpawnCommand } from './commands.js';
 
 const DEV_READY_TIMEOUT_MS = 1000;
@@ -70,6 +73,8 @@ interface SpawnOutcome {
   exitCode: number;
   error: string | null;
   stderrTail: string;
+  /** 完整 stderr：编译器诊断需要整段输出，只用尾巴会丢失除最后一条以外的所有错误。 */
+  stderr: string;
 }
 
 function spawnAndWait(
@@ -81,6 +86,7 @@ function spawnAndWait(
 ): Promise<SpawnOutcome> {
   return new Promise((resolve) => {
     let stderrTail = '';
+    let stderrAll = '';
     const push = (event: BridgeEvent) => {
       events.push(event);
       emit?.(event);
@@ -101,17 +107,18 @@ function spawnAndWait(
     });
     const stderr = createLineSplitter((line) => {
       stderrTail = line;
+      stderrAll = stderrAll ? `${stderrAll}\n${line}` : line;
       diag(line, 'stderr');
     });
     child.stdout?.on('data', stdout.push);
     child.stderr?.on('data', stderr.push);
     child.on('error', (error) => {
-      resolve({ exitCode: 1, error: error.message, stderrTail });
+      resolve({ exitCode: 1, error: error.message, stderrTail, stderr: stderrAll });
     });
     child.on('close', (code) => {
       stdout.flush();
       stderr.flush();
-      resolve({ exitCode: code ?? 1, error: null, stderrTail });
+      resolve({ exitCode: code ?? 1, error: null, stderrTail, stderr: stderrAll });
     });
   });
 }
@@ -134,12 +141,64 @@ export async function runSpawnBuild(
   if (!success) {
     const message = outcome.error ?? (outcome.stderrTail || `exit code ${outcome.exitCode}`);
     push(compilerIssueEvent(runtime, 'error', message));
+    // 结构化诊断（§7.3）：编译器错误必须带文件/行/列，只留一行 stderr 尾巴等于丢失全部定位信息。
+    for (const event of compilerDiagnosticEvents(command.command, outcome.stderr, 'build')) {
+      push(event);
+    }
   }
   push(compilerDoneEvent(runtime, 'build', success, 'runtime', { runtime }));
   return {
-    result: { ...createCompilerResult(runtime, 'build', 'runtime', {}), success, runtime },
+    result: {
+      ...createCompilerResult(runtime, 'build', 'runtime', {}),
+      success,
+      runtime,
+      diagnostics: compilerDiagnostics(command.command, outcome.stderr),
+    },
     events: emit ? [] : events,
   };
+}
+
+/**
+ * 各运行时编译器 stderr → `Diagnostic[]`。
+ *
+ * 目前只有 `bun build` 有稳定可解析的文本形态；其余运行时先返回空数组，
+ * 等各自的解析器落地（B9/B10/B11）再补，避免这里出现「猜格式」的分支。
+ *
+ * 注意：`runtime` 是 `Tool`（`vite`/`python`/`go`…），不含 `bun` ——
+ * bun/deno 走 JS 簇，暂未注册 spawn 适配器，所以这里的 `tool` 由调用方传入
+ * 实际执行的命令名，避免用 `runtime` 反推。
+ */
+function compilerDiagnostics(tool: string, stderr: string): Diagnostic[] {
+  return tool === 'bun' ? parseBunBuildDiagnostics(stderr) : [];
+}
+
+function compilerDiagnosticEvents(
+  tool: string,
+  stderr: string,
+  channel: 'build' | 'dev',
+): BridgeEvent[] {
+  return compilerDiagnostics(tool, stderr).map(
+    (diagnostic) =>
+      ({
+        method: 'event.diag',
+        params: {
+          source: 'tool',
+          stream: 'syslog',
+          tool: diagnostic.tool,
+          channel,
+          level: diagnostic.severity === 'error' ? 'error' : 'warn',
+          text: diagnostic.message,
+          seq: nextDiagSeq(),
+          ts: Date.now(),
+          fields: {
+            file: diagnostic.file,
+            line: diagnostic.range?.start.line,
+            col: diagnostic.range?.start.col,
+            id: diagnostic.id,
+          },
+        },
+      }) satisfies BridgeEvent,
+  );
 }
 
 export async function startSpawnDev(
