@@ -1,0 +1,11 @@
+[package]
+name = "lania-go-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Go runtime bridge for lan (jsonl stdio protocol, same as node-bridge)"
+
+[dependencies]
+anyhow.workspace = true
+lania-bridge-support = { path = "../lania-bridge-support" }

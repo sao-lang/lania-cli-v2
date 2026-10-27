@@ -11,13 +11,14 @@
 use anyhow::Result;
 use lania_hooks::hook_keys;
 use lania_logger::LogLevel;
-use lania_node_bridge::BridgeRequest;
+use lania_node_bridge::{BridgeExchange, BridgeRequest, NodeBridgeClient};
 use lania_workflows::WorkflowExecution;
 use serde_json::json;
 
 use super::bridge_helpers::BridgeDispatchResult;
-use super::context::CommandExecutionContext;
-use super::types::{BridgeCommandRun, CommandExecution, EXIT_CANCELLED};
+use super::context::{CommandExecutionContext, ExecutionError};
+use super::types::{BridgeCommandRun, CommandExecution, EXIT_CANCELLED, EXIT_RUNTIME_ERROR};
+use crate::RuntimeKind;
 
 impl<'a> CommandExecutionContext<'a> {
     pub async fn call_bridge(&self, mut request: BridgeRequest) -> Result<BridgeCommandRun> {
@@ -148,6 +149,172 @@ impl<'a> CommandExecutionContext<'a> {
             follow_up,
             interrupted,
         })
+    }
+
+    /// 独立运行时 bridge 调用（§5.3 首选路径）。
+    ///
+    /// 与 `call_bridge` 的区别：这里的目标客户端由调用方指定（`lan-py-bridge` 等），
+    /// 不走 `host_state.node_bridge`，也不做长任务/事件订阅（各语言 bridge 的
+    /// lint/build 都是「请求 → 响应」，不需要常驻订阅）。
+    /// 返回 `Err` 表示 bridge 不可用 —— 调用方据此回落到 Rust 侧 CLI spawn。
+    pub async fn call_runtime_bridge(
+        &self,
+        client: &NodeBridgeClient,
+        request: BridgeRequest,
+    ) -> Result<BridgeExchange> {
+        self.log(
+            LogLevel::Debug,
+            "command_execute",
+            Some(request.method.clone()),
+            format!("dispatch runtime bridge request {}", request.method),
+        );
+        let start = client.open_call(request.clone());
+        let exchange = match start {
+            Ok(mut call) => tokio::time::timeout(
+                std::time::Duration::from_millis(self.policy.timeout_ms),
+                call.collect_until_response(|event| self.apply_bridge_event(&request, event)),
+            )
+            .await
+            .map_err(|_| ExecutionError {
+                exit_code: EXIT_RUNTIME_ERROR,
+                message: format!("runtime bridge request {} timed out", request.method),
+            })??,
+            Err(_) => tokio::time::timeout(
+                std::time::Duration::from_millis(self.policy.timeout_ms),
+                client.call_async(request.clone()),
+            )
+            .await
+            .map_err(|_| ExecutionError {
+                exit_code: EXIT_RUNTIME_ERROR,
+                message: format!("runtime bridge request {} timed out", request.method),
+            })??,
+        };
+        if let Some(error) = exchange.response.error.as_ref() {
+            return Err(ExecutionError {
+                exit_code: EXIT_RUNTIME_ERROR,
+                message: format!(
+                    "runtime bridge error for {}: [{}] {}",
+                    request.method, error.code, error.message
+                ),
+            }
+            .into());
+        }
+        Ok(exchange)
+    }
+
+    /// 运行时判定（§5.1）并在有歧义时给一条 warning，返回最终生效的运行时。
+    ///
+    /// 只做「提示」不做决策：`--runtime` 与 `lan.config.runtime` 仍然优先。
+    /// 放在 `execution` 层是因为 `lint` / `build` / `dev` 三个 handler 都要用同一套提示。
+    pub fn log_runtime_decision(&self, cli_runtime: Option<&str>) -> RuntimeKind {
+        let cwd = std::path::PathBuf::from(&self.command.cwd);
+        if self.command.cwd.is_empty() {
+            return RuntimeKind::Node;
+        }
+        let decision = crate::runtime::decide_runtime(&cwd, self.project_config(), cli_runtime);
+        if let Some(notice) = decision.notice {
+            self.log(
+                LogLevel::Warn,
+                "command_execute",
+                Some(self.command.handler_id.clone()),
+                notice,
+            );
+        }
+        decision.kind
+    }
+
+    /// 解析「某运行时的某个动作」应当执行什么命令（`build` / `dev`）。
+    ///
+    /// 优先级（§5.2：语言知识只允许一处定义）：
+    /// 1. `lan.config.runtimes.<id>.<action>` —— 用户在配置里显式覆盖；
+    /// 2. JS 簇 bridge 的 `toolchain.describe` —— `toolchain.ts` 是唯一权威来源，
+    ///    Rust 不维护第二份「默认 build 命令」表；
+    /// 3. `None` —— 调用方据此**不路由**到语言 bridge（回落 JS 簇路径）。
+    ///
+    /// `output` 会替换命令里的 `{output}` 占位符（Go 的 `go build -o {output}`）。
+    pub async fn resolve_runtime_command(
+        &self,
+        kind: RuntimeKind,
+        action: &str,
+        output: Option<&str>,
+    ) -> Option<Vec<String>> {
+        let configured = self
+            .project_config()
+            .and_then(|config| config.runtimes.get(kind.id()))
+            .and_then(|override_| match action {
+                "build" => override_.build.clone(),
+                "dev" => override_.dev.clone(),
+                _ => None,
+            })
+            .filter(|command| !command.is_empty());
+
+        let raw = match configured {
+            Some(command) => command,
+            None => {
+                let fallback = self.toolchain_command(kind, action).await?;
+                if fallback.is_empty() {
+                    return None;
+                }
+                fallback
+            }
+        };
+
+        let output = output.unwrap_or("bin/app");
+        Some(
+            raw.into_iter()
+                .map(|arg| arg.replace("{output}", output))
+                .collect(),
+        )
+    }
+
+    /// 从 `toolchain.describe` 里取某个运行时的 `buildCommand` / `devCommand`。
+    ///
+    /// 只做一次请求、不做进程内缓存：`build` / `lint` 每条命令最多问一次，
+    /// 而缓存会让「改了 toolchain.ts 但没重启 CLI」的场景读到旧值。
+    async fn toolchain_command(&self, kind: RuntimeKind, action: &str) -> Option<Vec<String>> {
+        let client = self.node_bridge();
+        let request = client.request("toolchain.describe", serde_json::json!({}));
+        let exchange = tokio::time::timeout(
+            std::time::Duration::from_millis(self.policy.timeout_ms),
+            client.call_async(request),
+        )
+        .await
+        .ok()?
+        .ok()?;
+        let result = exchange.response.result?;
+        let runtimes = result.get("runtimes")?.as_array()?;
+        let entry = runtimes
+            .iter()
+            .find(|entry| entry.get("id").and_then(|id| id.as_str()) == Some(kind.id()))?;
+        let key = if action == "dev" {
+            "devCommand"
+        } else {
+            "buildCommand"
+        };
+        Some(
+            entry
+                .get(key)?
+                .as_array()?
+                .iter()
+                .filter_map(|value| value.as_str().map(ToOwned::to_owned))
+                .collect(),
+        )
+    }
+
+    /// 把运行时 bridge 的交换结果包装成命令执行结果。
+    pub fn complete_runtime_bridge(
+        &self,
+        request: BridgeRequest,
+        exchange: BridgeExchange,
+        exit_code: i32,
+    ) -> CommandExecution {
+        CommandExecution::RuntimeBridge {
+            context: self.command.clone(),
+            request,
+            exchange,
+            host_state: self.host_state(),
+            exit_code,
+        }
     }
 
     pub fn complete_bridge(&self, run: BridgeCommandRun, exit_code: i32) -> CommandExecution {

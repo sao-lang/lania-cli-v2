@@ -25,6 +25,10 @@ lania-node-bridge = { path = "../lania-node-bridge" }
 lania-pm = { path = "../lania-pm" }
 lania-progress = { path = "../lania-progress" }
 lania-prompt = { path = "../lania-prompt" }
+lania-py-bridge = { path = "../lania-py-bridge" }
+lania-go-bridge = { path = "../lania-go-bridge" }
+lania-dart-bridge = { path = "../lania-dart-bridge" }
+lania-rs-bridge = { path = "../lania-rs-bridge" }
 lania-runtime = { path = "../lania-runtime" }
 lania-task = { path = "../lania-task" }
 lania-workflows = { path = "../lania-workflows" }

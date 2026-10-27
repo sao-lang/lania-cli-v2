@@ -51,6 +51,14 @@ impl CommandHandler for DevCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         // 标准 `lan dev`：走 node-bridge 的 compiler.dev workflow。
         ctx.require_capability(CapabilityName::NodeBridge)?;
+        // §5.1 验收：双运行时项目要告诉用户我们选了哪个。
+        let cli_runtime = ctx
+            .command()
+            .argv
+            .options
+            .get("runtime")
+            .and_then(|value| value.as_str());
+        ctx.log_runtime_decision(cli_runtime);
         // 应用日志默认开启（否则用户看不到服务端接口日志），`--quiet-app` 才关掉。
         ctx.set_quiet_app_logs(ctx.bool_option("quiet-app"));
         let request = DevCommandPlugin::build_request(ctx.command(), ctx.node_bridge());

@@ -1,0 +1,35 @@
+[
+  {
+    "cell": null,
+    "code": "E501",
+    "end_location": { "column": 95, "row": 12 },
+    "filename": "src/main.py",
+    "fix": { "applicability": "safe", "edits": [], "message": "Split line" },
+    "location": { "column": 89, "row": 12 },
+    "message": "Line too long (94 > 88)",
+    "noqa_row": 12,
+    "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": { "column": 10, "row": 3 },
+    "filename": "src/app.py",
+    "fix": { "applicability": "unsafe", "edits": [], "message": "Remove unused import" },
+    "location": { "column": 1, "row": 3 },
+    "message": "`os` imported but unused",
+    "noqa_row": 3,
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": null,
+    "end_location": { "column": 4, "row": 9 },
+    "filename": "src/broken.py",
+    "fix": null,
+    "location": { "column": 1, "row": 9 },
+    "message": "语法错误：意外的缩进（无规则号）",
+    "noqa_row": 9,
+    "url": null
+  }
+]

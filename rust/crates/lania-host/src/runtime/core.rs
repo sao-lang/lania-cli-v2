@@ -159,6 +159,71 @@ impl HostRuntime {
         self.services.bridges.borrow_mut().register(kind, program)
     }
 
+    /// 登记内置的 Python bridge（`lan-py-bridge`，§3.3）。
+    ///
+    /// 失败（没有 python 解释器）时**不报错**：回落矩阵要求「装了就更好，不装也能用」
+    /// （§5.3），因此这里按 best-effort 处理，由调用方用 `has_runtime_bridge` 判断。
+    pub fn register_python_bridge(&self, cwd: &std::path::Path) -> Result<()> {
+        let launch = lania_py_bridge::launch_spec(cwd)?;
+        self.register_runtime_bridge(
+            RuntimeKind::Python,
+            crate::runtime::bridges::BridgeProgram::new(launch.program, launch.args, launch.dir),
+        )
+    }
+
+    /// 登记内置的 Go bridge（`lan-go-bridge`，§3.4）。
+    ///
+    /// **延迟解析**：登记只记下 cwd 与解析函数，首次真正需要时才会
+    /// 「定位 go + 编译一次 bridge 并缓存」（见 `lania_go_bridge::ensure_binary`）。
+    /// 这样 Go 项目里执行 `lan env` / `lan add` 不会白白付一次 `go build`。
+    pub fn register_go_bridge(&self, cwd: &std::path::Path) -> Result<()> {
+        self.services
+            .bridges
+            .borrow_mut()
+            .register_deferred(RuntimeKind::Go, cwd, |dir| {
+                let launch = lania_go_bridge::launch_spec(dir)?;
+                Ok(crate::runtime::bridges::BridgeProgram::new(
+                    launch.program,
+                    launch.args,
+                    launch.dir,
+                ))
+            })
+    }
+
+    /// 登记内置的 Dart bridge（`lan-dart-bridge`，§3.6，同样延迟解析）。
+    pub fn register_dart_bridge(&self, cwd: &std::path::Path) -> Result<()> {
+        self.services
+            .bridges
+            .borrow_mut()
+            .register_deferred(RuntimeKind::Dart, cwd, |dir| {
+                let launch = lania_dart_bridge::launch_spec(dir)?;
+                Ok(crate::runtime::bridges::BridgeProgram::new(
+                    launch.program,
+                    launch.args,
+                    launch.dir,
+                ))
+            })
+    }
+
+    /// 登记内置的 Rust bridge（`lan-rs-bridge`，§3.5 / B11）。
+    ///
+    /// 与其它 bridge 不同：它**不引入新产物** —— `lan` 二进制自己以 bridge 模式
+    /// （`lan __lania_rs_bridge`）承担协议循环，因此这里就是「自己再起一个自己」。
+    /// 仍然走延迟解析，避免 `lan env` 这类命令白解析一次 `current_exe`。
+    pub fn register_rust_bridge(&self, cwd: &std::path::Path) -> Result<()> {
+        self.services
+            .bridges
+            .borrow_mut()
+            .register_deferred(RuntimeKind::Rust, cwd, |dir| {
+                let launch = lania_rs_bridge::launch_spec(dir)?;
+                Ok(crate::runtime::bridges::BridgeProgram::new(
+                    launch.program,
+                    launch.args,
+                    launch.dir,
+                ))
+            })
+    }
+
     /// 该运行时的 bridge 是否可用（用于 `doctor` / 回落决策）。
     pub fn has_runtime_bridge(&self, kind: RuntimeKind) -> bool {
         self.services.bridges.borrow().is_registered(kind)

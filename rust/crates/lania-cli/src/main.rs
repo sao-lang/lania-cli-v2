@@ -46,6 +46,15 @@ async fn main() -> Result<()> {
     // 都继承本进程 PATH，`lan env use <runtime> <ver>` 才会真正生效。
     activate_managed_runtimes();
 
+    // B11：同一个二进制兼作 Rust 运行时 bridge（`lan __lania_rs_bridge`）。
+    //
+    // 必须在任何宿主装配之前短路：bridge 模式只需要 stdin/stdout 协议循环，
+    // 不加载插件、不读项目配置，也不打印任何额外输出（§3.1 约定 1）。
+    if lania_rs_bridge::is_bridge_invocation(env::args_os()) {
+        let code = lania_rs_bridge::run_stdio_bridge()?;
+        std::process::exit(code);
+    }
+
     let mut host = HostRuntime::new();
     // 插件注册顺序会影响：
     // - CLI 命令树的展示顺序
@@ -101,6 +110,38 @@ async fn main() -> Result<()> {
     let _ = host
         .bootstrap_project_extensions_from_cwd_async(cwd.clone())
         .await?;
+    // 登记语言 bridge（§5.3：装了就更好，不装也能用）。
+    //
+    // 全部 best-effort：解析失败时保持未登记，`lint` / `build` 回落到 JS 簇路径。
+    // 必须在 `execute_command` 之前 —— 注册表是懒加载的，登记本身不启动进程。
+    //
+    // - Python（B8）：登记只做路径探测 + 脚本落盘，成本可忽略。
+    // - Go（B10）/ Dart（B9）：**延迟解析**，首次真正需要 bridge 时才编译/探测，
+    //   所以 Go 项目里跑 `lan env` / `lan add` 不会白白付一次 `go build`。
+    if let Err(error) = host.register_python_bridge(std::path::Path::new(&cwd)) {
+        host.logger().log(
+            lania_logger::LogLevel::Debug,
+            format!("lan-py-bridge not registered: {error}"),
+        );
+    }
+    if let Err(error) = host.register_go_bridge(std::path::Path::new(&cwd)) {
+        host.logger().log(
+            lania_logger::LogLevel::Debug,
+            format!("lan-go-bridge not registered: {error}"),
+        );
+    }
+    if let Err(error) = host.register_dart_bridge(std::path::Path::new(&cwd)) {
+        host.logger().log(
+            lania_logger::LogLevel::Debug,
+            format!("lan-dart-bridge not registered: {error}"),
+        );
+    }
+    if let Err(error) = host.register_rust_bridge(std::path::Path::new(&cwd)) {
+        host.logger().log(
+            lania_logger::LogLevel::Debug,
+            format!("lan-rs-bridge not registered: {error}"),
+        );
+    }
     let renderer: Arc<dyn LogRenderer> = Arc::new(
         AutoStyledLogRenderer::default()
             .with_locale(locale.clone())

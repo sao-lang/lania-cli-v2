@@ -100,6 +100,7 @@ impl Host for HostRuntime {
 mod catalog;
 mod config;
 mod core;
+mod detect;
 mod dynamic;
 mod execute;
 mod host_rpc;
@@ -109,3 +110,8 @@ mod lifecycle;
 mod tests;
 
 pub mod bridges;
+
+pub use self::detect::{
+    decide_runtime, default_lint_tool, detect_project_runtime, detect_runtime, RuntimeDecision,
+    FEATURE_PRIORITY,
+};

@@ -1,0 +1,38 @@
+[
+  {
+    "tool": "ruff",
+    "severity": "error",
+    "message": "Line too long (94 > 88)",
+    "id": "E501",
+    "file": "src/main.py",
+    "range": {
+      "start": { "line": 12, "col": 89 },
+      "end": { "line": 12, "col": 95 }
+    },
+    "url": "https://docs.astral.sh/ruff/rules/line-too-long",
+    "fix": { "available": true, "kind": "safe" }
+  },
+  {
+    "tool": "ruff",
+    "severity": "error",
+    "message": "`os` imported but unused",
+    "id": "F401",
+    "file": "src/app.py",
+    "range": {
+      "start": { "line": 3, "col": 1 },
+      "end": { "line": 3, "col": 10 }
+    },
+    "url": "https://docs.astral.sh/ruff/rules/unused-import",
+    "fix": { "available": true, "kind": "unsafe" }
+  },
+  {
+    "tool": "ruff",
+    "severity": "error",
+    "message": "语法错误：意外的缩进（无规则号）",
+    "file": "src/broken.py",
+    "range": {
+      "start": { "line": 9, "col": 1 },
+      "end": { "line": 9, "col": 4 }
+    }
+  }
+]

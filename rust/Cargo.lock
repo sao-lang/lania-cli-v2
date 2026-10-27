@@ -830,6 +830,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lania-bridge-support"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "lania-cli"
 version = "0.0.3"
 dependencies = [
@@ -857,6 +864,7 @@ dependencies = [
  "lania-plugins-command-tools",
  "lania-preferences",
  "lania-progress",
+ "lania-rs-bridge",
  "lania-workflows",
  "serde",
  "serde_json",
@@ -893,6 +901,14 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "lania-dart-bridge"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "lania-bridge-support",
 ]
 
 [[package]]
@@ -952,6 +968,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "lania-go-bridge"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "lania-bridge-support",
+]
+
+[[package]]
 name = "lania-hooks"
 version = "0.0.3"
 dependencies = [
@@ -972,9 +996,11 @@ dependencies = [
  "ignore",
  "lania-command",
  "lania-config",
+ "lania-dart-bridge",
  "lania-exec",
  "lania-fs",
  "lania-git",
+ "lania-go-bridge",
  "lania-hooks",
  "lania-logger",
  "lania-node-bridge",
@@ -982,6 +1008,8 @@ dependencies = [
  "lania-preferences",
  "lania-progress",
  "lania-prompt",
+ "lania-py-bridge",
+ "lania-rs-bridge",
  "lania-runtime",
  "lania-task",
  "lania-workflows",
@@ -1033,6 +1061,7 @@ dependencies = [
  "async-trait",
  "lania-command",
  "lania-host",
+ "lania-logger",
  "lania-node-bridge",
  "serde_json",
 ]
@@ -1126,7 +1155,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "lania-command",
+ "lania-config",
  "lania-host",
+ "lania-logger",
  "lania-preferences",
  "serde_json",
 ]
@@ -1216,6 +1247,23 @@ dependencies = [
  "anyhow",
  "dialoguer",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lania-py-bridge"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "lania-bridge-support",
+ "serde_json",
+]
+
+[[package]]
+name = "lania-rs-bridge"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
  "serde_json",
 ]
 

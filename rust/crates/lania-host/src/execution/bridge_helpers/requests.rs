@@ -82,7 +82,9 @@ impl<'a> CommandExecutionContext<'a> {
             };
             match result {
                 Ok(Ok(dispatch)) => {
-                    if dispatch.exchange.response.error.is_some() && attempt < self.policy.retry_attempts {
+                    if dispatch.exchange.response.error.is_some()
+                        && attempt < self.policy.retry_attempts
+                    {
                         self.log(
                             LogLevel::Warn,
                             "command_execute",

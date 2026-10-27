@@ -10,5 +10,6 @@ anyhow.workspace = true
 async-trait.workspace = true
 lania-command = { path = "../lania-command" }
 lania-host = { path = "../lania-host" }
+lania-logger = { path = "../lania-logger" }
 lania-node-bridge = { path = "../lania-node-bridge" }
 serde_json.workspace = true

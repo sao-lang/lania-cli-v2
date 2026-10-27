@@ -1,0 +1,12 @@
+[package]
+name = "lania-py-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Python runtime bridge for lan (jsonl stdio protocol, same as node-bridge)"
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true
+lania-bridge-support = { path = "../lania-bridge-support" }

@@ -11,6 +11,7 @@ use lania_host::{
     capability::CapabilityName,
     execution::{CommandExecution, CommandExecutionContext, CommandHandler},
     plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
+    RuntimeKind,
 };
 use lania_logger::LogLevel;
 use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
@@ -19,6 +20,66 @@ use serde_json::Value;
 pub const HANDLER_ID: &str = "command.lint";
 pub const CHECK_HANDLER_ID: &str = "command.lint.check";
 pub const FIX_HANDLER_ID: &str = "command.lint.fix";
+
+/// 「lint adaptor → 独立语言 bridge」的唯一映射。
+///
+/// B8 先落地了 Python（`lan-py-bridge`），B9 / B10 / B11 扩到 Dart / Go / Rust。
+/// 新增一个语言 bridge 的 lint 工具时**只改这里**：
+/// 工具的参数表仍在 `toolchain.ts`（TS 侧唯一来源），两者职责不同 ——
+/// 这里只回答「这个 adaptor 归哪个进程」。
+const RUNTIME_LINT_TOOLS: &[(&str, RuntimeKind)] = &[
+    // Python（§3.3）：mypy / flake8 / black 有真 API，ruff 是二进制分发壳。
+    ("mypy", RuntimeKind::Python),
+    ("ruff", RuntimeKind::Python),
+    ("black", RuntimeKind::Python),
+    ("flake8", RuntimeKind::Python),
+    // Go（§3.4）：go vet 随工具链自带，golangci-lint 需要单独安装。
+    ("go-vet", RuntimeKind::Go),
+    ("golangci-lint", RuntimeKind::Go),
+    // Dart（§3.6）：`dart analyze --format machine`。
+    ("dart-analyze", RuntimeKind::Dart),
+    // Rust（§3.5 / B11）：由 `lan` 自身的 bridge 模式委托 `cargo clippy`。
+    ("clippy", RuntimeKind::Rust),
+];
+
+/// 某个运行时由独立 bridge 承担的 adaptor 列表。
+fn runtime_lint_tools(kind: RuntimeKind) -> Vec<&'static str> {
+    RUNTIME_LINT_TOOLS
+        .iter()
+        .filter(|(_, owner)| *owner == kind)
+        .map(|(adaptor, _)| *adaptor)
+        .collect()
+}
+
+/// 该运行时的默认 lint 工具（没显式配置时用哪一个）。
+///
+/// 选「随工具链自带」的那个：`go vet` 跟着 `go`、`dart analyze` 跟着 `dart`、
+/// `clippy` 跟着 `cargo`，这样新项目 `lan lint` 不会立刻因为「没装第三方 linter」
+/// 而变成噪声。
+fn default_lint_tool(kind: RuntimeKind) -> Option<&'static str> {
+    match kind {
+        RuntimeKind::Python => Some("mypy"),
+        RuntimeKind::Go => Some("go-vet"),
+        RuntimeKind::Dart => Some("dart-analyze"),
+        RuntimeKind::Rust => Some("clippy"),
+        _ => None,
+    }
+}
+
+fn runtime_bridge_label(kind: RuntimeKind) -> &'static str {
+    match kind {
+        RuntimeKind::Python => "lan-py-bridge",
+        RuntimeKind::Go => "lan-go-bridge",
+        RuntimeKind::Dart => "lan-dart-bridge",
+        RuntimeKind::Rust => "lan-rs-bridge",
+        _ => "unknown",
+    }
+}
+
+/// 该运行时是否已落地独立 lint bridge。
+fn has_lint_bridge(kind: RuntimeKind) -> bool {
+    !runtime_lint_tools(kind).is_empty()
+}
 
 #[derive(Debug, Default)]
 pub struct LintCommandPlugin;
@@ -198,8 +259,20 @@ impl Plugin for LintCommandPlugin {
 impl CommandHandler for LintCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         ctx.require_capability(CapabilityName::NodeBridge)?;
-        let request = LintCommandPlugin::build_request(ctx.command(), ctx.node_bridge());
         let started = std::time::Instant::now();
+
+        // §5.1 验收：双运行时项目要告诉用户我们选了哪个（`deno.json` + `package.json` 等）。
+        ctx.log_runtime_decision(None);
+
+        // B8 / B9 / B10：非 JS 项目优先走各自的运行时 bridge
+        // （Python → lan-py-bridge、Go → lan-go-bridge、Dart → lan-dart-bridge）。
+        // bridge 不可用时回落到 JS 簇 bridge 的 spawn 适配器（§5.3 回落矩阵）。
+        // 两条路径产出同一份 `Diagnostic`，因此渲染层不需要分支。
+        if let Some(execution) = run_runtime_bridge(ctx, started).await? {
+            return Ok(execution);
+        }
+
+        let request = LintCommandPlugin::build_request(ctx.command(), ctx.node_bridge());
         let run = ctx.call_bridge(request).await?;
         emit_lint_report(ctx, &run.exchange.response.result, started.elapsed());
         let exit_code = run
@@ -210,6 +283,249 @@ impl CommandHandler for LintCommandHandler {
             .and_then(|result| result["exitCode"].as_i64())
             .unwrap_or(lania_host::EXIT_LINT_FAILED as i64) as i32;
         Ok(ctx.complete_bridge(run, exit_code))
+    }
+}
+
+/// 非 JS 项目的 lint：交给该运行时自己的 bridge（§3.3 / §3.4 / §3.6）。
+///
+/// 返回 `Ok(None)` 表示「项目是 JS 簇 / bridge 不可用 / 没有可用工具 / 调用失败」，
+/// 调用方继续走原来的 JS 簇路径 —— 这就是 §5.3 要求的「移除 bridge 后仍可用」。
+///
+/// 结果形状与 `lint.run` 保持一致（`diagnostics` / `counts` / `resultsByAdaptor` / `exitCode`），
+/// 因此 `diagnostic_views` 与 `LintReportRenderer` 不需要知道结果来自哪个 bridge。
+async fn run_runtime_bridge(
+    ctx: &CommandExecutionContext<'_>,
+    started: std::time::Instant,
+) -> Result<Option<CommandExecution>> {
+    let cwd = ctx.command().cwd.clone();
+    if cwd.is_empty() {
+        return Ok(None);
+    }
+    // 运行时判定复用 `lania_host::detect_runtime`（§5.1 唯一入口），
+    // 不再各命令自己数特征文件。
+    let kind = lania_host::detect_runtime(std::path::Path::new(&cwd), ctx.project_config(), None);
+    if !has_lint_bridge(kind) || !ctx.has_bridge(kind) {
+        return Ok(None);
+    }
+    let adaptors = runtime_lint_adaptors(ctx, kind);
+    if adaptors.is_empty() {
+        return Ok(None);
+    }
+    // 可能是延迟解析的 bridge（Go 首次使用会编译一次）；失败 ⇒ 回落。
+    let Ok(client) = ctx.bridge(kind) else {
+        return Ok(None);
+    };
+    let bridge_label = runtime_bridge_label(kind);
+    let mode = lint_mode(ctx.command());
+
+    let mut results = Vec::new();
+    for adaptor in adaptors {
+        let request = client.request(
+            format!("lint.{adaptor}"),
+            serde_json::json!({
+                "cwd": cwd,
+                "mode": mode,
+                "fix": mode == "fix",
+            }),
+        );
+        match ctx.call_runtime_bridge(&client, request).await {
+            Ok(exchange) => {
+                if let Some(result) = exchange.response.result {
+                    results.push(result);
+                }
+            }
+            Err(error) => {
+                ctx.workflow_services().logger.log(
+                    LogLevel::Warn,
+                    format!("{adaptor} via {bridge_label} failed, falling back: {error}"),
+                );
+                return Ok(None);
+            }
+        }
+    }
+
+    let payload = runtime_lint_payload(mode, bridge_label, &results);
+    emit_lint_report(ctx, &Some(payload.clone()), started.elapsed());
+    let exit_code = payload["exitCode"].as_i64().unwrap_or(0) as i32;
+    Ok(Some(ctx.complete_runtime_bridge(
+        client.request("lint.run", serde_json::json!({ "cwd": cwd })),
+        runtime_lint_exchange(payload),
+        exit_code,
+    )))
+}
+
+/// `lint.run` 的 `mode` 推导（与 `build_request` 保持同一份规则）。
+fn lint_mode(context: &CommandContext) -> &'static str {
+    let requested_fix = context
+        .argv
+        .options
+        .get("fix")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    match context.handler_id.as_str() {
+        FIX_HANDLER_ID => "fix",
+        CHECK_HANDLER_ID => "check",
+        _ if requested_fix => "fix",
+        _ => "check",
+    }
+}
+
+/// `--linters` 过滤（只接受该运行时拥有的工具名；其它语言的工具名交给 JS 簇处理）。
+fn requested_linters(context: &CommandContext, kind: RuntimeKind) -> Vec<String> {
+    let own = runtime_lint_tools(kind);
+    context
+        .argv
+        .options
+        .get("linters")
+        .and_then(|value| value.as_str())
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|item| own.contains(item))
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+/// 该运行时的 lint 工具集：显式 `--linters` > `lan.config` 的 `lintTools` > 内置默认。
+///
+/// 只保留属于该运行时的工具：`lan.config` 里残留的 `eslint` 之类由 JS 簇处理，
+/// 硬塞给语言 bridge 只会得到「工具不存在」的噪声。
+fn runtime_lint_adaptors(ctx: &CommandExecutionContext<'_>, kind: RuntimeKind) -> Vec<String> {
+    let requested = requested_linters(ctx.command(), kind);
+    if !requested.is_empty() {
+        return requested;
+    }
+    let configured = configured_lint_tools(ctx, kind);
+    if !configured.is_empty() {
+        return configured;
+    }
+    default_lint_tool(kind)
+        .map(|tool| vec![tool.to_string()])
+        .unwrap_or_default()
+}
+
+/// 读 `lan.config` 的 `lintTools`，只保留当前运行时的工具。
+///
+/// 优先用已经求值过的配置快照（B2.5 的强类型字段）；快照缺失时才回落到
+/// 文本粗解析 —— 后者只为「bridge 起不来、快照拿不到」的极端场景兜底。
+fn configured_lint_tools(ctx: &CommandExecutionContext<'_>, kind: RuntimeKind) -> Vec<String> {
+    let own = runtime_lint_tools(kind);
+    let from_snapshot = ctx
+        .project_config()
+        .map(|config| config.lint_tools.clone())
+        .unwrap_or_default();
+    if !from_snapshot.is_empty() {
+        return from_snapshot
+            .into_iter()
+            .filter(|item| own.contains(&item.as_str()))
+            .collect();
+    }
+    let cwd = ctx.command().cwd.clone();
+    if cwd.is_empty() {
+        return Vec::new();
+    }
+    config_text_lint_tools(&cwd, kind)
+}
+
+/// 从 `lan.config.*` 文本里粗取 `lintTools` 列表（快照不可用时的兜底）。
+///
+/// 刻意不做完整 TS/JS 解析：这里只需要「是不是这门语言 + 用哪些工具」，
+/// 配置解析的权威实现仍在 bridge 侧（§6.5「候选列表只有一处」）。
+fn config_text_lint_tools(cwd: &str, kind: RuntimeKind) -> Vec<String> {
+    let own = runtime_lint_tools(kind);
+    let config_files = [
+        "lan.config.ts",
+        "lan.config.js",
+        "lan.config.mjs",
+        "lan.config.cjs",
+    ];
+    for file in config_files {
+        let path = std::path::Path::new(cwd).join(file);
+        let Ok(contents) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let tools = extract_lint_tools(&contents, &own);
+        if !tools.is_empty() {
+            return tools;
+        }
+    }
+    Vec::new()
+}
+
+/// 从 `lan.config.*` 文本里粗取 `lintTools` 列表。
+fn extract_lint_tools(contents: &str, own: &[&str]) -> Vec<String> {
+    let Some(index) = contents.find("lintTools") else {
+        return Vec::new();
+    };
+    let rest = &contents[index..];
+    let Some(open) = rest.find('[') else {
+        return Vec::new();
+    };
+    let Some(close) = rest[open..].find(']') else {
+        return Vec::new();
+    };
+    rest[open + 1..open + close]
+        .split(',')
+        .map(|item| item.trim().trim_matches(|ch| ch == '\'' || ch == '"'))
+        .filter(|item| own.contains(item))
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+/// 合并各工具结果（与 `plugin.ts` 的 `summarizeResults` / `countDiagnostics` 同语义）。
+fn runtime_lint_payload(mode: &str, bridge: &str, results: &[Value]) -> Value {
+    let mut diagnostics: Vec<Value> = Vec::new();
+    let mut results_by_adaptor = serde_json::Map::new();
+    let mut errors = 0u64;
+    let mut warnings = 0u64;
+    let mut files = 0u64;
+    for result in results {
+        let adaptor = result["adaptor"].as_str().unwrap_or("unknown").to_string();
+        errors += result["errors"].as_u64().unwrap_or(0);
+        warnings += result["warnings"].as_u64().unwrap_or(0);
+        files += result["files"].as_array().map(Vec::len).unwrap_or(0) as u64;
+        if let Some(items) = result["diagnostics"].as_array() {
+            diagnostics.extend(items.iter().cloned());
+        }
+        results_by_adaptor.insert(adaptor, result.clone());
+    }
+    let counts = serde_json::json!({
+        "error": diagnostics.iter().filter(|item| item["severity"] == "error").count(),
+        "warning": diagnostics.iter().filter(|item| item["severity"] == "warning").count(),
+        "info": diagnostics.iter().filter(|item| item["severity"] == "info").count(),
+        "hint": diagnostics.iter().filter(|item| item["severity"] == "hint").count(),
+    });
+    let exit_code = if errors > 0 { 1 } else { 0 };
+    serde_json::json!({
+        "accepted": true,
+        "mode": mode,
+        "fix": mode == "fix",
+        "bridge": bridge,
+        "summary": {
+            "errors": errors,
+            "warnings": warnings,
+            "files": files,
+            "adaptors": results.len(),
+        },
+        "resultsByAdaptor": results_by_adaptor,
+        "diagnostics": diagnostics,
+        "counts": counts,
+        "exitCode": exit_code,
+    })
+}
+
+/// 把已聚合的结果包装成 `BridgeExchange`（输出层只看 `response.result`）。
+fn runtime_lint_exchange(payload: Value) -> lania_node_bridge::BridgeExchange {
+    lania_node_bridge::BridgeExchange {
+        response: lania_node_bridge::BridgeResponse {
+            id: "runtime-lint".into(),
+            result: Some(payload),
+            error: None,
+        },
+        events: Vec::new(),
     }
 }
 
@@ -355,6 +671,163 @@ mod tests {
         assert!(handlers.get(HANDLER_ID).is_some());
         assert!(handlers.get(CHECK_HANDLER_ID).is_some());
         assert!(handlers.get(FIX_HANDLER_ID).is_some());
+    }
+
+    // ---- B8 / B9 / B10：语言 bridge 的路由判定与结果整形 ----
+
+    fn temp_project(name: &str, files: &[(&str, &str)]) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "lania-lint-{name}-{}-{}",
+            std::process::id(),
+            name.len()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("temp project");
+        for (file, contents) in files {
+            std::fs::write(root.join(file), contents).expect("seed file");
+        }
+        root
+    }
+
+    #[test]
+    fn runtime_tool_table_covers_all_language_bridges() {
+        // 「adaptor → bridge」映射是唯一的一处；把预期写全，避免新增工具时漏登记。
+        assert_eq!(
+            super::runtime_lint_tools(lania_host::RuntimeKind::Python),
+            vec!["mypy", "ruff", "black", "flake8"]
+        );
+        assert_eq!(
+            super::runtime_lint_tools(lania_host::RuntimeKind::Go),
+            vec!["go-vet", "golangci-lint"]
+        );
+        assert_eq!(
+            super::runtime_lint_tools(lania_host::RuntimeKind::Dart),
+            vec!["dart-analyze"]
+        );
+        assert_eq!(
+            super::runtime_lint_tools(lania_host::RuntimeKind::Rust),
+            vec!["clippy"]
+        );
+        // JS 簇没有独立 bridge：这些运行时永远走 node bridge。
+        for kind in [
+            lania_host::RuntimeKind::Node,
+            lania_host::RuntimeKind::Bun,
+            lania_host::RuntimeKind::Deno,
+        ] {
+            assert!(!super::has_lint_bridge(kind), "{kind:?}");
+        }
+        // 每个有 bridge 的运行时都必须有默认工具，否则 `lan lint` 会静默什么都不跑。
+        for kind in [
+            lania_host::RuntimeKind::Python,
+            lania_host::RuntimeKind::Go,
+            lania_host::RuntimeKind::Dart,
+            lania_host::RuntimeKind::Rust,
+        ] {
+            assert!(super::has_lint_bridge(kind), "{kind:?}");
+            assert!(super::default_lint_tool(kind).is_some(), "{kind:?}");
+            assert_ne!(super::runtime_bridge_label(kind), "unknown");
+        }
+    }
+
+    #[test]
+    fn lint_tool_filtering_is_per_runtime() {
+        let context = CommandContext {
+            name: String::new(),
+            cwd: "/repo".into(),
+            argv: lania_command::ParsedArgv {
+                args: Default::default(),
+                options: [("linters".into(), json!("mypy,go-vet,dart-analyze,eslint"))]
+                    .into_iter()
+                    .collect(),
+            },
+            handler_id: HANDLER_ID.into(),
+            trace_id: "trace".into(),
+        };
+        // 只保留属于该运行时的工具：不得把 go-vet 塞给 Python bridge。
+        assert_eq!(
+            super::requested_linters(&context, lania_host::RuntimeKind::Python),
+            vec!["mypy".to_string()]
+        );
+        assert_eq!(
+            super::requested_linters(&context, lania_host::RuntimeKind::Go),
+            vec!["go-vet".to_string()]
+        );
+        assert_eq!(
+            super::requested_linters(&context, lania_host::RuntimeKind::Dart),
+            vec!["dart-analyze".to_string()]
+        );
+    }
+
+    #[test]
+    fn config_text_lint_tools_only_keeps_tools_of_the_runtime() {
+        let root = temp_project(
+            "tools",
+            &[(
+                "lan.config.js",
+                "export default { lintTools: ['ruff', 'mypy', 'eslint', 'go-vet'] };\n",
+            )],
+        );
+        let cwd = root.to_string_lossy().to_string();
+        assert_eq!(
+            super::config_text_lint_tools(&cwd, lania_host::RuntimeKind::Python),
+            vec!["ruff".to_string(), "mypy".to_string()]
+        );
+        assert_eq!(
+            super::config_text_lint_tools(&cwd, lania_host::RuntimeKind::Go),
+            vec!["go-vet".to_string()]
+        );
+        assert!(super::config_text_lint_tools(&cwd, lania_host::RuntimeKind::Dart).is_empty());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn runtime_lint_payload_matches_the_js_cluster_shape() {
+        let payload = super::runtime_lint_payload(
+            "check",
+            "lan-go-bridge",
+            &[json!({
+                "adaptor": "go-vet",
+                "implementation": "runtime",
+                "errors": 1,
+                "warnings": 1,
+                "files": [{ "filePath": "main.go", "errors": 1, "warnings": 1 }],
+                "diagnostics": [
+                    { "tool": "go-vet", "severity": "error",
+                      "message": "wrong type", "file": "main.go",
+                      "range": { "start": { "line": 5, "col": 1 } } },
+                    { "tool": "go-vet", "severity": "warning", "message": "warn",
+                      "file": "main.go" }
+                ]
+            })],
+        );
+        assert_eq!(payload["bridge"], "lan-go-bridge");
+        assert_eq!(payload["mode"], "check");
+        assert_eq!(payload["exitCode"], 1);
+        assert_eq!(payload["summary"]["errors"], 1);
+        assert_eq!(payload["summary"]["adaptors"], 1);
+        assert_eq!(payload["counts"]["error"], 1);
+        assert_eq!(payload["counts"]["warning"], 1);
+        assert_eq!(payload["resultsByAdaptor"]["go-vet"]["adaptor"], "go-vet");
+        // 渲染层只认 `diagnostics`；bridge 自己的 result 形状必须和 `lint.run` 一致。
+        assert_eq!(payload["diagnostics"].as_array().map(Vec::len), Some(2));
+    }
+
+    #[test]
+    fn lint_mode_honours_subcommands_and_the_fix_flag() {
+        let make = |handler: &str, fix: bool| CommandContext {
+            name: String::new(),
+            cwd: "/repo".into(),
+            argv: lania_command::ParsedArgv {
+                args: Default::default(),
+                options: [("fix".to_string(), json!(fix))].into_iter().collect(),
+            },
+            handler_id: handler.into(),
+            trace_id: "trace".into(),
+        };
+        assert_eq!(super::lint_mode(&make(FIX_HANDLER_ID, false)), "fix");
+        assert_eq!(super::lint_mode(&make(CHECK_HANDLER_ID, true)), "check");
+        assert_eq!(super::lint_mode(&make(HANDLER_ID, true)), "fix");
+        assert_eq!(super::lint_mode(&make(HANDLER_ID, false)), "check");
     }
 
     #[test]

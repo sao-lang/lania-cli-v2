@@ -28,5 +28,9 @@ pub use registry::{
     CommandHandlerRegistryImpl, CommandRegistry, CommandRegistryImpl, HandlerRegistry,
     PluginRegistry, PluginRegistryImpl,
 };
-pub use runtime::{Host, HostRuntime};
 pub use runtime::bridges::{BridgeProgram, BridgeRegistry, RuntimeKind};
+pub use runtime::{
+    decide_runtime, default_lint_tool, detect_project_runtime, detect_runtime, RuntimeDecision,
+    FEATURE_PRIORITY,
+};
+pub use runtime::{Host, HostRuntime};

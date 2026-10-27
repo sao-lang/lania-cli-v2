@@ -51,6 +51,7 @@ fn command_value(context: &CommandContext) -> Value {
 fn execution_context(execution: &lania_host::CommandExecution) -> &CommandContext {
     match execution {
         lania_host::CommandExecution::Bridge { context, .. }
+        | lania_host::CommandExecution::RuntimeBridge { context, .. }
         | lania_host::CommandExecution::Workflow { context, .. }
         | lania_host::CommandExecution::TemplateInfo { context, .. } => context,
     }
@@ -58,7 +59,8 @@ fn execution_context(execution: &lania_host::CommandExecution) -> &CommandContex
 
 fn print_payload(execution: &lania_host::CommandExecution) -> Value {
     match execution {
-        lania_host::CommandExecution::Bridge { exchange, .. } => exchange
+        lania_host::CommandExecution::Bridge { exchange, .. }
+        | lania_host::CommandExecution::RuntimeBridge { exchange, .. } => exchange
             .response
             .result
             .clone()
@@ -88,7 +90,8 @@ fn print_payload(execution: &lania_host::CommandExecution) -> Value {
 
 fn bridge_error_message(execution: &lania_host::CommandExecution) -> Option<String> {
     match execution {
-        lania_host::CommandExecution::Bridge { exchange, .. } => exchange
+        lania_host::CommandExecution::Bridge { exchange, .. }
+        | lania_host::CommandExecution::RuntimeBridge { exchange, .. } => exchange
             .response
             .error
             .as_ref()

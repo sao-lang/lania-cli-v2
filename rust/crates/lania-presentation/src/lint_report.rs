@@ -220,6 +220,9 @@ impl LintReportRenderer {
             Some(id) => text.push(format!("{id:<10}"), TextStyle::colored(TextColor::Cyan)),
             None => text.push(format!("{:<10}", ""), TextStyle::default()),
         }
+        // 规则号列是定宽 `{id:<10}`：id 超过 10 字符时不会补空格，
+        // 必须显式加分隔空格，否则会渲染成 `assignmentIncompatible types ...`。
+        text.push(" ", TextStyle::default());
         text.push(diagnostic.message.clone(), TextStyle::default());
         // 工具名洋红 + dim，`[fix]` 绿色。
         text.push(
@@ -466,6 +469,29 @@ mod tests {
         );
         // 同一位置不同工具都必须保留（去重键包含 tool）。
         assert_eq!(report.diagnostics.len(), 2);
+    }
+
+    #[test]
+    fn long_rule_ids_are_separated_from_the_message() {
+        let renderer = LintReportRenderer::for_terminal(false, "en");
+        let report = LintReport::from_diagnostics(
+            vec![DiagnosticView {
+                tool: "mypy".into(),
+                id: Some("assignmentintoverylong".into()),
+                severity: DiagnosticSeverity::Error,
+                message: "Incompatible types".into(),
+                file: Some("app.py".into()),
+                line: Some(5),
+                col: Some(1),
+                fix_available: None,
+            }],
+            None,
+        );
+        let rendered = renderer.render(&report).join("\n");
+        assert!(
+            rendered.contains("assignmentintoverylong Incompatible types"),
+            "long rule id must keep a separating space: {rendered}"
+        );
     }
 
     #[test]

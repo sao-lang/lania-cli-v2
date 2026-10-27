@@ -404,3 +404,30 @@ impl<'a> CommandExecutionContext<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::format_diag_line;
+    use lania_node_bridge::DiagChannel;
+
+    /// §7.5.3 / §12：四个通道都有固定前缀，`app` 才是「应用自身日志」。
+    #[test]
+    fn diag_channels_render_distinct_prefixes() {
+        assert_eq!(
+            format_diag_line(DiagChannel::App, "GET /api/user 200"),
+            "[app] GET /api/user 200"
+        );
+        assert_eq!(
+            format_diag_line(DiagChannel::Build, "compiling"),
+            "[build] compiling"
+        );
+        assert_eq!(
+            format_diag_line(DiagChannel::Dev, "vite ready"),
+            "[dev] vite ready"
+        );
+        assert_eq!(
+            format_diag_line(DiagChannel::Lint, "running ruff"),
+            "[lint] running ruff"
+        );
+    }
+}

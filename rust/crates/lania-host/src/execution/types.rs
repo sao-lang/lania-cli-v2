@@ -59,6 +59,18 @@ pub enum CommandExecution {
         host_state: serde_json::Value,
         exit_code: i32,
     },
+    /// 独立运行时 bridge（`lan-py-bridge` / …）的调用结果。
+    ///
+    /// 与 `Bridge` 分开是因为这里的桥**不是** JS 簇的 node-bridge：
+    /// 它说同一套协议，但 `request` 里的方法名属于另一门语言（`lint.mypy` …）。
+    /// 输出层只需照常序列化 `exchange`，不需要感知是哪种语言。
+    RuntimeBridge {
+        context: CommandContext,
+        request: BridgeRequest,
+        exchange: BridgeExchange,
+        host_state: serde_json::Value,
+        exit_code: i32,
+    },
     Workflow {
         context: CommandContext,
         execution: WorkflowExecution,
@@ -79,6 +91,7 @@ impl CommandExecution {
         // 输出层/CLI main 只关心“最终退出码”，因此这里提供一个统一提取口。
         match self {
             Self::Bridge { exit_code, .. }
+            | Self::RuntimeBridge { exit_code, .. }
             | Self::Workflow { exit_code, .. }
             | Self::TemplateInfo { exit_code, .. } => *exit_code,
         }
@@ -103,6 +116,19 @@ impl CommandExecution {
                 request,
                 exchange,
                 follow_up,
+                host_state,
+                exit_code,
+            },
+            Self::RuntimeBridge {
+                context,
+                request,
+                exchange,
+                exit_code,
+                ..
+            } => Self::RuntimeBridge {
+                context,
+                request,
+                exchange,
                 host_state,
                 exit_code,
             },

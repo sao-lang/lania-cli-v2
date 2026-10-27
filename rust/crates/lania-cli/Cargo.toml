@@ -18,6 +18,7 @@ lania-env = { path = "../lania-env" }
 lania-git = { path = "../lania-git" }
 lania-host = { path = "../lania-host" }
 lania-logger = { path = "../lania-logger" }
+lania-rs-bridge = { path = "../lania-rs-bridge" }
 lania-node-bridge = { path = "../lania-node-bridge" }
 lania-progress = { path = "../lania-progress" }
 lania-workflows = { path = "../lania-workflows" }
