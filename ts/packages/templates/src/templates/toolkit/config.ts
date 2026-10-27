@@ -5,13 +5,15 @@
  * - 保持单包工具库结构尽量精简，只生成一个 `src/index` 入口与基础 vite 配置
  * - TypeScript / JavaScript、lint 工具、git hooks 相关文件都按 normalized options 条件开启
  */
+import { NODE_GIT_HOOK_TOOLS } from '../../presentation.js';
 import { normalizeToolkitOptions } from './options.js';
 
 export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   const normalized = normalizeToolkitOptions(options);
   const hasLintTool = (tool: string) => normalized.lintTools.includes(tool);
   // 这些工具通常意味着会落地 pre-commit / commit-msg hook。
-  const hasAnyGitHookTool = ['eslint', 'oxlint', 'prettier', 'oxfmt', 'stylelint', 'commitlint'].some((tool) =>
+  // 名单来自 `presentation.ts`（B14），四个 node 模板共用一份。
+  const hasAnyGitHookTool = NODE_GIT_HOOK_TOOLS.some((tool) =>
     normalized.lintTools.includes(tool),
   );
   const files = [
@@ -22,7 +24,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     file('package.json', 'ejs/package.json.ejs'),
     file('src/index.ts', 'ejs/index.ts.ejs', normalized.useTs),
     file('src/index.js', 'ejs/index.js.ejs', !normalized.useTs),
-    file('lan.config.js', 'ejs/lan.config.js.ejs'),
+    file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
     file('.gitignore', 'ejs/.gitignore.ejs'),
     file('eslint.config.js', 'ejs/eslint.config.js.ejs', hasLintTool('eslint')),
     file('.oxlintrc.json', 'ejs/.oxlintrc.json.ejs', hasLintTool('oxlint')),

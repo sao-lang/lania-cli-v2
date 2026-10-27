@@ -419,10 +419,13 @@ fn resolve_target_dir(
 }
 
 fn default_target(generator: &Generator, names: &NameVariants) -> String {
-    if generator.framework == "nestjs" {
-        format!("src/{}", names.name_kebab)
-    } else {
-        "src".to_string()
+    match generator.framework {
+        "nestjs" | "nextjs" => format!("src/{}", names.name_kebab),
+        // Go / Rust / Python 的产物自带完整分层路径（`internal/handler/...`），
+        // 目标目录保持项目根，避免出现 `internal/internal/handler` 这类重复段。
+        "gin" | "axum" | "fastapi" => ".".to_string(),
+        "flutter" => "lib".to_string(),
+        _ => "src".to_string(),
     }
 }
 

@@ -3,18 +3,13 @@ import {
   type ChoiceSpec,
   type NormalizedChoices,
 } from '../../language-options.js';
+import { choicesFor } from '../../presentation.js';
 
-export const DART_CHOICES: ChoiceSpec = {
-  packageManagers: [{ value: 'pub', label: 'dart pub' }],
-  defaultPackageManager: 'pub',
-  lintTools: [{ value: 'dart-analyze', label: 'dart analyze' }],
-  defaultLintTools: ['dart-analyze'],
-  testTools: [
-    { value: 'test', label: 'package:test' },
-    { value: 'skip', label: 'skip' },
-  ],
-  defaultTestTool: 'test',
-};
+/**
+ * Dart 项目的包管理器 / lint / 测试选项来自运行时工具链表（设计文档 B14）：
+ * `RUNTIME_PRESENTATIONS.dart` 是唯一来源，这里只做取值。
+ */
+export const DART_CHOICES: ChoiceSpec = choicesFor('dart');
 
 export interface DartCliOptions extends NormalizedChoices {
   packageName: string;

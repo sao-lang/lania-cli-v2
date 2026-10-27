@@ -33,7 +33,8 @@ impl AddCommandPlugin {
                 name: "generator".into(),
                 required: false,
                 multiple: false,
-                help: "Generator name, e.g. `resource` (NestJS) or `component`".into(),
+                help: "Generator name, e.g. `resource` (nestjs/gin/fastapi/axum) or `component`"
+                    .into(),
             },
             // clap 要求 option 名与位置参数名唯一，而 `--name` 已经占用 `name`，
             // 因此位置参数用 `generator-name`，在 `build_input` 里映射回名称。
@@ -172,6 +173,9 @@ impl AddCommandPlugin {
     /// `lan add --list`：按框架分组输出生成器清单。
     ///
     /// 框架探测失败时**只列通用生成器**（§4.5.3），不猜框架。
+    ///
+    /// 分组依据是探测结果：探测到框架时返回「该框架 + 通用」两组；
+    /// 未探测到时只返回 `generic` 一组。`generators` 保持平铺，兼容旧消费者。
     pub fn list_catalog(cwd: &std::path::Path, locale: &str) -> serde_json::Value {
         let catalog = generator_catalog(cwd, None);
         let framework = catalog["framework"]
@@ -179,22 +183,43 @@ impl AddCommandPlugin {
             .unwrap_or_default()
             .to_string();
         let generic = catalog["generic"].as_bool().unwrap_or(true);
+        let in_scope = |generator: &serde_json::Value| {
+            let entry_framework = generator["framework"].as_str().unwrap_or_default();
+            entry_framework.is_empty() || (!generic && entry_framework == framework)
+        };
         let generators = catalog["generators"]
             .as_array()
             .cloned()
             .unwrap_or_default()
             .into_iter()
-            .filter(|generator| {
-                let entry_framework = generator["framework"].as_str().unwrap_or_default();
-                entry_framework.is_empty() || (!generic && entry_framework == framework)
-            })
+            .filter(in_scope)
             .collect::<Vec<_>>();
+        let mut groups = Vec::new();
+        if !generic {
+            groups.push(serde_json::json!({
+                "framework": framework,
+                "generators": generators
+                    .iter()
+                    .filter(|generator| generator["framework"].as_str() == Some(framework.as_str()))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            }));
+        }
+        groups.push(serde_json::json!({
+            "framework": serde_json::Value::Null,
+            "generators": generators
+                .iter()
+                .filter(|generator| generator["framework"].as_str() == Some(""))
+                .cloned()
+                .collect::<Vec<_>>(),
+        }));
         serde_json::json!({
             "kind": "template_info",
             "framework": if generic { serde_json::Value::Null } else { serde_json::json!(framework) },
             "frameworkReason": catalog["frameworkReason"],
             "locale": locale,
             "generators": generators,
+            "groups": groups,
         })
     }
 }
@@ -356,6 +381,39 @@ mod tests {
             .collect();
         assert!(names.contains(&"resource"));
         assert!(names.contains(&"component"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn list_catalog_groups_generators_by_framework() {
+        let root =
+            std::env::temp_dir().join(format!("lania-add-list-groups-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("temp dir");
+        std::fs::write(
+            root.join("go.mod"),
+            "module example.com/project\n\nrequire github.com/gin-gonic/gin v1.10.0\n",
+        )
+        .expect("marker");
+        let catalog = AddCommandPlugin::list_catalog(&root, "en");
+        assert_eq!(catalog["framework"], "gin");
+        let groups = catalog["groups"].as_array().expect("groups");
+        assert_eq!(groups.len(), 2, "framework + generic: {catalog}");
+        assert_eq!(groups[0]["framework"], "gin");
+        let gin_names: Vec<&str> = groups[0]["generators"]
+            .as_array()
+            .expect("gin generators")
+            .iter()
+            .filter_map(|generator| generator["name"].as_str())
+            .collect();
+        assert!(gin_names.contains(&"resource"), "{gin_names:?}");
+        assert!(gin_names.contains(&"handler"), "{gin_names:?}");
+        let generic_names: Vec<&str> = groups[1]["generators"]
+            .as_array()
+            .expect("generic generators")
+            .iter()
+            .filter_map(|generator| generator["name"].as_str())
+            .collect();
+        assert_eq!(generic_names, vec!["component", "config"]);
         let _ = std::fs::remove_dir_all(root);
     }
 

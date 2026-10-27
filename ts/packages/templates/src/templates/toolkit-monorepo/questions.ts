@@ -6,17 +6,13 @@
  * - unitTestTool：目前固定为 vitest（后续可扩展）
  * - packageManager：未指定时默认引导用户选择 pnpm（与 monorepo 模板更契合）
  */
-import { normalizeToolkitMonorepoOptions } from './options.js';
-
-const LINT_TOOL_CHOICES = [
-  'eslint',
-  'oxlint',
-  'prettier',
-  'oxfmt',
-  'commitlint',
-  'editorconfig',
-];
-const PACKAGE_MANAGER_CHOICES = ['pnpm', 'npm', 'yarn', 'bun'];
+import {
+  LINT_TOOL_CHOICES,
+  PACKAGE_MANAGER_CHOICES,
+  PACKAGE_MANAGER_DEFAULT,
+  UNIT_TEST_TOOL_CHOICES,
+  normalizeToolkitMonorepoOptions,
+} from './options.js';
 
 export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   const normalized = normalizeToolkitMonorepoOptions(options);
@@ -39,7 +35,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     {
       message: messages.unitTestTool,
       name: 'unitTestTool',
-      choices: ['vitest'],
+      choices: UNIT_TEST_TOOL_CHOICES,
       type: 'select',
       default: normalized.unitTestTool ?? undefined,
     },
@@ -51,7 +47,8 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
             name: 'packageManager',
             choices: PACKAGE_MANAGER_CHOICES,
             type: 'select',
-            default: 'pnpm',
+            // 默认值来自 presentation（B14），不再硬编码 'pnpm'。
+            default: PACKAGE_MANAGER_DEFAULT ?? undefined,
           },
         ]),
   ];

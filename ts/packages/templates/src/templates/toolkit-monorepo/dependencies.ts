@@ -7,12 +7,13 @@
  *   减少用户后续手动补齐成本（与单包 toolkit 的策略略有不同）。
  * - useTs=true 时补齐 TS 与 ESLint TS 相关依赖（以及 runtime 的 tslib）。
  */
-import { normalizeToolkitMonorepoOptions } from './options.js';
+import { UNIT_TEST_TOOL_CHOICES, normalizeToolkitMonorepoOptions } from './options.js';
 
 const TYPESCRIPT_DEV_DEPENDENCIES = ['typescript', '@types/node'];
 const TYPESCRIPT_LINT_DEPENDENCIES = ['@typescript-eslint/eslint-plugin', '@typescript-eslint/parser'];
 const BUILD_DEV_DEPENDENCIES = ['vite', 'vite-plugin-dts'];
-const TEST_DEPENDENCIES = ['vitest'];
+// 测试运行器依赖来自 presentation（B14）：与 unitTestTool 的候选同源。
+const TEST_DEPENDENCIES = [...UNIT_TEST_TOOL_CHOICES];
 const RELEASE_DEV_DEPENDENCIES = ['@changesets/cli'];
 
 const LINT_TOOL_DEPENDENCIES: Record<string, string[]> = {

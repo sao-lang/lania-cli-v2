@@ -31,17 +31,15 @@ pub(super) async fn bootstrap_dynamic_commands(
     let exchange = host
         .services
         .node_bridge
-        .call_async(
-            host.services.node_bridge.request(
-                "commands.resolveDynamic",
-                json!({
-                    "cwd": cwd,
-                    "workspaceRoot": cwd,
-                    "productRoot": product_root.cloned().unwrap_or_else(|| cwd.to_string()),
-                    "runtimeMode": if is_installed_mode { "installed" } else { "development" }
-                }),
-            ),
-        )
+        .call_async(host.services.node_bridge.request(
+            "commands.resolveDynamic",
+            json!({
+                "cwd": cwd,
+                "workspaceRoot": cwd,
+                "productRoot": product_root.cloned().unwrap_or_else(|| cwd.to_string()),
+                "runtimeMode": if is_installed_mode { "installed" } else { "development" }
+            }),
+        ))
         .await?;
     if let Some(error) = exchange.response.error {
         return Err(anyhow!(

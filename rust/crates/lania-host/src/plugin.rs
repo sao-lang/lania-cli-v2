@@ -7,9 +7,7 @@ use anyhow::Result;
 use lania_command::CommandSpec;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    CapabilityRegistrar, CommandHandler, CommandRegistry, HandlerRegistry, HookRuntime,
-};
+use crate::{CapabilityRegistrar, CommandHandler, CommandRegistry, HandlerRegistry, HookRuntime};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginMeta {
@@ -73,7 +71,12 @@ where
 {
     let handlers = handler_ids
         .iter()
-        .map(|handler_id| (*handler_id, Box::new(make_handler()) as Box<dyn CommandHandler>))
+        .map(|handler_id| {
+            (
+                *handler_id,
+                Box::new(make_handler()) as Box<dyn CommandHandler>,
+            )
+        })
         .collect::<Vec<_>>();
     register_builtin_command_handlers(ctx, plugin_name, command_name, spec, handlers)
 }

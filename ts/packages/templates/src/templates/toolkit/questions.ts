@@ -9,6 +9,7 @@
 import {
   LINT_TOOL_CHOICES,
   PACKAGE_MANAGER_CHOICES,
+  PACKAGE_MANAGER_DEFAULT,
   UNIT_TEST_TOOL_CHOICES,
   normalizeToolkitOptions,
 } from './options.js';
@@ -48,7 +49,8 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
             message: messages.packageManager,
             choices: PACKAGE_MANAGER_CHOICES,
             type: 'list',
-            default: 'pnpm',
+            // 默认值来自 presentation（B14），不再硬编码 'pnpm'。
+            default: PACKAGE_MANAGER_DEFAULT ?? undefined,
           },
         ]),
     ...(normalized.skipGit

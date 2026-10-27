@@ -3,27 +3,13 @@ import {
   type ChoiceSpec,
   type NormalizedChoices,
 } from '../../language-options.js';
+import { choicesFor } from '../../presentation.js';
 
-export const PYTHON_CHOICES: ChoiceSpec = {
-  packageManagers: [
-    { value: 'pip', label: 'pip' },
-    { value: 'uv', label: 'uv' },
-    { value: 'poetry', label: 'poetry' },
-  ],
-  defaultPackageManager: 'pip',
-  lintTools: [
-    { value: 'ruff', label: 'ruff' },
-    { value: 'black', label: 'black' },
-    { value: 'mypy', label: 'mypy' },
-    { value: 'flake8', label: 'flake8' },
-  ],
-  defaultLintTools: ['ruff'],
-  testTools: [
-    { value: 'pytest', label: 'pytest' },
-    { value: 'skip', label: 'skip' },
-  ],
-  defaultTestTool: 'pytest',
-};
+/**
+ * Python 项目的包管理器 / lint / 测试选项来自运行时工具链表（设计文档 B14）：
+ * `RUNTIME_PRESENTATIONS.python` 是唯一来源，这里只做取值。
+ */
+export const PYTHON_CHOICES: ChoiceSpec = choicesFor('python');
 
 export interface PythonCliOptions extends NormalizedChoices {
   packageName: string;

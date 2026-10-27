@@ -20,7 +20,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
       normalized.lintTools.includes('dart-analyze'),
     ),
     file('test/main_test.dart', 'ejs/test/main_test.dart.ejs', normalized.testTool === 'test'),
-    file('lan.config.js', 'ejs/lan.config.js.ejs'),
+    file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
     file('.gitignore', 'ejs/.gitignore.ejs'),
     file('README.md', 'ejs/README.md.ejs'),
   ].filter((item): item is FileRule => item !== null);

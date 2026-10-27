@@ -23,3 +23,18 @@ export {
   renderAddRuntimeTemplate,
 } from './add-template-runtime.js';
 export type { AddTemplateManifest } from './add-template-runtime.js';
+/**
+ * 运行时 → 模板提问选项的唯一来源（设计文档 B14）。
+ *
+ * 模板内部通过相对路径读取；这里对外导出，方便 bridge / 未来模板面板复用同一份数据
+ * （`node-bridge` 走 `./presentation` 子路径 import，避免把整个模板运行时打进 lint 路径）。
+ */
+export { RUNTIME_PRESENTATIONS, choicesFor, presentationRuntimeIds } from './presentation.js';
+/**
+ * node 模板族的「额外工程化工具」选项（B14 extras）：
+ * spa-react / spa-vue / toolkit / toolkit-monorepo 的 lint 工具、包管理器与 git hook 名单
+ * 都从这一份派生（`NODE_TEMPLATE_CHOICES` + `NODE_GIT_HOOK_TOOLS`）。
+ */
+export { NODE_GIT_HOOK_TOOLS, NODE_TEMPLATE_CHOICES, templateChoicesFor } from './presentation.js';
+export type { TemplateChoiceProfile, TemplateToolChoices } from './presentation.js';
+export type { ChoiceOption, ChoiceSpec } from './language-options.js';

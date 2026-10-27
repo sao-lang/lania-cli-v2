@@ -25,7 +25,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     file('.flake8', 'ejs/.flake8.ejs', hasLint('flake8')),
     file('mypy.ini', 'ejs/mypy.ini.ejs', hasLint('mypy')),
     file('tests/test_main.py', 'ejs/tests/test_main.py.ejs', normalized.testTool === 'pytest'),
-    file('lan.config.js', 'ejs/lan.config.js.ejs'),
+    file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
     file('.gitignore', 'ejs/.gitignore.ejs'),
     file('README.md', 'ejs/README.md.ejs'),
   ].filter((item): item is FileRule => item !== null);

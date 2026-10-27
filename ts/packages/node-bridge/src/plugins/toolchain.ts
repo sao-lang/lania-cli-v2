@@ -12,7 +12,16 @@
  * 约束：
  * - 本文件**不执行任何 IO**，保持纯数据 + 纯函数，方便单测与跨进程复用。
  * - 新增运行时只需要改这里一处。
+ *
+ * B14 补充：`RuntimeToolchain.presentation`（模板提问用的包管理器 / lint / 测试选项）
+ * 的**字面量**放在 `@lania-cli-v2/templates/presentation.ts`，这里只做组合。
+ * 原因见该文件头注释：模板在模块加载期就要静态读到这些选项，而 `templates` 是
+ * `node-bridge` 的依赖 —— 反向 import 会形成 workspace 包环。对 bridge / Rust 而言
+ * 数据仍然是这里的一个字段（`toolchain.describe` 会原样带出去）。
  */
+
+import { choicesFor } from '@lania-cli-v2/templates/presentation';
+import type { ChoiceSpec } from '@lania-cli-v2/templates/presentation';
 
 /** 本文覆盖的七个运行时。 */
 export const RUNTIME_IDS = ['node', 'bun', 'deno', 'python', 'go', 'rust', 'dart'] as const;
@@ -44,6 +53,17 @@ export interface RuntimeToolchain {
   lintTools: LintToolSpec[];
   /** 供 UI/模板展示的别名。 */
   displayName: string;
+  /**
+   * 模板提问 / 归一化用的呈现信息（B14）。
+   *
+   * 与上面的 `packageManagers` / `lintTools` **职责不同，允许有重叠**：
+   * - 上面两项服务于 lint / build 分派（id、binary、args、inProcess、runner）；
+   * - `presentation` 服务于「问用户什么、默认勾哪个」，因此还包含 `gofmt` /
+   *   `rustfmt` 这类格式化器，以及 `go test` / `pytest` 这类测试工具 ——
+   *   它们不属于运行时 lint 工具集，所以不能反过来塞进 `lintTools`。
+   * 唯一来源见 `@lania-cli-v2/templates/presentation.ts`。
+   */
+  presentation: ChoiceSpec;
 }
 
 /**
@@ -73,6 +93,7 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
       },
     ],
     displayName: 'Deno',
+    presentation: choicesFor('deno'),
   },
   {
     id: 'bun',
@@ -88,6 +109,7 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
       { id: 'oxlint', binary: 'oxlint', args: [], inProcess: false, runner: 'bunx' },
     ],
     displayName: 'Bun',
+    presentation: choicesFor('bun'),
   },
   {
     id: 'node',
@@ -106,6 +128,7 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
       { id: 'prettier', binary: 'prettier', args: [], inProcess: true },
     ],
     displayName: 'Node.js',
+    presentation: choicesFor('node'),
   },
   {
     id: 'python',
@@ -122,6 +145,7 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
       { id: 'flake8', binary: 'flake8', args: ['.'], inProcess: false },
     ],
     displayName: 'Python',
+    presentation: choicesFor('python'),
   },
   {
     id: 'go',
@@ -136,6 +160,7 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
       { id: 'go-vet', binary: 'go', args: ['vet', './...'], inProcess: false },
     ],
     displayName: 'Go',
+    presentation: choicesFor('go'),
   },
   {
     id: 'rust',
@@ -147,6 +172,7 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
     devCommand: ['cargo', 'run'],
     lintTools: [{ id: 'clippy', binary: 'cargo', args: ['clippy'], inProcess: false }],
     displayName: 'Rust',
+    presentation: choicesFor('rust'),
   },
   {
     id: 'dart',
@@ -158,6 +184,7 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
     devCommand: ['dart', 'run'],
     lintTools: [{ id: 'dart-analyze', binary: 'dart', args: ['analyze'], inProcess: false }],
     displayName: 'Dart',
+    presentation: choicesFor('dart'),
   },
 ];
 
@@ -226,6 +253,16 @@ export function describeToolchains() {
       devCommand: entry.devCommand,
       displayName: entry.displayName,
       lintTools: entry.lintTools.map((tool) => ({ ...tool })),
+      // B14：模板提问用的选项（camelCase，与 TS 侧字段同名），
+      // 供 Rust / doctor / 未来的模板面板读取。逐层浅拷贝，保证跨进程序列化稳定。
+      presentation: {
+        packageManagers: entry.presentation.packageManagers.map((option) => ({ ...option })),
+        defaultPackageManager: entry.presentation.defaultPackageManager,
+        lintTools: entry.presentation.lintTools.map((option) => ({ ...option })),
+        defaultLintTools: [...entry.presentation.defaultLintTools],
+        testTools: entry.presentation.testTools.map((option) => ({ ...option })),
+        defaultTestTool: entry.presentation.defaultTestTool,
+      },
     })),
     /** 判定优先级（文件 → 运行时），供 Rust / 文档复用。 */
     detectionOrder: DETECTION_PRIORITY.map((item) => ({
@@ -236,3 +273,30 @@ export function describeToolchains() {
 }
 
 export type ToolchainDescription = ReturnType<typeof describeToolchains>;
+
+/**
+ * 模板选项的取值入口（B14）。
+ *
+ * 与 `toolchainFor(id).presentation` 等价，但无需调用方判空；这里重新导出主要为了让
+ * 「模板选项从哪来」只有一个 import 点（`plugins/toolchain.js`）。
+ * 字面量定义在 `@lania-cli-v2/templates/presentation.ts`（原因见文件头注释）。
+ */
+export { choicesFor, presentationRuntimeIds } from '@lania-cli-v2/templates/presentation';
+export type { ChoiceSpec } from '@lania-cli-v2/templates/presentation';
+
+/**
+ * node 模板族的「额外工程化工具」选项（B14 extras：eslint/oxlint/prettier/oxfmt/
+ * stylelint/commitlint/editorconfig、包管理器顺序、git hook 名单）。
+ *
+ * 它们不参与 lint/build 分派，所以没有进 `RuntimeToolchain`；但同样只定义一次，
+ * 这里 re-export 让 bridge 侧（如需向 doctor/UI 暴露模板元信息）有单一 import 点。
+ */
+export {
+  NODE_GIT_HOOK_TOOLS,
+  NODE_TEMPLATE_CHOICES,
+  templateChoicesFor,
+} from '@lania-cli-v2/templates/presentation';
+export type {
+  TemplateChoiceProfile,
+  TemplateToolChoices,
+} from '@lania-cli-v2/templates/presentation';

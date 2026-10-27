@@ -197,7 +197,7 @@ fn lan_create_current_directory_interactive_e2e() {
     assert!(!stdout.contains("\"kind\": \"workflow\""));
     assert!(root.join("src/main.ts").exists());
     assert!(root.join("src/App.vue").exists());
-    assert!(root.join("lan.config.js").exists());
+    assert!(root.join("lan.config.ts").exists());
     let package_json = read_json_file(root.join("package.json"));
     assert_eq!(package_json["name"], expected_name);
     let _ = fs::remove_dir_all(root);
@@ -312,6 +312,48 @@ fn lan_add_list_e2e() {
     assert!(names.contains(&"resource"));
     assert!(names.contains(&"component"));
     assert!(names.contains(&"config"));
+
+    // B7：`--list` 按框架分组（框架组 + 通用组）。
+    let groups = json["result"]["groups"].as_array().expect("groups");
+    assert_eq!(groups.len(), 2);
+    assert_eq!(groups[0]["framework"], "nestjs");
+    assert_eq!(groups[1]["framework"], serde_json::Value::Null);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+/// B7：非 Node 框架同样走「探测 → 多文件生成」，且注册锚点生效。
+#[test]
+fn lan_add_generates_gin_resource_e2e() {
+    let root = temp_dir("add-gin");
+    write_file(
+        root.join("go.mod"),
+        "module example.com/project\n\ngo 1.22\n\nrequire github.com/gin-gonic/gin v1.10.0\n",
+    );
+    write_file(
+        root.join("internal/router/router.go"),
+        "package router\n\n// <lania:routes>\n",
+    );
+
+    let output = run_cli(&root, &["add", "resource", "users"], &[]);
+
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    for expected in [
+        "internal/model/users.go",
+        "internal/repository/users_repository.go",
+        "internal/service/users_service.go",
+        "internal/handler/users_handler.go",
+    ] {
+        assert!(root.join(expected).exists(), "missing {expected}");
+    }
+    let router = fs::read_to_string(root.join("internal/router/router.go")).expect("router.go");
+    assert!(
+        router.contains("// <lania:routes>\n\tregisterUsers(r)"),
+        "route registration must land after the marker: {router}"
+    );
+    let handler = fs::read_to_string(root.join("internal/handler/users_handler.go"))
+        .expect("handler readable");
+    assert!(handler.contains("func (h *UsersHandler) Register"));
 
     let _ = fs::remove_dir_all(root);
 }

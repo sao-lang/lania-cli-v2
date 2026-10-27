@@ -20,7 +20,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     file('eslint.config.js', 'ejs/eslint.config.js.ejs', hasLint('eslint')),
     file('prettier.config.cjs', 'ejs/prettier.config.cjs.ejs', hasLint('prettier')),
     file('.oxlintrc.json', 'ejs/.oxlintrc.json.ejs', hasLint('oxlint')),
-    file('lan.config.js', 'ejs/lan.config.js.ejs'),
+    file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
     file('.gitignore', 'ejs/.gitignore.ejs'),
     file('README.md', 'ejs/README.md.ejs'),
   ].filter((item): item is FileRule => item !== null);

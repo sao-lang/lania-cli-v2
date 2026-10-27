@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   runtime: 'go',
   lintTools: <%- JSON.stringify(lintTools.filter(function (tool) { return tool !== 'gofmt'; })) %>,
 };

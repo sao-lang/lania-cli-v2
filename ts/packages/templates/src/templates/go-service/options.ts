@@ -3,22 +3,13 @@ import {
   type ChoiceSpec,
   type NormalizedChoices,
 } from '../../language-options.js';
+import { choicesFor } from '../../presentation.js';
 
-export const GO_CHOICES: ChoiceSpec = {
-  packageManagers: [{ value: 'go', label: 'go modules' }],
-  defaultPackageManager: 'go',
-  lintTools: [
-    { value: 'golangci-lint', label: 'golangci-lint' },
-    { value: 'gofmt', label: 'gofmt' },
-    { value: 'go-vet', label: 'go vet' },
-  ],
-  defaultLintTools: ['gofmt', 'go-vet'],
-  testTools: [
-    { value: 'go-test', label: 'go test' },
-    { value: 'skip', label: 'skip' },
-  ],
-  defaultTestTool: 'go-test',
-};
+/**
+ * Go 项目的 lint / 测试选项来自运行时工具链表（设计文档 B14）：
+ * `RUNTIME_PRESENTATIONS.go` 是唯一来源，这里只做取值。
+ */
+export const GO_CHOICES: ChoiceSpec = choicesFor('go');
 
 export interface GoServiceOptions extends NormalizedChoices {
   modulePath: string;

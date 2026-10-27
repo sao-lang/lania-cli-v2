@@ -6,12 +6,13 @@
  * - 其余构建/测试/发布/工程化能力都放到 devDependencies
  * - 通过 Set 去重，避免多个选项分支重复加入同一依赖
  */
-import { normalizeToolkitOptions } from './options.js';
+import { UNIT_TEST_TOOL_CHOICES, normalizeToolkitOptions } from './options.js';
 
 const TYPESCRIPT_DEV_DEPENDENCIES = ['typescript', '@types/node'];
 const TYPESCRIPT_LINT_DEPENDENCIES = ['@typescript-eslint/eslint-plugin', '@typescript-eslint/parser'];
 const BUILD_DEV_DEPENDENCIES = ['vite', 'vite-plugin-dts'];
-const TEST_DEPENDENCIES = ['vitest'];
+// 测试运行器依赖来自 presentation（B14）：与 unitTestTool 的候选同源。
+const TEST_DEPENDENCIES = [...UNIT_TEST_TOOL_CHOICES];
 const RELEASE_DEV_DEPENDENCIES = ['conventional-changelog-cli'];
 
 const LINT_TOOL_DEPENDENCIES: Record<string, string[]> = {

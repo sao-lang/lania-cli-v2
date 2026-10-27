@@ -7,8 +7,8 @@ mod dynamic_commands;
 #[path = "project_extensions_hook_bindings.rs"]
 mod hook_bindings;
 
-use super::ProjectExtensionBootstrapSummary;
 use super::super::HostRuntime;
+use super::ProjectExtensionBootstrapSummary;
 
 impl HostRuntime {
     pub async fn bootstrap_project_extensions_from_cwd_async(
@@ -26,13 +26,15 @@ impl HostRuntime {
                 self.load_lan_config_snapshot_from_cwd_async(product_root.clone())
                     .await?
             } else {
-                self.load_lan_config_snapshot_from_cwd_async(cwd.clone()).await?
+                self.load_lan_config_snapshot_from_cwd_async(cwd.clone())
+                    .await?
             }
         } else if let Some(product_root) = &product_root {
             self.load_lan_config_snapshot_from_cwd_async(product_root.clone())
                 .await?
         } else {
-            self.load_lan_config_snapshot_from_cwd_async(cwd.clone()).await?
+            self.load_lan_config_snapshot_from_cwd_async(cwd.clone())
+                .await?
         };
         let mut summary = ProjectExtensionBootstrapSummary::default();
 

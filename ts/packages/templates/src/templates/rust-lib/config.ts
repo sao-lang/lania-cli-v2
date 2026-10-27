@@ -18,7 +18,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     file('rustfmt.toml', 'ejs/rustfmt.toml.ejs', hasLint('rustfmt')),
     file('clippy.toml', 'ejs/clippy.toml.ejs', hasLint('clippy')),
     file('tests/smoke.rs', 'ejs/tests/smoke.rs.ejs', normalized.testTool === 'builtin'),
-    file('lan.config.js', 'ejs/lan.config.js.ejs'),
+    file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
     file('.gitignore', 'ejs/.gitignore.ejs'),
     file('README.md', 'ejs/README.md.ejs'),
   ].filter((item): item is FileRule => item !== null);

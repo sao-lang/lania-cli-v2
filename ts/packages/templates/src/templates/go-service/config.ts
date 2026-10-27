@@ -17,7 +17,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     file('main.go', 'ejs/main.go.ejs'),
     file('.golangci.yml', 'ejs/.golangci.yml.ejs', hasLint('golangci-lint')),
     file('main_test.go', 'ejs/main_test.go.ejs', normalized.testTool === 'go-test'),
-    file('lan.config.js', 'ejs/lan.config.js.ejs'),
+    file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
     file('.gitignore', 'ejs/.gitignore.ejs'),
     file('README.md', 'ejs/README.md.ejs'),
   ].filter((item): item is FileRule => item !== null);

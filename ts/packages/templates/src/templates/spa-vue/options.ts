@@ -11,6 +11,11 @@
  * 兼容性说明：
  * - `useTs` 同时兼容 `useTypescript` 与 `language`（历史字段），避免不同调用方传参不一致导致模板抖动。
  */
+import { templateChoicesFor } from '../../presentation.js';
+
+/** spa 模板族（spa-react / spa-vue）共用的工程化工具选项。 */
+const SPA_TEMPLATE_CHOICES = templateChoicesFor('spa');
+
 export interface SpaVueTemplateOptions {
   /**
    * 项目类型（模板可能会用它隐藏/显示一些问题项）。
@@ -81,16 +86,12 @@ export function normalizeSpaVueOptions(
 
 export const CSS_PROCESSOR_CHOICES = ['css', 'less', 'sass', 'stylus'];
 export const CSS_TOOL_CHOICES = ['tailwindcss'];
-export const LINT_TOOL_CHOICES = [
-  'eslint',
-  'oxlint',
-  'prettier',
-  'oxfmt',
-  'stylelint',
-  'commitlint',
-  'editorconfig',
-];
-export const PACKAGE_MANAGER_CHOICES = ['pnpm', 'npm', 'yarn', 'bun'];
+/**
+ * 工程化工具 / 包管理器来自运行时工具链表（B14）：
+ * `presentation.ts` 的 `NODE_TEMPLATE_CHOICES.spa` 是唯一来源，这里只取 value 列表。
+ */
+export const LINT_TOOL_CHOICES = SPA_TEMPLATE_CHOICES.lintToolValues;
+export const PACKAGE_MANAGER_CHOICES = SPA_TEMPLATE_CHOICES.packageManagerValues;
 
 function normalizeString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : null;

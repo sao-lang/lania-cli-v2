@@ -8,6 +8,11 @@
  * - 统一默认值与历史兼容字段
  * - 给 questions/config/dependencies 提供一份稳定的 normalized options
  */
+import { templateChoicesFor } from '../../presentation.js';
+
+/** spa 模板族（spa-react / spa-vue）共用的工程化工具选项。 */
+const SPA_TEMPLATE_CHOICES = templateChoicesFor('spa');
+
 export interface SpaReactTemplateOptions {
   /**
    * 项目类型（用于控制问题项显隐等行为）。
@@ -72,16 +77,12 @@ export function normalizeSpaReactOptions(
 
 export const CSS_PROCESSOR_CHOICES = ['css', 'less', 'sass', 'stylus'];
 export const CSS_TOOL_CHOICES = ['tailwindcss'];
-export const LINT_TOOL_CHOICES = [
-  'eslint',
-  'oxlint',
-  'prettier',
-  'oxfmt',
-  'stylelint',
-  'commitlint',
-  'editorconfig',
-];
-export const PACKAGE_MANAGER_CHOICES = ['pnpm', 'npm', 'yarn', 'bun'];
+/**
+ * 工程化工具 / 包管理器来自运行时工具链表（B14）：
+ * `presentation.ts` 的 `NODE_TEMPLATE_CHOICES.spa` 是唯一来源，这里只取 value 列表。
+ */
+export const LINT_TOOL_CHOICES = SPA_TEMPLATE_CHOICES.lintToolValues;
+export const PACKAGE_MANAGER_CHOICES = SPA_TEMPLATE_CHOICES.packageManagerValues;
 
 function normalizeString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : null;

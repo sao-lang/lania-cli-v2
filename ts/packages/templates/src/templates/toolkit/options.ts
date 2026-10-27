@@ -1,15 +1,25 @@
 /**
  * toolkit 模板的可选项默认值与选项元信息。
  *
- * 主要导出：normalizeToolkitOptions、LINT_TOOL_CHOICES、UNIT_TEST_TOOL_CHOICES、PACKAGE_MANAGER_CHOICES、ToolkitTemplateOptions。
+ * 主要导出：normalizeToolkitOptions、LINT_TOOL_CHOICES、UNIT_TEST_TOOL_CHOICES、PACKAGE_MANAGER_CHOICES、PACKAGE_MANAGER_DEFAULT、ToolkitTemplateOptions。
  *
  * toolkit 模板定位：
  * - 用于生成“工具库/SDK”类项目骨架（而不是 SPA 应用）。
  * - buildTool 固定为 vite，releaseStrategy 固定为 `lan-release-native`（由上层流程消费）。
  *
+ * 选项来源（B14）：
+ * - 工程化工具 / 包管理器来自运行时工具链表 `presentation.ts`（`NODE_TEMPLATE_CHOICES.toolkit`），
+ *   本文件不再维护第二份字面量；
+ * - 测试运行器取 node 运行时 presentation 的默认测试工具。
+ *
  * 兼容性说明：
  * - `useTs` 兼容 `useTypescript` 与 `language` 字段，以便从不同调用方传参时保持一致。
  */
+import { choicesFor, templateChoicesFor } from '../../presentation.js';
+
+/** toolkit 模板族（toolkit / toolkit-monorepo）共用的工程化工具选项。 */
+const TOOLKIT_TEMPLATE_CHOICES = templateChoicesFor('toolkit');
+
 export interface ToolkitTemplateOptions {
   /** 选择启用的工程化工具集合（eslint/oxlint/prettier/oxfmt/commitlint/editorconfig）。 */
   lintTools: string[];
@@ -44,13 +54,8 @@ export function normalizeToolkitOptions(
         String(options.language ?? 'typescript').toLowerCase() !== 'javascript';
 
   return {
-    lintTools: normalizeStringArray(options.lintTools, [
-      'eslint',
-      'prettier',
-      'commitlint',
-      'editorconfig',
-    ]),
-    unitTestTool: normalizeString(options.unitTestTool) ?? 'vitest',
+    lintTools: normalizeStringArray(options.lintTools, TOOLKIT_TEMPLATE_CHOICES.defaultLintTools),
+    unitTestTool: normalizeString(options.unitTestTool) ?? choicesFor('node').defaultTestTool,
     packageManager: normalizeString(options.packageManager),
     repository: normalizeString(options.repository) ?? '',
     useTs,
@@ -62,16 +67,17 @@ export function normalizeToolkitOptions(
   };
 }
 
-export const LINT_TOOL_CHOICES = [
-  'eslint',
-  'oxlint',
-  'prettier',
-  'oxfmt',
-  'commitlint',
-  'editorconfig',
-];
-export const UNIT_TEST_TOOL_CHOICES = ['vitest'];
-export const PACKAGE_MANAGER_CHOICES = ['pnpm', 'npm', 'yarn', 'bun'];
+/**
+ * 工程化工具 / 包管理器 / 测试运行器来自运行时工具链表（B14）：
+ * - `NODE_TEMPLATE_CHOICES.toolkit`（`presentation.ts`）是 lint 与包管理器的唯一来源；
+ * - 测试运行器取 node 运行时 presentation 的默认测试工具（`vitest`），
+ *   避免又写一份 `['vitest']`。
+ */
+export const LINT_TOOL_CHOICES = TOOLKIT_TEMPLATE_CHOICES.lintToolValues;
+export const UNIT_TEST_TOOL_CHOICES = [choicesFor('node').defaultTestTool];
+export const PACKAGE_MANAGER_CHOICES = TOOLKIT_TEMPLATE_CHOICES.packageManagerValues;
+/** 包管理器问答默认值；`null` 时 questions 不写 `default`。 */
+export const PACKAGE_MANAGER_DEFAULT = TOOLKIT_TEMPLATE_CHOICES.defaultPackageManager;
 
 function normalizeString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : null;

@@ -13,7 +13,7 @@
 //!
 //! 非 Node 语言模板（`go-service` / `rust-lib` / `python-cli` / `dart-cli`）的产物
 //! 与 `ts/packages/templates/src/templates/<name>/` 对齐：文件集合、条件分支、
-//! `lan.config.js` 内容按同一规则推导，保证「有 bridge / 无 bridge」结果一致。
+//! `lan.config.ts` 内容按同一规则推导，保证「有 bridge / 无 bridge」结果一致。
 
 use std::path::PathBuf;
 
@@ -255,8 +255,8 @@ const GO_SERVICE_TEMPLATE: DeclaredTemplate = DeclaredTemplate {
             when: Some("testTool:go-test"),
         },
         DeclaredFileRule {
-            path: "lan.config.js",
-            content: "module.exports = {\n  runtime: 'go',\n  lintTools: {{lintToolsJson}},\n};\n",
+            path: "lan.config.ts",
+            content: "export default {\n  runtime: 'go',\n  lintTools: {{lintToolsJson}},\n};\n",
             when: None,
         },
         DeclaredFileRule {
@@ -307,9 +307,9 @@ const RUST_LIB_TEMPLATE: DeclaredTemplate = DeclaredTemplate {
             when: Some("testTool:builtin"),
         },
         DeclaredFileRule {
-            path: "lan.config.js",
+            path: "lan.config.ts",
             content:
-                "module.exports = {\n  runtime: 'rust',\n  lintTools: {{lintToolsJson}},\n};\n",
+                "export default {\n  runtime: 'rust',\n  lintTools: {{lintToolsJson}},\n};\n",
             when: None,
         },
         DeclaredFileRule {
@@ -391,8 +391,8 @@ const PYTHON_CLI_TEMPLATE: DeclaredTemplate = DeclaredTemplate {
             when: Some("testTool:pytest"),
         },
         DeclaredFileRule {
-            path: "lan.config.js",
-            content: "module.exports = {\n  runtime: 'python',\n  lintTools: {{lintToolsJson}},\n};\n",
+            path: "lan.config.ts",
+            content: "export default {\n  runtime: 'python',\n  lintTools: {{lintToolsJson}},\n};\n",
             when: None,
         },
         DeclaredFileRule {
@@ -437,8 +437,8 @@ const DART_CLI_TEMPLATE: DeclaredTemplate = DeclaredTemplate {
             when: Some("testTool:test"),
         },
         DeclaredFileRule {
-            path: "lan.config.js",
-            content: "module.exports = {\n  runtime: 'dart',\n  lintTools: {{lintToolsJson}},\n};\n",
+            path: "lan.config.ts",
+            content: "export default {\n  runtime: 'dart',\n  lintTools: {{lintToolsJson}},\n};\n",
             when: None,
         },
         DeclaredFileRule {
@@ -606,7 +606,7 @@ fn with_defaults(name: &str, context: &Value) -> Value {
     context
 }
 
-/// 写入项目 `lan.config.js` 的 lint 工具集合。
+/// 写入项目 `lan.config.ts` 的 lint 工具集合。
 ///
 /// 两处偏离 TS 模板，都是为了让产物在兜底场景下**可运行**：
 /// - `rust-lib` 只留 clippy —— `rustfmt` 不是 `cargo` 子命令，host 无法按
@@ -741,7 +741,7 @@ mod tests {
                 "main.go",
                 ".golangci.yml",
                 "main_test.go",
-                "lan.config.js",
+                "lan.config.ts",
                 ".gitignore",
                 "README.md",
             ]
@@ -752,8 +752,8 @@ mod tests {
         );
         // gofmt 是独立二进制，不是 `go` 子命令，写进配置 host 也调不动。
         assert_eq!(
-            content(&files, "lan.config.js"),
-            "module.exports = {\n  runtime: 'go',\n  lintTools: [\"golangci-lint\",\"go-vet\"],\n};\n"
+            content(&files, "lan.config.ts"),
+            "export default {\n  runtime: 'go',\n  lintTools: [\"golangci-lint\",\"go-vet\"],\n};\n"
         );
     }
 
@@ -792,15 +792,15 @@ mod tests {
                 "rustfmt.toml",
                 "clippy.toml",
                 "tests/smoke.rs",
-                "lan.config.js",
+                "lan.config.ts",
                 ".gitignore",
                 "README.md",
             ]
         );
         assert!(content(&files, "Cargo.toml").contains("name = \"demo-lib\""));
         assert_eq!(
-            content(&files, "lan.config.js"),
-            "module.exports = {\n  runtime: 'rust',\n  lintTools: [\"clippy\"],\n};\n"
+            content(&files, "lan.config.ts"),
+            "export default {\n  runtime: 'rust',\n  lintTools: [\"clippy\"],\n};\n"
         );
     }
 
@@ -860,7 +860,7 @@ mod tests {
                 "bin/main.dart",
                 "analysis_options.yaml",
                 "test/main_test.dart",
-                "lan.config.js",
+                "lan.config.ts",
                 ".gitignore",
                 "README.md",
             ]

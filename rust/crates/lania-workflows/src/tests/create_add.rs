@@ -41,10 +41,10 @@ async fn create_workflow_writes_template_files() {
 #[tokio::test]
 async fn create_workflow_falls_back_to_declared_language_templates() {
     for (template, expected) in [
-        ("go-service", vec!["go.mod", "main.go", "lan.config.js"]),
+        ("go-service", vec!["go.mod", "main.go", "lan.config.ts"]),
         (
             "rust-lib",
-            vec!["Cargo.toml", "src/lib.rs", "lan.config.js"],
+            vec!["Cargo.toml", "src/lib.rs", "lan.config.ts"],
         ),
         (
             "python-cli",
@@ -52,7 +52,7 @@ async fn create_workflow_falls_back_to_declared_language_templates() {
         ),
         (
             "dart-cli",
-            vec!["pubspec.yaml", "bin/main.dart", "lan.config.js"],
+            vec!["pubspec.yaml", "bin/main.dart", "lan.config.ts"],
         ),
     ] {
         let (services, root) = services(ExecService::dry_run());
@@ -79,13 +79,17 @@ async fn create_workflow_falls_back_to_declared_language_templates() {
             .unwrap_or_else(|error| panic!("{template} fallback failed: {error}"));
 
         for file in expected {
-            assert!(
-                root.join(&project).join(file).exists(),
-                "{template} missing {file}"
-            );
+            if !root.join(&project).join(file).exists() {
+                let mut listing = Vec::new();
+                for entry in std::fs::read_dir(root.join(&project)).expect("dir") {
+                    let entry = entry.expect("entry");
+                    listing.push(entry.file_name().to_string_lossy().to_string());
+                }
+                panic!("{template} missing {file}; dir has {listing:?}");
+            }
         }
-        let config = std::fs::read_to_string(root.join(&project).join("lan.config.js"))
-            .expect("lan.config.js readable");
+        let config = std::fs::read_to_string(root.join(&project).join("lan.config.ts"))
+            .expect("lan.config.ts readable");
         assert!(
             config.contains("runtime:"),
             "{template} config not rendered"
@@ -207,6 +211,181 @@ async fn add_workflow_without_framework_only_offers_generic_generators() {
         .notes
         .iter()
         .any(|note| note.contains("framework: generic")));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+// ---------------------------------------------------------------------------
+// B7：每个框架至少一个多文件生成器（`lan add <generator> <name>` 一次产出多文件）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn add_workflow_generates_multi_file_artifacts_for_every_b7_framework() {
+    // (框架, 标记文件, 标记内容, 生成器, name, 期望产物)
+    let cases: &[(&str, &str, &str, &str, &str, &[&str])] = &[
+        (
+            "nextjs",
+            "next.config.ts",
+            "export default {};\n",
+            "segment",
+            "dashboard",
+            &[
+                "src/app/dashboard/page.tsx",
+                "src/app/dashboard/layout.tsx",
+                "src/app/dashboard/loading.tsx",
+            ],
+        ),
+        (
+            "gin",
+            "go.mod",
+            "module example.com/project\n\nrequire github.com/gin-gonic/gin v1.10.0\n",
+            "resource",
+            "users",
+            &[
+                "internal/model/users.go",
+                "internal/repository/users_repository.go",
+                "internal/service/users_service.go",
+                "internal/handler/users_handler.go",
+            ],
+        ),
+        (
+            "fastapi",
+            "pyproject.toml",
+            "[project]\ndependencies = [\"fastapi\"]\n",
+            "resource",
+            "users",
+            &[
+                "app/schemas/users.py",
+                "app/models/users.py",
+                "app/crud/users.py",
+                "app/routers/users.py",
+            ],
+        ),
+        (
+            "axum",
+            "Cargo.toml",
+            "[dependencies]\naxum = \"0.7\"\n",
+            "resource",
+            "users",
+            &[
+                "src/model/users.rs",
+                "src/repository/users.rs",
+                "src/service/users.rs",
+                "src/handler/users.rs",
+            ],
+        ),
+        (
+            "flutter",
+            "pubspec.yaml",
+            "environment:\n  sdk: flutter\n",
+            "feature",
+            "users",
+            &[
+                "lib/models/users.dart",
+                "lib/services/users_service.dart",
+                "lib/controllers/users_controller.dart",
+                "lib/pages/users_page.dart",
+            ],
+        ),
+    ];
+
+    for (framework, marker, contents, generator, name, expected) in cases {
+        let (services, root) = services(ExecService::dry_run());
+        std::fs::write(root.join(marker), contents).expect("framework marker");
+        let result = AddWorkflow
+            .run(
+                &services,
+                AddWorkflowInput {
+                    cwd: root.clone(),
+                    name: Some((*name).into()),
+                    template: Some((*generator).into()),
+                    target: None,
+                    force: false,
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("{framework}: generation failed: {error}"));
+
+        assert!(
+            result
+                .notes
+                .iter()
+                .any(|note| note.contains(&format!("framework: {framework}"))),
+            "{framework}: detection note missing: {:?}",
+            result.notes
+        );
+        assert!(
+            expected.len() >= 2,
+            "{framework}: generator must be multi-file"
+        );
+        for path in *expected {
+            assert!(
+                root.join(path).exists(),
+                "{framework}: missing {path} (written: {:?})",
+                result.written_files
+            );
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+}
+
+#[tokio::test]
+async fn add_workflow_registers_axum_module_after_marker() {
+    let (services, root) = services(ExecService::dry_run());
+    std::fs::write(root.join("Cargo.toml"), "[dependencies]\naxum = \"0.7\"\n")
+        .expect("cargo manifest");
+    std::fs::create_dir_all(root.join("src/router")).expect("router dir");
+    std::fs::write(
+        root.join("src/router/mod.rs"),
+        "// <lania:mods>\npub mod health;\n",
+    )
+    .expect("router mod");
+
+    AddWorkflow
+        .run(
+            &services,
+            AddWorkflowInput {
+                cwd: root.clone(),
+                name: Some("users".into()),
+                template: Some("resource".into()),
+                target: None,
+                force: false,
+            },
+        )
+        .await
+        .expect("axum resource generation succeeds");
+
+    let mod_rs = std::fs::read_to_string(root.join("src/router/mod.rs")).expect("router mod");
+    assert!(
+        mod_rs.contains("// <lania:mods>\npub mod users;"),
+        "declaration must be inserted after the marker: {mod_rs}"
+    );
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn add_workflow_requires_an_explicit_generator_for_unrecognised_frameworks() {
+    let (services, root) = services(ExecService::dry_run());
+    std::fs::write(
+        root.join("go.mod"),
+        "module example.com/project\n\nrequire github.com/go-chi/chi/v5 v5.0.0\n",
+    )
+    .expect("go manifest");
+
+    // 探测不到框架时 gin 生成器不可用（不猜框架，§4.5.3）。
+    let error = AddWorkflow
+        .run(
+            &services,
+            AddWorkflowInput {
+                cwd: root.clone(),
+                name: Some("users".into()),
+                template: Some("resource".into()),
+                target: None,
+                force: false,
+            },
+        )
+        .await
+        .expect_err("resource is not a generic generator");
+    assert!(error.to_string().contains("unknown generator"), "{error}");
     let _ = std::fs::remove_dir_all(root);
 }
 

@@ -248,7 +248,12 @@ struct ToolOutcome {
     is_error: bool,
 }
 
-fn run_tool(adapter: &HostRpcAdapter, tool: &str, params: &Value, cwd: &str) -> Result<ToolOutcome> {
+fn run_tool(
+    adapter: &HostRpcAdapter,
+    tool: &str,
+    params: &Value,
+    cwd: &str,
+) -> Result<ToolOutcome> {
     match tool {
         "read" => tool_read(params, cwd),
         "glob" => tool_glob(params, cwd),
@@ -279,11 +284,7 @@ fn truncate(text: String, limit: usize) -> String {
     while end > 0 && !text.is_char_boundary(end) {
         end -= 1;
     }
-    format!(
-        "{}\n… [truncated {} bytes]",
-        &text[..end],
-        text.len() - end
-    )
+    format!("{}\n… [truncated {} bytes]", &text[..end], text.len() - end)
 }
 
 fn tool_read(params: &Value, cwd: &str) -> Result<ToolOutcome> {
@@ -535,7 +536,9 @@ fn run_options(params: &Value) -> ExecRunOptions {
 fn tool_exec(adapter: &HostRpcAdapter, params: &Value, cwd: &str) -> Result<ToolOutcome> {
     let command = param_str(params, "command")?;
     let request = ExecCommand::shell(command).in_dir(cwd);
-    let result = adapter.exec.run_with_options(request, run_options(params))?;
+    let result = adapter
+        .exec
+        .run_with_options(request, run_options(params))?;
     Ok(exec_result_outcome(result, command))
 }
 
@@ -571,7 +574,9 @@ fn tool_project_command(
 
     let label = format!("lan {}", args.join(" "));
     let request = ExecCommand::new(program).with_args(args).in_dir(cwd);
-    let result = adapter.exec.run_with_options(request, run_options(params))?;
+    let result = adapter
+        .exec
+        .run_with_options(request, run_options(params))?;
     Ok(exec_result_outcome(result, &label))
 }
 
@@ -580,10 +585,8 @@ mod tests {
     use super::*;
 
     fn temp_workspace(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "lania-agent-test-{}-{name}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("lania-agent-test-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("temp dir");
         dir
@@ -620,7 +623,10 @@ mod tests {
     fn file_target_is_resolved_against_cwd() {
         let params = json!({ "path": "src/a.ts" });
         let target = approval_target("edit", &params, "/repo").replace('\\', "/");
-        assert!(target.ends_with("/repo/src/a.ts"), "unexpected target: {target}");
+        assert!(
+            target.ends_with("/repo/src/a.ts"),
+            "unexpected target: {target}"
+        );
     }
 
     #[test]
@@ -652,7 +658,11 @@ mod tests {
         fs::write(dir.join("f.txt"), "alpha\nbeta\n").unwrap();
         let cwd = dir.display().to_string();
         let outcome = tool_grep(&json!({ "pattern": "beta" }), &cwd).unwrap();
-        assert!(outcome.content.contains("f.txt:2: beta"), "{}", outcome.content);
+        assert!(
+            outcome.content.contains("f.txt:2: beta"),
+            "{}",
+            outcome.content
+        );
     }
 
     #[test]

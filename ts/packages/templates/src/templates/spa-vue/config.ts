@@ -10,13 +10,15 @@
  * - 业务骨架：App/main/request/api/样式文件
  * - 工程化配置：eslint/prettier/stylelint/commitlint/husky 等，按 lintTools 按需开启
  */
+import { NODE_GIT_HOOK_TOOLS } from '../../presentation.js';
 import { normalizeSpaVueOptions } from './options.js';
 
 export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   const normalized = normalizeSpaVueOptions(options);
   const hasLintTool = (tool: string) => normalized.lintTools.includes(tool);
   // 只要启用了任一会落地 git hook 的工具，就生成 husky 脚本。
-  const hasAnyGitHookTool = ['eslint', 'oxlint', 'prettier', 'oxfmt', 'stylelint', 'commitlint'].some((tool) =>
+  // 名单来自 `presentation.ts`（B14），四个 node 模板共用一份。
+  const hasAnyGitHookTool = NODE_GIT_HOOK_TOOLS.some((tool) =>
     normalized.lintTools.includes(tool),
   );
   const files = [
@@ -54,7 +56,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
     file('src/utils/request/config.js', 'ejs/request-config.js.ejs', !normalized.useTs),
     file('src/api/modules/system.ts', 'ejs/system-api.ts.ejs', normalized.useTs),
     file('src/api/modules/system.js', 'ejs/system-api.js.ejs', !normalized.useTs),
-    file('lan.config.js', 'ejs/lan.config.js.ejs'),
+    file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
     file('src/index.styl', 'ejs/index.styl.ejs', normalized.cssProcessor === 'stylus'),
     file('src/index.scss', 'ejs/index.scss.ejs', normalized.cssProcessor === 'sass'),
     file('src/index.less', 'ejs/index.less.ejs', normalized.cssProcessor === 'less'),

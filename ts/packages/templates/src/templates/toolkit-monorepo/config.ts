@@ -2,12 +2,13 @@
  * toolkit-monorepo 模板的输出文件规则与渲染配置。
  *
  * 目标结构：
- * - workspace 根：package.json、lan.config.js、changesets、husky、共享 tsconfig/eslint/prettier 等
+ * - workspace 根：package.json、lan.config.ts、changesets、husky、共享 tsconfig/eslint/prettier 等
  * - `packages/core`：示例子包（入口、vite 配置、可选 tsconfig）
  *
  * 与单包 toolkit 的区别：
  * - 这里会同时生成根配置与子包模板，因此 files 列表更像“一个最小 monorepo 脚手架”。
  */
+import { NODE_GIT_HOOK_TOOLS } from '../../presentation.js';
 import { normalizeToolkitMonorepoOptions } from './options.js';
 
 function file(outputPath: string, templatePath: string, include = true) {
@@ -20,7 +21,8 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
   const normalized = normalizeToolkitMonorepoOptions(options);
   const hasLintTool = (tool: string) => normalized.lintTools.includes(tool);
   // monorepo 下也只在需要时生成 git hooks，避免给最小模板增加额外流程。
-  const hasAnyGitHookTool = ['eslint', 'oxlint', 'prettier', 'oxfmt', 'stylelint', 'commitlint'].some((tool) =>
+  // 名单来自 `presentation.ts`（B14），四个 node 模板共用一份。
+  const hasAnyGitHookTool = NODE_GIT_HOOK_TOOLS.some((tool) =>
     normalized.lintTools.includes(tool),
   );
 
@@ -29,7 +31,7 @@ export default ({ options = {} }: { options?: Record<string, unknown> }) => {
       // workspace 根级文件：包管理、发布、共享配置与脚本。
       file('README.md', 'files/README.md.ejs'),
       file('package.json', 'ejs/package.json.ejs'),
-      file('lan.config.js', 'ejs/lan.config.js.ejs'),
+      file('lan.config.ts', 'ejs/lan.config.ts.ejs'),
       file('scripts/run-package.mjs', 'ejs/scripts/run-package.mjs.ejs'),
       file('pnpm-workspace.yaml', 'ejs/pnpm-workspace.yaml.ejs', normalized.packageManager === 'pnpm'),
       file('tsconfig.base.json', 'ejs/tsconfig.base.json.ejs', normalized.useTs),
