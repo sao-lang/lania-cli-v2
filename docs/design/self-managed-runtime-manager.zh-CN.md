@@ -449,10 +449,16 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 | `lania-runtime-manager`     | 6123 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
 | `lania-plugins-command-env` | 3476 | ✅                | ❌                       | 命令 spec + TUI + 渲染    |
 
-`lania-runtime-manager` 的全部内部依赖只有 `lania-exec`（用 `resolve_executable` 做 PATH 语义）。
+`lania-runtime-manager` 对**其它 lania crate 零依赖**：`lania-exec` 的声明从未被使用，
+本轮已删除，现在只依赖第三方 crate（`ureq` / `tar` / `zip` / `xz2` / `zstd` / `sha2` / `serde`）。
 `lania-plugins-command-env` 的 `PluginMeta.requires` 只有 `Exec + Fs`，**从不触碰 bridge**。
 
-这说明 env 侧要做的不是「拆」，而是「**归位 + 冻结对外面**」。
+这说明 env 侧要做的不是「拆」，而是「**归位 + 冻结对外面**」：
+
+- 「独立包」的判定标准不是「有没有单独目录」，而是**能不能脱离本仓单独编译/分发**。
+  零 lania 依赖 + 冻引导出面，才让后续把它打包成独立可执行工具（`runex`，见 §12）成立。
+- 命令层（`lan env` 的 spec / TUI / 渲染）继续留在 `lania-plugins-command-env`，
+  不反向污染能力层。
 
 ### 11.2 改名：`lania-env` → `lania-runtime-manager`（已落地）
 
@@ -473,8 +479,12 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 目录用 `git mv` 改名，历史保持连续；`rust/Cargo.lock` 由 cargo 重新生成。
 另有三处注释提到旧名（`lania-config` / `lania-host` / `lania-runtime`），同步改为新名。
 
-无外部消费者（34 个 crate 全部 `publish = false`，无 crates.io 发布），故为**零风险改动**；
+无外部消费者（全仓 crate 之间都是 path 依赖，均未发布到 crates.io；仓库里也没有任何
+`publish = false` 声明，这一点与方案原文不符，已更正），故为**零风险改动**；
 因为不涉及对外行为，没有单独新增 changeset（包名是仓库内部 crate 名，不是 npm 包）。
+
+改名同时删掉了从未被使用的 `lania-exec` 依赖，使该 crate 对其它 lania crate **零依赖** ——
+这是 §11.1 定下的「独立包」判定标准，也是 §12 把它做成独立可执行工具的前置条件。
 
 ### 11.3 对外稳定面（冻结清单，已落地）
 

@@ -4,11 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Self-managed multi-runtime version manager (install / use / remove / list)"
 
+# 对其它 lania crate 零依赖：这是 §11「独立能力包」的硬约束，
+# 也是后续把它打包成独立可执行工具（runex）的前提。
 [dependencies]
 anyhow.workspace = true
 flate2.workspace = true
-lania-exec = { path = "../lania-exec" }
 serde = { workspace = true }
 serde_json.workspace = true
 sha2.workspace = true
