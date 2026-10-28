@@ -18,6 +18,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Windows 上静态链接 CRT，产物不再依赖 VCRUNTIME140.dll / ucrtbase.dll，
+  # 做到真正的「下载即用」；其他平台保持默认。
+  RUSTFLAGS: ${{ matrix.target == 'x86_64-pc-windows-msvc' && '-C target-feature=+crt-static' || '' }}
 
 jobs:
   build:

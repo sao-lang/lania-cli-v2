@@ -35,19 +35,24 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Download, verify and install a runtime version.
+    ///
+    /// `version` may be a prefix (`20`) or `latest` (omit it for the latest stable).
     #[command(alias = "i")]
     Install {
         /// Language id, e.g. node / python / go.
         tool: String,
-        /// Version or prefix, e.g. 20 / 20.11.1.
+        /// Version / prefix / `latest`. Defaults to the latest stable.
+        #[arg(default_value = "latest")]
         version: String,
     },
 
     /// Point the current version of a runtime at an installed version.
+    ///
+    /// Without a version it reads the project version file (`.nvmrc` etc.).
     #[command(alias = "u")]
     Use {
         tool: String,
-        version: String,
+        version: Option<String>,
         /// Also write the project version file (e.g. .nvmrc).
         #[arg(long)]
         project: bool,

@@ -29,7 +29,15 @@ pub fn run(cli: Cli) -> Result<u8> {
             tool,
             version,
             project,
-        } => use_version(&store, tool, version, *project, cli.json, cli.dry_run),
+        } => use_version(
+            &store,
+            &cwd,
+            tool,
+            version.as_deref(),
+            *project,
+            cli.json,
+            cli.dry_run,
+        ),
         Command::Remove { tool, version } => remove(&store, tool, version, cli.json, cli.dry_run),
         Command::List { installed } => list(&store, &cwd, *installed, cli.json),
         Command::Info { tool } => info(&store, &cwd, tool, cli.json),
@@ -70,13 +78,20 @@ fn install(
         );
     }
 
+    // `latest`：取上游清单里最新的稳定版（与 nvm `install node` 的直觉一致）。
+    let resolved = if version.eq_ignore_ascii_case("latest") {
+        resolve_latest(store, id)?
+    } else {
+        version.to_string()
+    };
+
     if let Some(reason) = lania_runtime_manager::provider::platform_limitation(id, store.platform())
     {
         bail!("cannot install {id} on this platform: {reason}");
     }
 
     let outcome = store
-        .install(id, version, &mut |event| report_event(event))
+        .install(id, &resolved, &mut |event| report_event(event))
         .map_err(|error| anyhow::anyhow!("{error}"))?;
 
     for warning in &outcome.warnings {
@@ -105,24 +120,36 @@ fn install(
 
 fn use_version(
     store: &RuntimeStore,
+    cwd: &std::path::Path,
     tool: &str,
-    version: &str,
+    version: Option<&str>,
     project: bool,
     json: bool,
     dry_run: bool,
 ) -> Result<u8> {
     let language = ensure_language(tool)?;
     let id = language.id();
+    // 省略版本时读项目版本文件（nvm 的 `nvm use` 习惯）。
+    let requested = match version {
+        Some(value) => value.to_string(),
+        None => read_project_version(language, cwd)?,
+    };
+
     if dry_run {
         return emit(
             json,
-            json!({"ok": true, "dryRun": true, "action": "use", "tool": id, "version": version}),
-            || println!("would point {id} at {version}"),
+            json!({"ok": true, "dryRun": true, "action": "use", "tool": id, "version": requested}),
+            || println!("would point {id} at {requested}"),
         );
     }
     let path = store
-        .use_version(id, version)
+        .use_version(id, &requested)
         .map_err(|error| anyhow::anyhow!("{error}"))?;
+    // 前缀（`22`）会被解析到具体补丁版本，报告里必须显示落地的那个版本。
+    let resolved = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| requested.clone());
 
     let mut pinned = Value::Null;
     if project {
@@ -132,8 +159,8 @@ fn use_version(
             .first()
             .copied()
             .with_context(|| format!("{id} has no project version file"))?;
-        let target = std::env::current_dir()?.join(file);
-        std::fs::write(&target, format!("{version}\n"))
+        let target = cwd.join(file);
+        std::fs::write(&target, format!("{resolved}\n"))
             .with_context(|| format!("failed to write {}", target.display()))?;
         pinned = json!(target.display().to_string());
     }
@@ -143,12 +170,13 @@ fn use_version(
         json!({
             "ok": true,
             "tool": id,
-            "version": version,
+            "version": resolved,
+            "requested": requested,
             "path": path.display().to_string(),
             "pinnedFile": pinned,
         }),
         || {
-            println!("{id} -> {version} ({})", path.display());
+            println!("{id} -> {resolved} ({})", path.display());
             if project {
                 println!("pinned project version file");
             }
@@ -410,6 +438,32 @@ fn ensure_language(tool: &str) -> Result<Language> {
             supported_language_ids().join(", ")
         )
     })
+}
+
+/// 取上游清单里最新的稳定版（`install <tool>` 的默认行为）。
+fn resolve_latest(store: &RuntimeStore, id: &str) -> Result<String> {
+    let versions = store
+        .available_versions(id)
+        .map_err(|error| anyhow::anyhow!("{error}"))?;
+    versions
+        .iter()
+        .find(|tag| !tag.prerelease)
+        .map(|tag| tag.raw.clone())
+        .with_context(|| format!("{id} has no stable release upstream"))
+}
+
+/// 从项目版本文件（`.nvmrc` / `.python-version` / `go.mod` …）读出版本约束。
+fn read_project_version(language: Language, cwd: &std::path::Path) -> Result<String> {
+    let id = language.id();
+    if let Some((file, version)) = language.read_version_file(cwd) {
+        eprintln!("using {file} -> {version}");
+        return Ok(version);
+    }
+    bail!(
+        "{id} has no version file in {}; pass a version explicitly (looked for: {})",
+        cwd.display(),
+        language.version_files().join(", ")
+    )
 }
 
 fn report_event(event: InstallEvent) {

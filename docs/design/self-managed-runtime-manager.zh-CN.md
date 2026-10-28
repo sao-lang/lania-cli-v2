@@ -606,17 +606,17 @@ lania-cli ──▶ lania-plugins-command-env ──▶ lania-runtime-manager
 
 ### 12.3 命令面
 
-| 命令                                  | 说明                                                 |
-| ------------------------------------- | ---------------------------------------------------- |
-| `runex install <tool> <ver>`          | 安装（版本支持前缀：`20` 装 20.x 最高补丁）          |
-| `runex use <tool> <ver> [--project]`  | 切换 current；`--project` 同时写 `.nvmrc` 等版本文件 |
-| `runex remove <tool> <ver>`           | 删除自管版本；删当前版本会回退到剩余最高版本         |
-| `runex list [--installed]`            | 列出工具 / 只列自管版本                              |
-| `runex info <tool>`                   | 单个工具详情（版本、来源、上游、入口）               |
-| `runex versions <tool> [--available]` | 已安装版本；`--available` 额外查上游                 |
-| `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                    |
-| `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                        |
-| `runex doctor`                        | 指针 / shim / PATH 体检                              |
+| 命令                                  | 说明                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------- |
+| `runex install <tool> [ver]`          | 安装；前缀（`20`）装 20.x 最高补丁，省略或 `latest` 取上游最新稳定版 |
+| `runex use <tool> [ver] [--project]`  | 切换 current；省略版本时读 `.nvmrc` 等版本文件，`--project` 写回     |
+| `runex remove <tool> <ver>`           | 删除自管版本；删当前版本会回退到剩余最高版本                         |
+| `runex list [--installed]`            | 列出工具 / 只列自管版本                                              |
+| `runex info <tool>`                   | 单个工具详情（版本、来源、上游、入口）                               |
+| `runex versions <tool> [--available]` | 已安装版本；`--available` 额外查上游                                 |
+| `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                                    |
+| `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                                        |
+| `runex doctor`                        | 指针 / shim / PATH 体检                                              |
 
 全局开关：`--json`（stdout 只输出机器可读内容，进度走 stderr）、`--dry-run`（只打印计划）、
 `--home <dir>`（覆盖 `RUNEX_HOME`，同样用于测试隔离）。
@@ -649,20 +649,25 @@ lania-cli ──▶ lania-plugins-command-env ──▶ lania-runtime-manager
 
 ### 12.5 分发
 
-| 场景      | 做法                                                                                                                                                                   |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 本地/单机 | `cargo build --release -p runex` → 单文件                                                                                                                              |
-| 正式发布  | `.github/workflows/release-runex.yml`：`runex-v*` tag 触发，五平台矩阵（Linux x64/arm64、macOS x64/arm64、Windows x64），产出 `runex-<ver>-<platform>.tar.gz` / `.zip` |
-| 版本节奏  | 与 npm 包解耦；`runex` 用自己的 tag 前缀，不跟 `@lania-cli-v2/cli` 一起发                                                                                              |
+| 场景       | 做法                                                                                                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 本地/单机  | `cargo build --release -p runex` → 单文件                                                                                                                              |
+| 正式发布   | `.github/workflows/release-runex.yml`：`runex-v*` tag 触发，五平台矩阵（Linux x64/arm64、macOS x64/arm64、Windows x64），产出 `runex-<ver>-<platform>.tar.gz` / `.zip` |
+| 版本节奏   | 与 npm 包解耦；`runex` 用自己的 tag 前缀，不跟 `@lania-cli-v2/cli` 一起发                                                                                              |
+| 运行期依赖 | Windows 用 `-C target-feature=+crt-static` 构建，产物不依赖 `VCRUNTIME140.dll` / `ucrtbase.dll`（实测依赖只剩 kernel32/ws2_32 等系统库）；其他平台只需系统 libc        |
 
 ### 12.6 验收
 
 - [x] `cargo build --release -p runex` 产出单文件，`cargo tree -p runex` 不含 lania 宿主 crate。
-- [x] `runex` 进程级测试 8 条：help / list --installed / init / which 失败态 / install --dry-run 不落盘 /
-      doctor JSON / 未知工具拒绝 / `--home` 覆盖 `RUNEX_HOME`。
+- [x] `runex` 进程级测试 11 条：help / list --installed / init / which 失败态 / install --dry-run 不落盘 /
+      doctor JSON / 未知工具拒绝 / `--home` 覆盖 `RUNEX_HOME` / `install` 默认 latest /
+      `use` 读项目版本文件 / `use` 无版本无文件时给出可操作报错。
 - [x] `lania-runtime-manager` 单测 72 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
 - [x] 真实安装冒烟：`runex install node 22` → `use` → `which` → 通过 shim 执行 `node -v`（见 §12.7）。
+- [x] 干净环境验证：`--locked` 发布构建、PATH 只留 system32（无 lan / cargo）、`RUNEX_HOME` 含空格路径下
+      完成 install → use → shim 执行 → JSON 输出 → remove 全链路。
 - [x] `--dry-run` 不产生任何目录/文件。
+- [x] Windows 产物静态链接 CRT（`dumpbin /dependents` 无 `VCRUNTIME140.dll` / `ucrtbase.dll`）。
 
 ### 12.7 冒烟记录（本机 Windows x64，真实下载）
 

@@ -112,6 +112,50 @@ fn doctor_emits_structured_diagnostics() {
 }
 
 #[test]
+fn install_defaults_to_latest() {
+    let home = temp_home("latest");
+    let output = runex(&home, &["install", "node", "--dry-run"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.contains("would install node latest"), "{text}");
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
+fn use_reads_the_project_version_file_when_the_version_is_omitted() {
+    let home = temp_home("use-file");
+    let project = home.join("project");
+    std::fs::create_dir_all(&project).expect("project dir");
+    std::fs::write(project.join(".nvmrc"), "22\n").expect("nvmrc");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_runex"))
+        .args(["use", "node", "--dry-run"])
+        .current_dir(&project)
+        .env("RUNEX_HOME", &home)
+        .env("HOME", &home)
+        .env("USERPROFILE", &home)
+        .output()
+        .expect("runex runs");
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.contains("would point node at 22"), "{text}");
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
+fn use_without_version_or_project_file_fails_clearly() {
+    let home = temp_home("use-none");
+    let output = runex(&home, &["use", "node"]);
+    assert!(!output.status.success());
+    let message = stderr(&output);
+    assert!(
+        message.contains("pass a version explicitly"),
+        "expected an actionable hint, got: {message}"
+    );
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
 fn unknown_tool_is_rejected_with_the_supported_list() {
     let home = temp_home("unknown");
     let output = runex(&home, &["install", "cobol", "1", "--dry-run"]);

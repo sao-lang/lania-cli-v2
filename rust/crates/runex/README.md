@@ -22,17 +22,17 @@ $RUNEX_HOME/                # 默认 ~/.runex
 
 ## 常用命令
 
-| 命令                                  | 说明                                                     |
-| ------------------------------------- | -------------------------------------------------------- |
-| `runex install <tool> <ver>`          | 安装（版本支持前缀：`20` 装 20.x 最高补丁）              |
-| `runex use <tool> <ver> [--project]`  | 切换 current；`--project` 同时写 `.nvmrc` 之类的版本文件 |
-| `runex remove <tool> <ver>`           | 删除自管版本；删当前版本会回退到剩余最高版本             |
-| `runex list [--installed]`            | 列出工具 / 只列自管版本                                  |
-| `runex info <tool>`                   | 单个工具详情                                             |
-| `runex versions <tool> [--available]` | 已安装版本；`--available` 额外查上游                     |
-| `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                        |
-| `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                            |
-| `runex doctor`                        | 指针 / shim / PATH 体检                                  |
+| 命令                                  | 说明                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------- |
+| `runex install <tool> [ver]`          | 安装；前缀（`20`）装 20.x 最高补丁，省略或 `latest` 取上游最新稳定版 |
+| `runex use <tool> [ver] [--project]`  | 切换 current；省略版本时读 `.nvmrc` 等版本文件，`--project` 写回     |
+| `runex remove <tool> <ver>`           | 删除自管版本；删当前版本会回退到剩余最高版本                         |
+| `runex list [--installed]`            | 列出工具 / 只列自管版本                                              |
+| `runex info <tool>`                   | 单个工具详情                                                         |
+| `runex versions <tool> [--available]` | 已安装版本；`--available` 额外查上游                                 |
+| `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                                    |
+| `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                                        |
+| `runex doctor`                        | 指针 / shim / PATH 体检                                              |
 
 全局开关：`--json`（脚本与 GUI 用）、`--dry-run`（只打印计划）、`--home <dir>`（覆盖 `RUNEX_HOME`）。
 
