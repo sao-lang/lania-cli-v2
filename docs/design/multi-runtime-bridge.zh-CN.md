@@ -108,13 +108,13 @@ Node 生态 = 宿主语言，同构带来三个红利：**零序列化、可传�
 
 同一份知识被写在 4 个地方，且不一致：
 
-| 知识                     | 位置 A                                | 位置 B                                | 位置 C                | 位置 D          | 一致？         |
-| ------------------------ | ------------------------------------- | ------------------------------------- | --------------------- | --------------- | -------------- |
-| 特征文件 → 运行时        | `compiler-shared.ts`（5 项）          | `lania-env/language.rs`（版本文件）   | —                     | —               | ❌             |
-| 运行时 → 包管理器        | `lania-pm`（`managers_for_language`） | `templates/language-options.ts`       | —                     | —               | ❌             |
-| 运行时 → lint 工具集     | `language-runners.ts`（8 个 adaptor） | `lania-env/language.rs`（companions） | —                     | —               | ❌             |
-| 运行时 → 可执行文件位置  | `lania-exec::resolve_executable`      | `language-runners.ts::resolveTool`    | `spawn()`（交给系统） | `lan env which` | ❌             |
-| 运行时 → 默认 build 命令 | `runtime-adapters/commands.ts`        | —                                     | —                     | —               | ✅（唯一单点） |
+| 知识                     | 位置 A                                | 位置 B                                            | 位置 C                | 位置 D          | 一致？         |
+| ------------------------ | ------------------------------------- | ------------------------------------------------- | --------------------- | --------------- | -------------- |
+| 特征文件 → 运行时        | `compiler-shared.ts`（5 项）          | `lania-runtime-manager/language.rs`（版本文件）   | —                     | —               | ❌             |
+| 运行时 → 包管理器        | `lania-pm`（`managers_for_language`） | `templates/language-options.ts`                   | —                     | —               | ❌             |
+| 运行时 → lint 工具集     | `language-runners.ts`（8 个 adaptor） | `lania-runtime-manager/language.rs`（companions） | —                     | —               | ❌             |
+| 运行时 → 可执行文件位置  | `lania-exec::resolve_executable`      | `language-runners.ts::resolveTool`                | `spawn()`（交给系统） | `lan env which` | ❌             |
+| 运行时 → 默认 build 命令 | `runtime-adapters/commands.ts`        | —                                                 | —                     | —               | ✅（唯一单点） |
 
 ### 1.4 七运行时全景（本文覆盖范围）
 
@@ -1929,7 +1929,7 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
 
 - [x] `lan env use <runtime> <ver>` 后，同一 shell 内 `lan build` / `lan lint` / `lan create` 使用 managed 版本。
       （`RuntimeHome::activate()` 在 `main.rs` 最前面执行，子进程继承 PATH；
-      `lania-env/src/home.rs` 有「幂等 / shims 不存在时跳过 / 前置顺序」三条约束的单测。
+      `lania-runtime-manager/src/home.rs` 有「幂等 / shims 不存在时跳过 / 前置顺序」三条约束的单测。
       **未做**需要真实运行时下载的跨进程 e2e —— 它依赖网络与目标平台二进制。）
 - [x] 删除任一运行时 bridge 的二进制/脚本后，对应命令通过回落路径正常工作。
       （Python：`LANIA_PYTHON=/不存在`；Go：`LANIA_GO=/不存在` + 空 `LANIA_BRIDGE_HOME`；

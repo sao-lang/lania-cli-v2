@@ -21,9 +21,6 @@ mod tui;
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::{CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
-use lania_env::{
-    build_plan, execute_plan, EnvAction, EnvPlan, EnvService, Platform, RuntimeHome, RuntimeStore,
-};
 use lania_host::{
     capability::CapabilityName,
     execution::{
@@ -31,6 +28,9 @@ use lania_host::{
         EXIT_RUNTIME_ERROR,
     },
     plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
+};
+use lania_runtime_manager::{
+    build_plan, execute_plan, EnvAction, EnvPlan, EnvService, Platform, RuntimeHome, RuntimeStore,
 };
 use serde_json::{json, Value};
 

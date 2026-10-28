@@ -1,12 +1,12 @@
 # 自管版本管理器技术方案
 
-> 状态：**第一批已落地**（Node / Python / Go / Rust / Deno / Bun / Zig）。
+> 状态：**第一批已落地，包边界已完成收口**（Node / Python / Go / Rust / Deno / Bun / Zig）。
 > 目标读者：能直接据此开工的 builder。
 > 决策来源：需求方明确要求「lania 自己做版本管理器，不再转发给 nvm/volta 等」，
 > 范围为 **只管理运行时环境**（安装/切换/卸载/列举），**不做全局包管理**，
 > 覆盖代码中全部 40 种语言，并 **replace** 现有的探测/转发层。
 >
-> 落地情况见文末 §10「第一批实现记录」；**包边界与拆包方案见 §11**。
+> 落地情况见文末 §10「第一批实现记录」；**包边界与拆包已完成，见 §11**。
 > 配套文档：`agent-architecture.zh-CN.md`（agent 拆包）、
 > `multi-runtime-bridge.zh-CN.md`（多运行时 bridge 与 dev/build/create/add/lint 重构）。
 
@@ -374,7 +374,7 @@ C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的�
 | Bun    | github.com/oven-sh/bun/releases   | `zip` 单文件                | GitHub asset `digest`          |
 | Zig    | ziglang.org/download              | `tar.xz` 单目录             | `index.json` 的 `shasum`       |
 
-模块划分（`rust/crates/lania-env/src/`）：
+模块划分（`rust/crates/lania-runtime-manager/src/`）：
 
 ```text
 archive.rs   tar.gz / tar.xz / tar.zst / zip 解压 + 完整性校验
@@ -446,31 +446,37 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 
 | crate                       | 行数 | 依赖 `lania-host` | 依赖 `lania-node-bridge` | 内容                      |
 | --------------------------- | ---- | ----------------- | ------------------------ | ------------------------- |
-| `lania-env`                 | 5837 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
-| `lania-plugins-command-env` | 3474 | ✅                | ❌                       | 命令 spec + TUI + 渲染    |
+| `lania-runtime-manager`     | 6123 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
+| `lania-plugins-command-env` | 3476 | ✅                | ❌                       | 命令 spec + TUI + 渲染    |
 
-`lania-env` 的全部内部依赖只有 `lania-exec`（用 `resolve_executable` 做 PATH 语义）。
+`lania-runtime-manager` 的全部内部依赖只有 `lania-exec`（用 `resolve_executable` 做 PATH 语义）。
 `lania-plugins-command-env` 的 `PluginMeta.requires` 只有 `Exec + Fs`，**从不触碰 bridge**。
 
 这说明 env 侧要做的不是「拆」，而是「**归位 + 冻结对外面**」。
 
-### 11.2 改名：`lania-env` → `lania-runtime-manager`
+### 11.2 改名：`lania-env` → `lania-runtime-manager`（已落地）
 
 理由：`lania-env` 与 `lan env` 命令同名，但两者层级完全不同（一个是能力库，一个是命令实现）。
 外部消费者读 `Cargo.toml` 时无法从名字判断该依赖哪个。改名后语义明确。
 
-**影响面（全仓穷举，共 4 处）**：
+**实际影响面（全仓穷举，共 6 处）**：
 
-| 文件                                               | 改动                                                   |
-| -------------------------------------------------- | ------------------------------------------------------ |
-| `rust/Cargo.toml`                                  | `members` 里 `crates/lania-env` → 新目录名             |
-| `rust/crates/lania-env/Cargo.toml`                 | `name = "lania-runtime-manager"`                       |
-| `rust/crates/lania-plugins-command-env/Cargo.toml` | 依赖路径改名                                           |
-| `rust/crates/lania-plugins-command-env/src/lib.rs` | 5 处 `use lania_env::` → `use lania_runtime_manager::` |
+| 文件                                                | 改动                                                                              |
+| --------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `rust/Cargo.toml`                                   | `members` 里 `crates/lania-env` → `crates/lania-runtime-manager`                  |
+| `rust/crates/lania-runtime-manager/Cargo.toml`      | `name = "lania-runtime-manager"`                                                  |
+| `rust/crates/lania-plugins-command-env/Cargo.toml`  | 依赖键 + 路径改名                                                                 |
+| `rust/crates/lania-cli/Cargo.toml`                  | 依赖键 + 路径改名（方案原文漏列，cli 入口直接用 `RuntimeHome`）                   |
+| `rust/crates/lania-cli/src/main.rs`                 | 1 处 `lania_env::RuntimeHome` → `lania_runtime_manager::`                         |
+| `rust/crates/lania-plugins-command-env/src/**/*.rs` | 6 个文件里全部 `lania_env` → `lania_runtime_manager`（不止 lib.rs 的 5 处 `use`） |
 
-无外部消费者（34 个 crate 全部 `publish = false`，无 crates.io 发布），故为**零风险改动**。
+目录用 `git mv` 改名，历史保持连续；`rust/Cargo.lock` 由 cargo 重新生成。
+另有三处注释提到旧名（`lania-config` / `lania-host` / `lania-runtime`），同步改为新名。
 
-### 11.3 对外稳定面（冻结清单）
+无外部消费者（34 个 crate 全部 `publish = false`，无 crates.io 发布），故为**零风险改动**；
+因为不涉及对外行为，没有单独新增 changeset（包名是仓库内部 crate 名，不是 npm 包）。
+
+### 11.3 对外稳定面（冻结清单，已落地）
 
 改名后下列导出是**承诺稳定**的（供 GUI / IDE 插件 / CI 脚本嵌入）：
 
@@ -495,9 +501,14 @@ pub use plan::{build_plan, execute_plan, EnvPlan, EnvAction, PlanStep};
 **不承诺稳定**（内部实现，可自由重构）：
 
 - `archive` / `checksum` / `http` / `shims` 的具体函数签名
-- `store.rs`（41.9KB）内部的存储布局细节
+- `store.rs`（47KB）内部的存储布局细节
 
-### 11.4 新增：为多运行时 bridge 提供「工具链血缘」
+**落地方式（已执行）**：`lib.rs` 把导出拆成两段带注释的分区 —— 「对外稳定面（冻结清单）」
+与「内部实现（不承诺稳定）」，任何新导出都必须显式归到其中一段。冻结清单还由
+`tests::frozen_export_surface_is_intact` 做**编译期守卫**：删掉/改名任何一项稳定导出都会让测试编译失败，
+不会等到 GUI / IDE 插件那边才暴露。
+
+### 11.4 新增：为多运行时 bridge 提供「工具链血缘」（已落地）
 
 env 与其它命令之间当前唯一的接缝是 `~/.runex/shims` 目录，但**没有任何命令主动使用它**。
 `lan env use node 22` 只改 `state.json` + 重写 shim 文件，而 `build` / `lint` / `create` 全部
@@ -521,7 +532,7 @@ impl RuntimeHome {
 > POSIX shim 的实现是 `exec "$(lan env which <name> --resolve)" "$@"`，
 > 若 `which` 也走 PATH，就会命中 shim 自身形成自引用死循环。
 
-### 11.5 `lan env doctor` 的连带调整
+### 11.5 `lan env doctor` 的连带调整（已落地）
 
 现状 `doctor` 会诊断「shims 是否在 PATH 中」。一旦 `lan` 每次都自动 `activate()`，
 该诊断将永远通过，失去意义。改为两条独立诊断：
@@ -531,9 +542,16 @@ impl RuntimeHome {
 | 本进程 PATH 是否前置   | `lan` 自己是否成功注入（内部健康度）            | 报 bug；用户无需操作                       |
 | shell profile 是否固化 | 用户 `.bashrc` / `$PROFILE` 是否写了 shims 路径 | 提示 `lan env init` 片段（外部终端才需要） |
 
-### 11.6 验收标准
+实现位置：`store.rs::diagnose`（两条独立 `Diagnostic`）+ `shell_profile_has_shims`
+（真读 profile 文件，避免把 `lan` 自己注入的 PATH 误判成用户已固化）。
 
-- [ ] `cargo tree -p lania-runtime-manager` 中不出现 `lania-host` / `lania-node-bridge`。
-- [ ] 改名后 `cargo test --workspace` 全绿，`lan env` 全部 e2e 通过。
-- [ ] `prepend_shims_to_path` / `activate` 有单测覆盖幂等性与前置顺序。
-- [ ] `lan env use node 22` 后，同一 shell 内 `lan build` 使用 22（需配合 bridge 文档 §6 的落地）。
+### 11.6 验收标准（全部通过）
+
+- [x] `cargo tree -p lania-runtime-manager` 中不出现 `lania-host` / `lania-node-bridge`。
+- [x] 改名后 `cargo test --workspace` 全绿，`lan env` 全部 e2e 通过。
+- [x] `prepend_shims_to_path` / `activate` 有单测覆盖幂等性与前置顺序
+      （`home.rs`：前置顺序 / 幂等 / 陈旧条目剔除 / 空 PATH / shims 缺失时跳过）。
+- [x] `lan env use node 22` 后，同一 shell 内 `lan build` 使用 22
+      （`main.rs::activate_managed_runtimes` 在命令解析前 `activate()`，子进程继承 PATH；
+      bridge 侧落地见 `multi-runtime-bridge.zh-CN.md` §6 / B0）。
+- [x] 冻结导出面有编译期守卫：`tests::frozen_export_surface_is_intact`。

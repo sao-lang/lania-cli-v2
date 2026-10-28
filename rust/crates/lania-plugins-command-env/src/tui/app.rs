@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use lania_env::{
+use lania_runtime_manager::{
     build_plan, execute_plan, EnvAction, EnvPlan, EnvService, Language, Platform, RuntimeHome,
     RuntimeStore, ToolStatus,
 };
@@ -677,9 +677,9 @@ impl App {
                 Ok(diagnostics) => {
                     for diagnostic in diagnostics {
                         let prefix = match diagnostic.level {
-                            lania_env::DiagnosticLevel::Error => "✗",
-                            lania_env::DiagnosticLevel::Warn => "!",
-                            lania_env::DiagnosticLevel::Info => "·",
+                            lania_runtime_manager::DiagnosticLevel::Error => "✗",
+                            lania_runtime_manager::DiagnosticLevel::Warn => "!",
+                            lania_runtime_manager::DiagnosticLevel::Info => "·",
                         };
                         lines.push(format!("{prefix} {}", diagnostic.message));
                     }

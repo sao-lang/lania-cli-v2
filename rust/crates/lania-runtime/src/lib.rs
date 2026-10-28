@@ -2,7 +2,7 @@
 //!
 //! 该 crate 是 `lan tools run`、`host.runtime.*` 与 `ctx.tools.runtime` 的共享实现：
 //! - 只描述“某个文件应该由哪个运行时执行”
-//! - 不直接承担项目级工具链探测（那是 `lania-env` 的职责）
+//! - 不直接承担项目级工具链探测（那是 `lania-runtime-manager` 的职责）
 //! - 编译型语言会先生成临时可执行文件，执行结束后由 [`RuntimeService::run`] 清理
 
 mod registry;

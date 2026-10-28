@@ -138,8 +138,8 @@ fn result_mode_refresh_flag_round_trip() {
     assert!(app.pending_refresh);
 }
 
-fn node_tool() -> lania_env::ToolStatus {
-    lania_env::ToolStatus {
+fn node_tool() -> lania_runtime_manager::ToolStatus {
+    lania_runtime_manager::ToolStatus {
         id: "node".into(),
         name: "Node.js".into(),
         language: "node".into(),
@@ -154,10 +154,13 @@ fn node_tool() -> lania_env::ToolStatus {
     }
 }
 
-fn plan(action: lania_env::EnvAction, steps: Vec<lania_env::PlanStep>) -> lania_env::EnvPlan {
-    lania_env::EnvPlan {
+fn plan(
+    action: lania_runtime_manager::EnvAction,
+    steps: Vec<lania_runtime_manager::PlanStep>,
+) -> lania_runtime_manager::EnvPlan {
+    lania_runtime_manager::EnvPlan {
         action,
-        language: lania_env::Language::Node,
+        language: lania_runtime_manager::Language::Node,
         tool: "node".into(),
         version: Some("20".into()),
         managed: true,
@@ -171,7 +174,7 @@ fn plan(action: lania_env::EnvAction, steps: Vec<lania_env::PlanStep>) -> lania_
 fn execute_plan_reports_error_for_unsupported_language() {
     let mut app = App::new_dry_run(PathBuf::from("."), "en");
     app.set_tools_for_test(vec![node_tool()]);
-    let mut plan = plan(lania_env::EnvAction::Install, Vec::new());
+    let mut plan = plan(lania_runtime_manager::EnvAction::Install, Vec::new());
     plan.error = Some("ruby is not self-managed yet".into());
     app.pending_plan = Some(plan);
 
@@ -191,8 +194,8 @@ fn execute_write_file_step_writes_project_pin() {
     let mut app = App::new_dry_run(dir.clone(), "zh");
     app.set_tools_for_test(vec![node_tool()]);
     app.pending_plan = Some(plan(
-        lania_env::EnvAction::Use,
-        vec![lania_env::PlanStep {
+        lania_runtime_manager::EnvAction::Use,
+        vec![lania_runtime_manager::PlanStep {
             kind: "write-file".into(),
             label: "pin .nvmrc to 20".into(),
             command: format!("write {pin} <- 20"),
@@ -218,12 +221,12 @@ fn remove_input_builds_remove_plan() {
     app.submit_input();
 
     let plan = app.pending_plan.as_ref().expect("plan");
-    assert_eq!(plan.action, lania_env::EnvAction::Remove);
+    assert_eq!(plan.action, lania_runtime_manager::EnvAction::Remove);
     assert!(matches!(app.mode, Mode::Confirm));
 }
 
-fn tool(id: &str, language: &str) -> lania_env::ToolStatus {
-    lania_env::ToolStatus {
+fn tool(id: &str, language: &str) -> lania_runtime_manager::ToolStatus {
+    lania_runtime_manager::ToolStatus {
         id: id.into(),
         name: id.into(),
         language: language.into(),

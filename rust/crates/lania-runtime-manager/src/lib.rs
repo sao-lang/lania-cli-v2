@@ -27,24 +27,53 @@ mod version;
 #[cfg(test)]
 mod tests;
 
+// ─────────────────────────────────────────────────────────────────────────
+// 对外稳定面（冻结清单，见 `docs/design/self-managed-runtime-manager.zh-CN.md` §11.3）
+//
+// 这一组导出**承诺稳定**：GUI / IDE 插件 / CI 脚本可以直接嵌入。
+// 改名、删除或改签名都属于破坏性变更，必须同步更新 §11.3 与 changeset。
+// `tests::frozen_export_surface_is_intact` 盯住这份清单，删漏任何一项都会编译失败。
+// ─────────────────────────────────────────────────────────────────────────
+
+// 模型
+pub use home::{RuntimeHome, HOME_ENV, META_FILE};
+pub use language::Language;
+pub use platform::{Arch, Libc, Os, Platform};
+pub use version::{pick_best, VersionTag};
+
+// 服务
+pub use detect::{EnvService, InstalledVersion, ProjectVersion, ToolStatus};
+pub use store::{Diagnostic, InstallEvent, InstallOutcome, RuntimeStore};
+
+// 扩展点
+pub use provider::{
+    describe as describe_provider, provider_for, ProviderArtifact, ProviderContext, ProviderInfo,
+    RuntimeProvider,
+};
+
+// 计划与执行
+pub use plan::{build_plan, execute_plan, EnvAction, EnvPlan, PlanStep};
+
+// ─────────────────────────────────────────────────────────────────────────
+// 内部实现（**不承诺稳定**：可自由重构，改名/改签名不视为破坏性变更）
+//
+// 主要在 crate 内部与 `lania-plugins-command-env` 之间使用；外部消费者不应依赖。
+// ─────────────────────────────────────────────────────────────────────────
+
 pub use archive::{extract as extract_archive, verify_integrity, ArchiveFormat};
 pub use checksum::{find_in_manifest, hex_digest_sha256, verify_file};
-pub use detect::{extract_semver, which, EnvService, InstalledVersion, ProjectVersion, ToolStatus};
+pub use detect::{extract_semver, which};
 pub use error::{ArchiveError, NetworkError, PlatformError, RuntimeError, VerifyError};
-pub use home::{RuntimeHome, HOME_ENV, META_FILE, PATH_ENV};
+pub use home::PATH_ENV;
 pub use http::HttpClient;
-pub use language::Language;
-pub use plan::{build_plan, execute_plan, validate_version, EnvAction, EnvPlan, PlanStep};
-pub use platform::{Arch, Libc, Os, Platform};
+pub use plan::validate_version;
 pub use provider::{
-    describe as describe_provider, is_planned, platform_limitation, provider_for,
-    supported_language_ids, upstream_for, ProviderArtifact, ProviderContext, ProviderInfo,
-    ProviderLayout, ProviderRelease, RuntimeProvider,
+    is_planned, platform_limitation, supported_language_ids, upstream_for, ProviderLayout,
+    ProviderRelease,
 };
 pub use shims::{resolve_entry as resolve_shim_entry, shell_snippet};
 pub use state::{InstalledMeta, InstalledRuntime, RuntimeState};
-pub use store::{Diagnostic, DiagnosticLevel, InstallEvent, InstallOutcome, RuntimeStore};
-pub use version::{pick_best, VersionTag};
+pub use store::DiagnosticLevel;
 
 fn extract_version(language: Language, file_name: &str, content: &str) -> Option<String> {
     let trimmed = content.trim();

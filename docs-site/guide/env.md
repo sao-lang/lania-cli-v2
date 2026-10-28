@@ -122,7 +122,7 @@ $ lan env install ruby 3.3.0 --yes
 Error: ruby is not self-managed yet; available now: node, python, go, rust, deno, bun, zig
 ```
 
-每种语言的入口命令、上游渠道与平台矩阵集中定义在 `lania-env/src/provider/` 下，新增语言只需实现一个 `RuntimeProvider`。
+每种语言的入口命令、上游渠道与平台矩阵集中定义在 `lania-runtime-manager/src/provider/` 下，新增语言只需实现一个 `RuntimeProvider`。
 
 ## 查询
 

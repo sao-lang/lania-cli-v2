@@ -288,7 +288,7 @@ async fn main() -> Result<()> {
 ///
 /// 失败必须**静默忽略**：自管运行时是可选能力，任何解析/权限问题都不应阻断命令本身。
 fn activate_managed_runtimes() {
-    if let Ok(home) = lania_env::RuntimeHome::resolve() {
+    if let Ok(home) = lania_runtime_manager::RuntimeHome::resolve() {
         home.activate();
     }
 }

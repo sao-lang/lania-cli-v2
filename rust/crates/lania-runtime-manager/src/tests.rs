@@ -90,3 +90,32 @@ fn version_files_are_declared_for_common_languages() {
         .version_files()
         .contains(&"rust-toolchain.toml"));
 }
+
+/// §11.3 冻结导出面的编译期守卫。
+///
+/// 只引用、不断言行为：目的是让「悄悄删掉/改名某个稳定导出」变成编译错误，
+/// 而不是等外部消费者（GUI / IDE 插件 / CI 脚本）报 bug 才发现。
+/// 增删这份清单前，先改 `docs/design/self-managed-runtime-manager.zh-CN.md` §11.3。
+#[test]
+fn frozen_export_surface_is_intact() {
+    use crate::{RuntimeProvider, HOME_ENV, META_FILE};
+
+    // 每一项都必须仍然可以从 crate 根导入（`as _` 只校验名字存在）。
+    #[allow(unused_imports)]
+    use crate::{
+        build_plan as _, describe_provider as _, execute_plan as _, pick_best as _,
+        provider_for as _, Arch as _, Diagnostic as _, EnvAction as _, EnvPlan as _,
+        EnvService as _, InstallEvent as _, InstallOutcome as _, InstalledVersion as _,
+        Language as _, Libc as _, Os as _, PlanStep as _, Platform as _, ProjectVersion as _,
+        ProviderArtifact as _, ProviderContext as _, ProviderInfo as _, RuntimeHome as _,
+        RuntimeStore as _, ToolStatus as _, VersionTag as _,
+    };
+
+    // 扩展点是 trait，单独用泛型约束盯住（不能被降级成私有）。
+    #[allow(dead_code)]
+    fn assert_provider<T: RuntimeProvider + ?Sized>() {}
+
+    // 这两项是用户可见契约（`RUNEX_HOME` 与每版本元数据文件名），钉住字面值。
+    assert_eq!(HOME_ENV, "RUNEX_HOME");
+    assert_eq!(META_FILE, ".runex-meta.json");
+}

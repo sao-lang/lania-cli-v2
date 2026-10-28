@@ -4,8 +4,8 @@
 
 use anyhow::Result;
 use lania_command::{ArgSpec, CommandSpec, OptionSpec, ValueKind};
-use lania_env::{EnvService, InstalledVersion, Language, Platform, RuntimeHome};
 use lania_host::execution::CommandExecutionContext;
+use lania_runtime_manager::{EnvService, InstalledVersion, Language, Platform, RuntimeHome};
 use serde_json::{json, Value};
 use std::path::Path;
 
@@ -151,7 +151,7 @@ fn list_installed(filter: Option<String>) -> Value {
     let mut entries: Vec<Value> = Vec::new();
 
     if let Some(home) = home.as_ref() {
-        for id in lania_env::supported_language_ids() {
+        for id in lania_runtime_manager::supported_language_ids() {
             if filter
                 .as_ref()
                 .is_some_and(|needle| !id.contains(needle.as_str()))
@@ -181,7 +181,7 @@ fn installed_entry(home: &RuntimeHome, id: &str, version: &InstalledVersion) -> 
         "version": version.version,
         "current": version.current,
         "path": home.version_dir(id, &version.version).display().to_string(),
-        "upstream": lania_env::upstream_for(id),
+        "upstream": lania_runtime_manager::upstream_for(id),
     })
 }
 
@@ -206,7 +206,7 @@ pub(super) fn execute_info(
         .collect();
     let provider = Platform::detect()
         .ok()
-        .and_then(|platform| lania_env::describe_provider(language.id(), platform));
+        .and_then(|platform| lania_runtime_manager::describe_provider(language.id(), platform));
 
     Ok(json!({
         "kind": "env_toolchain_info",
@@ -255,7 +255,7 @@ pub(super) fn execute_versions(
     Ok(json!({
         "kind": "env_versions",
         "tool": language.id(),
-        "managed": lania_env::supported_language_ids().contains(&language.id()),
+        "managed": lania_runtime_manager::supported_language_ids().contains(&language.id()),
         "versions": versions,
         "available": available,
     }))
@@ -304,9 +304,9 @@ pub(super) fn execute_doctor(service: &EnvService, cwd: &Path) -> Result<Value> 
                     .map(|item| {
                         json!({
                             "level": match item.level {
-                                lania_env::DiagnosticLevel::Error => "error",
-                                lania_env::DiagnosticLevel::Warn => "warn",
-                                lania_env::DiagnosticLevel::Info => "info",
+                                lania_runtime_manager::DiagnosticLevel::Error => "error",
+                                lania_runtime_manager::DiagnosticLevel::Warn => "warn",
+                                lania_runtime_manager::DiagnosticLevel::Info => "info",
                             },
                             "message": item.message,
                         })
@@ -346,7 +346,7 @@ fn require_language(ctx: &CommandExecutionContext<'_>, subcommand: &str) -> Resu
     Language::parse_id(tool).ok_or_else(|| {
         anyhow::anyhow!(
             "unsupported tool `{tool}`; supported: {}",
-            lania_env::supported_language_ids().join(", ")
+            lania_runtime_manager::supported_language_ids().join(", ")
         )
     })
 }
