@@ -32,7 +32,10 @@ const USER_AGENT: &str = concat!("lania-cli/", env!("CARGO_PKG_VERSION"));
 
 #[derive(Debug, Clone)]
 pub struct HttpClient {
+    /// 元数据请求（版本清单 / 校验和）：body 很小时也要求快速失败。
     agent: Agent,
+    /// 产物下载：body 动辄上百 MB，总时限必须用 `RUNEX_DOWNLOAD_TIMEOUT_SECS`。
+    download_agent: Agent,
     offline: bool,
     download_timeout: Duration,
     github_token: Option<String>,
@@ -42,13 +45,11 @@ impl HttpClient {
     pub fn new() -> Self {
         let timeout = Duration::from_secs(env_secs(TIMEOUT_ENV, 30));
         let download_timeout = Duration::from_secs(env_secs(DOWNLOAD_TIMEOUT_ENV, 1800));
-        let agent: Agent = Agent::config_builder()
-            .timeout_connect(Some(timeout))
-            .timeout_recv_response(Some(timeout))
-            .timeout_recv_body(Some(timeout))
-            .user_agent(USER_AGENT)
-            .build()
-            .into();
+        // ureq 3 的 `timeout_recv_body` 是**整个响应体**的预算（不是每次读），
+        // 若它与 30s 连接超时共用，任何超过 30 秒的产物下载都会被判超时——
+        // 慢网下 100MB+ 的 JDK / Rust 包必然失败。所以下载单独用一个 agent。
+        let agent = build_agent(timeout, timeout);
+        let download_agent = build_agent(timeout, download_timeout);
         let offline = std::env::var(OFFLINE_ENV)
             .map(|value| {
                 let value = value.trim().to_ascii_lowercase();
@@ -62,6 +63,7 @@ impl HttpClient {
             .filter(|value| !value.is_empty());
         Self {
             agent,
+            download_agent,
             offline,
             download_timeout,
             github_token,
@@ -126,7 +128,7 @@ impl HttpClient {
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let response = self.get_response(url)?;
+        let response = self.get_response_with(&self.download_agent, url)?;
         let expected = response
             .headers()
             .get("content-length")
@@ -177,6 +179,14 @@ impl HttpClient {
 
     /// 发起 GET 并返回完整响应（需要 `Content-Length` 等头部时使用）。
     fn get_response(&self, url: &str) -> Result<ureq::http::Response<ureq::Body>, RuntimeError> {
+        self.get_response_with(&self.agent, url)
+    }
+
+    fn get_response_with(
+        &self,
+        agent: &Agent,
+        url: &str,
+    ) -> Result<ureq::http::Response<ureq::Body>, RuntimeError> {
         // 上游偶发 5xx（GitHub 的 504 很常见）不该让整个 install 失败：
         // 只对「可重试」错误退避重试，4xx 立即返回（路径/权限问题重试也没用）。
         const ATTEMPTS: usize = 3;
@@ -186,7 +196,7 @@ impl HttpClient {
             if attempt > 0 {
                 std::thread::sleep(Duration::from_millis(400 * attempt as u64));
             }
-            let mut request = self.agent.get(url);
+            let mut request = agent.get(url);
             if is_github_api {
                 // GitHub 要求 API 请求带 `Accept`，否则会走旧格式或直接 415。
                 request = request
@@ -262,6 +272,23 @@ fn env_secs(key: &str, default: u64) -> u64 {
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(default)
+}
+
+/// 构造一个 agent。
+///
+/// - `connect`：连接 / 响应头 / 单次读写的上限（老版本 `timeout` 语义）；
+/// - `body`：**整个响应体**的预算。元数据用 `connect` 即可快速失败，
+///   下载则必须放宽到 `RUNEX_DOWNLOAD_TIMEOUT_SECS`。
+fn build_agent(connect: Duration, body: Duration) -> Agent {
+    Agent::config_builder()
+        .timeout_connect(Some(connect))
+        .timeout_recv_response(Some(connect))
+        // 每次读重新计时：真正防的是「连接卡死」而不是「整体慢」。
+        .timeout_per_read(Some(connect))
+        .timeout_recv_body(Some(body))
+        .user_agent(USER_AGENT)
+        .build()
+        .into()
 }
 
 #[cfg(test)]
