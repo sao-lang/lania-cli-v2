@@ -18,7 +18,7 @@ use crate::checksum;
 use crate::home::{RuntimeHome, PATH_ENV};
 use crate::http::HttpClient;
 use crate::provider::{self, ProviderContext, ProviderError, RuntimeProvider};
-use crate::shims;
+use crate::shims::{self, ShimHost};
 use crate::state::{InstalledMeta, InstalledRuntime, RuntimeState};
 use crate::version::{self, VersionTag};
 use crate::{Platform, RuntimeError};
@@ -52,6 +52,8 @@ pub struct RuntimeStore {
     home: RuntimeHome,
     platform: Platform,
     http: HttpClient,
+    /// 生成 shim 与用户提示时使用的「管理命令」（`lan env` 或 `runex`）。
+    shim_host: ShimHost,
 }
 
 impl RuntimeStore {
@@ -60,7 +62,20 @@ impl RuntimeStore {
             home,
             platform,
             http: HttpClient::new(),
+            shim_host: ShimHost::lan(),
         }
+    }
+
+    /// 切换「管理命令」：独立二进制（`runex`）用它生成自己的 shim。
+    ///
+    /// 默认是 `lan env`，因此宿主内嵌路径的行为保持不变。
+    pub fn with_shim_host(mut self, host: ShimHost) -> Self {
+        self.shim_host = host;
+        self
+    }
+
+    pub fn shim_host(&self) -> &ShimHost {
+        &self.shim_host
     }
 
     pub fn home(&self) -> &RuntimeHome {
@@ -469,19 +484,21 @@ impl RuntimeStore {
             }
         }
         Err(RuntimeError::other(format!(
-            "no managed runtime provides `{name}`; run `lan env install {name} <version>` first"
+            "no managed runtime provides `{name}`; run `{} install {name} <version>` first",
+            self.shim_host.command
         )))
     }
 
-    /// 生成 `lan env init` 的 shell 片段。
+    /// 生成 `init` 的 shell 片段。
     pub fn init_snippet(&self, shell: &str) -> String {
         shims::shell_snippet(&self.home, shell)
     }
 
-    /// `lan env doctor`：检查 current 指针、shim 与 PATH 的一致性。
+    /// `doctor`：检查 current 指针、shim 与 PATH 的一致性。
     pub fn diagnose(&self) -> Result<Vec<Diagnostic>, RuntimeError> {
         let state = RuntimeState::load(&self.home.state_path())?;
         let mut out = Vec::new();
+        let command = &self.shim_host.command;
 
         let shims_dir = self.home.shims_dir();
         // 两条独立诊断：`lan` 每次启动都会 `activate()`，所以「本进程 PATH 是否前置」
@@ -493,7 +510,7 @@ impl RuntimeStore {
             out.push(Diagnostic {
                 level: DiagnosticLevel::Warn,
                 message: format!(
-                    "{} does not exist yet; it is created on the first `lan env install`",
+                    "{} does not exist yet; it is created on the first `{command} install`",
                     shims_dir.display()
                 ),
             });
@@ -511,7 +528,7 @@ impl RuntimeStore {
             out.push(Diagnostic {
                 level: DiagnosticLevel::Info,
                 message: format!(
-                    "{} is not in your shell profile; run `lan env init` and append the snippet \
+                    "{} is not in your shell profile; run `{command} init` and append the snippet \
                      so external shells also use managed runtimes",
                     shims_dir.display()
                 ),
@@ -713,7 +730,7 @@ impl RuntimeStore {
         entrypoints: &[String],
     ) -> Result<(), RuntimeError> {
         for entry in entrypoints {
-            shims::write_shim(&self.home, entry, bin_dir)?;
+            shims::write_shim(&self.home, entry, bin_dir, &self.shim_host)?;
         }
         Ok(())
     }

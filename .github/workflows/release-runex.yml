@@ -1,0 +1,91 @@
+name: Build runex binary
+
+# 独立可执行工具 `runex` 的发布流水线。
+# 与 `release-binaries.yml`（lan 本体）分开：runex 有独立版本节奏与资产命名，
+# 不需要跟着 npm 包一起发。
+on:
+  push:
+    tags:
+      - 'runex-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to upload assets to (e.g. runex-v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+          - platform: darwin-x64
+            runner: macos-13
+            target: x86_64-apple-darwin
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - platform: win32-x64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build runex
+        shell: bash
+        run: cargo build --release --locked --manifest-path rust/Cargo.toml -p runex --target ${{ matrix.target }}
+
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="rust/target/${{ matrix.target }}/release/runex"
+          if [ -f "${src}.exe" ]; then src="${src}.exe"; fi
+          mkdir -p dist
+          tag="${{ github.event.inputs.version || github.ref_name }}"
+          version="${tag#runex-v}"
+          if [[ "${{ matrix.platform }}" == win32-* ]]; then
+            cp "$src" dist/runex.exe
+            (cd dist && 7z a "runex-${version}-${{ matrix.platform }}.zip" runex.exe)
+            rm dist/runex.exe
+          else
+            cp "$src" dist/runex
+            chmod +x dist/runex
+            tar -C dist -czf "runex-${version}-${{ matrix.platform }}.tar.gz" runex
+            rm dist/runex
+          fi
+          ls -lh dist
+
+      - name: Upload assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: ${{ github.event.inputs.version || github.ref_name }}
+          body: Standalone multi-runtime version manager (`runex`) binaries.
+          files: dist/runex-*
+          fail_on_unmatched_files: true

@@ -71,7 +71,7 @@ pub use provider::{
     is_planned, platform_limitation, supported_language_ids, upstream_for, ProviderLayout,
     ProviderRelease,
 };
-pub use shims::{resolve_entry as resolve_shim_entry, shell_snippet};
+pub use shims::{resolve_entry as resolve_shim_entry, shell_snippet, ShimHost};
 pub use state::{InstalledMeta, InstalledRuntime, RuntimeState};
 pub use store::DiagnosticLevel;
 

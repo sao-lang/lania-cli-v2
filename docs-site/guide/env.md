@@ -28,6 +28,23 @@ lan env ui                                        # 启动 TUI（需要交互式
 lan env ui --snapshot --cols 100 --rows 28         # 非交互：输出一帧纯文本（CI / 调试）
 ```
 
+### 独立 CLI：`runex`
+
+同一套运行时管理能力还提供**独立可执行文件** `runex`（与 nvm / fnm 同类），不依赖 lania 宿主，
+也不需要 Node 运行时：
+
+```bash
+cargo build --release -p runex     # 单文件产物：rust/target/release/runex
+runex install node 22              # 下载 + 校验 + 解压 + 生成 shim
+runex use node 22                  # 切换 current
+runex list --installed             # 只看自管版本
+```
+
+语义与 `lan env` 完全一致（共用同一套 Store 与 Provider），唯一差异是执行策略：
+`lan env` 默认 dry-run、需要 `--yes`；`runex` 默认直接执行，`--dry-run` 才预览。
+`--json` 供脚本与 GUI 使用，`--home` 可覆盖 `RUNEX_HOME`。命令面、shim 与分发方式见
+设计文档 §12。
+
 ### 一次性接入 PATH
 
 ```bash

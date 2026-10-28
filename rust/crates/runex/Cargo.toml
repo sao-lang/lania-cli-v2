@@ -1,0 +1,19 @@
+[package]
+name = "runex"
+# 独立版本节奏：不跟 @lania-cli-v2/* 的版本号走（发布 tag 为 `runex-v*`）。
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Standalone multi-runtime version manager (nvm-like) built on lania-runtime-manager"
+readme = "README.md"
+
+[[bin]]
+name = "runex"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap = { version = "4", features = ["std", "derive"] }
+lania-runtime-manager = { path = "../lania-runtime-manager" }
+serde_json.workspace = true

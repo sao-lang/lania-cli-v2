@@ -420,17 +420,18 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 
 ### 10.3 第一批暴露的问题与处理
 
-| 问题                                              | 现象                                       | 处理                                                                          |
-| ------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
-| `ureq` 全局超时把大文件下载判成超时               | `timeout: global`，30 秒必然失败           | 改为只限制 connect / 单次读取；下载总时限单独用 `RUNEX_DOWNLOAD_TIMEOUT_SECS` |
-| 响应提前结束导致**静默截断**                      | 420MB 的 Rust 包只写 170MB，解压才报错     | 下载后比对 `Content-Length` 并校验归档结构；不一致立即删除缓存文件            |
-| GitHub API `per_page=100` 对超大仓库直接 504      | python-build-standalone 永远拿不到版本清单 | 改为 `per_page=20` 分页，首页失败即报错、后续页失败用已有结果                 |
-| GitHub API 匿名配额 60 次/小时                    | 反复调试后 403                             | 支持 `GITHUB_TOKEN` / `GH_TOKEN`（5000 次/小时），403 错误信息直接提示怎么解  |
-| `channel-rust-stable.toml` 没有根层 `version`     | 拿到 `0.100.0`（cargo 版本）而不是 1.99.1  | 改为按 `[pkg.rust]` 段解析；`pkg.cargo` 只作兜底                              |
-| python-build-standalone 每个 release 含多个次版本 | 只取第一个 asset，`3.12` 永远匹配不到      | 遍历全部 asset，按 `X.Y.Z` 去重（新 → 旧取第一个）                            |
-| `lan env install go 1.22` 装到 `1.22rc2`          | 前缀匹配先命中预发布                       | `pick_best` 优先稳定版，只有无稳定版时才用预发布                              |
-| 删除 current 版本后未回退                         | current 指针悬空、shim 指向已删除目录      | 先清指针再删目录，然后 `use` 剩余最高版本；无剩余则删 shim                    |
-| Rust 组件包解压后是 `rust-*/` + `cargo-*/` 嵌套   | `bin/` 不在根上，shim 找不到入口           | `materialize` 识别「全部带 `bin/` 的组件目录」并逐层合并                      |
+| 问题                                              | 现象                                       | 处理                                                                                                                                  |
+| ------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `ureq` 全局超时把大文件下载判成超时               | `timeout: global`，30 秒必然失败           | 改为只限制 connect / 单次读取；下载总时限单独用 `RUNEX_DOWNLOAD_TIMEOUT_SECS`                                                         |
+| 响应提前结束导致**静默截断**                      | 420MB 的 Rust 包只写 170MB，解压才报错     | 下载后比对 `Content-Length` 并校验归档结构；不一致立即删除缓存文件                                                                    |
+| GitHub API `per_page=100` 对超大仓库直接 504      | python-build-standalone 永远拿不到版本清单 | 改为 `per_page=20` 分页，首页失败即报错、后续页失败用已有结果                                                                         |
+| GitHub API 匿名配额 60 次/小时                    | 反复调试后 403                             | 支持 `GITHUB_TOKEN` / `GH_TOKEN`（5000 次/小时），403 错误信息直接提示怎么解                                                          |
+| `channel-rust-stable.toml` 没有根层 `version`     | 拿到 `0.100.0`（cargo 版本）而不是 1.99.1  | 改为按 `[pkg.rust]` 段解析；`pkg.cargo` 只作兜底                                                                                      |
+| python-build-standalone 每个 release 含多个次版本 | 只取第一个 asset，`3.12` 永远匹配不到      | 遍历全部 asset，按 `X.Y.Z` 去重（新 → 旧取第一个）                                                                                    |
+| `lan env install go 1.22` 装到 `1.22rc2`          | 前缀匹配先命中预发布                       | `pick_best` 优先稳定版，只有无稳定版时才用预发布                                                                                      |
+| 删除 current 版本后未回退                         | current 指针悬空、shim 指向已删除目录      | 先清指针再删目录，然后 `use` 剩余最高版本；无剩余则删 shim                                                                            |
+| Rust 组件包解压后是 `rust-*/` + `cargo-*/` 嵌套   | `bin/` 不在根上，shim 找不到入口           | `materialize` 识别「全部带 `bin/` 的组件目录」并逐层合并                                                                              |
+| `timeout_recv_body` 是**整体**预算而非单次读      | 慢网（~170KB/s）装 node 22 必然 30s 超时   | 拆出独立下载 agent：`timeout_per_read` 防卡死、`timeout_recv_body` 用 `RUNEX_DOWNLOAD_TIMEOUT_SECS`（2026-10 拆包时发现，第一批遗留） |
 
 ### 10.4 尚未覆盖（第二批 / 第三批）
 
@@ -565,3 +566,134 @@ impl RuntimeHome {
       （`main.rs::activate_managed_runtimes` 在命令解析前 `activate()`，子进程继承 PATH；
       bridge 侧落地见 `multi-runtime-bridge.zh-CN.md` §6 / B0）。
 - [x] 冻结导出面有编译期守卫：`tests::frozen_export_surface_is_intact`。
+
+## 12. 独立可执行工具 `runex`（产品化拆包）
+
+### 12.1 目标
+
+§11 把能力层做成了「对其它 lania crate 零依赖」的独立包，但它的唯一入口仍是 `lan env`
+子命令 —— 用户必须先装 lania CLI 才能管理运行时。本节的产出物是一个**独立的单文件可执行工具**：
+
+```text
+runex install node 22      # 下载 + 校验 + 解压 + 生成 shim
+runex use node 22          # 切换 current 指针
+node -v                    # 走 ~/.runex/shims，立即生效
+```
+
+定位与 nvm / fnm 同类：只管运行时版本（安装/切换/卸载/列举），不做全局包管理、
+不依赖 Node 或 lania 宿主。
+
+### 12.2 包结构
+
+```text
+rust/crates/runex/                 # bin crate（新增）
+├── src/cli.rs                     # clap 命令定义（nvm 肌肉记忆 + <tool> 参数）
+├── src/commands.rs                # 命令实现：只做参数校验与输出形态
+├── src/main.rs                    # 入口 + 退出码
+├── tests/cli.rs                   # 进程级冒烟测试（不联网）
+└── README.md
+```
+
+依赖方向（单向，无环）：
+
+```text
+runex ──▶ lania-runtime-manager ──▶ 第三方 crate
+lania-cli ──▶ lania-plugins-command-env ──▶ lania-runtime-manager
+```
+
+`runex` **不依赖** `lania-host` / `lania-command` / `lania-plugins-command-env`，
+因此 `cargo build --release -p runex` 的产物可以单独分发。
+
+### 12.3 命令面
+
+| 命令                                  | 说明                                                 |
+| ------------------------------------- | ---------------------------------------------------- |
+| `runex install <tool> <ver>`          | 安装（版本支持前缀：`20` 装 20.x 最高补丁）          |
+| `runex use <tool> <ver> [--project]`  | 切换 current；`--project` 同时写 `.nvmrc` 等版本文件 |
+| `runex remove <tool> <ver>`           | 删除自管版本；删当前版本会回退到剩余最高版本         |
+| `runex list [--installed]`            | 列出工具 / 只列自管版本                              |
+| `runex info <tool>`                   | 单个工具详情（版本、来源、上游、入口）               |
+| `runex versions <tool> [--available]` | 已安装版本；`--available` 额外查上游                 |
+| `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                    |
+| `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                        |
+| `runex doctor`                        | 指针 / shim / PATH 体检                              |
+
+全局开关：`--json`（stdout 只输出机器可读内容，进度走 stderr）、`--dry-run`（只打印计划）、
+`--home <dir>`（覆盖 `RUNEX_HOME`，同样用于测试隔离）。
+
+**与 `lan env` 的差异**（刻意的）：`lan env` 默认 dry-run、要 `--yes` 才执行（宿主内嵌、面向交互）；
+`runex` 默认直接执行、`--dry-run` 才预览（命令行工具习惯）。
+
+### 12.4 shim 必须跟着「管理命令」走
+
+这是拆包时暴露的真实缺陷：原 POSIX shim 写死 `exec "$(lan env which <name> --resolve)"`，
+独立安装的 `runex` 在没有 `lan` 的机器上会让所有 shim 失效。
+
+修复：新增 `ShimHost { command, exe }`（`shims.rs`），由 Store 持有：
+
+- 宿主内嵌默认 `ShimHost::lan()` → 文本与之前完全一致（`lan env which ...`）；
+- 独立二进制 `ShimHost::binary("runex", current_exe())` → 生成：
+
+  ```sh
+  #!/bin/sh
+  manager="$(command -v runex 2>/dev/null)"
+  [ -n "$manager" ] || manager="/abs/path/to/runex"
+  exec "$("$manager" which node --resolve)" "$@"
+  ```
+
+  `command -v` 优先保证升级/换路径后仍能工作，绝对路径是 PATH 上没有 `runex` 时的兜底。
+
+- Windows `.cmd` 不变：它本来就写版本目录的绝对路径，不经过管理命令。
+
+同一机制也把用户可见提示里的 `lan env` 换成了 `runex`（`which` 报错、`doctor` 建议）。
+
+### 12.5 分发
+
+| 场景      | 做法                                                                                                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 本地/单机 | `cargo build --release -p runex` → 单文件                                                                                                                              |
+| 正式发布  | `.github/workflows/release-runex.yml`：`runex-v*` tag 触发，五平台矩阵（Linux x64/arm64、macOS x64/arm64、Windows x64），产出 `runex-<ver>-<platform>.tar.gz` / `.zip` |
+| 版本节奏  | 与 npm 包解耦；`runex` 用自己的 tag 前缀，不跟 `@lania-cli-v2/cli` 一起发                                                                                              |
+
+### 12.6 验收
+
+- [x] `cargo build --release -p runex` 产出单文件，`cargo tree -p runex` 不含 lania 宿主 crate。
+- [x] `runex` 进程级测试 8 条：help / list --installed / init / which 失败态 / install --dry-run 不落盘 /
+      doctor JSON / 未知工具拒绝 / `--home` 覆盖 `RUNEX_HOME`。
+- [x] `lania-runtime-manager` 单测 72 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
+- [x] 真实安装冒烟：`runex install node 22` → `use` → `which` → 通过 shim 执行 `node -v`（见 §12.7）。
+- [x] `--dry-run` 不产生任何目录/文件。
+
+### 12.7 冒烟记录（本机 Windows x64，真实下载）
+
+```text
+$ runex --home <tmp> install node 22
+resolving version...
+downloading node-v22.23.4-win-x64.zip      # 35.6MB，慢网 ~170KB/s，耗时 1m50s
+verifying checksum...                       # SHASUMS256.txt 命中
+extracting...
+laying out...
+installed 22.23.4
+installed node 22.23.4 -> <tmp>\runtimes\node\22.23.4
+
+$ runex list --installed
+* node       22.23.4        <tmp>\runtimes\node\22.23.4
+
+$ runex which node
+<tmp>\runtimes\node\22.23.4\node.exe
+
+$ cat <tmp>\shims\node.cmd
+@echo off
+rem Generated by runex. Serves `node` of the current runtime version.
+"<tmp>\runtimes\node\22.23.4\node.exe" %*
+
+$ PATH=<tmp>\shims:$PATH node -v
+v22.23.4                                    # 走 shim，托管版本生效
+
+$ runex doctor
+[info] <tmp>\shims is not in your shell profile; run `runex init` ...
+```
+
+这一轮同时证明了两件事：独立二进制能完成完整安装链路（下载 → 校验 → 解压 →
+布局 → 登记 → shim），以及 §10.3 新增的下载超时修复在真实慢网下是必需的 ——
+未修复前同一个命令在 30s/120s 必然失败。
