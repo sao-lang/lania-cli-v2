@@ -88,6 +88,9 @@ fn event_loop(
     let mut scan = ScanState::Idle;
 
     loop {
+        // 后台安装进度：每 100ms 轮询一次，不阻塞主线程。
+        app.poll_install();
+
         // 首帧立刻画出来，扫描放到后台线程，避免打开界面就卡住几秒。
         if matches!(scan, ScanState::Idle) {
             app.status = app.tr("Scanning toolchains…", "扫描环境中…").into();

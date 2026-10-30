@@ -1,7 +1,9 @@
 //! `App` 状态机测试：光标移动、模式切换、计划生成。
 
-use super::app::{App, InputKind, Mode, Row};
+use super::app::{App, InputKind, InstallMsg, Mode, Row};
+use crate::api::InstallEvent;
 use std::path::PathBuf;
+use std::sync::mpsc;
 
 fn app() -> App {
     let mut app = App::new(PathBuf::from("."), "zh");
@@ -21,6 +23,29 @@ fn manager_label_follows_the_shim_host() {
         crate::api::ShimHost::binary("runex", None),
     );
     assert_eq!(runex.manager, "runex");
+}
+
+#[test]
+fn poll_install_updates_status_and_finishes() {
+    let mut app = App::new_dry_run(PathBuf::from("."), "en");
+    let (tx, rx) = mpsc::channel();
+    app.install_rx = Some(rx);
+
+    tx.send(InstallMsg::Install(InstallEvent::DownloadProgress {
+        url: "node.zip".into(),
+        downloaded: 50,
+        total: Some(100),
+    }))
+    .unwrap();
+    app.poll_install();
+    assert!(app.status.contains("50%"), "status: {}", app.status);
+
+    tx.send(InstallMsg::Done(Ok(vec!["node installed".into()])))
+        .unwrap();
+    app.poll_install();
+    assert!(app.pending_refresh);
+    assert!(app.log.iter().any(|line| line.contains("node installed")));
+    assert!(app.install_rx.is_none());
 }
 
 #[test]

@@ -289,7 +289,17 @@ pub fn build_plan_at(
 pub fn execute_plan(
     store: &RuntimeStore,
     plan: &EnvPlan,
+    on_event: impl FnMut(&PlanStep),
+) -> Result<Vec<String>, crate::RuntimeError> {
+    execute_plan_with_install_progress(store, plan, on_event, |_| {})
+}
+
+/// 与 [`execute_plan`] 相同，但把安装进度事件也回调给调用方（TUI 使用）。
+pub fn execute_plan_with_install_progress(
+    store: &RuntimeStore,
+    plan: &EnvPlan,
     mut on_event: impl FnMut(&PlanStep),
+    mut on_install: impl FnMut(crate::InstallEvent),
 ) -> Result<Vec<String>, crate::RuntimeError> {
     if let Some(error) = plan.error.as_deref() {
         return Err(crate::RuntimeError::other(error));
@@ -300,7 +310,8 @@ pub fn execute_plan(
         match step.kind.as_str() {
             "install" => {
                 let version = plan.version.clone().unwrap_or_default();
-                let outcome = store.install(&plan.tool, &version, &mut |_| {})?;
+                let outcome =
+                    store.install(&plan.tool, &version, &mut |event| on_install(event))?;
                 results.push(format!(
                     "{} {} installed at {}",
                     outcome.language,

@@ -6,9 +6,12 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use std::sync::mpsc;
+
 use crate::api::{
-    build_plan_at, execute_plan, EnvAction, EnvPlan, EnvService, Language, Platform, RuntimeHome,
-    RuntimeStore, ShimHost, ToolStatus,
+    build_plan_at, execute_plan, execute_plan_with_install_progress, EnvAction, EnvPlan,
+    EnvService, InstallEvent, Language, PlanStep, Platform, RuntimeHome, RuntimeStore, ShimHost,
+    ToolStatus,
 };
 
 /// 当前交互模式。
@@ -98,6 +101,15 @@ pub struct App {
     pub pending_refresh: bool,
     /// 同步路径是否补全版本号（`--no-versions` 时为 false，只验证布局）。
     pub load_versions: bool,
+    /// 正在后台执行的安装任务；事件循环每 100ms 轮询一次。
+    pub install_rx: Option<mpsc::Receiver<InstallMsg>>,
+}
+
+/// 后台安装任务发回主线程的事件。
+pub enum InstallMsg {
+    Step(PlanStep),
+    Install(InstallEvent),
+    Done(Result<Vec<String>, String>),
 }
 
 /// 后台扫描的结果。
@@ -170,6 +182,7 @@ impl App {
             scroll: 0,
             pending_refresh: false,
             load_versions: true,
+            install_rx: None,
         }
     }
 
@@ -773,6 +786,31 @@ impl App {
             return;
         };
 
+        // 安装可能持续几十秒到几分钟：放到后台线程，主线程继续画进度。
+        if plan.steps.iter().any(|step| step.kind == "install") {
+            let worker = RuntimeStore::new(store.home().clone(), store.platform())
+                .with_shim_host(store.shim_host().clone());
+            let (tx, rx) = mpsc::channel();
+            self.install_rx = Some(rx);
+            self.status = self.tr("Installing…", "安装中…").into();
+            std::thread::spawn(move || {
+                let step_tx = tx.clone();
+                let event_tx = tx.clone();
+                let result = execute_plan_with_install_progress(
+                    &worker,
+                    &plan,
+                    |step| {
+                        let _ = step_tx.send(InstallMsg::Step(step.clone()));
+                    },
+                    |event| {
+                        let _ = event_tx.send(InstallMsg::Install(event));
+                    },
+                );
+                let _ = tx.send(InstallMsg::Done(result.map_err(|error| error.to_string())));
+            });
+            return;
+        }
+
         let mut steps = Vec::new();
         let result = execute_plan(store, &plan, |step| steps.push(step.clone()));
         let mut lines: Vec<String> = steps
@@ -794,6 +832,98 @@ impl App {
             format!("{} {}", plan.action.as_str(), self.tr("completed", "完成"))
         };
         self.pending_refresh = true;
+    }
+
+    /// 轮询后台安装事件；由 TUI 事件循环每 100ms 调用。
+    pub fn poll_install(&mut self) {
+        let Some(rx) = self.install_rx.take() else {
+            return;
+        };
+        let mut done = false;
+        loop {
+            match rx.try_recv() {
+                Ok(InstallMsg::Step(step)) => {
+                    self.log.push(format!("› {}", step.command));
+                }
+                Ok(InstallMsg::Install(event)) => self.apply_install_event(event),
+                Ok(InstallMsg::Done(result)) => {
+                    match result {
+                        Ok(results) => {
+                            self.log
+                                .extend(results.into_iter().map(|line| format!("  ✓ {line}")));
+                            self.status = format!(
+                                "{} {}",
+                                self.tr("install", "安装"),
+                                self.tr("completed", "完成")
+                            );
+                        }
+                        Err(error) => {
+                            self.log.push(format!("  ✗ {error}"));
+                            self.status = self.tr("Execution failed", "执行失败").into();
+                        }
+                    }
+                    self.pending_refresh = true;
+                    done = true;
+                    break;
+                }
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    done = true;
+                    break;
+                }
+            }
+        }
+        if !done {
+            self.install_rx = Some(rx);
+        }
+    }
+
+    fn apply_install_event(&mut self, event: InstallEvent) {
+        let status = match event {
+            InstallEvent::Resolving => self.tr("Resolving…", "解析版本…").to_string(),
+            InstallEvent::Downloading { cached: true, .. } => self
+                .tr("Using cached artifact…", "使用缓存产物…")
+                .to_string(),
+            InstallEvent::Downloading { .. } => self.tr("Downloading…", "下载中…").to_string(),
+            InstallEvent::DownloadProgress {
+                downloaded, total, ..
+            } => match total {
+                Some(total) if total > 0 => format!(
+                    "{} {:.0}%  {} / {}",
+                    self.tr("Downloading", "下载中"),
+                    downloaded as f64 * 100.0 / total as f64,
+                    fmt_bytes(downloaded),
+                    fmt_bytes(total)
+                ),
+                _ => format!(
+                    "{} {}",
+                    self.tr("Downloading", "下载中"),
+                    fmt_bytes(downloaded)
+                ),
+            },
+            InstallEvent::Verifying => self.tr("Verifying checksum…", "校验校验和…").to_string(),
+            InstallEvent::Extracting => self.tr("Extracting…", "解压中…").to_string(),
+            InstallEvent::Finalizing => self.tr("Laying out…", "整理目录…").to_string(),
+            InstallEvent::Done { version } => {
+                format!("{} {version}", self.tr("Installed", "已安装"))
+            }
+        };
+        self.status = status;
+    }
+}
+
+fn fmt_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KiB", "MiB", "GiB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
     }
 }
 

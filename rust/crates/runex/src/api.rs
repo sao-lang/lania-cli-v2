@@ -18,11 +18,11 @@
 use std::path::{Path, PathBuf};
 
 pub use runex_core::{
-    build_plan, build_plan_at, describe_provider, execute_plan, platform_limitation, provider_for,
-    supported_language_ids, upstream_for, Diagnostic, DiagnosticLevel, EnvAction, EnvPlan,
-    EnvService, GcReport, InstallEvent, InstallOutcome, InstalledRuntime, InstalledVersion,
-    Language, PlanStep, Platform, ProviderInfo, RuntimeError, RuntimeHome, RuntimeStore, ShimHost,
-    ToolStatus, VersionTag,
+    build_plan, build_plan_at, describe_provider, execute_plan, execute_plan_with_install_progress,
+    platform_limitation, provider_for, supported_language_ids, upstream_for, Diagnostic,
+    DiagnosticLevel, EnvAction, EnvPlan, EnvService, GcReport, InstallEvent, InstallOutcome,
+    InstalledRuntime, InstalledVersion, Language, PlanStep, Platform, ProviderInfo, RuntimeError,
+    RuntimeHome, RuntimeStore, ShimHost, ToolStatus, VersionTag,
 };
 
 /// 计划执行后的单步结果。

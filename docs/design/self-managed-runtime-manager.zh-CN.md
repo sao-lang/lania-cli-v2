@@ -769,6 +769,8 @@ API 约定：
 - `runex::tui` 是公开模块；`Runex::run_tui` / `Runex::tui_snapshot` 也直接挂在 API 上；
 - `runex::i18n::Locale` 统一 CLI / TUI 的人类语言：`--locale en|zh`，默认按
   `RUNEX_LOCALE` / `LC_ALL` / `LANG` 探测；`lan env ui` 直接把 `ctx.locale()` 传给 TUI；
+- 镜像：`RUNEX_NODE_MIRROR` / `RUNEX_GITHUB_MIRROR` / `RUNEX_GITHUB_API_MIRROR`
+  只改写请求 URL，缓存键仍用原始 URL；
 - `runex` 根模块 re-export 常用模型（`Language` / `Platform` / `RuntimeHome` /
   `ToolStatus` / `EnvPlan` 等），调用方只依赖 `runex` 一个 crate。
 
@@ -804,7 +806,7 @@ API 约定：
 
 ### 13.6 测试与验收
 
-- [x] `cargo test -p runex`：CLI 15 条 + API 9 条 + 迁入的 TUI/i18n 28 条全绿。
+- [x] `cargo test -p runex`：CLI 15 条 + API 9 条 + 迁入的 TUI/i18n 29 条全绿。
 - [x] `cargo test -p lania-plugins-command-env` 全绿。
 - [x] `cargo test -p runex-core` 75 条全绿。
 - [x] `cargo test -p lania-cli --test phase3_e2e lan_env_` 13 条全绿（含 `lan env ui --snapshot`）。

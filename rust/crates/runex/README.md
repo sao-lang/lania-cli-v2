@@ -81,7 +81,12 @@ $RUNEX_HOME/                # 默认 ~/.runex
 全局开关：`--json`（脚本与 GUI 用）、`--dry-run`（只打印计划）、`--home <dir>`（覆盖 `RUNEX_HOME`）、
 `--locale en|zh`（CLI / TUI 文案，默认读 `RUNEX_LOCALE` / `LANG` 等环境变量）。
 
+镜像：`RUNEX_NODE_MIRROR`（替换 `https://nodejs.org/dist`）、`RUNEX_GITHUB_MIRROR`
+（替换 `https://github.com`）、`RUNEX_GITHUB_API_MIRROR`（替换 `https://api.github.com`）。
+只改写请求地址，缓存键仍用原始 URL。
+
 下载中断会保留 `<cache>.part`，下次自动用 HTTP `Range` 续传；服务端不支持时自动从头开始。
+`runex ui` 内的安装会放到后台线程，状态栏实时显示下载进度，不会卡住界面。
 
 ## 为什么可以单文件分发
 

@@ -55,7 +55,10 @@ pub use provider::{
 };
 
 // 计划与执行
-pub use plan::{build_plan, build_plan_at, execute_plan, EnvAction, EnvPlan, PlanStep};
+pub use plan::{
+    build_plan, build_plan_at, execute_plan, execute_plan_with_install_progress, EnvAction,
+    EnvPlan, PlanStep,
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // 内部实现（**不承诺稳定**：可自由重构，改名/改签名不视为破坏性变更）

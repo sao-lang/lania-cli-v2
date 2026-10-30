@@ -11,6 +11,17 @@ use crate::{Arch, Os, Platform};
 
 pub const ID: &str = "node";
 const DIST: &str = "https://nodejs.org/dist/";
+const MIRROR_ENV: &str = "RUNEX_NODE_MIRROR";
+
+/// Node 分发根地址；`RUNEX_NODE_MIRROR` 可覆盖（例如国内镜像）。
+fn dist() -> String {
+    match std::env::var(MIRROR_ENV) {
+        Ok(value) if !value.trim().is_empty() => {
+            format!("{}/", value.trim().trim_end_matches('/'))
+        }
+        _ => DIST.to_string(),
+    }
+}
 
 pub struct NodeProvider {
     platform: Platform,
@@ -55,7 +66,10 @@ impl RuntimeProvider for NodeProvider {
     }
 
     fn list_releases(&self, ctx: &ResolveContext<'_>) -> Result<Vec<Release>, ProviderError> {
-        let index = ctx.http.json(&format!("{DIST}index.json"))?;
+        let index = ctx
+            .http
+            .json(&format!("{}index.json", dist()))
+            .map_err(|error| ProviderError::Upstream(error.to_string()))?;
         let items = index.as_array().ok_or_else(|| ProviderError::Unexpected {
             detail: "dist/index.json is not an array".to_string(),
         })?;
@@ -83,7 +97,7 @@ impl RuntimeProvider for NodeProvider {
         ctx: &ResolveContext<'_>,
     ) -> Result<ArtifactPlan, ProviderError> {
         let file_name = self.artifact_name(&release.version)?;
-        let base = format!("{DIST}{}/", release.tag);
+        let base = format!("{}{}/", dist(), release.tag);
         let url = format!("{base}{file_name}");
         // Node 为每个版本提供 SHASUMS256.txt（GNU 风格清单）。
         let sha256 = match ctx.http.text(&format!("{base}SHASUMS256.txt")) {

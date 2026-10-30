@@ -257,13 +257,14 @@ impl HttpClient {
         // 只对「可重试」错误退避重试，4xx 立即返回（路径/权限问题重试也没用）。
         const ATTEMPTS: usize = 3;
         let is_github_api = url.contains("api.github.com");
+        let request_url = rewrite_url(url);
         let range_header = range.map(|offset| format!("bytes={offset}-"));
         let mut last: Option<RuntimeError> = None;
         for attempt in 0..ATTEMPTS {
             if attempt > 0 {
                 std::thread::sleep(Duration::from_millis(400 * attempt as u64));
             }
-            let mut request = agent.get(url);
+            let mut request = agent.get(&request_url);
             if let Some(value) = range_header.as_deref() {
                 request = request.header("Range", value);
             }
@@ -324,6 +325,32 @@ impl Default for HttpClient {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 可选的 GitHub / Node 镜像改写。
+///
+/// - `RUNEX_GITHUB_MIRROR` 替换 `https://github.com`
+/// - `RUNEX_GITHUB_API_MIRROR` 替换 `https://api.github.com`
+/// - `RUNEX_NODE_MIRROR` 在 Node Provider 内替换 `https://nodejs.org/dist`
+///
+/// 只改请求 URL；缓存键、进度显示仍使用原始 URL，避免镜像切换后缓存失效。
+fn rewrite_url(url: &str) -> String {
+    for (key, prefix) in [
+        ("RUNEX_GITHUB_API_MIRROR", "https://api.github.com"),
+        ("RUNEX_GITHUB_MIRROR", "https://github.com"),
+    ] {
+        let Ok(mirror) = std::env::var(key) else {
+            continue;
+        };
+        let mirror = mirror.trim().trim_end_matches('/');
+        if mirror.is_empty() {
+            continue;
+        }
+        if let Some(rest) = url.strip_prefix(prefix) {
+            return format!("{mirror}{rest}");
+        }
+    }
+    url.to_string()
 }
 
 /// 下载缓存路径：`<downloads>/<sha of url>.<file name>`，保证同名不同源的产物不互相覆盖。
