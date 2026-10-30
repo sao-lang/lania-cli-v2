@@ -80,6 +80,8 @@ $RUNEX_HOME/                # 默认 ~/.runex
 全局开关：`--json`（脚本与 GUI 用）、`--dry-run`（只打印计划）、`--home <dir>`（覆盖 `RUNEX_HOME`）、
 `--locale en|zh`（CLI / TUI 文案，默认读 `RUNEX_LOCALE` / `LANG` 等环境变量）。
 
+下载中断会保留 `<cache>.part`，下次自动用 HTTP `Range` 续传；服务端不支持时自动从头开始。
+
 ## 为什么可以单文件分发
 
 `runex` 只依赖 `runex-core`（内部引擎）与 `clap` / `ratatui` / `crossterm`；

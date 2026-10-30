@@ -229,8 +229,9 @@ impl RuntimeStore {
                         break;
                     }
                     Err(error) => {
-                        // 坏文件不能留在缓存里被下次命中。
+                        // 坏文件不能留在缓存里被下次命中；连同续传临时文件一起删。
                         let _ = std::fs::remove_file(&cached);
+                        let _ = std::fs::remove_file(crate::http::partial_path_for(&cached));
                         last_error = Some(error);
                         if attempt + 1 == FETCH_ATTEMPTS {
                             break;

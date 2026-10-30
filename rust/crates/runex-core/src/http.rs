@@ -133,6 +133,9 @@ impl HttpClient {
     }
 
     /// 与 [`Self::download`] 相同，但每约 150ms 回调一次进度。
+    ///
+    /// 下载先写到 `<target>.part`：中断后下次会用 HTTP `Range` 续传；
+    /// 服务端不支持 Range（返回 200）时自动从头开始。
     pub fn download_with_progress(
         &self,
         url: &str,
@@ -140,19 +143,40 @@ impl HttpClient {
         mut on_progress: Option<DownloadProgressFn<'_>>,
     ) -> Result<u64, RuntimeError> {
         self.ensure_online(url)?;
-        if let Some(parent) = target.parent() {
+        let partial = partial_path_for(target);
+        if let Some(parent) = partial.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let response = self.get_response_with(&self.download_agent, url)?;
-        let expected = response
+        let existing = std::fs::metadata(&partial)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        let range = (existing > 0).then_some(existing);
+        let response = self.get_response_with(&self.download_agent, url, range)?;
+        let status = response.status().as_u16();
+        let content_length = response
             .headers()
             .get("content-length")
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<u64>().ok());
+
+        let (offset, expected) = if status == 206 && existing > 0 {
+            (
+                existing,
+                content_length.map(|remaining| existing + remaining),
+            )
+        } else {
+            // 服务端忽略了 Range：从头开始，避免把新内容追加到旧 .part 后面。
+            (0, content_length)
+        };
+
+        let mut file = if offset > 0 {
+            std::fs::OpenOptions::new().append(true).open(&partial)?
+        } else {
+            std::fs::File::create(&partial)?
+        };
         let mut reader = response.into_body().into_reader();
-        let mut file = std::fs::File::create(target)?;
         let mut buffer = [0u8; 64 * 1024];
-        let mut written = 0u64;
+        let mut written = offset;
         let mut last_report = Instant::now();
         loop {
             let read = reader
@@ -186,8 +210,7 @@ impl HttpClient {
 
         if let Some(expected) = expected {
             if written != expected {
-                // 半截产物绝不能留在缓存里被下次命中。
-                let _ = std::fs::remove_file(target);
+                // 保留 .part，下一次继续续传；半截文件不会进入正式缓存。
                 return Err(NetworkError::Request {
                     url: url.to_string(),
                     detail: format!("truncated download: wrote {written} of {expected} bytes"),
@@ -195,6 +218,8 @@ impl HttpClient {
                 .into());
             }
         }
+        let _ = std::fs::remove_file(target);
+        std::fs::rename(&partial, target)?;
         Ok(written)
     }
 
@@ -219,24 +244,29 @@ impl HttpClient {
 
     /// 发起 GET 并返回完整响应（需要 `Content-Length` 等头部时使用）。
     fn get_response(&self, url: &str) -> Result<ureq::http::Response<ureq::Body>, RuntimeError> {
-        self.get_response_with(&self.agent, url)
+        self.get_response_with(&self.agent, url, None)
     }
 
     fn get_response_with(
         &self,
         agent: &Agent,
         url: &str,
+        range: Option<u64>,
     ) -> Result<ureq::http::Response<ureq::Body>, RuntimeError> {
         // 上游偶发 5xx（GitHub 的 504 很常见）不该让整个 install 失败：
         // 只对「可重试」错误退避重试，4xx 立即返回（路径/权限问题重试也没用）。
         const ATTEMPTS: usize = 3;
         let is_github_api = url.contains("api.github.com");
+        let range_header = range.map(|offset| format!("bytes={offset}-"));
         let mut last: Option<RuntimeError> = None;
         for attempt in 0..ATTEMPTS {
             if attempt > 0 {
                 std::thread::sleep(Duration::from_millis(400 * attempt as u64));
             }
             let mut request = agent.get(url);
+            if let Some(value) = range_header.as_deref() {
+                request = request.header("Range", value);
+            }
             if is_github_api {
                 // GitHub 要求 API 请求带 `Accept`，否则会走旧格式或直接 415。
                 request = request
@@ -306,6 +336,13 @@ pub fn cache_path_for(downloads_dir: &Path, url: &str) -> PathBuf {
     downloads_dir.join(format!("{}-{file_name}", &digest[..16]))
 }
 
+/// 下载中的临时文件：`<target>.part`，用于中断后续传。
+pub fn partial_path_for(target: &Path) -> PathBuf {
+    let mut value = target.as_os_str().to_os_string();
+    value.push(".part");
+    PathBuf::from(value)
+}
+
 fn env_secs(key: &str, default: u64) -> u64 {
     std::env::var(key)
         .ok()
@@ -345,6 +382,45 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert!(a.to_string_lossy().ends_with("node-v20.11.1.tar.gz"));
+    }
+
+    #[test]
+    fn download_resumes_from_partial_file() {
+        let body: Vec<u8> = (0..100_000).map(|index| (index % 251) as u8).collect();
+        let split = 40_000;
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+        let address = listener.local_addr().expect("test server address");
+        let server_body = body.clone();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut request = [0u8; 2048];
+            let read = stream.read(&mut request).expect("read request");
+            let request = String::from_utf8_lossy(&request[..read]).to_ascii_lowercase();
+            assert!(request.contains("range: bytes=40000-"), "{request}");
+            let remaining = server_body.len() - split;
+            write!(
+                stream,
+                "HTTP/1.1 206 Partial Content\r\nContent-Length: {remaining}\r\nContent-Range: bytes 40000-99999/100000\r\nConnection: close\r\n\r\n"
+            )
+            .expect("write headers");
+            stream
+                .write_all(&server_body[split..])
+                .expect("write remaining body");
+        });
+
+        let dir = std::env::temp_dir().join(format!("runex-http-resume-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let target = dir.join("artifact.bin");
+        std::fs::write(partial_path_for(&target), &body[..split]).expect("seed partial");
+        let written = HttpClient::new()
+            .download(&format!("http://{address}/artifact.bin"), &target)
+            .expect("download succeeds");
+        server.join().expect("test server joins");
+
+        assert_eq!(written, body.len() as u64);
+        assert_eq!(std::fs::read(&target).expect("read target"), body);
+        assert!(!partial_path_for(&target).exists());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
