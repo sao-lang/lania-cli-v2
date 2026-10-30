@@ -6,9 +6,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use lania_runtime_manager::{
-    build_plan, execute_plan, EnvAction, EnvPlan, EnvService, Language, Platform, RuntimeHome,
-    RuntimeStore, ToolStatus,
+use crate::api::{
+    build_plan_at, execute_plan, EnvAction, EnvPlan, EnvService, Language, Platform, RuntimeHome,
+    RuntimeStore, ShimHost, ToolStatus,
 };
 
 /// 当前交互模式。
@@ -61,6 +61,8 @@ pub struct App {
     pub cwd: PathBuf,
     /// 生效的 CLI locale（`en` / `zh`）。
     pub locale: String,
+    /// 当前管理命令（`runex` 或 `lan env`），用于标题栏。
+    pub manager: String,
     /// 首轮扫描尚未完成时置 true，用于渲染骨架屏而不是空白。
     pub loading: bool,
     /// 工作目录所在仓库名（无 git 时为 None）。
@@ -112,6 +114,23 @@ pub struct VersionBatch {
 
 impl App {
     pub fn new(cwd: PathBuf, locale: impl Into<String>) -> Self {
+        Self::with_home(cwd, locale, None, ShimHost::lan())
+    }
+
+    /// 使用指定的 shim host 构造：`runex ui` 传 runex，`lan env ui` 传 lan。
+    pub fn with_shim_host(cwd: PathBuf, locale: impl Into<String>, shim_host: ShimHost) -> Self {
+        Self::with_home(cwd, locale, None, shim_host)
+    }
+
+    /// 使用显式运行时根目录构造；`home = None` 时读 `RUNEX_HOME` / `~/.runex`。
+    ///
+    /// `Runex::new` / `--home` 走这里，保证 TUI 与 API 操作的是同一个 store。
+    pub fn with_home(
+        cwd: PathBuf,
+        locale: impl Into<String>,
+        home: Option<RuntimeHome>,
+        shim_host: ShimHost,
+    ) -> Self {
         let locale = locale.into();
         let status = if locale.starts_with("zh") {
             "就绪".to_string()
@@ -120,14 +139,15 @@ impl App {
         };
         let (repo, git_branch) = workspace_git(&cwd);
         let system = system_label();
+        let manager = shim_host.command.clone();
         let store = Platform::detect().ok().and_then(|platform| {
-            RuntimeHome::resolve()
-                .ok()
-                .map(|home| RuntimeStore::new(home, platform))
+            home.or_else(|| RuntimeHome::resolve().ok())
+                .map(|home| RuntimeStore::new(home, platform).with_shim_host(shim_host.clone()))
         });
         Self {
             cwd,
             locale,
+            manager,
             loading: true,
             repo,
             git_branch,
@@ -677,9 +697,9 @@ impl App {
                 Ok(diagnostics) => {
                     for diagnostic in diagnostics {
                         let prefix = match diagnostic.level {
-                            lania_runtime_manager::DiagnosticLevel::Error => "✗",
-                            lania_runtime_manager::DiagnosticLevel::Warn => "!",
-                            lania_runtime_manager::DiagnosticLevel::Info => "·",
+                            crate::api::DiagnosticLevel::Error => "✗",
+                            crate::api::DiagnosticLevel::Warn => "!",
+                            crate::api::DiagnosticLevel::Info => "·",
                         };
                         lines.push(format!("{prefix} {}", diagnostic.message));
                     }
@@ -710,7 +730,8 @@ impl App {
         let Some(tool) = self.current() else { return };
         let version = self.input.trim().to_string();
         let tool_id = tool.language.clone();
-        let plan = build_plan(
+        let home = self.store.as_ref().map(|store| store.home());
+        let plan = build_plan_at(
             kind.action(),
             &tool_id,
             if version.is_empty() {
@@ -720,6 +741,7 @@ impl App {
             },
             &self.cwd,
             self.project_pin,
+            home,
         );
         self.pending_plan = Some(plan);
         self.mode = Mode::Confirm;

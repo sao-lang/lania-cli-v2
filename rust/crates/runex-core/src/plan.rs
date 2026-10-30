@@ -144,6 +144,22 @@ pub fn build_plan(
     cwd: &std::path::Path,
     project_scope: bool,
 ) -> EnvPlan {
+    let home = RuntimeHome::resolve().ok();
+    build_plan_at(action, tool, version, cwd, project_scope, home.as_ref())
+}
+
+/// 与 [`build_plan`] 相同，但允许调用方显式传入运行时根目录。
+///
+/// `runex` API 使用自定义 `--home` 时，计划文本里的路径必须跟着变，不能读全局
+/// `RUNEX_HOME`。`home = None` 表示保持原来的 `~/.runex/runtimes` 占位文本。
+pub fn build_plan_at(
+    action: EnvAction,
+    tool: &str,
+    version: Option<&str>,
+    cwd: &std::path::Path,
+    project_scope: bool,
+    home: Option<&RuntimeHome>,
+) -> EnvPlan {
     let Some(language) = Language::parse_id(tool) else {
         return EnvPlan::failed(
             action,
@@ -186,9 +202,9 @@ pub fn build_plan(
                     ))
                 }
                 Some(version) => {
-                    let home = RuntimeHome::resolve()
+                    let home = home
                         .map(|home| home.display_for_shell(&home.runtimes_dir()))
-                        .unwrap_or_else(|_| "~/.runex/runtimes".to_string());
+                        .unwrap_or_else(|| "~/.runex/runtimes".to_string());
                     steps.push(PlanStep::new(
                         "install",
                         format!(

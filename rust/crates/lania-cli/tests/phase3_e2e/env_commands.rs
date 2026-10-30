@@ -239,6 +239,28 @@ fn lan_env_which_fails_clearly_when_nothing_is_installed() {
 }
 
 #[test]
+fn lan_env_ui_snapshot_renders_one_frame() {
+    let root = temp_dir("env-ui-snapshot");
+    let value = run_env(
+        &root,
+        &[
+            "env",
+            "ui",
+            "--snapshot",
+            "--no-versions",
+            "--cols",
+            "80",
+            "--rows",
+            "24",
+        ],
+    );
+    assert_eq!(value["kind"], "env_ui_snapshot");
+    let frame = value["frame"].as_str().expect("frame string");
+    assert_eq!(frame.lines().count(), 24, "{frame}");
+    assert!(!frame.trim().is_empty(), "snapshot should not be blank");
+}
+
+#[test]
 fn lan_env_requires_tool_argument() {
     let root = temp_dir("env-missing-tool");
     let home = isolated_home(&root);

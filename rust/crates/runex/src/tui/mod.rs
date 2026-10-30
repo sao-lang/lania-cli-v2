@@ -1,4 +1,4 @@
-//! `lan env ui` 的 TUI 实现（yazi 风格）。
+//! `runex ui` / `lan env ui` 的 TUI 实现（yazi 风格）。
 //!
 //! 模块划分：
 //! - `theme` 配色与图标集
@@ -27,10 +27,34 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use app::{App, InputKind, Mode};
 use ui::Renderer;
 
+use crate::api::{RuntimeHome, ShimHost};
+
 /// 启动 TUI，阻塞直到用户退出。
+///
+/// 默认使用 `runex` 作为 shim host；宿主内嵌请用 [`run_with`] / [`run_with_home`]
+/// 传入自己的 host（例如 `lan env` 传 [`ShimHost::lan`]）。
 pub fn run(cwd: PathBuf, locale: String) -> Result<()> {
+    run_with(
+        cwd,
+        locale,
+        ShimHost::binary("runex", std::env::current_exe().ok()),
+    )
+}
+
+/// 使用指定 shim host 启动 TUI。
+pub fn run_with(cwd: PathBuf, locale: String, shim_host: ShimHost) -> Result<()> {
+    run_with_home(cwd, locale, None, shim_host)
+}
+
+/// 使用显式运行时根目录 + shim host 启动 TUI（供 `Runex` API 复用）。
+pub fn run_with_home(
+    cwd: PathBuf,
+    locale: String,
+    home: Option<RuntimeHome>,
+    shim_host: ShimHost,
+) -> Result<()> {
     let renderer = Renderer::new(&locale);
-    let mut app = App::new(cwd, locale);
+    let mut app = App::with_home(cwd, locale, home, shim_host);
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -148,10 +172,33 @@ pub fn snapshot_with(
     wait_versions: bool,
     locale: &str,
 ) -> Result<String> {
+    snapshot_with_home(
+        cwd,
+        cols,
+        rows,
+        down_steps,
+        wait_versions,
+        locale,
+        None,
+        ShimHost::lan(),
+    )
+}
+
+/// 与 [`snapshot_with`] 相同，但允许指定运行时根目录与 shim host。
+pub fn snapshot_with_home(
+    cwd: PathBuf,
+    cols: u16,
+    rows: u16,
+    down_steps: usize,
+    wait_versions: bool,
+    locale: &str,
+    home: Option<RuntimeHome>,
+    shim_host: ShimHost,
+) -> Result<String> {
     use ratatui::{backend::TestBackend, Terminal};
 
     let renderer = Renderer::new(locale);
-    let mut app = App::new(cwd, locale);
+    let mut app = App::with_home(cwd, locale, home, shim_host);
     if wait_versions {
         // 复用交互路径的两段式流程：先拿安装状态，再补版本号。
         app.status = app.tr("Scanning toolchains…", "扫描环境中…").into();

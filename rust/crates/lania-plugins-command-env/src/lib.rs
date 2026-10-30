@@ -13,10 +13,10 @@
 //! - `ui`         终端 TUI
 //!
 //! 执行语义：默认 dry-run 打印计划；只有 `--yes` 才真正执行。
-//! 安装/切换/卸载全部由 lania 自己完成，不转发给 nvm / volta 等外部管理器。
+//! 安装/切换/卸载全部由 `runex` 完成，不转发给 nvm / volta 等外部管理器；
+//! 本 crate 只保留 lania 宿主的命令注册、参数、门控与输出。
 
 mod list;
-mod tui;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -29,9 +29,7 @@ use lania_host::{
     },
     plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
 };
-use lania_runtime_manager::{
-    build_plan, execute_plan, EnvAction, EnvPlan, EnvService, Platform, RuntimeHome, RuntimeStore,
-};
+use runex::api::{EnvAction, EnvPlan, Runex, ShimHost};
 use serde_json::{json, Value};
 
 pub const HANDLER_ID: &str = "command.env";
@@ -113,22 +111,23 @@ impl Plugin for EnvCommandPlugin {
 #[async_trait(?Send)]
 impl CommandHandler for EnvCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
-        let service = EnvService::new();
         let command = ctx.command();
         let cwd = std::path::PathBuf::from(&command.cwd);
+        // 宿主只负责命令注册与输出；全部运行时能力都走 runex 的 Rust API。
+        let api = runtime_api(&cwd)?;
 
         let result = match command.handler_id.as_str() {
-            LIST_HANDLER_ID => Ok(list::execute_list(&service, &cwd, ctx)),
-            INFO_HANDLER_ID => list::execute_info(&service, &cwd, ctx),
-            VERSIONS_HANDLER_ID => list::execute_versions(&service, ctx),
-            INSTALL_HANDLER_ID => execute_mutation(ctx, EnvAction::Install),
-            USE_HANDLER_ID => execute_mutation(ctx, EnvAction::Use),
-            REMOVE_HANDLER_ID => execute_mutation(ctx, EnvAction::Remove),
-            DOCTOR_HANDLER_ID => list::execute_doctor(&service, &cwd),
-            WHICH_HANDLER_ID => execute_which(ctx),
-            INIT_HANDLER_ID => execute_init(ctx),
-            UI_HANDLER_ID => execute_ui(ctx, &cwd),
-            _ => Ok(json!({ "kind": "env_summary", "tools": service.scan(&cwd) })),
+            LIST_HANDLER_ID => Ok(list::execute_list(&api, ctx)),
+            INFO_HANDLER_ID => list::execute_info(&api, ctx),
+            VERSIONS_HANDLER_ID => list::execute_versions(&api, ctx),
+            INSTALL_HANDLER_ID => execute_mutation(&api, ctx, EnvAction::Install),
+            USE_HANDLER_ID => execute_mutation(&api, ctx, EnvAction::Use),
+            REMOVE_HANDLER_ID => execute_mutation(&api, ctx, EnvAction::Remove),
+            DOCTOR_HANDLER_ID => list::execute_doctor(&api),
+            WHICH_HANDLER_ID => execute_which(&api, ctx),
+            INIT_HANDLER_ID => execute_init(&api, ctx),
+            UI_HANDLER_ID => execute_ui(&api, ctx),
+            _ => Ok(json!({ "kind": "env_summary", "tools": api.scan() })),
         }?;
 
         Ok(ctx.complete_template_info(result, 0))
@@ -176,7 +175,7 @@ fn init_spec() -> CommandSpec {
 }
 
 /// `lan env which <name>`：给 shim 用的入口解析。
-fn execute_which(ctx: &CommandExecutionContext<'_>) -> Result<Value> {
+fn execute_which(api: &Runex, ctx: &CommandExecutionContext<'_>) -> Result<Value> {
     let name = ctx
         .command()
         .argv
@@ -184,8 +183,7 @@ fn execute_which(ctx: &CommandExecutionContext<'_>) -> Result<Value> {
         .get("name")
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("env which requires a name, e.g. `lan env which node`"))?;
-    let store = runtime_store()?;
-    let path = store.which(name).map_err(|error| ExecutionError {
+    let path = api.which(name).map_err(|error| ExecutionError {
         exit_code: EXIT_RUNTIME_ERROR,
         message: error.to_string(),
     })?;
@@ -200,14 +198,13 @@ fn execute_which(ctx: &CommandExecutionContext<'_>) -> Result<Value> {
 }
 
 /// `lan env init`：只做一件事——把 shims 目录放进 PATH 的说明/片段。
-fn execute_init(ctx: &CommandExecutionContext<'_>) -> Result<Value> {
-    let store = runtime_store()?;
+fn execute_init(api: &Runex, ctx: &CommandExecutionContext<'_>) -> Result<Value> {
     let shell = option_string(ctx, "shell").unwrap_or_else(detect_shell);
-    let snippet = store.init_snippet(&shell);
+    let snippet = api.init_snippet(&shell);
     Ok(json!({
         "kind": "env_init",
         "shell": shell,
-        "shims": store.home().shims_dir().display().to_string(),
+        "shims": api.home().shims_dir().display().to_string(),
         "snippet": snippet,
     }))
 }
@@ -227,7 +224,7 @@ fn detect_shell() -> String {
 }
 
 /// 启动终端 TUI 管理界面。阻塞直到用户退出（`q` / `Esc`）。
-fn execute_ui(ctx: &CommandExecutionContext<'_>, cwd: &std::path::Path) -> Result<Value> {
+fn execute_ui(api: &Runex, ctx: &CommandExecutionContext<'_>) -> Result<Value> {
     // `--snapshot` 输出单帧纯文本，便于在非 TTY 环境（CI / 测试）验证布局。
     if option_bool(ctx, "snapshot").unwrap_or(false) {
         let cols = option_string(ctx, "cols")
@@ -243,18 +240,19 @@ fn execute_ui(ctx: &CommandExecutionContext<'_>, cwd: &std::path::Path) -> Resul
         // `--no-versions` 会被命令行解析器规范化成 `versions: false`，
         // 这里要按规范化后的键读取。
         let wait_versions = option_bool(ctx, "versions").unwrap_or(true);
-        let frame = tui::snapshot_with(
-            cwd.to_path_buf(),
-            cols,
-            rows,
-            down,
-            wait_versions,
-            ctx.locale(),
-        )?;
+        let frame = api
+            .tui_snapshot(cols, rows, down, wait_versions, ctx.locale())
+            .map_err(|error| ExecutionError {
+                exit_code: EXIT_RUNTIME_ERROR,
+                message: error.to_string(),
+            })?;
         return Ok(json!({ "kind": "env_ui_snapshot", "frame": frame, "down": down }));
     }
 
-    tui::run(cwd.to_path_buf(), ctx.locale().to_string())?;
+    api.run_tui(ctx.locale()).map_err(|error| ExecutionError {
+        exit_code: EXIT_RUNTIME_ERROR,
+        message: error.to_string(),
+    })?;
     Ok(json!({ "kind": "env_ui", "status": "closed" }))
 }
 
@@ -323,9 +321,12 @@ fn ui_spec() -> CommandSpec {
     ])
 }
 
-fn execute_mutation(ctx: &CommandExecutionContext<'_>, action: EnvAction) -> Result<Value> {
+fn execute_mutation(
+    api: &Runex,
+    ctx: &CommandExecutionContext<'_>,
+    action: EnvAction,
+) -> Result<Value> {
     let command = ctx.command();
-    let cwd = std::path::PathBuf::from(&command.cwd);
     let args = &command.argv.args;
 
     let tool = args.get("tool").and_then(Value::as_str).ok_or_else(|| {
@@ -340,7 +341,7 @@ fn execute_mutation(ctx: &CommandExecutionContext<'_>, action: EnvAction) -> Res
     let project = option_bool(ctx, "project").unwrap_or(false);
     let yes = option_bool(ctx, "yes").unwrap_or(false);
 
-    let plan = build_plan(action, tool, version, &cwd, project);
+    let plan = api.plan(action, tool, version, project);
     if let Some(error) = plan.error.as_deref() {
         return Err(ExecutionError {
             exit_code: EXIT_RUNTIME_ERROR,
@@ -354,38 +355,32 @@ fn execute_mutation(ctx: &CommandExecutionContext<'_>, action: EnvAction) -> Res
     }
 
     ctx.require_capability(CapabilityName::Exec)?;
-    let store = runtime_store()?;
-    let mut steps = Vec::new();
-    let results =
-        execute_plan(&store, &plan, |step| steps.push(step.clone())).map_err(|error| {
-            ExecutionError {
-                exit_code: EXIT_RUNTIME_ERROR,
-                message: error.to_string(),
-            }
+    let executed = api
+        .apply(&plan, false, |_step| {})
+        .map_err(|error| ExecutionError {
+            exit_code: EXIT_RUNTIME_ERROR,
+            message: error.to_string(),
         })?;
-    let executed: Vec<Value> = steps
-        .iter()
-        .zip(results.iter())
-        .map(|(step, result)| {
-            json!({
-                "label": step.label,
-                "command": step.command,
-                "status": "ok",
-                "output": result,
-            })
-        })
-        .collect();
 
     let mut value = plan_value(&plan, "executed");
-    value["executed"] = json!(executed);
+    value["executed"] = json!(executed
+        .into_iter()
+        .map(|step| json!({
+            "label": step.label,
+            "command": step.command,
+            "status": step.status,
+            "output": step.output,
+        }))
+        .collect::<Vec<_>>());
     Ok(value)
 }
 
-/// 构造自管运行时存储（平台探测失败或目录不可用时给出可读错误）。
-pub(crate) fn runtime_store() -> Result<RuntimeStore> {
-    let platform = Platform::detect().map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    let home = RuntimeHome::resolve().map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    Ok(RuntimeStore::new(home, platform))
+/// 构造 runex API：宿主只做一层「路径 + 错误文本」适配，不复制任何运行时逻辑。
+pub(crate) fn runtime_api(cwd: &std::path::Path) -> Result<Runex> {
+    Runex::resolve()
+        // `lan env` 生成的 shim 必须继续调用 `lan env which`，而不是 `runex which`。
+        .map(|api| api.with_cwd(cwd).with_shim_host(ShimHost::lan()))
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 
 fn plan_value(plan: &EnvPlan, status: &str) -> Value {

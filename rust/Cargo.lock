@@ -877,8 +877,8 @@ dependencies = [
  "lania-preferences",
  "lania-progress",
  "lania-rs-bridge",
- "lania-runtime-manager",
  "lania-workflows",
+ "runex",
  "serde",
  "serde_json",
  "tokio",
@@ -1094,12 +1094,9 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
- "crossterm 0.29.0",
  "lania-command",
- "lania-exec",
  "lania-host",
- "lania-runtime-manager",
- "ratatui",
+ "runex",
  "serde_json",
 ]
 
@@ -1270,23 +1267,6 @@ dependencies = [
  "lania-exec",
  "serde",
  "shell-words",
-]
-
-[[package]]
-name = "lania-runtime-manager"
-version = "0.0.3"
-dependencies = [
- "anyhow",
- "flate2",
- "serde",
- "serde_json",
- "sha2",
- "tar",
- "thiserror 2.0.18",
- "ureq",
- "xz2",
- "zip",
- "zstd",
 ]
 
 [[package]]
@@ -1836,8 +1816,28 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "lania-runtime-manager",
+ "crossterm 0.29.0",
+ "ratatui",
+ "runex-core",
+ "serde",
  "serde_json",
+]
+
+[[package]]
+name = "runex-core"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "flate2",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "thiserror 2.0.18",
+ "ureq",
+ "xz2",
+ "zip",
+ "zstd",
 ]
 
 [[package]]

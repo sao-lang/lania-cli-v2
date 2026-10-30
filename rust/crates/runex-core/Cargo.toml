@@ -1,13 +1,13 @@
 [package]
-name = "lania-runtime-manager"
+name = "runex-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Self-managed multi-runtime version manager (install / use / remove / list)"
+description = "Self-managed multi-runtime engine for runex (install / use / remove / list)"
 
-# 对其它 lania crate 零依赖：这是 §11「独立能力包」的硬约束，
-# 也是后续把它打包成独立可执行工具（runex）的前提。
+# 对 lania 宿主零依赖：这是「runex 独立产品」的硬约束。
+# 外部消费者只依赖 runex；本 crate 是 runex 的内部引擎。
 [dependencies]
 anyhow.workspace = true
 flate2.workspace = true

@@ -99,4 +99,26 @@ pub enum Command {
 
     /// Diagnose pointers, shims and PATH wiring.
     Doctor,
+
+    /// Open the terminal UI (or render one non-interactive snapshot).
+    Ui {
+        /// Print one frame instead of starting the interactive TUI.
+        #[arg(long)]
+        snapshot: bool,
+        /// Snapshot width (default 100).
+        #[arg(long)]
+        cols: Option<u16>,
+        /// Snapshot height (default 28).
+        #[arg(long)]
+        rows: Option<u16>,
+        /// Snapshot only: simulate pressing Down N times.
+        #[arg(long)]
+        down: Option<usize>,
+        /// Skip version probing for a fast, layout-only frame.
+        #[arg(long = "no-versions")]
+        no_versions: bool,
+        /// UI language (en / zh). Defaults to the system locale.
+        #[arg(long)]
+        locale: Option<String>,
+    },
 }

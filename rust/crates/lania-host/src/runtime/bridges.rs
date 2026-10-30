@@ -44,7 +44,7 @@ impl RuntimeKind {
         RuntimeKind::Dart,
     ];
 
-    /// 运行时 id，与 `lania-runtime-manager` / `lan.config` 中的写法一致。
+    /// 运行时 id，与 `runex-core` / `lan.config` 中的写法一致。
     pub fn id(self) -> &'static str {
         match self {
             RuntimeKind::Node => "node",

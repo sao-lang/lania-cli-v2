@@ -1,4 +1,7 @@
-//! 多语言工具链版本管理的核心模型。
+//! `runex` 的内部引擎：多语言工具链版本管理的核心模型。
+//!
+//! 外部消费者只依赖 `runex` 的稳定 API（`runex::api::Runex` / `runex::tui`）；
+//! 本 crate 不承诺稳定，可随 `runex` 重构。
 //!
 //! 设计要点：
 //! - 本 crate 负责「探测本机运行时」与「自管运行时」（安装 / 切换 / 卸载 / 列举）。
@@ -52,12 +55,12 @@ pub use provider::{
 };
 
 // 计划与执行
-pub use plan::{build_plan, execute_plan, EnvAction, EnvPlan, PlanStep};
+pub use plan::{build_plan, build_plan_at, execute_plan, EnvAction, EnvPlan, PlanStep};
 
 // ─────────────────────────────────────────────────────────────────────────
 // 内部实现（**不承诺稳定**：可自由重构，改名/改签名不视为破坏性变更）
 //
-// 主要在 crate 内部与 `lania-plugins-command-env` 之间使用；外部消费者不应依赖。
+// 主要在 crate 内部与 `runex` 之间使用；外部消费者只依赖 `runex` 的稳定 API。
 // ─────────────────────────────────────────────────────────────────────────
 
 pub use archive::{extract as extract_archive, verify_integrity, ArchiveFormat};

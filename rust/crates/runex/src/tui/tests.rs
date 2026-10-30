@@ -10,6 +10,20 @@ fn app() -> App {
 }
 
 #[test]
+fn manager_label_follows_the_shim_host() {
+    let lan = App::with_home(PathBuf::from("."), "en", None, crate::api::ShimHost::lan());
+    assert_eq!(lan.manager, "lan env");
+
+    let runex = App::with_home(
+        PathBuf::from("."),
+        "en",
+        None,
+        crate::api::ShimHost::binary("runex", None),
+    );
+    assert_eq!(runex.manager, "runex");
+}
+
+#[test]
 fn rows_interleave_groups_and_tools() {
     let app = app();
     assert!(!app.rows.is_empty());
@@ -138,8 +152,8 @@ fn result_mode_refresh_flag_round_trip() {
     assert!(app.pending_refresh);
 }
 
-fn node_tool() -> lania_runtime_manager::ToolStatus {
-    lania_runtime_manager::ToolStatus {
+fn node_tool() -> crate::api::ToolStatus {
+    crate::api::ToolStatus {
         id: "node".into(),
         name: "Node.js".into(),
         language: "node".into(),
@@ -154,13 +168,10 @@ fn node_tool() -> lania_runtime_manager::ToolStatus {
     }
 }
 
-fn plan(
-    action: lania_runtime_manager::EnvAction,
-    steps: Vec<lania_runtime_manager::PlanStep>,
-) -> lania_runtime_manager::EnvPlan {
-    lania_runtime_manager::EnvPlan {
+fn plan(action: crate::api::EnvAction, steps: Vec<crate::api::PlanStep>) -> crate::api::EnvPlan {
+    crate::api::EnvPlan {
         action,
-        language: lania_runtime_manager::Language::Node,
+        language: crate::api::Language::Node,
         tool: "node".into(),
         version: Some("20".into()),
         managed: true,
@@ -174,7 +185,7 @@ fn plan(
 fn execute_plan_reports_error_for_unsupported_language() {
     let mut app = App::new_dry_run(PathBuf::from("."), "en");
     app.set_tools_for_test(vec![node_tool()]);
-    let mut plan = plan(lania_runtime_manager::EnvAction::Install, Vec::new());
+    let mut plan = plan(crate::api::EnvAction::Install, Vec::new());
     plan.error = Some("ruby is not self-managed yet".into());
     app.pending_plan = Some(plan);
 
@@ -194,8 +205,8 @@ fn execute_write_file_step_writes_project_pin() {
     let mut app = App::new_dry_run(dir.clone(), "zh");
     app.set_tools_for_test(vec![node_tool()]);
     app.pending_plan = Some(plan(
-        lania_runtime_manager::EnvAction::Use,
-        vec![lania_runtime_manager::PlanStep {
+        crate::api::EnvAction::Use,
+        vec![crate::api::PlanStep {
             kind: "write-file".into(),
             label: "pin .nvmrc to 20".into(),
             command: format!("write {pin} <- 20"),
@@ -221,12 +232,12 @@ fn remove_input_builds_remove_plan() {
     app.submit_input();
 
     let plan = app.pending_plan.as_ref().expect("plan");
-    assert_eq!(plan.action, lania_runtime_manager::EnvAction::Remove);
+    assert_eq!(plan.action, crate::api::EnvAction::Remove);
     assert!(matches!(app.mode, Mode::Confirm));
 }
 
-fn tool(id: &str, language: &str) -> lania_runtime_manager::ToolStatus {
-    lania_runtime_manager::ToolStatus {
+fn tool(id: &str, language: &str) -> crate::api::ToolStatus {
+    crate::api::ToolStatus {
         id: id.into(),
         name: id.into(),
         language: language.into(),

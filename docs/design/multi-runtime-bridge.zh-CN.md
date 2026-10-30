@@ -110,9 +110,9 @@ Node 生态 = 宿主语言，同构带来三个红利：**零序列化、可传�
 
 | 知识                     | 位置 A                                | 位置 B                                            | 位置 C                | 位置 D          | 一致？         |
 | ------------------------ | ------------------------------------- | ------------------------------------------------- | --------------------- | --------------- | -------------- |
-| 特征文件 → 运行时        | `compiler-shared.ts`（5 项）          | `lania-runtime-manager/language.rs`（版本文件）   | —                     | —               | ❌             |
+| 特征文件 → 运行时        | `compiler-shared.ts`（5 项）          | `runex-core/language.rs`（版本文件）   | —                     | —               | ❌             |
 | 运行时 → 包管理器        | `lania-pm`（`managers_for_language`） | `templates/language-options.ts`                   | —                     | —               | ❌             |
-| 运行时 → lint 工具集     | `language-runners.ts`（8 个 adaptor） | `lania-runtime-manager/language.rs`（companions） | —                     | —               | ❌             |
+| 运行时 → lint 工具集     | `language-runners.ts`（8 个 adaptor） | `runex-core/language.rs`（companions） | —                     | —               | ❌             |
 | 运行时 → 可执行文件位置  | `lania-exec::resolve_executable`      | `language-runners.ts::resolveTool`                | `spawn()`（交给系统） | `lan env which` | ❌             |
 | 运行时 → 默认 build 命令 | `runtime-adapters/commands.ts`        | —                                                 | —                     | —               | ✅（唯一单点） |
 
@@ -495,7 +495,7 @@ rust/crates/lania-dart-bridge/        ← Rust crate：定位 dart SDK + 分发�
    多运行时差异只体现在 bridge 内部，Rust 侧渲染代码不感知语言。
 2. **每个命令只选一个 bridge**：不再出现「`create` 一半 Rust 一半 Node」。
 3. **语言知识单点**：语言 → (特征文件, 包管理器, lint 工具, 默认命令) 只在
-   `lania-runtime-manager` 定义一次。
+   `runex-core` 定义一次。
 4. **输出统一走 `RunResult`**：所有命令的日志与诊断都收敛到 `Diagnostic` / `RunResult`
    再由渲染器输出（详见 §7）。这是"结果统一 + 高亮 + 运行期日志"的实现基础。
 
@@ -889,7 +889,7 @@ $ lan add component button
 
 ### 5.1 数据模型
 
-在 `lania-runtime-manager` 新增（`language.rs` 扩展）：
+在 `runex-core` 新增（`language.rs` 扩展）：
 
 ```rust
 pub struct RuntimeToolchain {
@@ -965,7 +965,7 @@ pub const FEATURE_PRIORITY: &[(&str, RuntimeKind)];  // 上表的数组形式
 
 | 消费者                           | 读取方式                                                      |
 | -------------------------------- | ------------------------------------------------------------- |
-| Rust `create` 工作流             | 直接 `use lania_runtime_manager::toolchain`                   |
+| Rust `create` 工作流             | 直接 `use runex_core::toolchain`                   |
 | Rust 命令 handler                | 直接调用，决定选哪个 bridge                                   |
 | JS 簇 bridge（node/bun/deno）    | 通过 `toolchain.describe` bridge 方法读取一次，进程内缓存     |
 | 其他 bridge                      | 同上（各自只取自己那一条）                                    |
@@ -1042,7 +1042,7 @@ JS 簇 bridge 侧新增 `plugins/toolchain.ts`，替换 `compiler-shared.ts` 里
 ### 6.2 修法：入口统一前置，而非逐处注入
 
 ```rust
-// lania-runtime-manager/src/home.rs（新增）
+// runex-core/src/home.rs（新增）
 impl RuntimeHome {
     pub fn prepend_shims_to_path(&self, current: Option<&str>) -> String;
     /// 幂等：先剔除已有 shims 条目再前置
@@ -1929,7 +1929,7 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
 
 - [x] `lan env use <runtime> <ver>` 后，同一 shell 内 `lan build` / `lan lint` / `lan create` 使用 managed 版本。
       （`RuntimeHome::activate()` 在 `main.rs` 最前面执行，子进程继承 PATH；
-      `lania-runtime-manager/src/home.rs` 有「幂等 / shims 不存在时跳过 / 前置顺序」三条约束的单测。
+      `runex-core/src/home.rs` 有「幂等 / shims 不存在时跳过 / 前置顺序」三条约束的单测。
       **未做**需要真实运行时下载的跨进程 e2e —— 它依赖网络与目标平台二进制。）
 - [x] 删除任一运行时 bridge 的二进制/脚本后，对应命令通过回落路径正常工作。
       （Python：`LANIA_PYTHON=/不存在`；Go：`LANIA_GO=/不存在` + 空 `LANIA_BRIDGE_HOME`；

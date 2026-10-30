@@ -42,7 +42,7 @@ fn help_lists_the_nvm_style_commands() {
     assert!(output.status.success(), "{}", stderr(&output));
     let text = stdout(&output);
     for command in [
-        "install", "use", "remove", "list", "which", "init", "doctor",
+        "install", "use", "remove", "list", "which", "init", "doctor", "ui",
     ] {
         assert!(
             text.contains(command),
@@ -183,4 +183,53 @@ fn home_flag_overrides_the_environment_variable() {
     );
     let _ = std::fs::remove_dir_all(env_home);
     let _ = std::fs::remove_dir_all(flag_home);
+}
+
+#[test]
+fn ui_snapshot_renders_one_frame_without_a_tty() {
+    let home = temp_home("ui-snapshot");
+    let output = runex(
+        &home,
+        &[
+            "ui",
+            "--snapshot",
+            "--no-versions",
+            "--cols",
+            "80",
+            "--rows",
+            "24",
+            "--locale",
+            "en",
+        ],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert_eq!(text.lines().count(), 24, "{text}");
+    assert!(!text.trim().is_empty(), "snapshot should not be blank");
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
+fn ui_snapshot_emits_json_when_requested() {
+    let home = temp_home("ui-json");
+    let output = runex(
+        &home,
+        &[
+            "ui",
+            "--snapshot",
+            "--no-versions",
+            "--cols",
+            "80",
+            "--rows",
+            "20",
+            "--json",
+        ],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    let value: serde_json::Value = serde_json::from_str(&stdout(&output)).expect("json output");
+    assert_eq!(value["kind"], "runex_ui_snapshot");
+    assert!(value["frame"]
+        .as_str()
+        .is_some_and(|frame| !frame.trim().is_empty()));
+    let _ = std::fs::remove_dir_all(home);
 }

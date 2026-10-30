@@ -307,7 +307,7 @@ C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的�
 | 1   | 第三批语言范围      | **完整版**：全部 36 种语言都要自管下载安装，不做「只导入」降级            |
 | 2   | `LANIA_HOME` 目录名 | **改名**，避免与项目级 `.lania/`（release-state 等）混淆 → 用 `~/.runex/` |
 | 3   | `--manager` 逃生舱  | **不保留**。`lan env` 只有一条自管路径，不转发给外部管理器                |
-| 4   | 能力层包名          | **改名** `lania-env` → `lania-runtime-manager`（见 §11）                  |
+| 4   | 能力层包名          | **改名** `lania-env` → `runex-core`（见 §11）                  |
 
 ### 9.1 关于决策 1 的影响
 
@@ -374,7 +374,7 @@ C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的�
 | Bun    | github.com/oven-sh/bun/releases   | `zip` 单文件                | GitHub asset `digest`          |
 | Zig    | ziglang.org/download              | `tar.xz` 单目录             | `index.json` 的 `shasum`       |
 
-模块划分（`rust/crates/lania-runtime-manager/src/`）：
+模块划分（`rust/crates/runex-core/src/`）：
 
 ```text
 archive.rs   tar.gz / tar.xz / tar.zst / zip 解压 + 完整性校验
@@ -447,10 +447,10 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 
 | crate                       | 行数 | 依赖 `lania-host` | 依赖 `lania-node-bridge` | 内容                      |
 | --------------------------- | ---- | ----------------- | ------------------------ | ------------------------- |
-| `lania-runtime-manager`     | 6123 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
+| `runex-core`     | 6123 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
 | `lania-plugins-command-env` | 3476 | ✅                | ❌                       | 命令 spec + TUI + 渲染    |
 
-`lania-runtime-manager` 对**其它 lania crate 零依赖**：`lania-exec` 的声明从未被使用，
+`runex-core` 对**其它 lania crate 零依赖**：`lania-exec` 的声明从未被使用，
 本轮已删除，现在只依赖第三方 crate（`ureq` / `tar` / `zip` / `xz2` / `zstd` / `sha2` / `serde`）。
 `lania-plugins-command-env` 的 `PluginMeta.requires` 只有 `Exec + Fs`，**从不触碰 bridge**。
 
@@ -461,35 +461,38 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 - 命令层（`lan env` 的 spec / TUI / 渲染）继续留在 `lania-plugins-command-env`，
   不反向污染能力层。
 
-### 11.2 改名：`lania-env` → `lania-runtime-manager`（已落地）
+### 11.2 改名历史：`lania-env` → `lania-runtime-manager` → `runex-core`（已落地）
 
-理由：`lania-env` 与 `lan env` 命令同名，但两者层级完全不同（一个是能力库，一个是命令实现）。
-外部消费者读 `Cargo.toml` 时无法从名字判断该依赖哪个。改名后语义明确。
+第一次改名（§11 当轮）：`lania-env` → `lania-runtime-manager`，把能力库与 `lan env`
+命令名区分开。
 
-**实际影响面（全仓穷举，共 6 处）**：
+第二次改名（2026-10，见 §14）：`lania-runtime-manager` → `runex-core`。此时 `runex`
+已经是唯一产品入口，`lania-plugins-command-env` / `lania-cli` 都只依赖 `runex`；
+内部引擎再去掉 lania 品牌，`cargo tree -p runex` 里不再出现任何 `lania-*` crate。
 
-| 文件                                                | 改动                                                                              |
-| --------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `rust/Cargo.toml`                                   | `members` 里 `crates/lania-env` → `crates/lania-runtime-manager`                  |
-| `rust/crates/lania-runtime-manager/Cargo.toml`      | `name = "lania-runtime-manager"`                                                  |
-| `rust/crates/lania-plugins-command-env/Cargo.toml`  | 依赖键 + 路径改名                                                                 |
-| `rust/crates/lania-cli/Cargo.toml`                  | 依赖键 + 路径改名（方案原文漏列，cli 入口直接用 `RuntimeHome`）                   |
-| `rust/crates/lania-cli/src/main.rs`                 | 1 处 `lania_env::RuntimeHome` → `lania_runtime_manager::`                         |
-| `rust/crates/lania-plugins-command-env/src/**/*.rs` | 6 个文件里全部 `lania_env` → `lania_runtime_manager`（不止 lib.rs 的 5 处 `use`） |
+**第二次改名实际影响面（全仓穷举）**：
 
-目录用 `git mv` 改名，历史保持连续；`rust/Cargo.lock` 由 cargo 重新生成。
-另有三处注释提到旧名（`lania-config` / `lania-host` / `lania-runtime`），同步改为新名。
+| 文件                                                | 改动                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| `rust/Cargo.toml`                                   | `members` 里 `crates/lania-runtime-manager` → `crates/runex-core`     |
+| `rust/crates/runex-core/Cargo.toml`                 | `name = "lania-runtime-manager"` → `name = "runex-core"`              |
+| `rust/crates/runex/Cargo.toml`                      | 依赖键 + 路径改为 `runex-core = { path = "../runex-core" }`           |
+| `rust/crates/runex/src/api.rs`                      | `lania_runtime_manager::` → `runex_core::`                            |
+| `docs/**` / `docs-site/**` / 各 crate 注释           | 旧名同步改为 `runex-core` / `runex_core`                              |
+| `rust/Cargo.lock`                                   | 由 cargo 重新生成                                                     |
 
-无外部消费者（全仓 crate 之间都是 path 依赖，均未发布到 crates.io；仓库里也没有任何
-`publish = false` 声明，这一点与方案原文不符，已更正），故为**零风险改动**；
-因为不涉及对外行为，没有单独新增 changeset（包名是仓库内部 crate 名，不是 npm 包）。
+目录用 `git mv` 改名，历史保持连续。
 
-改名同时删掉了从未被使用的 `lania-exec` 依赖，使该 crate 对其它 lania crate **零依赖** ——
-这是 §11.1 定下的「独立包」判定标准，也是 §12 把它做成独立可执行工具的前置条件。
+无外部消费者（全仓 crate 之间都是 path 依赖，均未发布到 crates.io），故为**零风险改动**；
+包名是仓库内部 crate 名，不是 npm 包，不单独新增 changeset。
 
-### 11.3 对外稳定面（冻结清单，已落地）
+改名同时保留 `lania-exec` 的删除结果，使该 crate 对 lania 宿主 **零依赖** ——
+这是 §11.1 定下的「独立包」判定标准，也是 §12 / §13 把它做成独立产品的前置条件。
 
-改名后下列导出是**承诺稳定**的（供 GUI / IDE 插件 / CI 脚本嵌入）：
+### 11.3 内部稳定导出（冻结清单；外部请用 `runex`）
+
+`runex-core` 不再直接对外；下列导出保留编译期守卫，供 `runex` 内部与迁移期使用。
+外部消费者（GUI / IDE 插件 / CI 脚本）应依赖 `runex` 的稳定面（§13.3）。
 
 ```rust
 // 模型
@@ -506,7 +509,7 @@ pub use store::{RuntimeStore, InstallOutcome, InstallEvent, Diagnostic};
 pub use provider::{RuntimeProvider, ProviderContext, ProviderArtifact, provider_for};
 
 // 计划与执行
-pub use plan::{build_plan, execute_plan, EnvPlan, EnvAction, PlanStep};
+pub use plan::{build_plan, build_plan_at, execute_plan, EnvPlan, EnvAction, PlanStep};
 ```
 
 **不承诺稳定**（内部实现，可自由重构）：
@@ -525,7 +528,7 @@ env 与其它命令之间当前唯一的接缝是 `~/.runex/shims` 目录，但*
 `lan env use node 22` 只改 `state.json` + 重写 shim 文件，而 `build` / `lint` / `create` 全部
 直接继承父进程 PATH —— 于是 managed 版本不生效。
 
-在 `lania-runtime-manager` 增加两个函数（详见 `multi-runtime-bridge.zh-CN.md` §6）：
+在 `runex-core` 增加两个函数（详见 `multi-runtime-bridge.zh-CN.md` §6）：
 
 ```rust
 impl RuntimeHome {
@@ -558,7 +561,7 @@ impl RuntimeHome {
 
 ### 11.6 验收标准（全部通过）
 
-- [x] `cargo tree -p lania-runtime-manager` 中不出现 `lania-host` / `lania-node-bridge`。
+- [x] `cargo tree -p runex-core` 中不出现 `lania-host` / `lania-node-bridge`。
 - [x] 改名后 `cargo test --workspace` 全绿，`lan env` 全部 e2e 通过。
 - [x] `prepend_shims_to_path` / `activate` 有单测覆盖幂等性与前置顺序
       （`home.rs`：前置顺序 / 幂等 / 陈旧条目剔除 / 空 PATH / shims 缺失时跳过）。
@@ -597,8 +600,8 @@ rust/crates/runex/                 # bin crate（新增）
 依赖方向（单向，无环）：
 
 ```text
-runex ──▶ lania-runtime-manager ──▶ 第三方 crate
-lania-cli ──▶ lania-plugins-command-env ──▶ lania-runtime-manager
+runex ──▶ runex-core ──▶ 第三方 crate
+lania-cli ──▶ lania-plugins-command-env ──▶ runex-core
 ```
 
 `runex` **不依赖** `lania-host` / `lania-command` / `lania-plugins-command-env`，
@@ -662,7 +665,7 @@ lania-cli ──▶ lania-plugins-command-env ──▶ lania-runtime-manager
 - [x] `runex` 进程级测试 11 条：help / list --installed / init / which 失败态 / install --dry-run 不落盘 /
       doctor JSON / 未知工具拒绝 / `--home` 覆盖 `RUNEX_HOME` / `install` 默认 latest /
       `use` 读项目版本文件 / `use` 无版本无文件时给出可操作报错。
-- [x] `lania-runtime-manager` 单测 72 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
+- [x] `runex-core` 单测 72 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
 - [x] 真实安装冒烟：`runex install node 22` → `use` → `which` → 通过 shim 执行 `node -v`（见 §12.7）。
 - [x] 干净环境验证：`--locked` 发布构建、PATH 只留 system32（无 lan / cargo）、`RUNEX_HOME` 含空格路径下
       完成 install → use → shim 执行 → JSON 输出 → remove 全链路。
@@ -702,3 +705,147 @@ $ runex doctor
 这一轮同时证明了两件事：独立二进制能完成完整安装链路（下载 → 校验 → 解压 →
 布局 → 登记 → shim），以及 §10.3 新增的下载超时修复在真实慢网下是必需的 ——
 未修复前同一个命令在 30s/120s 必然失败。
+
+## 13. runex 产品化：Rust API + TUI，env 退化为宿主适配层
+
+> 状态：**本轮落地**。§12 解决的是「runex 能独立跑 CLI」，本节解决的是
+> 「runex 是唯一的多运行时能力边界，并且同时提供 CLI / TUI / Rust API」。
+> 目标读者：维护 `runex`、`lan env`、`lania-cli` 的 builder。
+
+### 13.1 目标
+
+1. `runex` 从 **bin-only** 变成 **lib + bin**：库对外提供稳定 Rust API，
+   二进制只是 API 的一个前端。
+2. `runex` 提供三种管理形态：
+   - 命令行：`runex install/use/remove/list/...`（§12 已有）；
+   - TUI：`runex ui`，从 `lan env ui` 迁入；
+   - Rust API：`runex::api::Runex`，宿主、GUI、自动化脚本直接调用。
+3. `lan env` **不再直接依赖** `runex-core`，只依赖 `runex`。
+   它保留 lania 宿主职责（命令注册、参数解析、`--yes`/dry-run 门控、输出模板、
+   locale），但所有运行时管理动作都调用 `runex` API，不复制安装/切换/卸载逻辑。
+4. `lania-cli` 的 `activate_managed_runtimes` 也改为调用 `runex` API。
+
+### 13.2 依赖方向
+
+```text
+runex (lib + bin, 产品 API 边界)
+  ├─ cli / commands       二进制前端
+  ├─ tui                  TUI 前端
+  ├─ api                  Rust API（Runex facade）
+  └─ runex-core  ← 内部引擎（零 lania 宿主依赖）
+
+lania-plugins-command-env ──▶ runex
+lania-cli                 ──▶ runex（activate）
+```
+
+`runex-core` 仍是「下载 / 校验 / 解压 / 布局 / shim」的引擎，
+但**不再是外部消费者的入口**。外部只认 `runex`，这样能力层可以继续重构，
+而 CLI / TUI / env 三者共享同一套语义。
+
+### 13.3 Rust API
+
+```rust
+use runex::api::Runex;
+
+let api = Runex::resolve()?;              // 读 RUNEX_HOME / ~/.runex，探测平台
+
+api.install("node", "22", &mut |event| {  // 下载 + 校验 + 解压 + 登记 + shim
+    eprintln!("{event:?}");
+})?;
+api.use_version("node", "22")?;           // 改 current + 重写 shim
+api.remove("node", "20")?;                // 删自管目录
+let tools = api.scan();                   // 探测 + 自管状态
+let installed = api.installed_all()?;
+let plan = api.plan(EnvAction::Install, "node", Some("22"), false);
+let outcome = api.apply(plan, false, |step| { /* 进度 */ })?;
+```
+
+API 约定：
+
+- 入口类型 `runex::api::Runex` 持有 `RuntimeHome` / `Platform` / `RuntimeStore` /
+  `EnvService` / `cwd`，构造后即可调用全部管理能力；
+- 所有会落盘的方法返回 `Result<_, RuntimeError>`，不把 `anyhow` 泄漏给调用方；
+- dry-run 由 `apply(plan, dry_run, ...)` 表达，宿主不再自己拼执行逻辑；
+- `runex::tui` 是公开模块；`Runex::run_tui` / `Runex::tui_snapshot` 也直接挂在 API 上；
+- `runex` 根模块 re-export 常用模型（`Language` / `Platform` / `RuntimeHome` /
+  `ToolStatus` / `EnvPlan` 等），调用方只依赖 `runex` 一个 crate。
+
+### 13.4 TUI 迁入 runex
+
+- `git mv rust/crates/lania-plugins-command-env/src/tui rust/crates/runex/src/tui`
+- `runex/src/lib.rs` 增加 `pub mod tui;`
+- `runex` CLI 增加 `ui` 子命令，参数与 `lan env ui` 对齐：
+  `--snapshot` / `--cols` / `--rows` / `--down` / `--no-versions`
+- `lan env ui` 改为薄委托：
+  `api.run_tui(locale)` / `api.tui_snapshot(...)`；`Runex` API 再把 home 与 shim host
+  传给 TUI，保证 `--home` / `RUNEX_HOME` 与 CLI 一致。
+- TUI 内部的 `runex_core::` 引用改为 `crate::api::`（或 `crate::` re-export），
+  不改变状态机、布局与交互。
+
+### 13.5 env 的边界
+
+| 职责 | 归属 |
+| ---- | ---- |
+| 命令 spec / 参数 / locale / 输出模板 | `lania-plugins-command-env` |
+| `--yes` 与默认 dry-run 门控 | `lania-plugins-command-env` |
+| 安装 / 切换 / 删除 / 查询 / which / doctor / init | `runex::api::Runex` |
+| TUI | `runex::tui` |
+| 下载 / 校验 / 解压 / 状态 / shim | `runex-core`（runex 内部） |
+
+硬约束：
+
+- `lania-plugins-command-env/Cargo.toml` **不得**再出现 `runex-core`；
+- `rust/crates/lania-plugins-command-env/src/**` 中 **不得**出现
+  `runex_core`；
+- `lania-plugins-command-env` 删除 `tui/` 目录与 `crossterm` / `ratatui` 依赖；
+- `lania-cli` 不再直接依赖 `runex-core`，activate 走 `runex`。
+
+### 13.6 测试与验收
+
+- [x] `cargo test -p runex`：CLI 13 条 + API 9 条 + 迁入的 TUI 25 条全绿。
+- [x] `cargo test -p lania-plugins-command-env` 全绿。
+- [x] `cargo test -p runex-core` 72 条全绿。
+- [x] `cargo test -p lania-cli --test phase3_e2e lan_env_` 13 条全绿（含 `lan env ui --snapshot`）。
+- [x] `cargo test --workspace --no-run` 全量测试目标可编译。
+- [x] `git grep runex_core rust/crates/lania-plugins-command-env` 为空。
+- [x] `git grep runex-core rust/crates/lania-plugins-command-env/Cargo.toml` 为空。
+- [x] `runex ui --snapshot --no-versions` 在无 TTY 环境输出一帧文本。
+- [x] `runex` 仍能 `cargo build --release -p runex` 单文件构建，`cargo tree -p runex`
+      不含 lania 宿主 crate。
+- [x] `lan env` 的 e2e（phase3）全部通过；`lan env ui --snapshot` 与迁入前输出一致。
+
+### 13.7 与 §12 的关系
+
+§12 的「独立二进制」结论不变；本节只是把 `runex` 从「CLI 工具」提升为
+「产品 API」：CLI、TUI、宿主嵌入都调用同一套 `Runex` facade。这样后续新增
+GUI / IDE 插件时，不需要再经过 `lan env` 子进程，也不需要复制命令层逻辑。
+
+## 14. 第二轮改名：内部引擎 → `runex-core`
+
+### 14.1 为什么再改名
+
+§11 把能力层改名成 `lania-runtime-manager`，解决了「能力库 vs `lan env` 命令」的歧义；
+但产品化之后，`runex` 才是唯一入口，`lania-runtime-manager` 这个名字仍会让
+`cargo tree -p runex` 看起来像依赖 lania。为了让「完全拆包」在依赖树上也成立，
+第二轮把它改成 **`runex-core`**。
+
+改名后：
+
+```text
+runex ──▶ runex-core ──▶ 第三方 crate
+```
+
+- `lania-plugins-command-env` / `lania-cli` 仍只依赖 `runex`，不直接依赖 `runex-core`；
+- `runex-core` 对 lania 宿主 **零依赖**；
+- `cargo tree -p runex` 只剩 `runex → runex-core → 第三方`，不再出现 `lania-*`；
+- `runex` 的 lib / bin / TUI / API 结构不变，仅依赖名变化。
+
+### 14.2 验证
+
+- [x] `cargo test -p runex` 全绿（25 TUI + 9 API + 13 CLI + doc-test）。
+- [x] `cargo test -p runex-core` 72 条全绿。
+- [x] `cargo test -p lania-plugins-command-env` 2 条全绿。
+- [x] `cargo test -p lania-cli --test phase3_e2e lan_env_` 13 条全绿。
+- [x] `cargo test --workspace --no-run` 全部测试目标可编译。
+- [x] `cargo tree -p runex` 中只有 `runex-core`，没有 `lania-runtime-manager` 或其它 lania 宿主 crate。
+- [x] `git grep "lania-runtime-manager\|lania_runtime_manager"` 为空（除本文件的历史说明）。

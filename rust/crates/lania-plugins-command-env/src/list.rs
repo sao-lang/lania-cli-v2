@@ -1,17 +1,15 @@
 //! `lan env` 的查询类子命令：list / info / versions / doctor。
 //!
-//! 全部为只读操作，不经过 dry-run 门控。
+//! 全部为只读操作，不经过 dry-run 门控；运行时数据统一来自 `runex` API。
 
 use anyhow::Result;
 use lania_command::{ArgSpec, CommandSpec, OptionSpec, ValueKind};
 use lania_host::execution::CommandExecutionContext;
-use lania_runtime_manager::{EnvService, InstalledVersion, Language, Platform, RuntimeHome};
+use runex::api::{DiagnosticLevel, Language, Runex};
 use serde_json::{json, Value};
-use std::path::Path;
 
 use crate::{
-    runtime_store, tool_filter, DOCTOR_HANDLER_ID, INFO_HANDLER_ID, LIST_HANDLER_ID,
-    VERSIONS_HANDLER_ID,
+    tool_filter, DOCTOR_HANDLER_ID, INFO_HANDLER_ID, LIST_HANDLER_ID, VERSIONS_HANDLER_ID,
 };
 
 pub(super) fn list_spec() -> CommandSpec {
@@ -115,18 +113,14 @@ fn tool_arg() -> ArgSpec {
     }
 }
 
-pub(super) fn execute_list(
-    service: &EnvService,
-    cwd: &Path,
-    ctx: &CommandExecutionContext<'_>,
-) -> Value {
+pub(super) fn execute_list(api: &Runex, ctx: &CommandExecutionContext<'_>) -> Value {
     let filter = tool_filter(ctx.command());
     if crate::option_bool(ctx, "installed").unwrap_or(false) {
-        return list_installed(filter);
+        return list_installed(api, filter);
     }
 
-    let tools: Vec<Value> = service
-        .scan(cwd)
+    let tools: Vec<Value> = api
+        .scan()
         .into_iter()
         .filter(|tool| {
             filter
@@ -137,64 +131,51 @@ pub(super) fn execute_list(
         .collect();
     json!({
         "kind": "env_toolchains",
-        "cwd": cwd.display().to_string(),
+        "cwd": api.cwd().display().to_string(),
         "platform": std::env::consts::OS,
         "tools": tools,
     })
 }
 
 /// `list --installed`：只读 lania 自己的清单，不落盘、不联网。
-fn list_installed(filter: Option<String>) -> Value {
-    let home = RuntimeHome::resolve().ok();
-    let platform = Platform::detect().ok();
-    let service = EnvService::new();
+fn list_installed(api: &Runex, filter: Option<String>) -> Value {
     let mut entries: Vec<Value> = Vec::new();
 
-    if let Some(home) = home.as_ref() {
-        for id in lania_runtime_manager::supported_language_ids() {
+    if let Ok(rows) = api.installed_all() {
+        for row in rows {
             if filter
                 .as_ref()
-                .is_some_and(|needle| !id.contains(needle.as_str()))
+                .is_some_and(|needle| !row.language.contains(needle.as_str()))
             {
                 continue;
             }
-            let Some(language) = Language::parse_id(id) else {
-                continue;
-            };
-            for version in service.managed_versions(language) {
-                entries.push(installed_entry(home, id, &version));
-            }
+            entries.push(json!({
+                "language": row.language,
+                "version": row.version,
+                "current": row.current,
+                "path": row.path,
+                "upstream": runex::api::upstream_for(&row.language),
+            }));
         }
     }
 
     json!({
         "kind": "env_installed",
-        "home": home.as_ref().map(|home| home.root().display().to_string()),
-        "platform": platform.map(|platform| platform.to_string()),
+        "home": api.home().root().display().to_string(),
+        "platform": api.platform().to_string(),
         "installed": entries,
     })
 }
 
-fn installed_entry(home: &RuntimeHome, id: &str, version: &InstalledVersion) -> Value {
-    json!({
-        "language": id,
-        "version": version.version,
-        "current": version.current,
-        "path": home.version_dir(id, &version.version).display().to_string(),
-        "upstream": lania_runtime_manager::upstream_for(id),
-    })
-}
-
-pub(super) fn execute_info(
-    service: &EnvService,
-    cwd: &Path,
-    ctx: &CommandExecutionContext<'_>,
-) -> Result<Value> {
+pub(super) fn execute_info(api: &Runex, ctx: &CommandExecutionContext<'_>) -> Result<Value> {
     let language = require_language(ctx, "info")?;
-    let status = service.status(language, cwd);
+    let status = api
+        .status(language.id())
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     // 已安装版本只读 lania 自己管理的目录。
-    let installed: Vec<Value> = service
-        .managed_versions(language)
+    let installed: Vec<Value> = api
+        .managed_versions(language.id())
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?
         .into_iter()
         .map(|item| {
             json!({
@@ -204,9 +185,7 @@ pub(super) fn execute_info(
             })
         })
         .collect();
-    let provider = Platform::detect()
-        .ok()
-        .and_then(|platform| lania_runtime_manager::describe_provider(language.id(), platform));
+    let provider = api.provider_info(language.id());
 
     Ok(json!({
         "kind": "env_toolchain_info",
@@ -216,13 +195,11 @@ pub(super) fn execute_info(
     }))
 }
 
-pub(super) fn execute_versions(
-    service: &EnvService,
-    ctx: &CommandExecutionContext<'_>,
-) -> Result<Value> {
+pub(super) fn execute_versions(api: &Runex, ctx: &CommandExecutionContext<'_>) -> Result<Value> {
     let language = require_language(ctx, "versions")?;
-    let versions: Vec<Value> = service
-        .managed_versions(language)
+    let versions: Vec<Value> = api
+        .managed_versions(language.id())
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?
         .into_iter()
         .map(|item| {
             json!({
@@ -235,17 +212,12 @@ pub(super) fn execute_versions(
 
     // `--available` 需要联网：只在用户显式要求时才查上游。
     let available = if crate::option_bool(ctx, "available").unwrap_or(false) {
-        match runtime_store() {
-            Ok(store) => store
-                .available_versions(language.id())
-                .map(|list| {
-                    Value::from(
-                        list.into_iter()
-                            .map(|version| version.raw)
-                            .collect::<Vec<_>>(),
-                    )
-                })
-                .unwrap_or_else(|error| json!({ "error": error.to_string() })),
+        match api.available_versions(language.id()) {
+            Ok(list) => Value::from(
+                list.into_iter()
+                    .map(|version| version.raw)
+                    .collect::<Vec<_>>(),
+            ),
             Err(error) => json!({ "error": error.to_string() }),
         }
     } else {
@@ -255,14 +227,14 @@ pub(super) fn execute_versions(
     Ok(json!({
         "kind": "env_versions",
         "tool": language.id(),
-        "managed": lania_runtime_manager::supported_language_ids().contains(&language.id()),
+        "managed": api.managed_ids().contains(&language.id()),
         "versions": versions,
         "available": available,
     }))
 }
 
-pub(super) fn execute_doctor(service: &EnvService, cwd: &Path) -> Result<Value> {
-    let tools = service.scan(cwd);
+pub(super) fn execute_doctor(api: &Runex) -> Result<Value> {
+    let tools = api.scan();
     let mut missing = Vec::new();
     let mut external = Vec::new();
     let mut managed = Vec::new();
@@ -295,34 +267,27 @@ pub(super) fn execute_doctor(service: &EnvService, cwd: &Path) -> Result<Value> 
         }
     }
 
-    let diagnostics: Vec<Value> = match runtime_store() {
-        Ok(store) => store
-            .diagnose()
-            .map(|items| {
-                items
-                    .into_iter()
-                    .map(|item| {
-                        json!({
-                            "level": match item.level {
-                                lania_runtime_manager::DiagnosticLevel::Error => "error",
-                                lania_runtime_manager::DiagnosticLevel::Warn => "warn",
-                                lania_runtime_manager::DiagnosticLevel::Info => "info",
-                            },
-                            "message": item.message,
-                        })
-                    })
-                    .collect()
+    let diagnostics: Vec<Value> = match api.diagnose() {
+        Ok(items) => items
+            .into_iter()
+            .map(|item| {
+                json!({
+                    "level": match item.level {
+                        DiagnosticLevel::Error => "error",
+                        DiagnosticLevel::Warn => "warn",
+                        DiagnosticLevel::Info => "info",
+                    },
+                    "message": item.message,
+                })
             })
-            .unwrap_or_else(|error| {
-                vec![json!({ "level": "error", "message": error.to_string() })]
-            }),
+            .collect(),
         Err(error) => vec![json!({ "level": "error", "message": error.to_string() })],
     };
     let has_error = diagnostics.iter().any(|item| item["level"] == "error");
 
     Ok(json!({
         "kind": "env_doctor",
-        "cwd": cwd.display().to_string(),
+        "cwd": api.cwd().display().to_string(),
         "platform": std::env::consts::OS,
         "managed": managed,
         "missing": missing,
@@ -346,7 +311,7 @@ fn require_language(ctx: &CommandExecutionContext<'_>, subcommand: &str) -> Resu
     Language::parse_id(tool).ok_or_else(|| {
         anyhow::anyhow!(
             "unsupported tool `{tool}`; supported: {}",
-            lania_runtime_manager::supported_language_ids().join(", ")
+            runex::api::supported_language_ids().join(", ")
         )
     })
 }

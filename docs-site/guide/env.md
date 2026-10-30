@@ -38,12 +38,24 @@ cargo build --release -p runex     # 单文件产物：rust/target/release/runex
 runex install node 22              # 下载 + 校验 + 解压 + 生成 shim
 runex use node 22                  # 切换 current
 runex list --installed             # 只看自管版本
+runex ui                           # 终端 TUI（与 lan env ui 同一套实现）
 ```
 
-语义与 `lan env` 完全一致（共用同一套 Store 与 Provider），唯一差异是执行策略：
+`runex` 同时提供 **Rust API**，宿主 / GUI / IDE 插件可以直接嵌入，不需要 spawn 子进程：
+
+```rust
+use runex::api::Runex;
+
+let api = Runex::resolve()?;
+api.install("node", "22", &mut |event| { /* 进度 */ })?;
+api.use_version("node", "22")?;
+let tools = api.scan();
+```
+
+语义与 `lan env` 完全一致（共用同一套 `runex` API / Store / Provider），唯一差异是执行策略：
 `lan env` 默认 dry-run、需要 `--yes`；`runex` 默认直接执行，`--dry-run` 才预览。
-`--json` 供脚本与 GUI 使用，`--home` 可覆盖 `RUNEX_HOME`。命令面、shim 与分发方式见
-设计文档 §12。
+`--json` 供脚本与 GUI 使用，`--home` 可覆盖 `RUNEX_HOME`。`lan env` 的运行时管理动作也全部
+委托给 `runex`，命令层只保留宿主注册、参数与输出。命令面、shim 与分发方式见设计文档 §12 / §13。
 
 ### 一次性接入 PATH
 
@@ -139,7 +151,7 @@ $ lan env install ruby 3.3.0 --yes
 Error: ruby is not self-managed yet; available now: node, python, go, rust, deno, bun, zig
 ```
 
-每种语言的入口命令、上游渠道与平台矩阵集中定义在 `lania-runtime-manager/src/provider/` 下，新增语言只需实现一个 `RuntimeProvider`。
+每种语言的入口命令、上游渠道与平台矩阵集中定义在 `runex-core/src/provider/` 下，新增语言只需实现一个 `RuntimeProvider`。
 
 ## 查询
 

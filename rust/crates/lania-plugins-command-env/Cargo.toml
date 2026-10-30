@@ -8,10 +8,7 @@ authors.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-crossterm = "0.29"
 lania-command = { path = "../lania-command" }
-lania-runtime-manager = { path = "../lania-runtime-manager" }
-lania-exec = { path = "../lania-exec" }
 lania-host = { path = "../lania-host" }
-ratatui = { version = "0.28", default-features = false, features = ["crossterm"] }
+runex = { path = "../runex" }
 serde_json.workspace = true

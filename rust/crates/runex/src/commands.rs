@@ -1,12 +1,12 @@
-//! 命令实现：全部语义都落在 `lania-runtime-manager` 的 Store / Provider 上，
+//! 命令实现：全部语义都落在 `runex` 的 Rust API 上，
 //! 这里只负责「参数校验 + 输出形态」。
 
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
-use lania_runtime_manager::{
-    describe_provider, provider_for, supported_language_ids, DiagnosticLevel, EnvService,
-    InstallEvent, Language, Platform, RuntimeHome, RuntimeStore, ShimHost,
+use runex::api::{
+    describe_provider, provider_for, supported_language_ids, DiagnosticLevel, InstallEvent,
+    Language, Platform, Runex, RuntimeHome, ShimHost,
 };
 use serde_json::{json, Value};
 
@@ -18,19 +18,20 @@ pub fn run(cli: Cli) -> Result<u8> {
         Some(dir) => RuntimeHome::at(dir.clone()),
         None => RuntimeHome::resolve()?,
     };
-    // 独立二进制的 shim 必须调用 `runex`（而不是 `lan env`），并带上自身路径兜底。
-    let store = RuntimeStore::new(home, platform)
-        .with_shim_host(ShimHost::binary("runex", std::env::current_exe().ok()));
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    // 独立二进制的 shim 必须调用 `runex`（而不是 `lan env`），并带上自身路径兜底。
+    let api = Runex::new(home, platform)
+        .with_cwd(cwd.clone())
+        .with_shim_host(ShimHost::binary("runex", std::env::current_exe().ok()));
 
     match &cli.command {
-        Command::Install { tool, version } => install(&store, tool, version, cli.json, cli.dry_run),
+        Command::Install { tool, version } => install(&api, tool, version, cli.json, cli.dry_run),
         Command::Use {
             tool,
             version,
             project,
         } => use_version(
-            &store,
+            &api,
             &cwd,
             tool,
             version.as_deref(),
@@ -38,28 +39,39 @@ pub fn run(cli: Cli) -> Result<u8> {
             cli.json,
             cli.dry_run,
         ),
-        Command::Remove { tool, version } => remove(&store, tool, version, cli.json, cli.dry_run),
-        Command::List { installed } => list(&store, &cwd, *installed, cli.json),
-        Command::Info { tool } => info(&store, &cwd, tool, cli.json),
+        Command::Remove { tool, version } => remove(&api, tool, version, cli.json, cli.dry_run),
+        Command::List { installed } => list(&api, *installed, cli.json),
+        Command::Info { tool } => info(&api, tool, cli.json),
         Command::Versions { tool, available } => {
-            versions(&store, tool, *available, cli.json, cli.dry_run)
+            versions(&api, tool, *available, cli.json, cli.dry_run)
         }
-        Command::Which { name, .. } => which(&store, name, cli.json),
-        Command::Init { shell } => init(&store, shell.as_deref(), cli.json),
-        Command::Doctor => doctor(&store, cli.json),
+        Command::Which { name, .. } => which(&api, name, cli.json),
+        Command::Init { shell } => init(&api, shell.as_deref(), cli.json),
+        Command::Doctor => doctor(&api, cli.json),
+        Command::Ui {
+            snapshot,
+            cols,
+            rows,
+            down,
+            no_versions,
+            locale,
+        } => ui(
+            &api,
+            *snapshot,
+            *cols,
+            *rows,
+            *down,
+            *no_versions,
+            locale.as_deref(),
+            cli.json,
+        ),
     }
 }
 
-fn install(
-    store: &RuntimeStore,
-    tool: &str,
-    version: &str,
-    json: bool,
-    dry_run: bool,
-) -> Result<u8> {
+fn install(api: &Runex, tool: &str, version: &str, json: bool, dry_run: bool) -> Result<u8> {
     let language = ensure_language(tool)?;
     let id = language.id();
-    let provider = provider_for(id, store.platform())
+    let provider = provider_for(id, api.platform())
         .with_context(|| format!("{id} is not self-managed yet"))?;
     let upstream = provider.upstream().to_string();
 
@@ -80,17 +92,16 @@ fn install(
 
     // `latest`：取上游清单里最新的稳定版（与 nvm `install node` 的直觉一致）。
     let resolved = if version.eq_ignore_ascii_case("latest") {
-        resolve_latest(store, id)?
+        resolve_latest(api, id)?
     } else {
         version.to_string()
     };
 
-    if let Some(reason) = lania_runtime_manager::provider::platform_limitation(id, store.platform())
-    {
+    if let Some(reason) = runex::api::platform_limitation(id, api.platform()) {
         bail!("cannot install {id} on this platform: {reason}");
     }
 
-    let outcome = store
+    let outcome = api
         .install(id, &resolved, &mut |event| report_event(event))
         .map_err(|error| anyhow::anyhow!("{error}"))?;
 
@@ -119,7 +130,7 @@ fn install(
 }
 
 fn use_version(
-    store: &RuntimeStore,
+    api: &Runex,
     cwd: &std::path::Path,
     tool: &str,
     version: Option<&str>,
@@ -142,7 +153,7 @@ fn use_version(
             || println!("would point {id} at {requested}"),
         );
     }
-    let path = store
+    let path = api
         .use_version(id, &requested)
         .map_err(|error| anyhow::anyhow!("{error}"))?;
     // 前缀（`22`）会被解析到具体补丁版本，报告里必须显示落地的那个版本。
@@ -184,13 +195,7 @@ fn use_version(
     )
 }
 
-fn remove(
-    store: &RuntimeStore,
-    tool: &str,
-    version: &str,
-    json: bool,
-    dry_run: bool,
-) -> Result<u8> {
+fn remove(api: &Runex, tool: &str, version: &str, json: bool, dry_run: bool) -> Result<u8> {
     let language = ensure_language(tool)?;
     let id = language.id();
     if dry_run {
@@ -200,7 +205,7 @@ fn remove(
             || println!("would remove {id} {version}"),
         );
     }
-    let path = store
+    let path = api
         .remove(id, version)
         .map_err(|error| anyhow::anyhow!("{error}"))?;
     emit(
@@ -210,9 +215,9 @@ fn remove(
     )
 }
 
-fn list(store: &RuntimeStore, cwd: &std::path::Path, installed: bool, json: bool) -> Result<u8> {
+fn list(api: &Runex, installed: bool, json: bool) -> Result<u8> {
     if installed {
-        let rows = store
+        let rows = api
             .installed_all()
             .map_err(|error| anyhow::anyhow!("{error}"))?;
         let items: Vec<Value> = rows
@@ -242,7 +247,7 @@ fn list(store: &RuntimeStore, cwd: &std::path::Path, installed: bool, json: bool
         });
     }
 
-    let tools = EnvService::new().scan(cwd);
+    let tools = api.scan();
     let items: Vec<Value> = tools
         .iter()
         .map(|tool| {
@@ -286,11 +291,11 @@ fn list(store: &RuntimeStore, cwd: &std::path::Path, installed: bool, json: bool
     })
 }
 
-fn info(store: &RuntimeStore, cwd: &std::path::Path, tool: &str, json: bool) -> Result<u8> {
+fn info(api: &Runex, tool: &str, json: bool) -> Result<u8> {
     let language = ensure_language(tool)?;
     let id = language.id();
-    let status = EnvService::new().status(language, cwd);
-    let provider = describe_provider(id, store.platform());
+    let status = api.status(id).map_err(|error| anyhow::anyhow!("{error}"))?;
+    let provider = describe_provider(id, api.platform());
     let value = json!({
         "tool": id,
         "name": language.display_name(),
@@ -325,16 +330,10 @@ fn info(store: &RuntimeStore, cwd: &std::path::Path, tool: &str, json: bool) -> 
     })
 }
 
-fn versions(
-    store: &RuntimeStore,
-    tool: &str,
-    available: bool,
-    json: bool,
-    dry_run: bool,
-) -> Result<u8> {
+fn versions(api: &Runex, tool: &str, available: bool, json: bool, dry_run: bool) -> Result<u8> {
     let language = ensure_language(tool)?;
     let id = language.id();
-    let installed = store
+    let installed = api
         .installed_versions(id)
         .map_err(|error| anyhow::anyhow!("{error}"))?;
     let current = installed
@@ -351,8 +350,7 @@ fn versions(
     }
 
     let upstream: Vec<String> = if available {
-        store
-            .available_versions(id)
+        api.available_versions(id)
             .map_err(|error| anyhow::anyhow!("{error}"))?
             .into_iter()
             .map(|tag| tag.raw)
@@ -388,8 +386,8 @@ fn versions(
     })
 }
 
-fn which(store: &RuntimeStore, name: &str, json: bool) -> Result<u8> {
-    let path = store
+fn which(api: &Runex, name: &str, json: bool) -> Result<u8> {
+    let path = api
         .which(name)
         .map_err(|error| anyhow::anyhow!("{error}"))?;
     emit(
@@ -399,20 +397,18 @@ fn which(store: &RuntimeStore, name: &str, json: bool) -> Result<u8> {
     )
 }
 
-fn init(store: &RuntimeStore, shell: Option<&str>, json: bool) -> Result<u8> {
+fn init(api: &Runex, shell: Option<&str>, json: bool) -> Result<u8> {
     let shell = shell.map(str::to_string).unwrap_or_else(default_shell);
-    let snippet = store.init_snippet(&shell);
+    let snippet = api.init_snippet(&shell);
     emit(
         json,
-        json!({"shell": shell, "home": store.home().root().display().to_string(), "snippet": snippet}),
+        json!({"shell": shell, "home": api.home().root().display().to_string(), "snippet": snippet}),
         || print!("{snippet}"),
     )
 }
 
-fn doctor(store: &RuntimeStore, json: bool) -> Result<u8> {
-    let diagnostics = store
-        .diagnose()
-        .map_err(|error| anyhow::anyhow!("{error}"))?;
+fn doctor(api: &Runex, json: bool) -> Result<u8> {
+    let diagnostics = api.diagnose().map_err(|error| anyhow::anyhow!("{error}"))?;
     let items: Vec<Value> = diagnostics
         .iter()
         .map(|item| json!({"level": level_label(item.level), "message": item.message}))
@@ -431,6 +427,45 @@ fn doctor(store: &RuntimeStore, json: bool) -> Result<u8> {
     Ok(u8::from(has_error))
 }
 
+#[allow(clippy::too_many_arguments)]
+fn ui(
+    api: &Runex,
+    snapshot: bool,
+    cols: Option<u16>,
+    rows: Option<u16>,
+    down: Option<usize>,
+    no_versions: bool,
+    locale: Option<&str>,
+    json: bool,
+) -> Result<u8> {
+    let locale = locale.map(str::to_string).unwrap_or_else(default_locale);
+    if snapshot {
+        let down = down.unwrap_or(0);
+        let frame = api
+            .tui_snapshot(
+                cols.unwrap_or(100),
+                rows.unwrap_or(28),
+                down,
+                !no_versions,
+                &locale,
+            )
+            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+        return emit(
+            json,
+            json!({"kind": "runex_ui_snapshot", "frame": frame, "down": down}),
+            || print!("{frame}"),
+        );
+    }
+
+    api.run_tui(&locale)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    emit(
+        json,
+        json!({"kind": "runex_ui", "status": "closed"}),
+        || println!("closed"),
+    )
+}
+
 fn ensure_language(tool: &str) -> Result<Language> {
     Language::parse_id(tool).ok_or_else(|| {
         anyhow::anyhow!(
@@ -441,8 +476,8 @@ fn ensure_language(tool: &str) -> Result<Language> {
 }
 
 /// 取上游清单里最新的稳定版（`install <tool>` 的默认行为）。
-fn resolve_latest(store: &RuntimeStore, id: &str) -> Result<String> {
-    let versions = store
+fn resolve_latest(api: &Runex, id: &str) -> Result<String> {
+    let versions = api
         .available_versions(id)
         .map_err(|error| anyhow::anyhow!("{error}"))?;
     versions
@@ -500,6 +535,17 @@ fn default_shell() -> String {
                 .map(|name| name.trim_end_matches(".exe").to_string())
         })
         .unwrap_or_else(|| "bash".to_string())
+}
+
+fn default_locale() -> String {
+    for key in ["RUNEX_LOCALE", "LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(value) = std::env::var(key) {
+            if value.to_ascii_lowercase().starts_with("zh") {
+                return "zh".to_string();
+            }
+        }
+    }
+    "en".to_string()
 }
 
 fn level_label(level: DiagnosticLevel) -> &'static str {

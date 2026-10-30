@@ -112,7 +112,7 @@ impl Renderer {
     fn draw_header(&self, frame: &mut Frame<'_>, area: Rect, app: &App) {
         let bold = Modifier::BOLD;
         let title = Span::styled(
-            " lan env ",
+            format!(" {} ", app.manager),
             Style::default().fg(self.theme.title).add_modifier(bold),
         );
         let dot = Span::styled("·", Style::default().fg(self.theme.border_focus));
@@ -341,7 +341,7 @@ impl Renderer {
     }
 
     /// 详情面板的一句话简介：语言用内置 summary，附属工具标注为所属语言的包管理器。
-    fn tool_summary(&self, tool: &lania_runtime_manager::ToolStatus) -> String {
+    fn tool_summary(&self, tool: &crate::api::ToolStatus) -> String {
         if tool.id != tool.language {
             return format!(
                 "{} {}",
@@ -349,7 +349,7 @@ impl Renderer {
                 self.tr("package manager", "包管理器")
             );
         }
-        lania_runtime_manager::Language::parse_id(&tool.language)
+        crate::api::Language::parse_id(&tool.language)
             .map(|language| language.summary(self.zh()).to_string())
             .unwrap_or_default()
     }
@@ -366,7 +366,7 @@ impl Renderer {
 
     fn tool_line<'a>(
         &self,
-        tool: &lania_runtime_manager::ToolStatus,
+        tool: &crate::api::ToolStatus,
         selected: bool,
         name_width: usize,
     ) -> Line<'a> {
@@ -630,7 +630,7 @@ impl Renderer {
                 .fg(self.theme.muted)
                 .add_modifier(Modifier::BOLD),
         )));
-        let entrypoints: Vec<&str> = lania_runtime_manager::Language::parse_id(&tool.language)
+        let entrypoints: Vec<&str> = crate::api::Language::parse_id(&tool.language)
             .map(|language| language.probe_binaries())
             .unwrap_or_default();
         lines.push(Line::from(Span::styled(
@@ -955,15 +955,15 @@ impl Renderer {
 
 /// 语言 id → 展示名。
 ///
-/// 直接委托给 `lania_runtime_manager::Language`，避免这里再维护一份会与实际支持列表脱节的映射。
+/// 直接委托给 `crate::api::Language`，避免这里再维护一份会与实际支持列表脱节的映射。
 pub fn language_label(id: &str) -> &'static str {
-    lania_runtime_manager::Language::parse_id(id)
+    crate::api::Language::parse_id(id)
         .map(|language| language.display_name())
         .unwrap_or("Other")
 }
 
 /// 左侧列表显示名：语言用展示名，附属工具用可执行文件名。
-fn tool_label(tool: &lania_runtime_manager::ToolStatus) -> String {
+fn tool_label(tool: &crate::api::ToolStatus) -> String {
     if tool.id == tool.language {
         language_label(&tool.language).to_string()
     } else {
@@ -991,8 +991,8 @@ fn fit_label(label: &str, width: usize) -> String {
 }
 
 /// 动作 → 本地化标签。
-pub fn action_label(action: lania_runtime_manager::EnvAction, zh: bool) -> &'static str {
-    use lania_runtime_manager::EnvAction;
+pub fn action_label(action: crate::api::EnvAction, zh: bool) -> &'static str {
+    use crate::api::EnvAction;
     match (action, zh) {
         (EnvAction::Install, true) => "安装",
         (EnvAction::Use, true) => "切换",
@@ -1055,13 +1055,13 @@ mod tests {
     #[test]
     fn language_label_covers_all_supported() {
         // 直接遍历 `Language::all()`，新增语言时自动纳入覆盖。
-        for language in lania_runtime_manager::Language::all() {
+        for language in crate::api::Language::all() {
             let label = language_label(language.id());
             assert_ne!(label, "Other", "{} missing label", language.id());
             assert!(!label.is_empty(), "{} has empty label", language.id());
         }
         assert!(
-            lania_runtime_manager::Language::all().len() >= 40,
+            crate::api::Language::all().len() >= 40,
             "expected 40+ languages"
         );
     }
@@ -1096,8 +1096,8 @@ mod tests {
         assert!(fitted.ends_with('…'), "{fitted:?}");
     }
 
-    fn tool(id: &str, language: &str) -> lania_runtime_manager::ToolStatus {
-        lania_runtime_manager::ToolStatus {
+    fn tool(id: &str, language: &str) -> crate::api::ToolStatus {
+        crate::api::ToolStatus {
             id: id.into(),
             name: id.into(),
             language: language.into(),
