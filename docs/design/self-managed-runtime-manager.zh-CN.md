@@ -665,7 +665,7 @@ lania-cli ──▶ lania-plugins-command-env ──▶ runex-core
 - [x] `runex` 进程级测试 11 条：help / list --installed / init / which 失败态 / install --dry-run 不落盘 /
       doctor JSON / 未知工具拒绝 / `--home` 覆盖 `RUNEX_HOME` / `install` 默认 latest /
       `use` 读项目版本文件 / `use` 无版本无文件时给出可操作报错。
-- [x] `runex-core` 单测 72 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
+- [x] `runex-core` 单测 73 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
 - [x] 真实安装冒烟：`runex install node 22` → `use` → `which` → 通过 shim 执行 `node -v`（见 §12.7）。
 - [x] 干净环境验证：`--locked` 发布构建、PATH 只留 system32（无 lan / cargo）、`RUNEX_HOME` 含空格路径下
       完成 install → use → shim 执行 → JSON 输出 → remove 全链路。
@@ -767,6 +767,8 @@ API 约定：
 - 所有会落盘的方法返回 `Result<_, RuntimeError>`，不把 `anyhow` 泄漏给调用方；
 - dry-run 由 `apply(plan, dry_run, ...)` 表达，宿主不再自己拼执行逻辑；
 - `runex::tui` 是公开模块；`Runex::run_tui` / `Runex::tui_snapshot` 也直接挂在 API 上；
+- `runex::i18n::Locale` 统一 CLI / TUI 的人类语言：`--locale en|zh`，默认按
+  `RUNEX_LOCALE` / `LC_ALL` / `LANG` 探测；`lan env ui` 直接把 `ctx.locale()` 传给 TUI；
 - `runex` 根模块 re-export 常用模型（`Language` / `Platform` / `RuntimeHome` /
   `ToolStatus` / `EnvPlan` 等），调用方只依赖 `runex` 一个 crate。
 
@@ -802,9 +804,9 @@ API 约定：
 
 ### 13.6 测试与验收
 
-- [x] `cargo test -p runex`：CLI 13 条 + API 9 条 + 迁入的 TUI 25 条全绿。
+- [x] `cargo test -p runex`：CLI 14 条 + API 9 条 + 迁入的 TUI/i18n 28 条全绿。
 - [x] `cargo test -p lania-plugins-command-env` 全绿。
-- [x] `cargo test -p runex-core` 72 条全绿。
+- [x] `cargo test -p runex-core` 73 条全绿。
 - [x] `cargo test -p lania-cli --test phase3_e2e lan_env_` 13 条全绿（含 `lan env ui --snapshot`）。
 - [x] `cargo test --workspace --no-run` 全量测试目标可编译。
 - [x] `git grep runex_core rust/crates/lania-plugins-command-env` 为空。
@@ -843,7 +845,7 @@ runex ──▶ runex-core ──▶ 第三方 crate
 ### 14.2 验证
 
 - [x] `cargo test -p runex` 全绿（25 TUI + 9 API + 13 CLI + doc-test）。
-- [x] `cargo test -p runex-core` 72 条全绿。
+- [x] `cargo test -p runex-core` 73 条全绿。
 - [x] `cargo test -p lania-plugins-command-env` 2 条全绿。
 - [x] `cargo test -p lania-cli --test phase3_e2e lan_env_` 13 条全绿。
 - [x] `cargo test --workspace --no-run` 全部测试目标可编译。

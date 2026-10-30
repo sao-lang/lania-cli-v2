@@ -77,7 +77,8 @@ $RUNEX_HOME/                # 默认 ~/.runex
 | `runex doctor`                        | 指针 / shim / PATH 体检                                              |
 | `runex ui`                            | 终端 TUI；`--snapshot` / `--cols` / `--rows` / `--down` / `--no-versions` |
 
-全局开关：`--json`（脚本与 GUI 用）、`--dry-run`（只打印计划）、`--home <dir>`（覆盖 `RUNEX_HOME`）。
+全局开关：`--json`（脚本与 GUI 用）、`--dry-run`（只打印计划）、`--home <dir>`（覆盖 `RUNEX_HOME`）、
+`--locale en|zh`（CLI / TUI 文案，默认读 `RUNEX_LOCALE` / `LANG` 等环境变量）。
 
 ## 为什么可以单文件分发
 

@@ -19,7 +19,7 @@
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ureq::Agent;
 
@@ -29,6 +29,11 @@ pub const OFFLINE_ENV: &str = "RUNEX_OFFLINE";
 pub const TIMEOUT_ENV: &str = "RUNEX_HTTP_TIMEOUT_SECS";
 pub const DOWNLOAD_TIMEOUT_ENV: &str = "RUNEX_DOWNLOAD_TIMEOUT_SECS";
 const USER_AGENT: &str = concat!("lania-cli/", env!("CARGO_PKG_VERSION"));
+
+/// 下载进度回调：`(已下载字节, Content-Length)`。
+///
+/// `Content-Length` 缺失时第二个参数为 `None`。
+pub type DownloadProgressFn<'a> = &'a mut dyn FnMut(u64, Option<u64>);
 
 #[derive(Debug, Clone)]
 pub struct HttpClient {
@@ -121,9 +126,19 @@ impl HttpClient {
     /// 下载到 `target`（流式写盘，避免把几百 MB 的产物读进内存）。
     ///
     /// 必须校验实际字节数与 `Content-Length` 一致：连接中途断开时
-    /// `std::io::copy` 会“正常”返回已写入的字节数，如果不比对长度，
+    /// 读取循环会“正常”返回已写入的字节数，如果不比对长度，
     /// 会得到一个能被缓存、但解压必然失败的半截产物。
     pub fn download(&self, url: &str, target: &Path) -> Result<u64, RuntimeError> {
+        self.download_with_progress(url, target, None)
+    }
+
+    /// 与 [`Self::download`] 相同，但每约 150ms 回调一次进度。
+    pub fn download_with_progress(
+        &self,
+        url: &str,
+        target: &Path,
+        mut on_progress: Option<DownloadProgressFn<'_>>,
+    ) -> Result<u64, RuntimeError> {
         self.ensure_online(url)?;
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
@@ -136,11 +151,36 @@ impl HttpClient {
             .and_then(|value| value.parse::<u64>().ok());
         let mut reader = response.into_body().into_reader();
         let mut file = std::fs::File::create(target)?;
-        let written =
-            std::io::copy(&mut reader, &mut file).map_err(|error| NetworkError::Request {
-                url: url.to_string(),
-                detail: error.to_string(),
-            })?;
+        let mut buffer = [0u8; 64 * 1024];
+        let mut written = 0u64;
+        let mut last_report = Instant::now();
+        loop {
+            let read = reader
+                .read(&mut buffer)
+                .map_err(|error| NetworkError::Request {
+                    url: url.to_string(),
+                    detail: error.to_string(),
+                })?;
+            if read == 0 {
+                break;
+            }
+            file.write_all(&buffer[..read])
+                .map_err(|error| NetworkError::Request {
+                    url: url.to_string(),
+                    detail: error.to_string(),
+                })?;
+            written += read as u64;
+            if let Some(callback) = on_progress.as_mut() {
+                let now = Instant::now();
+                if now.duration_since(last_report) >= Duration::from_millis(150) {
+                    callback(written, expected);
+                    last_report = now;
+                }
+            }
+        }
+        if let Some(callback) = on_progress.as_mut() {
+            callback(written, expected);
+        }
         file.flush()?;
         drop(file);
 
@@ -294,6 +334,7 @@ fn build_agent(connect: Duration, body: Duration) -> Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
 
     #[test]
     fn cache_path_is_stable_and_collision_free() {
@@ -304,5 +345,46 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert!(a.to_string_lossy().ends_with("node-v20.11.1.tar.gz"));
+    }
+
+    #[test]
+    fn download_reports_progress_and_writes_the_body() {
+        let body = vec![b'x'; 200_000];
+        let expected = body.len();
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+        let address = listener.local_addr().expect("test server address");
+        let server_body = body.clone();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request);
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {expected}\r\nConnection: close\r\n\r\n"
+            )
+            .expect("write headers");
+            stream.write_all(&server_body).expect("write body");
+        });
+
+        let dir = std::env::temp_dir().join(format!("runex-http-progress-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let target = dir.join("artifact.bin");
+        let mut events = Vec::new();
+        let mut report = |downloaded, total| events.push((downloaded, total));
+        let written = HttpClient::new()
+            .download_with_progress(
+                &format!("http://{address}/artifact.bin"),
+                &target,
+                Some(&mut report),
+            )
+            .expect("download succeeds");
+        server.join().expect("test server joins");
+
+        assert_eq!(written, expected as u64);
+        assert_eq!(std::fs::read(&target).expect("read target"), body);
+        assert!(!events.is_empty(), "progress callback must fire");
+        assert_eq!(events.last().unwrap().0, expected as u64);
+        assert_eq!(events.last().unwrap().1, Some(expected as u64));
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -29,11 +29,22 @@ pub type ProgressFn<'a> = &'a mut dyn FnMut(InstallEvent);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallEvent {
     Resolving,
-    Downloading { url: String, cached: bool },
+    Downloading {
+        url: String,
+        cached: bool,
+    },
+    /// 下载字节进度；`total` 来自 `Content-Length`，缺失时为 `None`。
+    DownloadProgress {
+        url: String,
+        downloaded: u64,
+        total: Option<u64>,
+    },
     Verifying,
     Extracting,
     Finalizing,
-    Done { version: String },
+    Done {
+        version: String,
+    },
 }
 
 /// 安装结果。
@@ -198,7 +209,18 @@ impl RuntimeStore {
                         url: artifact.url.clone(),
                         cached: false,
                     });
-                    self.http.download(&artifact.url, &cached)?;
+                    let mut on_progress = |downloaded, total| {
+                        progress(InstallEvent::DownloadProgress {
+                            url: artifact.url.clone(),
+                            downloaded,
+                            total,
+                        });
+                    };
+                    self.http.download_with_progress(
+                        &artifact.url,
+                        &cached,
+                        Some(&mut on_progress),
+                    )?;
                 }
                 progress(InstallEvent::Verifying);
                 match self.verify_artifact(artifact, &cached, &mut warnings) {

@@ -117,7 +117,7 @@ impl Renderer {
         );
         let dot = Span::styled("·", Style::default().fg(self.theme.border_focus));
         let name = Span::styled(
-            "toolchains",
+            app.tr("toolchains", "工具链"),
             Style::default().fg(self.theme.text).add_modifier(bold),
         );
 

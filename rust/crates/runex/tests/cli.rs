@@ -23,6 +23,8 @@ fn runex(home: &Path, args: &[&str]) -> Output {
         // 隔离 HOME，避免探测到开发者本机的 ~/.runex 状态。
         .env("HOME", home)
         .env("USERPROFILE", home)
+        // 测试断言英文文案，固定 locale，避免跟随 CI 的 LANG。
+        .env("RUNEX_LOCALE", "en")
         .output()
         .expect("runex runs")
 }
@@ -134,6 +136,7 @@ fn use_reads_the_project_version_file_when_the_version_is_omitted() {
         .env("RUNEX_HOME", &home)
         .env("HOME", &home)
         .env("USERPROFILE", &home)
+        .env("RUNEX_LOCALE", "en")
         .output()
         .expect("runex runs");
     assert!(output.status.success(), "{}", stderr(&output));
@@ -183,6 +186,29 @@ fn home_flag_overrides_the_environment_variable() {
     );
     let _ = std::fs::remove_dir_all(env_home);
     let _ = std::fs::remove_dir_all(flag_home);
+}
+
+#[test]
+fn locale_zh_localizes_cli_output() {
+    let home = temp_home("locale-zh");
+    let zh = runex(
+        &home,
+        &["--locale", "zh", "install", "node", "22", "--dry-run"],
+    );
+    assert!(zh.status.success(), "{}", stderr(&zh));
+    assert!(stdout(&zh).contains("将安装 node 22"), "{}", stdout(&zh));
+
+    let en = runex(
+        &home,
+        &["--locale", "en", "install", "node", "22", "--dry-run"],
+    );
+    assert!(en.status.success(), "{}", stderr(&en));
+    assert!(
+        stdout(&en).contains("would install node 22"),
+        "{}",
+        stdout(&en)
+    );
+    let _ = std::fs::remove_dir_all(home);
 }
 
 #[test]

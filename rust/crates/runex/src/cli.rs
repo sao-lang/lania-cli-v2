@@ -28,6 +28,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub dry_run: bool,
 
+    /// Human language for CLI / TUI output: en / zh (default: auto-detect).
+    #[arg(long, global = true, value_name = "LOCALE")]
+    pub locale: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -117,8 +121,5 @@ pub enum Command {
         /// Skip version probing for a fast, layout-only frame.
         #[arg(long = "no-versions")]
         no_versions: bool,
-        /// UI language (en / zh). Defaults to the system locale.
-        #[arg(long)]
-        locale: Option<String>,
     },
 }
