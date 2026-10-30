@@ -11,6 +11,12 @@ node -v                               # 走 ~/.runex/shims，立即生效
 runex ui                              # 终端 TUI
 ```
 
+## 支持语言
+
+- 第一批：Node / Python / Go / Rust / Deno / Bun / Zig
+- 第二批：Java（Temurin）/ Kotlin / Scala 3 / Dart
+- Kotlin / Scala 只安装编译器发行包，运行需要 JDK；Swift 仍只做探测
+
 ## 三种形态
 
 | 形态 | 入口 | 说明 |

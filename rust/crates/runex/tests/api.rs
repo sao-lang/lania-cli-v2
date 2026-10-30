@@ -30,7 +30,8 @@ fn api_exposes_the_management_surface() {
     assert_eq!(api.home().root(), root.join("home").as_path());
     assert!(api.managed_ids().contains(&"node"));
     assert!(api.provider_info("node").is_some());
-    assert!(api.provider_info("java").is_none());
+    assert!(api.provider_info("java").is_some());
+    assert!(api.provider_info("swift").is_none());
     let _ = std::fs::remove_dir_all(root);
 }
 

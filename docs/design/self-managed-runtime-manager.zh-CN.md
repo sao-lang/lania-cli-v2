@@ -1,6 +1,6 @@
 # 自管版本管理器技术方案
 
-> 状态：**第一批已落地，包边界已完成收口**（Node / Python / Go / Rust / Deno / Bun / Zig）。
+> 状态：**第一、二批已落地，包边界已完成收口**（Node / Python / Go / Rust / Deno / Bun / Zig / Java / Kotlin / Scala / Dart）。
 > 目标读者：能直接据此开工的 builder。
 > 决策来源：需求方明确要求「lania 自己做版本管理器，不再转发给 nvm/volta 等」，
 > 范围为 **只管理运行时环境**（安装/切换/卸载/列举），**不做全局包管理**，
@@ -665,7 +665,7 @@ lania-cli ──▶ lania-plugins-command-env ──▶ runex-core
 - [x] `runex` 进程级测试 11 条：help / list --installed / init / which 失败态 / install --dry-run 不落盘 /
       doctor JSON / 未知工具拒绝 / `--home` 覆盖 `RUNEX_HOME` / `install` 默认 latest /
       `use` 读项目版本文件 / `use` 无版本无文件时给出可操作报错。
-- [x] `runex-core` 单测 75 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
+- [x] `runex-core` 单测 79 条全绿，含新增 `standalone_host_gets_its_own_command_and_fallback_path`。
 - [x] 真实安装冒烟：`runex install node 22` → `use` → `which` → 通过 shim 执行 `node -v`（见 §12.7）。
 - [x] 干净环境验证：`--locked` 发布构建、PATH 只留 system32（无 lan / cargo）、`RUNEX_HOME` 含空格路径下
       完成 install → use → shim 执行 → JSON 输出 → remove 全链路。
@@ -808,7 +808,7 @@ API 约定：
 
 - [x] `cargo test -p runex`：CLI 15 条 + API 9 条 + 迁入的 TUI/i18n 29 条全绿。
 - [x] `cargo test -p lania-plugins-command-env` 全绿。
-- [x] `cargo test -p runex-core` 75 条全绿。
+- [x] `cargo test -p runex-core` 79 条全绿。
 - [x] `cargo test -p lania-cli --test phase3_e2e lan_env_` 13 条全绿（含 `lan env ui --snapshot`）。
 - [x] `cargo test --workspace --no-run` 全量测试目标可编译。
 - [x] `git grep runex_core rust/crates/lania-plugins-command-env` 为空。
@@ -847,9 +847,30 @@ runex ──▶ runex-core ──▶ 第三方 crate
 ### 14.2 验证
 
 - [x] `cargo test -p runex` 全绿（25 TUI + 9 API + 13 CLI + doc-test）。
-- [x] `cargo test -p runex-core` 75 条全绿。
+- [x] `cargo test -p runex-core` 79 条全绿。
 - [x] `cargo test -p lania-plugins-command-env` 2 条全绿。
 - [x] `cargo test -p lania-cli --test phase3_e2e lan_env_` 13 条全绿。
 - [x] `cargo test --workspace --no-run` 全部测试目标可编译。
 - [x] `cargo tree -p runex` 中只有 `runex-core`，没有 `lania-runtime-manager` 或其它 lania 宿主 crate。
 - [x] `git grep "lania-runtime-manager\|lania_runtime_manager"` 为空（除本文件的历史说明）。
+
+## 15. 第二批实现记录
+
+| 语言   | 上游                              | 产物                              | 入口 / 环境                    |
+| ------ | --------------------------------- | --------------------------------- | ------------------------------ |
+| Java   | api.adoptium.net（Temurin）       | `package.link`（zip / tar.gz）    | `java/javac/jar/jlink`，`JAVA_HOME` |
+| Kotlin | github.com/JetBrains/kotlin       | `kotlin-compiler-<ver>.zip`       | `kotlin/kotlinc`，`KOTLIN_HOME` |
+| Scala  | github.com/scala/scala3           | `scala3-<ver>.zip`                | `scala/scalac`，`SCALA_HOME`    |
+| Dart   | storage.googleapis.com/dart-archive | `dartsdk-<os>-<arch>-release.zip` | `dart`，`DART_SDK`             |
+
+- `runex` / `lan env` 会自动把上述语言加入 `list` / `info` / `versions` / `install`；
+- Kotlin / Scala 只安装编译器发行包，运行仍需要系统或自管的 JDK；
+- Swift 仍为探测层，自管安装留待第三批；
+- 新增 Provider 的单元测试，覆盖版本解析 / 资产命名 / `runex-core` 注册表。
+
+验收：
+
+- [x] `runex versions java --available` 能列出 Temurin 版本。
+- [x] `runex versions dart --available` 能列出 Dart 3.x 版本。
+- [x] `runex versions kotlin --available` / `scala --available` 能列出 GitHub Releases。
+- [x] `lan env list` 将 Java / Dart / Kotlin / Scala 标记为 `self-managed`。

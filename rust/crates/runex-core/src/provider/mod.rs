@@ -10,11 +10,15 @@
 pub mod model;
 
 pub mod bun;
+pub mod dart;
 pub mod deno;
 pub mod go;
+pub mod java;
+pub mod kotlin;
 pub mod node;
 pub mod python;
 pub mod rust;
+pub mod scala;
 pub mod zig;
 
 use std::path::Path;
@@ -113,6 +117,10 @@ pub fn upstream_for(language_id: &str) -> &'static str {
         deno::ID => "github.com/denoland/deno/releases",
         bun::ID => "github.com/oven-sh/bun/releases",
         zig::ID => "ziglang.org/download",
+        java::ID => "api.adoptium.net (Temurin)",
+        dart::ID => "storage.googleapis.com/dart-archive",
+        kotlin::ID => "github.com/JetBrains/kotlin/releases",
+        scala::ID => "github.com/scala/scala3/releases",
         _ => "unknown upstream",
     }
 }
@@ -127,6 +135,10 @@ pub fn provider_for(language_id: &str, platform: Platform) -> Option<Box<dyn Run
         deno::ID => Box::new(deno::DenoProvider::new(platform)),
         bun::ID => Box::new(bun::BunProvider::new(platform)),
         zig::ID => Box::new(zig::ZigProvider::new(platform)),
+        java::ID => Box::new(java::JavaProvider::new(platform)),
+        dart::ID => Box::new(dart::DartProvider::new(platform)),
+        kotlin::ID => Box::new(kotlin::KotlinProvider::new()),
+        scala::ID => Box::new(scala::ScalaProvider::new()),
         _ => return None,
     })
 }
@@ -141,6 +153,10 @@ pub fn supported_language_ids() -> &'static [&'static str] {
         deno::ID,
         bun::ID,
         zig::ID,
+        java::ID,
+        dart::ID,
+        kotlin::ID,
+        scala::ID,
     ]
 }
 
@@ -163,10 +179,7 @@ pub fn describe(language_id: &str, platform: Platform) -> Option<ProviderInfo> {
 
 /// 该语言是否在计划矩阵里还没实现（第一批之外）。
 pub fn is_planned(language_id: &str) -> bool {
-    matches!(
-        language_id,
-        "java" | "kotlin" | "scala" | "dart" | "swift" | "d" | "v" | "julia" | "haskell"
-    )
+    matches!(language_id, "swift" | "d" | "v" | "julia" | "haskell")
 }
 
 /// 各上游在特定平台上的已知缺口（返回原因文本）。
@@ -208,7 +221,7 @@ mod tests {
                 "missing provider for {id}"
             );
         }
-        assert!(provider_for("java", platform).is_none());
+        assert!(provider_for("swift", platform).is_none());
     }
 
     #[test]

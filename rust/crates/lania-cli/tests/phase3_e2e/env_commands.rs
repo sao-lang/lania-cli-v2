@@ -49,15 +49,29 @@ fn lan_env_list_reports_supported_toolchains() {
         .iter()
         .filter_map(|tool| tool["id"].as_str())
         .collect();
-    for expected in ["node", "python", "rust", "go", "deno", "bun", "zig"] {
+    for expected in [
+        "node", "python", "rust", "go", "deno", "bun", "zig", "java", "dart", "kotlin", "scala",
+    ] {
         assert!(ids.contains(&expected), "missing {expected} in {ids:?}");
     }
-    // 第一批语言必须标记为自管，并带上上游渠道。
+    // 第一批 + 第二批语言必须标记为自管，并带上上游渠道。
     for tool in tools {
         assert!(tool["installed"].is_boolean(), "{tool:?}");
         if matches!(
             tool["id"].as_str(),
-            Some("node" | "python" | "rust" | "go" | "deno" | "bun" | "zig")
+            Some(
+                "node"
+                    | "python"
+                    | "rust"
+                    | "go"
+                    | "deno"
+                    | "bun"
+                    | "zig"
+                    | "java"
+                    | "dart"
+                    | "kotlin"
+                    | "scala"
+            )
         ) {
             assert_eq!(tool["managed"], true, "{tool:?}");
             assert!(tool["upstream"].is_string(), "{tool:?}");

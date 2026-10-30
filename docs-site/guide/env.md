@@ -130,7 +130,7 @@ LANIA_ENV_ICONS=ascii lan env ui   # 强制等宽纯文本 ◈
 
 ## 支持的语言
 
-`lan env` 认识 **40 种**语言 / 运行时，但**当前只有第一批支持自管安装**：
+`lan env` 认识 **40 种**语言 / 运行时，当前第一、二批支持自管安装：
 
 ### 第一批（已实现自管下载）
 
@@ -144,11 +144,22 @@ LANIA_ENV_ICONS=ascii lan env ui   # 强制等宽纯文本 ◈
 | Bun    | github.com/oven-sh/bun/releases      | `zip` 单文件                        |
 | Zig    | ziglang.org/download                 | `tar.xz` 单目录                     |
 
+### 第二批（已实现自管下载）
+
+| 语言   | 上游                              | 产物形态                         | 备注                     |
+| ------ | --------------------------------- | -------------------------------- | ------------------------ |
+| Java   | api.adoptium.net（Temurin）       | `zip` / `tar.gz`                 | 设置 `JAVA_HOME`         |
+| Kotlin | github.com/JetBrains/kotlin       | `zip`（`kotlin-compiler-*.zip`） | 运行需要 JDK             |
+| Scala  | github.com/scala/scala3           | `zip`（`scala3-*.zip`）          | 运行需要 JDK             |
+| Dart   | storage.googleapis.com/dart-archive | `zip`（`dartsdk-*.zip`）         | 设置 `DART_SDK`          |
+
+Swift 仍只做探测；自管安装待评估。
+
 其余语言仍可被 `lan env list` / `info` **探测**（显示本机系统安装的版本），但 `install` / `use` / `remove` 会明确报错：
 
 ```text
 $ lan env install ruby 3.3.0 --yes
-Error: ruby is not self-managed yet; available now: node, python, go, rust, deno, bun, zig
+Error: ruby is not self-managed yet; available now: node, python, go, rust, deno, bun, zig, java, dart, kotlin, scala
 ```
 
 每种语言的入口命令、上游渠道与平台矩阵集中定义在 `runex-core/src/provider/` 下，新增语言只需实现一个 `RuntimeProvider`。
