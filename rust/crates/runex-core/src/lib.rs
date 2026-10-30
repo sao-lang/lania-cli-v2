@@ -46,7 +46,7 @@ pub use version::{pick_best, VersionTag};
 
 // 服务
 pub use detect::{EnvService, InstalledVersion, ProjectVersion, ToolStatus};
-pub use store::{Diagnostic, InstallEvent, InstallOutcome, RuntimeStore};
+pub use store::{Diagnostic, GcReport, InstallEvent, InstallOutcome, RuntimeStore};
 
 // 扩展点
 pub use provider::{

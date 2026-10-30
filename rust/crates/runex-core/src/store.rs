@@ -12,6 +12,7 @@
 //! ```
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use crate::archive;
 use crate::checksum;
@@ -757,6 +758,54 @@ impl RuntimeStore {
         }
         Ok(())
     }
+
+    /// 清理下载缓存。
+    ///
+    /// - `max_age = None`：清空全部缓存；
+    /// - `Some(age)`：只删除修改时间早于 `age` 的文件；
+    /// - `dry_run = true`：只统计，不删除。
+    ///
+    /// 只碰 `cache/downloads`，不会删除已安装的运行时版本。
+    pub fn gc_download_cache(
+        &self,
+        max_age: Option<Duration>,
+        dry_run: bool,
+    ) -> Result<GcReport, RuntimeError> {
+        let dir = self.home.downloads_dir();
+        let mut report = GcReport {
+            removed: Vec::new(),
+            bytes: 0,
+        };
+        if !dir.is_dir() {
+            return Ok(report);
+        }
+        for entry in std::fs::read_dir(&dir)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_file() {
+                continue;
+            }
+            let stale = match max_age {
+                None => true,
+                Some(age) => entry
+                    .metadata()
+                    .ok()
+                    .and_then(|metadata| metadata.modified().ok())
+                    .and_then(|modified| modified.elapsed().ok())
+                    .map(|elapsed| elapsed >= age)
+                    .unwrap_or(false),
+            };
+            if !stale {
+                continue;
+            }
+            let size = entry.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+            if !dry_run {
+                std::fs::remove_file(entry.path())?;
+            }
+            report.bytes += size;
+            report.removed.push(entry.path());
+        }
+        Ok(report)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -771,6 +820,13 @@ pub enum DiagnosticLevel {
 pub struct Diagnostic {
     pub level: DiagnosticLevel,
     pub message: String,
+}
+
+/// 下载缓存清理结果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GcReport {
+    pub removed: Vec<PathBuf>,
+    pub bytes: u64,
 }
 
 /// 原子写文件：先写 `.tmp` 再 rename，避免中途崩溃留下半个 JSON。
@@ -1040,6 +1096,35 @@ mod tests {
             RuntimeHome::at(root.join("runex")),
             Platform::detect().unwrap(),
         )
+    }
+
+    #[test]
+    fn gc_download_cache_reports_and_removes_files() {
+        let root = std::env::temp_dir().join(format!("runex-store-gc-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let store = store_at(&root);
+        let downloads = store.home().downloads_dir();
+        std::fs::create_dir_all(&downloads).unwrap();
+        std::fs::write(downloads.join("a.crate"), b"12345").unwrap();
+        std::fs::write(downloads.join("b.crate"), b"123").unwrap();
+
+        let dry = store.gc_download_cache(None, true).unwrap();
+        assert_eq!(dry.removed.len(), 2);
+        assert_eq!(dry.bytes, 8);
+        assert_eq!(std::fs::read_dir(&downloads).unwrap().count(), 2);
+
+        let fresh = store
+            .gc_download_cache(Some(Duration::from_secs(3600)), false)
+            .unwrap();
+        assert!(fresh.removed.is_empty());
+        assert_eq!(std::fs::read_dir(&downloads).unwrap().count(), 2);
+
+        let all = store.gc_download_cache(None, false).unwrap();
+        assert_eq!(all.removed.len(), 2);
+        assert_eq!(all.bytes, 8);
+        assert_eq!(std::fs::read_dir(&downloads).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

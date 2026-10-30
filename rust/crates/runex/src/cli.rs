@@ -104,6 +104,16 @@ pub enum Command {
     /// Diagnose pointers, shims and PATH wiring.
     Doctor,
 
+    /// Clean the download cache (installed runtimes are not removed).
+    Gc {
+        /// Remove every cached artifact, not just ones older than --days.
+        #[arg(long)]
+        all: bool,
+        /// Only remove cache entries older than this many days (default 7).
+        #[arg(long, default_value = "7")]
+        days: u64,
+    },
+
     /// Open the terminal UI (or render one non-interactive snapshot).
     Ui {
         /// Print one frame instead of starting the interactive TUI.

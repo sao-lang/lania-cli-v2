@@ -75,6 +75,7 @@ $RUNEX_HOME/                # 默认 ~/.runex
 | `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                                    |
 | `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                                        |
 | `runex doctor`                        | 指针 / shim / PATH 体检                                              |
+| `runex gc [--all] [--days N]`         | 清理下载缓存（默认 7 天前；不删除已安装版本）                        |
 | `runex ui`                            | 终端 TUI；`--snapshot` / `--cols` / `--rows` / `--down` / `--no-versions` |
 
 全局开关：`--json`（脚本与 GUI 用）、`--dry-run`（只打印计划）、`--home <dir>`（覆盖 `RUNEX_HOME`）、

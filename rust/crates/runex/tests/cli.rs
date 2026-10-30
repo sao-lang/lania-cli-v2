@@ -44,7 +44,7 @@ fn help_lists_the_nvm_style_commands() {
     assert!(output.status.success(), "{}", stderr(&output));
     let text = stdout(&output);
     for command in [
-        "install", "use", "remove", "list", "which", "init", "doctor", "ui",
+        "install", "use", "remove", "list", "which", "init", "doctor", "gc", "ui",
     ] {
         assert!(
             text.contains(command),
@@ -186,6 +186,16 @@ fn home_flag_overrides_the_environment_variable() {
     );
     let _ = std::fs::remove_dir_all(env_home);
     let _ = std::fs::remove_dir_all(flag_home);
+}
+
+#[test]
+fn gc_dry_run_on_clean_home_reports_zero() {
+    let home = temp_home("gc");
+    let output = runex(&home, &["gc", "--all", "--dry-run"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.contains('0'), "{text}");
+    let _ = std::fs::remove_dir_all(home);
 }
 
 #[test]

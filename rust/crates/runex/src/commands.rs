@@ -4,7 +4,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
 use runex::api::{
@@ -65,6 +65,7 @@ pub fn run(cli: Cli) -> Result<u8> {
         Command::Which { name, .. } => which(&api, name, cli.json),
         Command::Init { shell } => init(&api, shell.as_deref(), cli.json),
         Command::Doctor => doctor(&api, cli.json),
+        Command::Gc { all, days } => gc(&api, *all, *days, cli.json, cli.dry_run),
         Command::Ui {
             snapshot,
             cols,
@@ -525,6 +526,48 @@ fn doctor(api: &Runex, json: bool) -> Result<u8> {
         }
     })?;
     Ok(u8::from(has_error))
+}
+
+fn gc(api: &Runex, all: bool, days: u64, json: bool, dry_run: bool) -> Result<u8> {
+    let max_age = if all {
+        None
+    } else {
+        Some(Duration::from_secs(days.saturating_mul(86_400)))
+    };
+    let report = api
+        .gc_download_cache(max_age, dry_run)
+        .map_err(|error| anyhow::anyhow!("{error}"))?;
+    let count = report.removed.len();
+    let bytes = report.bytes;
+    let removed: Vec<String> = report
+        .removed
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect();
+    emit(
+        json,
+        json!({
+            "ok": true,
+            "dryRun": dry_run,
+            "files": count,
+            "bytes": bytes,
+            "removed": removed,
+        }),
+        || {
+            let freed = human_bytes(bytes);
+            if is_zh() {
+                if dry_run {
+                    println!("将删除 {count} 个缓存文件，释放 {freed}");
+                } else {
+                    println!("已删除 {count} 个缓存文件，释放 {freed}");
+                }
+            } else if dry_run {
+                println!("would remove {count} cached files ({freed})");
+            } else {
+                println!("removed {count} cached files ({freed})");
+            }
+        },
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

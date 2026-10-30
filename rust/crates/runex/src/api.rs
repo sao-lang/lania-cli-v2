@@ -20,8 +20,8 @@ use std::path::{Path, PathBuf};
 pub use runex_core::{
     build_plan, build_plan_at, describe_provider, execute_plan, platform_limitation, provider_for,
     supported_language_ids, upstream_for, Diagnostic, DiagnosticLevel, EnvAction, EnvPlan,
-    EnvService, InstallEvent, InstallOutcome, InstalledRuntime, InstalledVersion, Language,
-    PlanStep, Platform, ProviderInfo, RuntimeError, RuntimeHome, RuntimeStore, ShimHost,
+    EnvService, GcReport, InstallEvent, InstallOutcome, InstalledRuntime, InstalledVersion,
+    Language, PlanStep, Platform, ProviderInfo, RuntimeError, RuntimeHome, RuntimeStore, ShimHost,
     ToolStatus, VersionTag,
 };
 
@@ -202,6 +202,15 @@ impl Runex {
     /// 生成把 shims 加入 PATH 的 shell 片段。
     pub fn init_snippet(&self, shell: &str) -> String {
         self.store.init_snippet(shell)
+    }
+
+    /// 清理下载缓存；`max_age = None` 表示全部清空。
+    pub fn gc_download_cache(
+        &self,
+        max_age: Option<std::time::Duration>,
+        dry_run: bool,
+    ) -> Result<GcReport, RuntimeError> {
+        self.store.gc_download_cache(max_age, dry_run)
     }
 
     /// 在当前 cwd 上启动 TUI（阻塞到用户退出）。
