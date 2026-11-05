@@ -51,10 +51,11 @@ fn lan_env_list_reports_supported_toolchains() {
         .collect();
     for expected in [
         "node", "python", "rust", "go", "deno", "bun", "zig", "java", "dart", "kotlin", "scala",
+        "julia", "d", "v", "crystal", "gleam", "haxe", "elixir",
     ] {
         assert!(ids.contains(&expected), "missing {expected} in {ids:?}");
     }
-    // 第一批 + 第二批语言必须标记为自管，并带上上游渠道。
+    // 第一、二、三批语言必须标记为自管，并带上上游渠道。
     for tool in tools {
         assert!(tool["installed"].is_boolean(), "{tool:?}");
         if matches!(
@@ -71,6 +72,13 @@ fn lan_env_list_reports_supported_toolchains() {
                     | "dart"
                     | "kotlin"
                     | "scala"
+                    | "julia"
+                    | "d"
+                    | "v"
+                    | "crystal"
+                    | "gleam"
+                    | "haxe"
+                    | "elixir"
             )
         ) {
             assert_eq!(tool["managed"], true, "{tool:?}");

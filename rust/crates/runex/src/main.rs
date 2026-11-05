@@ -11,10 +11,28 @@
 mod cli;
 mod commands;
 
-use clap::Parser;
+use clap::error::ErrorKind;
+use clap::FromArgMatches;
 
 fn main() -> std::process::ExitCode {
-    let cli = cli::Cli::parse();
+    // 帮助文本也要跟随 locale：在 clap 解析前先扫 `--locale` 与配置文件。
+    let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    let locale = cli::help_locale(&args);
+    let matches = match cli::localized_command(locale).try_get_matches_from(args) {
+        Ok(matches) => matches,
+        Err(error) => match error.kind() {
+            // 帮助在 clap 内部已经渲染完，这里先做结构词替换再输出。
+            ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                print!("{}", cli::localize_help_output(&error.to_string(), locale));
+                return std::process::ExitCode::SUCCESS;
+            }
+            _ => error.exit(),
+        },
+    };
+    let cli = match cli::Cli::from_arg_matches(&matches) {
+        Ok(cli) => cli,
+        Err(error) => error.exit(),
+    };
     match commands::run(cli) {
         Ok(code) => std::process::ExitCode::from(code),
         Err(error) => {

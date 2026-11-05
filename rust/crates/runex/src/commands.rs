@@ -11,6 +11,7 @@ use runex::api::{
     describe_provider, provider_for, supported_language_ids, DiagnosticLevel, InstallEvent,
     Language, Platform, Runex, RuntimeHome, ShimHost,
 };
+use runex::i18n::{localize_diagnostic, LocaleSource};
 use runex::Locale;
 use serde_json::{json, Value};
 
@@ -28,13 +29,17 @@ fn is_zh() -> bool {
 }
 
 pub fn run(cli: Cli) -> Result<u8> {
-    let locale = Locale::resolve(cli.locale.as_deref());
-    let _ = LOCALE.set(locale);
-    let platform = Platform::detect().context("cannot detect the current platform")?;
     let home = match &cli.home {
         Some(dir) => RuntimeHome::at(dir.clone()),
         None => RuntimeHome::resolve()?,
     };
+    // `locale` 要写入当前 `--home` 指向的配置，所以先解析 home 再处理它。
+    if let Command::Locale { value } = &cli.command {
+        return locale_command(&home, value.as_deref(), cli.locale.as_deref(), cli.json);
+    }
+    let locale = Locale::resolve_with_home(cli.locale.as_deref(), &home);
+    let _ = LOCALE.set(locale);
+    let platform = Platform::detect().context("cannot detect the current platform")?;
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     // 独立二进制的 shim 必须调用 `runex`（而不是 `lan env`），并带上自身路径兜底。
     let api = Runex::new(home, platform)
@@ -42,6 +47,7 @@ pub fn run(cli: Cli) -> Result<u8> {
         .with_shim_host(ShimHost::binary("runex", std::env::current_exe().ok()));
 
     match &cli.command {
+        Command::Locale { .. } => unreachable!("handled before the locale is resolved"),
         Command::Install { tool, version } => install(&api, tool, version, cli.json, cli.dry_run),
         Command::Use {
             tool,
@@ -76,11 +82,109 @@ pub fn run(cli: Cli) -> Result<u8> {
     }
 }
 
+fn locale_command(
+    home: &RuntimeHome,
+    value: Option<&str>,
+    explicit: Option<&str>,
+    json: bool,
+) -> Result<u8> {
+    let path = Locale::config_path(home);
+    match value.map(str::trim).filter(|value| !value.is_empty()) {
+        None => {
+            let (locale, source) = Locale::resolve_detailed(explicit, home);
+            let _ = LOCALE.set(locale);
+            emit(
+                json,
+                json!({
+                    "locale": locale.code(),
+                    "source": source.as_str(),
+                    "path": path.display().to_string(),
+                }),
+                || {
+                    if locale.is_zh() {
+                        println!("语言：{}（{}）", locale.code(), source.label(true));
+                        println!("配置文件：{}", path.display());
+                    } else {
+                        println!("locale: {} ({})", locale.code(), source.label(false));
+                        println!("config: {}", path.display());
+                    }
+                },
+            )
+        }
+        Some(raw) if raw.eq_ignore_ascii_case("auto") => {
+            Locale::save(home, None)?;
+            let (detected, source) = Locale::resolve_detailed(None, home);
+            let _ = LOCALE.set(detected);
+            emit(
+                json,
+                json!({
+                    "ok": true,
+                    "locale": detected.code(),
+                    "source": source.as_str(),
+                    "path": path.display().to_string(),
+                }),
+                || {
+                    if detected.is_zh() {
+                        println!(
+                            "语言已设为自动；当前检测到 {}（{}）",
+                            detected.code(),
+                            source.label(true)
+                        );
+                    } else {
+                        println!(
+                            "locale set to auto; detected {} ({})",
+                            detected.code(),
+                            source.label(false)
+                        );
+                    }
+                },
+            )
+        }
+        Some(raw) => {
+            let Some(target) = Locale::from_code(raw) else {
+                let (current, _) = Locale::resolve_detailed(explicit, home);
+                let _ = LOCALE.set(current);
+                if current.is_zh() {
+                    bail!("不支持的语言 `{raw}`；可选：en、zh、auto");
+                }
+                bail!("unsupported locale `{raw}`; choose en, zh or auto");
+            };
+            Locale::save(home, Some(target))?;
+            let _ = LOCALE.set(target);
+            emit(
+                json,
+                json!({
+                    "ok": true,
+                    "locale": target.code(),
+                    "source": LocaleSource::Config.as_str(),
+                    "path": path.display().to_string(),
+                }),
+                || {
+                    if target.is_zh() {
+                        println!("语言已设为 {}（保存在 {}）", target.code(), path.display());
+                    } else {
+                        println!(
+                            "locale set to {} (saved in {})",
+                            target.code(),
+                            path.display()
+                        );
+                    }
+                },
+            )
+        }
+    }
+}
+
 fn install(api: &Runex, tool: &str, version: &str, json: bool, dry_run: bool) -> Result<u8> {
     let language = ensure_language(tool)?;
     let id = language.id();
-    let provider = provider_for(id, api.platform())
-        .with_context(|| format!("{id} is not self-managed yet"))?;
+    let provider = provider_for(id, api.platform()).with_context(|| {
+        if is_zh() {
+            format!("{id} 尚未支持自管")
+        } else {
+            format!("{id} is not self-managed yet")
+        }
+    })?;
     let upstream = provider.upstream().to_string();
 
     if dry_run {
@@ -207,11 +311,13 @@ fn use_version(
     let mut pinned = Value::Null;
     if project {
         // 项目级 pin：只写该语言的第一个版本文件（与 `lan env use --project` 一致）。
-        let file = language
-            .version_files()
-            .first()
-            .copied()
-            .with_context(|| format!("{id} has no project version file"))?;
+        let file = language.version_files().first().copied().with_context(|| {
+            if is_zh() {
+                format!("{id} 没有项目版本文件")
+            } else {
+                format!("{id} has no project version file")
+            }
+        })?;
         let target = cwd.join(file);
         std::fs::write(&target, format!("{resolved}\n"))
             .with_context(|| format!("failed to write {}", target.display()))?;
@@ -517,12 +623,17 @@ fn doctor(api: &Runex, json: bool) -> Result<u8> {
     let has_error = diagnostics
         .iter()
         .any(|item| item.level == DiagnosticLevel::Error);
+    let locale = LOCALE.get().copied().unwrap_or_default();
     emit(json, json!({"diagnostics": items}), || {
         if diagnostics.is_empty() {
             println!("{}", tr("everything looks fine", "一切正常"));
         }
         for item in &diagnostics {
-            println!("[{}] {}", level_label(item.level), item.message);
+            println!(
+                "[{}] {}",
+                level_label(item.level),
+                localize_diagnostic(&item.message, locale)
+            );
         }
     })?;
     Ok(u8::from(has_error))
@@ -610,10 +721,17 @@ fn ui(
 
 fn ensure_language(tool: &str) -> Result<Language> {
     Language::parse_id(tool).ok_or_else(|| {
-        anyhow::anyhow!(
-            "unsupported tool `{tool}`; supported: {}",
-            supported_language_ids().join(", ")
-        )
+        if is_zh() {
+            anyhow::anyhow!(
+                "不支持的工具 `{tool}`；支持：{}",
+                supported_language_ids().join(", ")
+            )
+        } else {
+            anyhow::anyhow!(
+                "unsupported tool `{tool}`; supported: {}",
+                supported_language_ids().join(", ")
+            )
+        }
     })
 }
 
@@ -626,7 +744,13 @@ fn resolve_latest(api: &Runex, id: &str) -> Result<String> {
         .iter()
         .find(|tag| !tag.prerelease)
         .map(|tag| tag.raw.clone())
-        .with_context(|| format!("{id} has no stable release upstream"))
+        .with_context(|| {
+            if is_zh() {
+                format!("{id} 在上游没有稳定版本")
+            } else {
+                format!("{id} has no stable release upstream")
+            }
+        })
 }
 
 /// 从项目版本文件（`.nvmrc` / `.python-version` / `go.mod` …）读出版本约束。

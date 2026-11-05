@@ -132,7 +132,7 @@ fn localize_env_mutation(spec: &mut CommandSpec) {
     set_arg_help(
         spec,
         "tool",
-        "要管理的工具：node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala",
+        "要管理的工具：node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir",
     );
     set_arg_help(
         spec,
@@ -851,7 +851,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         // env
         "command.env" => {
             spec.about =
-                "由 lania 自行安装并切换语言运行时（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala）".into();
+                "由 lania 自行安装并切换语言运行时（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir）".into();
             set_example_desc(
                 spec,
                 "lan env init",
@@ -913,7 +913,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_arg_help(
                 spec,
                 "tool",
-                "要查看的工具：node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala",
+                "要查看的工具：node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir",
             );
         }
         "command.env.versions" => {
@@ -921,7 +921,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_arg_help(
                 spec,
                 "tool",
-                "要列出的工具：node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala",
+                "要列出的工具：node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir",
             );
             set_option_help(spec, "available", "同时查询上游可安装的版本");
         }

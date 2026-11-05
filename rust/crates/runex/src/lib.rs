@@ -2,7 +2,7 @@
 //!
 //! 本 crate 同时提供三种形态：
 //!
-//! - **CLI**：`runex install / use / remove / list / ...`（`src/main.rs`）；
+//! - **CLI**：`runex install / use / remove / list / locale / ...`（`src/main.rs`）；
 //! - **TUI**：`runex ui`（[`tui`]）；
 //! - **Rust API**：[`api::Runex`]，宿主 / GUI / 脚本直接调用。
 //!

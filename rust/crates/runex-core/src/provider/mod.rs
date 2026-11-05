@@ -10,15 +10,23 @@
 pub mod model;
 
 pub mod bun;
+pub mod crystal;
+pub mod d;
 pub mod dart;
 pub mod deno;
+pub mod elixir;
+pub mod github;
+pub mod gleam;
 pub mod go;
+pub mod haxe;
 pub mod java;
+pub mod julia;
 pub mod kotlin;
 pub mod node;
 pub mod python;
 pub mod rust;
 pub mod scala;
+pub mod v;
 pub mod zig;
 
 use std::path::Path;
@@ -121,11 +129,18 @@ pub fn upstream_for(language_id: &str) -> &'static str {
         dart::ID => "storage.googleapis.com/dart-archive",
         kotlin::ID => "github.com/JetBrains/kotlin/releases",
         scala::ID => "github.com/scala/scala3/releases",
+        julia::ID => "julialang-s3.julialang.org/bin",
+        d::ID => "downloads.dlang.org/releases/2.x",
+        v::ID => "github.com/vlang/v/releases",
+        crystal::ID => "github.com/crystal-lang/crystal/releases",
+        gleam::ID => "github.com/gleam-lang/gleam/releases",
+        haxe::ID => "github.com/HaxeFoundation/haxe/releases",
+        elixir::ID => "github.com/elixir-lang/elixir/releases",
         _ => "unknown upstream",
     }
 }
 
-/// 全部第一批语言的 Provider 工厂，按语言 id 索引。
+/// 全部已自管语言的 Provider 工厂，按语言 id 索引。
 pub fn provider_for(language_id: &str, platform: Platform) -> Option<Box<dyn RuntimeProvider>> {
     Some(match language_id {
         node::ID => Box::new(node::NodeProvider::new(platform)),
@@ -139,11 +154,18 @@ pub fn provider_for(language_id: &str, platform: Platform) -> Option<Box<dyn Run
         dart::ID => Box::new(dart::DartProvider::new(platform)),
         kotlin::ID => Box::new(kotlin::KotlinProvider::new()),
         scala::ID => Box::new(scala::ScalaProvider::new()),
+        julia::ID => Box::new(julia::JuliaProvider::new(platform)),
+        d::ID => Box::new(d::DProvider::new(platform)),
+        v::ID => Box::new(v::VProvider::new(platform)),
+        crystal::ID => Box::new(crystal::CrystalProvider::new(platform)),
+        gleam::ID => Box::new(gleam::GleamProvider::new(platform)),
+        haxe::ID => Box::new(haxe::HaxeProvider::new(platform)),
+        elixir::ID => Box::new(elixir::ElixirProvider::new()),
         _ => return None,
     })
 }
 
-/// 第一批（自管下载）已实现的全部语言 id。
+/// 已实现自管下载的全部语言 id（第一、二、三批）。
 pub fn supported_language_ids() -> &'static [&'static str] {
     &[
         node::ID,
@@ -157,6 +179,13 @@ pub fn supported_language_ids() -> &'static [&'static str] {
         dart::ID,
         kotlin::ID,
         scala::ID,
+        julia::ID,
+        d::ID,
+        v::ID,
+        crystal::ID,
+        gleam::ID,
+        haxe::ID,
+        elixir::ID,
     ]
 }
 
@@ -177,9 +206,31 @@ pub fn describe(language_id: &str, platform: Platform) -> Option<ProviderInfo> {
     })
 }
 
-/// 该语言是否在计划矩阵里还没实现（第一批之外）。
+/// 该语言在 §6.3 计划矩阵里、但还没实现自管下载。
+///
+/// 只列「上游可行性待评估或需要额外能力」的语言；已自管的以
+/// [`supported_language_ids`] 为准，二者不重叠。
 pub fn is_planned(language_id: &str) -> bool {
-    matches!(language_id, "swift" | "d" | "v" | "julia" | "haskell")
+    matches!(
+        language_id,
+        "swift"
+            | "haskell"
+            | "erlang"
+            | "elm"
+            | "ocaml"
+            | "groovy"
+            | "ruby"
+            | "php"
+            | "perl"
+            | "lua"
+            | "nim"
+            | "r"
+            | "clojure"
+            | "solidity"
+            | "moonbit"
+            | "cangjie"
+            | "arkts"
+    )
 }
 
 /// 各上游在特定平台上的已知缺口（返回原因文本）。
@@ -190,6 +241,24 @@ pub fn platform_limitation(language_id: &str, platform: Platform) -> Option<Stri
         // Zig 官方只发布 x64/arm64 的 linux / macOS / Windows 产物，这里全部覆盖。
         zig::ID if platform.os == crate::Os::Linux && platform.libc == crate::Libc::Musl => {
             Some("zig ships glibc-linked binaries only".to_string())
+        }
+        // DMD 在 Windows 只发 .7z，当前归档层只处理 tar/zip。
+        d::ID if platform.os == crate::Os::Windows => Some(
+            "DMD ships Windows builds as .7z installers; lania only extracts tar/zip".to_string(),
+        ),
+        // Crystal 的 Windows 资产被上游自己标记为 unsupported。
+        crystal::ID if platform.os == crate::Os::Windows => {
+            Some("Crystal Windows builds are marked unsupported upstream".to_string())
+        }
+        v::ID
+            if platform
+                == (Platform {
+                    os: crate::Os::Windows,
+                    arch: crate::Arch::Arm64,
+                    libc: crate::Libc::None,
+                }) =>
+        {
+            Some("V has no Windows arm64 build".to_string())
         }
         _ => None,
     }
@@ -213,12 +282,16 @@ mod tests {
     }
 
     #[test]
-    fn every_batch_one_language_has_a_provider() {
+    fn every_managed_language_has_a_provider() {
         let platform = platform(Os::Windows, Arch::X64);
         for id in supported_language_ids() {
             assert!(
                 provider_for(id, platform).is_some(),
                 "missing provider for {id}"
+            );
+            assert!(
+                !is_planned(id),
+                "{id} is both self-managed and still marked as planned"
             );
         }
         assert!(provider_for("swift", platform).is_none());
@@ -226,11 +299,21 @@ mod tests {
 
     #[test]
     fn unsupported_platforms_are_reported() {
-        // Zig 没有 macOS x64 之外的问题，但 Deno 在 linux-arm64 上有产物；
-        // 这里只验证描述结构完整。
         let info = describe("node", platform(Os::Linux, Arch::Arm64)).expect("node provider");
         assert_eq!(info.id, "node");
         assert!(info.supported);
         assert!(info.unsupported_reason.is_none());
+
+        let windows = platform(Os::Windows, Arch::X64);
+        for id in ["d", "crystal"] {
+            let info = describe(id, windows).expect("third-batch provider");
+            assert!(!info.supported, "{id} should be unsupported on Windows");
+            assert!(info.unsupported_reason.is_some());
+        }
+        assert!(
+            describe("d", platform(Os::Linux, Arch::X64))
+                .expect("d provider")
+                .supported
+        );
     }
 }

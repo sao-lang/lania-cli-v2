@@ -13,6 +13,7 @@ use crate::api::{
     EnvService, InstallEvent, Language, PlanStep, Platform, RuntimeHome, RuntimeStore, ShimHost,
     ToolStatus,
 };
+use crate::i18n::{localize_diagnostic, localize_plan, plan_result_lines, Locale};
 
 /// 当前交互模式。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -103,6 +104,10 @@ pub struct App {
     pub load_versions: bool,
     /// 正在后台执行的安装任务；事件循环每 100ms 轮询一次。
     pub install_rx: Option<mpsc::Receiver<InstallMsg>>,
+    /// 正在后台执行的整体计划（结果行需要按它逐步骤生成）。
+    pub active_plan: Option<EnvPlan>,
+    /// 安装事件落地的真实版本（`23` → `23.11.0`），用于结果行。
+    pub resolved_install_version: Option<String>,
 }
 
 /// 后台安装任务发回主线程的事件。
@@ -183,6 +188,8 @@ impl App {
             pending_refresh: false,
             load_versions: true,
             install_rx: None,
+            active_plan: None,
+            resolved_install_version: None,
         }
     }
 
@@ -708,13 +715,17 @@ impl App {
                     ));
                 }
                 Ok(diagnostics) => {
+                    let locale = Locale::parse(&self.locale);
                     for diagnostic in diagnostics {
                         let prefix = match diagnostic.level {
                             crate::api::DiagnosticLevel::Error => "✗",
                             crate::api::DiagnosticLevel::Warn => "!",
                             crate::api::DiagnosticLevel::Info => "·",
                         };
-                        lines.push(format!("{prefix} {}", diagnostic.message));
+                        lines.push(format!(
+                            "{prefix} {}",
+                            localize_diagnostic(&diagnostic.message, locale)
+                        ));
                     }
                 }
                 Err(error) => lines.push(format!("✗ {error}")),
@@ -743,8 +754,8 @@ impl App {
         let Some(tool) = self.current() else { return };
         let version = self.input.trim().to_string();
         let tool_id = tool.language.clone();
-        let home = self.store.as_ref().map(|store| store.home());
-        let plan = build_plan_at(
+        let home = self.store.as_ref().map(|store| store.home().clone());
+        let mut plan = build_plan_at(
             kind.action(),
             &tool_id,
             if version.is_empty() {
@@ -754,8 +765,10 @@ impl App {
             },
             &self.cwd,
             self.project_pin,
-            home,
+            home.as_ref(),
         );
+        // 核心层只产出英文；在这里统一换成当前语言，确认框和结果日志用的是同一份文案。
+        localize_plan(&mut plan, home.as_ref(), Locale::parse(&self.locale));
         self.pending_plan = Some(plan);
         self.mode = Mode::Confirm;
     }
@@ -766,10 +779,16 @@ impl App {
             self.mode = Mode::Browse;
             return;
         };
+        let locale = Locale::parse(&self.locale);
         self.mode = Mode::Result;
         self.log.clear();
-        self.log
-            .push(format!("$ {} {}", plan.action.as_str(), plan.tool));
+        self.resolved_install_version = None;
+        self.active_plan = None;
+        self.log.push(format!(
+            "{} {}",
+            super::ui::action_label(plan.action, locale.is_zh()),
+            plan.tool
+        ));
 
         if let Some(error) = plan.error.as_deref() {
             self.log.push(format!("✗ {error}"));
@@ -792,6 +811,7 @@ impl App {
                 .with_shim_host(store.shim_host().clone());
             let (tx, rx) = mpsc::channel();
             self.install_rx = Some(rx);
+            self.active_plan = Some(plan.clone());
             self.status = self.tr("Installing…", "安装中…").into();
             std::thread::spawn(move || {
                 let step_tx = tx.clone();
@@ -813,23 +833,29 @@ impl App {
 
         let mut steps = Vec::new();
         let result = execute_plan(store, &plan, |step| steps.push(step.clone()));
-        let mut lines: Vec<String> = steps
-            .iter()
-            .map(|step| format!("› {}", step.command))
-            .collect();
+        for step in &steps {
+            self.log.push(format!("› {}", step.label));
+        }
         let mut failed = false;
         match result {
-            Ok(results) => lines.extend(results.into_iter().map(|line| format!("  ✓ {line}"))),
+            Ok(_) => {
+                for line in plan_result_lines(&plan, locale, None) {
+                    self.log.push(format!("  ✓ {line}"));
+                }
+            }
             Err(error) => {
-                lines.push(format!("  ✗ {error}"));
+                self.log.push(format!("  ✗ {error}"));
                 failed = true;
             }
         }
-        self.log.extend(lines);
         self.status = if failed {
             self.tr("Execution failed", "执行失败").into()
         } else {
-            format!("{} {}", plan.action.as_str(), self.tr("completed", "完成"))
+            format!(
+                "{} {}",
+                super::ui::action_label(plan.action, locale.is_zh()),
+                self.tr("completed", "完成")
+            )
         };
         self.pending_refresh = true;
     }
@@ -843,14 +869,26 @@ impl App {
         loop {
             match rx.try_recv() {
                 Ok(InstallMsg::Step(step)) => {
-                    self.log.push(format!("› {}", step.command));
+                    self.log.push(format!("› {}", step.label));
                 }
                 Ok(InstallMsg::Install(event)) => self.apply_install_event(event),
                 Ok(InstallMsg::Done(result)) => {
                     match result {
-                        Ok(results) => {
+                        Ok(_) => {
+                            let locale = Locale::parse(&self.locale);
+                            let lines = self
+                                .active_plan
+                                .as_ref()
+                                .map(|plan| {
+                                    plan_result_lines(
+                                        plan,
+                                        locale,
+                                        self.resolved_install_version.as_deref(),
+                                    )
+                                })
+                                .unwrap_or_default();
                             self.log
-                                .extend(results.into_iter().map(|line| format!("  ✓ {line}")));
+                                .extend(lines.into_iter().map(|line| format!("  ✓ {line}")));
                             self.status = format!(
                                 "{} {}",
                                 self.tr("install", "安装"),
@@ -862,6 +900,7 @@ impl App {
                             self.status = self.tr("Execution failed", "执行失败").into();
                         }
                     }
+                    self.active_plan = None;
                     self.pending_refresh = true;
                     done = true;
                     break;
@@ -905,6 +944,7 @@ impl App {
             InstallEvent::Extracting => self.tr("Extracting…", "解压中…").to_string(),
             InstallEvent::Finalizing => self.tr("Laying out…", "整理目录…").to_string(),
             InstallEvent::Done { version } => {
+                self.resolved_install_version = Some(version.clone());
                 format!("{} {version}", self.tr("Installed", "已安装"))
             }
         };

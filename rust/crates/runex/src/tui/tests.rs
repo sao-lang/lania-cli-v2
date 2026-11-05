@@ -40,11 +40,25 @@ fn poll_install_updates_status_and_finishes() {
     app.poll_install();
     assert!(app.status.contains("50%"), "status: {}", app.status);
 
+    app.active_plan = Some(plan(
+        crate::api::EnvAction::Install,
+        vec![crate::api::PlanStep {
+            kind: "install".into(),
+            label: "download node 20".into(),
+            command: "lan env install node 20 --yes".into(),
+            path: None,
+            content: None,
+        }],
+    ));
     tx.send(InstallMsg::Done(Ok(vec!["node installed".into()])))
         .unwrap();
     app.poll_install();
     assert!(app.pending_refresh);
-    assert!(app.log.iter().any(|line| line.contains("node installed")));
+    assert!(app
+        .log
+        .iter()
+        .any(|line| line.contains("installed node 20")));
+    assert!(!app.log.iter().any(|line| line.contains("lan env")));
     assert!(app.install_rx.is_none());
 }
 
@@ -243,6 +257,18 @@ fn execute_write_file_step_writes_project_pin() {
     app.execute_pending();
 
     assert!(app.status.contains("完成"), "status: {}", app.status);
+    assert!(
+        app.log.iter().any(|line| line.contains("已写入")),
+        "log: {:?}",
+        app.log
+    );
+    assert!(
+        !app.log.iter().any(|line| line.contains("lan env")
+            || line.contains("runex install")
+            || line.starts_with('$')),
+        "log must not echo shell commands: {:?}",
+        app.log
+    );
     assert_eq!(std::fs::read_to_string(&pin).expect("pin file"), "20\n");
     assert!(app.pending_refresh);
     let _ = std::fs::remove_dir_all(&dir);

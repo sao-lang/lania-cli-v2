@@ -109,7 +109,7 @@ fn tool_arg() -> ArgSpec {
         name: "tool".into(),
         required: true,
         multiple: false,
-        help: "Tool to manage: node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala".into(),
+        help: "Tool to manage: node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir".into(),
     }
 }
 

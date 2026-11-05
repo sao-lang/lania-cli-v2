@@ -19,11 +19,11 @@ runex ui                              # 终端 TUI
 
 ## 三种形态
 
-| 形态 | 入口 | 说明 |
-| ---- | ---- | ---- |
-| CLI | `runex <command>` | 脚本 / CI / 日常命令行 |
-| TUI | `runex ui` | 两栏终端界面；`--snapshot` 可在无 TTY 环境渲染一帧 |
-| Rust API | `runex::api::Runex` | 宿主 / GUI / IDE 插件直接嵌入，不经过子进程 |
+| 形态     | 入口                | 说明                                               |
+| -------- | ------------------- | -------------------------------------------------- |
+| CLI      | `runex <command>`   | 脚本 / CI / 日常命令行                             |
+| TUI      | `runex ui`          | 两栏终端界面；`--snapshot` 可在无 TTY 环境渲染一帧 |
+| Rust API | `runex::api::Runex` | 宿主 / GUI / IDE 插件直接嵌入，不经过子进程        |
 
 ## Rust API
 
@@ -65,27 +65,30 @@ $RUNEX_HOME/                # 默认 ~/.runex
 ├── runtimes/<tool>/<ver>/  # 每次安装一个目录，里面是该版本的完整发行包
 ├── shims/                  # 唯一需要进 PATH 的目录
 ├── cache/downloads/        # 产物缓存
+├── config.json             # 用户偏好（`runex locale` 写入的语言）
 └── state.json              # 每个工具的 current 指针
 ```
 
 ## 常用命令
 
-| 命令                                  | 说明                                                                 |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| `runex install <tool> [ver]`          | 安装；前缀（`20`）装 20.x 最高补丁，省略或 `latest` 取上游最新稳定版 |
-| `runex use <tool> [ver] [--project]`  | 切换 current；省略版本时读 `.nvmrc` 等版本文件，`--project` 写回     |
-| `runex remove <tool> <ver>`           | 删除自管版本；删当前版本会回退到剩余最高版本                         |
-| `runex list [--installed]`            | 列出工具 / 只列自管版本                                              |
-| `runex info <tool>`                   | 单个工具详情                                                         |
-| `runex versions <tool> [--available]` | 已安装版本；`--available` 额外查上游                                 |
-| `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                                    |
-| `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                                        |
-| `runex doctor`                        | 指针 / shim / PATH 体检                                              |
-| `runex gc [--all] [--days N]`         | 清理下载缓存（默认 7 天前；不删除已安装版本）                        |
+| 命令                                  | 说明                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------- |
+| `runex install <tool> [ver]`          | 安装；前缀（`20`）装 20.x 最高补丁，省略或 `latest` 取上游最新稳定版      |
+| `runex use <tool> [ver] [--project]`  | 切换 current；省略版本时读 `.nvmrc` 等版本文件，`--project` 写回          |
+| `runex remove <tool> <ver>`           | 删除自管版本；删当前版本会回退到剩余最高版本                              |
+| `runex list [--installed]`            | 列出工具 / 只列自管版本                                                   |
+| `runex info <tool>`                   | 单个工具详情                                                              |
+| `runex versions <tool> [--available]` | 已安装版本；`--available` 额外查上游                                      |
+| `runex which <name>`                  | 入口对应的真实路径（shim 依赖它）                                         |
+| `runex init [--shell bash]`           | 打印把 shims 加入 PATH 的片段                                             |
+| `runex doctor`                        | 指针 / shim / PATH 体检                                                   |
+| `runex gc [--all] [--days N]`         | 清理下载缓存（默认 7 天前；不删除已安装版本）                             |
+| `runex locale [en\|zh\|auto]`         | 查看 / 设置 CLI 与 TUI 的默认语言（保存在 `$RUNEX_HOME/config.json`）     |
 | `runex ui`                            | 终端 TUI；`--snapshot` / `--cols` / `--rows` / `--down` / `--no-versions` |
 
 全局开关：`--json`（脚本与 GUI 用）、`--dry-run`（只打印计划）、`--home <dir>`（覆盖 `RUNEX_HOME`）、
-`--locale en|zh`（CLI / TUI 文案，默认读 `RUNEX_LOCALE` / `LANG` 等环境变量）。
+`--locale en|zh`（只覆盖本次运行的文案，含 `--help`）。语言解析顺序：
+`--locale` → `RUNEX_LOCALE` → `$RUNEX_HOME/config.json`（`runex locale` 写入）→ `LC_ALL` / `LANG`。
 
 镜像：`RUNEX_NODE_MIRROR`（替换 `https://nodejs.org/dist`）、`RUNEX_GITHUB_MIRROR`
 （替换 `https://github.com`）、`RUNEX_GITHUB_API_MIRROR`（替换 `https://api.github.com`）。

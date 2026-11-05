@@ -123,7 +123,7 @@ impl Renderer {
 
         // 第一行：标题 + 设备系统信息（强调色，不使用灰色）。
         let os_label = Span::styled(
-            "os ",
+            format!("{} ", self.tr("os", "系统")),
             Style::default().fg(self.theme.warn).add_modifier(bold),
         );
         let os_value = Span::styled(
@@ -138,7 +138,7 @@ impl Renderer {
         );
         let cwd_line = Line::from(vec![
             Span::styled(
-                " cwd ",
+                format!(" {} ", self.tr("cwd", "目录")),
                 Style::default().fg(self.theme.title).add_modifier(bold),
             ),
             Span::styled(cwd, Style::default().fg(self.theme.text).add_modifier(bold)),
@@ -148,7 +148,7 @@ impl Renderer {
         let git_line = match (&app.repo, &app.git_branch) {
             (Some(repo), Some(branch)) => Line::from(vec![
                 Span::styled(
-                    " git ",
+                    format!(" {} ", self.tr("git", "仓库")),
                     Style::default().fg(self.theme.accent).add_modifier(bold),
                 ),
                 Span::styled(
@@ -168,7 +168,7 @@ impl Renderer {
             ]),
             (Some(repo), None) => Line::from(vec![
                 Span::styled(
-                    " git ",
+                    format!(" {} ", self.tr("git", "仓库")),
                     Style::default().fg(self.theme.accent).add_modifier(bold),
                 ),
                 Span::styled(
@@ -178,7 +178,7 @@ impl Renderer {
             ]),
             _ => Line::from(vec![
                 Span::styled(
-                    " git ",
+                    format!(" {} ", self.tr("git", "仓库")),
                     Style::default().fg(self.theme.accent).add_modifier(bold),
                 ),
                 Span::styled(
@@ -726,10 +726,10 @@ impl Renderer {
 
     fn draw_status(&self, frame: &mut Frame<'_>, area: Rect, app: &App) {
         let mode_label = match app.mode {
-            Mode::Browse => "NORMAL",
-            Mode::Input(_) => "INPUT",
-            Mode::Confirm => "CONFIRM",
-            Mode::Result => "RESULT",
+            Mode::Browse => self.tr("NORMAL", "普通"),
+            Mode::Input(_) => self.tr("INPUT", "输入"),
+            Mode::Confirm => self.tr("CONFIRM", "确认"),
+            Mode::Result => self.tr("RESULT", "结果"),
         };
         let mode_color = match app.mode {
             Mode::Browse => self.theme.border_focus,
@@ -864,13 +864,9 @@ impl Renderer {
         } else {
             for step in &plan.steps {
                 lines.push(Line::from(vec![
-                    Span::styled("  $ ", Style::default().fg(self.theme.ok)),
-                    Span::styled(step.command.clone(), Style::default().fg(self.theme.text)),
+                    Span::styled("  › ", Style::default().fg(self.theme.ok)),
+                    Span::styled(step.label.clone(), Style::default().fg(self.theme.text)),
                 ]));
-                lines.push(Line::from(Span::styled(
-                    format!("     {}", step.label),
-                    Style::default().fg(self.theme.muted),
-                )));
             }
         }
 
@@ -1160,5 +1156,53 @@ mod tests {
             .join("\n");
         assert!(text.contains("Scanning toolchains"), "{text}");
         assert!(text.contains('░'), "{text}");
+    }
+
+    #[test]
+    fn confirm_popup_never_shows_a_shell_command() {
+        use ratatui::{backend::TestBackend, Terminal};
+
+        let renderer = Renderer::new("zh");
+        let mut app = App::new_dry_run(std::path::PathBuf::from("."), "zh");
+        app.set_tools_for_test(vec![tool("node", "node")]);
+        app.pending_plan = Some(crate::api::EnvPlan {
+            action: crate::api::EnvAction::Install,
+            language: crate::api::Language::Node,
+            tool: "node".into(),
+            version: Some("23".into()),
+            managed: true,
+            steps: vec![crate::api::PlanStep {
+                kind: "install".into(),
+                label: "从 nodejs.org/dist 下载 node 23 到 ~/.runex/runtimes/node".into(),
+                // 即使核心层给了命令，确认框也不能把它展示出来。
+                command: "lan env install node 23 --yes".into(),
+                path: None,
+                content: None,
+            }],
+            error: None,
+            notes: Vec::new(),
+        });
+        app.mode = Mode::Confirm;
+
+        let mut terminal = Terminal::new(TestBackend::new(100, 24)).expect("terminal");
+        terminal
+            .draw(|frame| renderer.draw(frame, &mut app))
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        let text: String = (0..24)
+            .map(|y| {
+                (0..100)
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // 宽字符在 buffer 里占两格，第二格是空占位；比较中文时先去掉空白。
+        let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(compact.contains("从nodejs.org/dist下载node23"), "{text}");
+        assert!(!text.contains("lan env install"), "{text}");
+        assert!(!text.contains("runex install"), "{text}");
+        assert!(!compact.contains('$'), "{text}");
     }
 }

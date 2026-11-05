@@ -53,7 +53,7 @@ impl EnvCommandPlugin {
     pub fn spec() -> CommandSpec {
         CommandSpec::new(
             "env",
-            "Install and switch language runtimes managed by lania itself (node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala)",
+            "Install and switch language runtimes managed by lania itself (node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir)",
             HANDLER_ID,
         )
         .with_subcommands(vec![
