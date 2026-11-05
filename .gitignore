@@ -62,3 +62,6 @@ temp/
 .superpowers/
 .VSCodeCounter
 .runex-demo
+
+# 本地 agent 工作区（会话记忆等），不入库
+.workbuddy/
