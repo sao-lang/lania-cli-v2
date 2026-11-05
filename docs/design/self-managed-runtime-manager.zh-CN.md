@@ -1,12 +1,15 @@
 # 自管版本管理器技术方案
 
-> 状态：**第一、二批已落地，包边界已完成收口**（Node / Python / Go / Rust / Deno / Bun / Zig / Java / Kotlin / Scala / Dart）。
+> 状态：**第一、二、三批已落地，包边界已完成收口**（共 18 种自管运行时）。
+> 第一批：Node / Python / Go / Rust / Deno / Bun / Zig；第二批：Java / Kotlin / Scala / Dart；
+> 第三批：Julia / D / V / Crystal / Gleam / Haxe / Elixir。
 > 目标读者：能直接据此开工的 builder。
 > 决策来源：需求方明确要求「lania 自己做版本管理器，不再转发给 nvm/volta 等」，
 > 范围为 **只管理运行时环境**（安装/切换/卸载/列举），**不做全局包管理**，
 > 覆盖代码中全部 40 种语言，并 **replace** 现有的探测/转发层。
 >
-> 落地情况见文末 §10「第一批实现记录」；**包边界与拆包已完成，见 §11**。
+> 落地情况见文末 §10「第一批实现记录」、§15「第二批实现记录」、§16「第三批实现记录」；
+> **包边界与拆包已完成，见 §11**。
 > 配套文档：`agent-architecture.zh-CN.md`（agent 拆包）、
 > `multi-runtime-bridge.zh-CN.md`（多运行时 bridge 与 dev/build/create/add/lint 重构）。
 
@@ -130,6 +133,7 @@ pub struct Layout {
 │   └── pnpm
 ├── cache/
 │   └── downloads/                         # 产物缓存，避免重复下载
+├── config.json                            # 用户偏好（`runex locale` 写入的语言）
 └── state.json                             # 全局状态（默认版本、项目映射）
 ```
 
@@ -307,7 +311,7 @@ C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的�
 | 1   | 第三批语言范围      | **完整版**：全部 36 种语言都要自管下载安装，不做「只导入」降级            |
 | 2   | `LANIA_HOME` 目录名 | **改名**，避免与项目级 `.lania/`（release-state 等）混淆 → 用 `~/.runex/` |
 | 3   | `--manager` 逃生舱  | **不保留**。`lan env` 只有一条自管路径，不转发给外部管理器                |
-| 4   | 能力层包名          | **改名** `lania-env` → `runex-core`（见 §11）                  |
+| 4   | 能力层包名          | **改名** `lania-env` → `runex-core`（见 §11）                             |
 
 ### 9.1 关于决策 1 的影响
 
@@ -340,6 +344,7 @@ C/C++、Fortran 实为编译器集合）。这一项是开工前必须拍板的�
 ├── runtimes/<lang>/<version>/
 ├── shims/
 ├── cache/downloads/
+├── config.json               # `runex locale` 保存的人类语言
 └── state.json
 ```
 
@@ -435,9 +440,12 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 
 ### 10.4 尚未覆盖（第二批 / 第三批）
 
+> 本节是第一批落地时的**历史快照**；后续进展以 §15 / §16 为准。
+
 - Java / Kotlin / Scala / Dart / Swift / D / V / Julia / Haskell 等：`provider::is_planned` 已列出，`install` 会明确提示尚未自管。
+  （Java / Kotlin / Scala / Dart 见 §15；D / V / Julia 见 §16。）
 - 第三批（Ruby / PHP / Lua / C / C++ / C# 等）仍需按 §6.3 逐条确认上游可行性。
-- `lan env gc`（清理未使用版本与下载缓存）尚未实现；当前缓存只增不减。
+- `lan env gc`（清理未使用版本与下载缓存）尚未实现；当前缓存只增不减（后续已补齐，见 §14）。
 
 ## 11. 包边界：拆成「能力层 + 命令层」
 
@@ -447,7 +455,7 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 
 | crate                       | 行数 | 依赖 `lania-host` | 依赖 `lania-node-bridge` | 内容                      |
 | --------------------------- | ---- | ----------------- | ------------------------ | ------------------------- |
-| `runex-core`     | 6123 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
+| `runex-core`                | 6123 | ❌                | ❌                       | 探测 / 下载 / 安装 / shim |
 | `lania-plugins-command-env` | 3476 | ✅                | ❌                       | 命令 spec + TUI + 渲染    |
 
 `runex-core` 对**其它 lania crate 零依赖**：`lania-exec` 的声明从未被使用，
@@ -472,14 +480,14 @@ plan.rs      dry-run 计划与执行（不再有 ManagerKind）
 
 **第二次改名实际影响面（全仓穷举）**：
 
-| 文件                                                | 改动                                                                 |
-| --------------------------------------------------- | -------------------------------------------------------------------- |
-| `rust/Cargo.toml`                                   | `members` 里 `crates/lania-runtime-manager` → `crates/runex-core`     |
-| `rust/crates/runex-core/Cargo.toml`                 | `name = "lania-runtime-manager"` → `name = "runex-core"`              |
-| `rust/crates/runex/Cargo.toml`                      | 依赖键 + 路径改为 `runex-core = { path = "../runex-core" }`           |
-| `rust/crates/runex/src/api.rs`                      | `lania_runtime_manager::` → `runex_core::`                            |
-| `docs/**` / `docs-site/**` / 各 crate 注释           | 旧名同步改为 `runex-core` / `runex_core`                              |
-| `rust/Cargo.lock`                                   | 由 cargo 重新生成                                                     |
+| 文件                                       | 改动                                                              |
+| ------------------------------------------ | ----------------------------------------------------------------- |
+| `rust/Cargo.toml`                          | `members` 里 `crates/lania-runtime-manager` → `crates/runex-core` |
+| `rust/crates/runex-core/Cargo.toml`        | `name = "lania-runtime-manager"` → `name = "runex-core"`          |
+| `rust/crates/runex/Cargo.toml`             | 依赖键 + 路径改为 `runex-core = { path = "../runex-core" }`       |
+| `rust/crates/runex/src/api.rs`             | `lania_runtime_manager::` → `runex_core::`                        |
+| `docs/**` / `docs-site/**` / 各 crate 注释 | 旧名同步改为 `runex-core` / `runex_core`                          |
+| `rust/Cargo.lock`                          | 由 cargo 重新生成                                                 |
 
 目录用 `git mv` 改名，历史保持连续。
 
@@ -767,8 +775,13 @@ API 约定：
 - 所有会落盘的方法返回 `Result<_, RuntimeError>`，不把 `anyhow` 泄漏给调用方；
 - dry-run 由 `apply(plan, dry_run, ...)` 表达，宿主不再自己拼执行逻辑；
 - `runex::tui` 是公开模块；`Runex::run_tui` / `Runex::tui_snapshot` 也直接挂在 API 上；
-- `runex::i18n::Locale` 统一 CLI / TUI 的人类语言：`--locale en|zh`，默认按
-  `RUNEX_LOCALE` / `LC_ALL` / `LANG` 探测；`lan env ui` 直接把 `ctx.locale()` 传给 TUI；
+- `runex::i18n::Locale` 统一 CLI / TUI 的人类语言：`--locale en|zh` 只覆盖本次运行；
+  `runex locale en|zh|auto` 把选择写进 `$RUNEX_HOME/config.json`，之后 CLI 与 TUI 共用；
+  `--help` 的正文与分节标题也跟随该语言；
+  解析顺序 `--locale` → `RUNEX_LOCALE` → 配置文件 → `LC_ALL` / `LANG`；
+  `lan env ui` 直接把 `ctx.locale()` 传给 TUI；
+- 计划步骤的展示文案统一由 `runex::i18n::localize_plan` 生成，TUI 确认框与结果日志
+  不再回显 `lan env …` / `runex …` 形式的 shell 命令；
 - 镜像：`RUNEX_NODE_MIRROR` / `RUNEX_GITHUB_MIRROR` / `RUNEX_GITHUB_API_MIRROR`
   只改写请求 URL，缓存键仍用原始 URL；
 - `runex` 根模块 re-export 常用模型（`Language` / `Platform` / `RuntimeHome` /
@@ -788,13 +801,13 @@ API 约定：
 
 ### 13.5 env 的边界
 
-| 职责 | 归属 |
-| ---- | ---- |
-| 命令 spec / 参数 / locale / 输出模板 | `lania-plugins-command-env` |
-| `--yes` 与默认 dry-run 门控 | `lania-plugins-command-env` |
-| 安装 / 切换 / 删除 / 查询 / which / doctor / init | `runex::api::Runex` |
-| TUI | `runex::tui` |
-| 下载 / 校验 / 解压 / 状态 / shim | `runex-core`（runex 内部） |
+| 职责                                              | 归属                        |
+| ------------------------------------------------- | --------------------------- |
+| 命令 spec / 参数 / locale / 输出模板              | `lania-plugins-command-env` |
+| `--yes` 与默认 dry-run 门控                       | `lania-plugins-command-env` |
+| 安装 / 切换 / 删除 / 查询 / which / doctor / init | `runex::api::Runex`         |
+| TUI                                               | `runex::tui`                |
+| 下载 / 校验 / 解压 / 状态 / shim                  | `runex-core`（runex 内部）  |
 
 硬约束：
 
@@ -856,16 +869,16 @@ runex ──▶ runex-core ──▶ 第三方 crate
 
 ## 15. 第二批实现记录
 
-| 语言   | 上游                              | 产物                              | 入口 / 环境                    |
-| ------ | --------------------------------- | --------------------------------- | ------------------------------ |
-| Java   | api.adoptium.net（Temurin）       | `package.link`（zip / tar.gz）    | `java/javac/jar/jlink`，`JAVA_HOME` |
-| Kotlin | github.com/JetBrains/kotlin       | `kotlin-compiler-<ver>.zip`       | `kotlin/kotlinc`，`KOTLIN_HOME` |
-| Scala  | github.com/scala/scala3           | `scala3-<ver>.zip`                | `scala/scalac`，`SCALA_HOME`    |
-| Dart   | storage.googleapis.com/dart-archive | `dartsdk-<os>-<arch>-release.zip` | `dart`，`DART_SDK`             |
+| 语言   | 上游                                | 产物                              | 入口 / 环境                         |
+| ------ | ----------------------------------- | --------------------------------- | ----------------------------------- |
+| Java   | api.adoptium.net（Temurin）         | `package.link`（zip / tar.gz）    | `java/javac/jar/jlink`，`JAVA_HOME` |
+| Kotlin | github.com/JetBrains/kotlin         | `kotlin-compiler-<ver>.zip`       | `kotlin/kotlinc`，`KOTLIN_HOME`     |
+| Scala  | github.com/scala/scala3             | `scala3-<ver>.zip`                | `scala/scalac`，`SCALA_HOME`        |
+| Dart   | storage.googleapis.com/dart-archive | `dartsdk-<os>-<arch>-release.zip` | `dart`，`DART_SDK`                  |
 
 - `runex` / `lan env` 会自动把上述语言加入 `list` / `info` / `versions` / `install`；
 - Kotlin / Scala 只安装编译器发行包，运行仍需要系统或自管的 JDK；
-- Swift 仍为探测层，自管安装留待第三批；
+- Swift 仍为探测层；第三批没有把它纳入，原因见 §16；
 - 新增 Provider 的单元测试，覆盖版本解析 / 资产命名 / `runex-core` 注册表。
 
 验收：
@@ -874,3 +887,83 @@ runex ──▶ runex-core ──▶ 第三方 crate
 - [x] `runex versions dart --available` 能列出 Dart 3.x 版本。
 - [x] `runex versions kotlin --available` / `scala --available` 能列出 GitHub Releases。
 - [x] `lan env list` 将 Java / Dart / Kotlin / Scala 标记为 `self-managed`。
+
+## 16. 第三批实现记录
+
+第二批完成后按 §6.3 的可行性表继续挑「上游确实发布预编译归档」的语言，
+共新增 7 种，自管总数达到 18 种。`provider/github.rs` 收敛了列版本 / 取资产 /
+读 sidecar 校验和，避免每个 Provider 各写一份 GitHub API 解析。
+
+| 语言    | 上游                                        | 产物                                                          | 入口 / 环境                              |
+| ------- | ------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------- |
+| Julia   | julialang-s3.julialang.org（versions.json） | `julia-<ver>-*.tar.gz` / `win64.zip`（自带 sha256）           | `julia`；`bin/`；自动排除 dmg/exe 安装器 |
+| D       | downloads.dlang.org（HTML 版本索引）        | `dmd.<ver>.linux.tar.xz` / `.osx.tar.xz`                      | `dmd/dub`；`linux/bin64/`（按目录探测）  |
+| V       | github.com/vlang/v                          | `v_<platform>.zip`                                            | `v`；摊平后 `v` / `v.exe` 在根目录       |
+| Crystal | github.com/crystal-lang/crystal             | `crystal-<ver>-<n>-linux-*-bundled.tar.gz` / darwin-universal | `crystal/shards`；`bin/`；优先 bundled   |
+| Gleam   | github.com/gleam-lang/gleam                 | `gleam-<tag>-<target>.tar.gz` / `.zip` + `.sha256`            | `gleam`；单文件，根目录                  |
+| Haxe    | github.com/HaxeFoundation/haxe              | `haxe-<ver>-linux64.tar.gz` / `-osx` / `-win64.zip`           | `haxe/haxelib`；`HAXE_STD_PATH`          |
+| Elixir  | github.com/elixir-lang/elixir               | `elixir-otp-<N>.zip` + `.sha256sum`                           | `elixir/elixirc/mix/iex`；`bin/`         |
+
+约定与限制：
+
+- **Elixir 依赖 Erlang/OTP**：与 Kotlin/Scala 依赖 JDK 同理，只装编译器发行包，
+  `layout.notes` 会写入元数据提示；Erlang 自管仍未实现。
+- **D 在 Windows 只发 `.7z`、Crystal 的 Windows 资产被上游标记为 `unsupported`**：
+  `provider::platform_limitation` 在 `list` / `info` 里给出明确原因，不会静默失败。
+- **Swift / Elm / OCaml / Erlang / Haskell 等暂不实现**：Swift 没有机器可读的版本索引，
+  且 macOS 发 `.pkg`、Windows 发 `.exe`，Linux tarball 路径里的发行版代号随版本变化；
+  Elm 是单文件 `.gz`（归档层目前只处理 tar/zip）；其余需要先补上游评估或额外能力。
+- `is_planned` 现在只列出**尚未自管**的语言，与 `supported_language_ids` 不重叠。
+- 没有官方校验和的上游（D / V / Crystal / Haxe）沿用 `verify_integrity` 结构完整性兜底，
+  并在安装结果里给出 warning；Julia / Gleam / Elixir 使用官方 sha256。
+
+验收：
+
+- [x] `runex versions julia --available` 能按数值序（而非字典序）列出稳定版本。
+- [x] `runex versions d --available` 能从 DMD 版本索引解析出 `2.113.1` 等版本。
+- [x] `runex versions v|crystal|gleam|haxe|elixir --available` 能列出 GitHub Releases。
+- [x] `lan env list` 将 18 种语言标记为 `self-managed` 并展示各自上游。
+- [x] `provider::is_planned` 与 `supported_language_ids` 互斥；D / Crystal 在 Windows 报告平台缺口。
+
+## 17. 容器内验收记录（2026-11-06）
+
+第三批落地后在 `rust:latest` Linux 容器里做了一轮全量验收，脚本见
+`rust/scripts/verify-runtimes.sh`（分层）与 `rust/scripts/verify-runtimes-docker.sh`（宿主入口）。
+每个运行时使用独立 `RUNEX_HOME`，不触碰宿主机 `~/.runex`。
+
+### 17.1 通过项
+
+- 分层脚本：**PASS=97 / FAIL=0 / NET_FAIL=0**。
+- 单测 169 条全绿：`runex-core` 89、`runex` 34+9+21+1、`lania-plugins-command-env` 2、
+  `lania-cli` `phase3_e2e::lan_env_*` 13。
+- CLI 9 项、TUI 快照 4 项、`lan env` API 9 项、`lan env --yes` 真实写路径 4 项全部通过。
+- 上游版本清单 18/18；`install` / `use` dry-run 管理路径 36/36。
+- **18 种运行时全部跑通真实闭环** `install → use → which → shim 执行 → remove`：
+  node / python / go / rust / deno / bun / zig / java / dart / julia / d / v / crystal / gleam / haxe
+  均能执行自身版本命令；kotlin / scala / elixir 安装与 shim 正常，执行需外部依赖（见 17.2）。
+- 交互式 TUI 在 pty 下可正常进入备用屏并按 `q` 退出（exit 0）。
+
+### 17.2 当前**没有通过**的功能
+
+以下项在本轮验收中明确未达标，不要按「已完成」对外宣称。
+
+| #   | 功能                                                                   | 现状                                                                                                                                                     | 结论                                                                                |
+| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1   | 安装缓存命中标志 `InstallOutcome.from_cache` / `--json` 的 `fromCache` | 命中缓存仍返回 `false`。根因：`runex-core/src/store.rs:195` 在「缓存已存在」分支里把 `from_cache` 置为 `false`，语义写反                                 | **未通过**（字段恒为 false，仅影响展示与遥测）                                      |
+| 2   | Scala 装完即用                                                         | 只把 `shims/` 加进 PATH 时，`scala -version` 只输出 `JAVA_HOME environment variable is not set` 并退出；装了自管 JDK 也不会自动导出 `JAVA_HOME`          | **未通过**（需手工 `export JAVA_HOME=<runex>/runtimes/java/<ver>` 才能运行）        |
+| 3   | Kotlin / Scala / Elixir 开箱即用                                       | 三者只安装编译器发行包，运行分别依赖外部 JDK / Erlang；容器内无对应运行时则无法执行                                                                      | **未通过「装完即用」标准**（属既定设计，但仍是用户可见缺口）                        |
+| 4   | Windows 宿主真实安装闭环                                               | 本轮全部验收在 Linux 容器完成；Windows 侧仅有编译、单测与上游 URL 探测，没有跑完整 install→执行→remove                                                   | **未覆盖**                                                                          |
+| 5   | D / Crystal 的 Windows 安装                                            | 上游只发 `.7z`（D）或把 Windows 资产标为 `unsupported`（Crystal），只输出平台限制提示                                                                    | **未实现**（受上游资产限制）                                                        |
+| 6   | TUI 交互流程断言                                                       | 只有 `--snapshot` 的布局断言和 pty 冒烟（进备用屏 + `q` 退出）；按键触发的 install / use / remove 对话框没有自动化断言                                   | **未覆盖**                                                                          |
+| 7   | 无 token 时的 GitHub 系 provider 可用性                                | 匿名 API 配额 60 次/小时，耗尽后 v / crystal / gleam / haxe / elixir / scala / kotlin 的清单与安装会整体失败（`502` / 空清单）；并发安装可在数分钟内打爆 | **已知限制**（可用 `GITHUB_TOKEN` / `GH_TOKEN` 提到 5000/h 缓解，代码未做降级重试） |
+| 8   | 低速链路下的大包安装                                                   | julia（288MB，25–42 KB/s）、zig（55MB，17–100 KB/s）在 25–30 分钟内装不完，会撞上调用方超时；跨进程续传依赖 `<cache>.part`，无超时提示                   | **已知限制**（本轮 julia 靠宿主预置缓存才闭环）                                     |
+| 9   | Swift / Elm / OCaml / Erlang / Haskell                                 | 未接入自管                                                                                                                                               | **范围外**（原因见 §16）                                                            |
+
+另有一处**不一致但不影响功能**：`versions --available --json` 的排序在不同 provider 间不统一
+（node 等降序、java 升序）。产品内部 `latest` 解析不受影响，但外部脚本若「取第一个」会拿到最旧版本。
+
+### 17.3 修复顺序建议
+
+1. 删掉 `store.rs:195` 的 `from_cache = false`，并补一条「预置缓存后 install 的 `from_cache` 为 true」的回归测试。
+2. `use java` / 启动 TUI 时导出 `JAVA_HOME`（或让 scala / kotlin 的 shim 自行推导），使 JVM 系真正开箱即用。
+3. GitHub 系 provider 在 `403 rate limit` 时给出显式提示并复用已缓存清单，减少无 token 场景的失败面。

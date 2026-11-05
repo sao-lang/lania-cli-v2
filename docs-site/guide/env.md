@@ -130,7 +130,7 @@ LANIA_ENV_ICONS=ascii lan env ui   # 强制等宽纯文本 ◈
 
 ## 支持的语言
 
-`lan env` 认识 **40 种**语言 / 运行时，当前第一、二批支持自管安装：
+`lan env` 认识 **40 种**语言 / 运行时，当前第一、二、三批共 **18 种**支持自管安装：
 
 ### 第一批（已实现自管下载）
 
@@ -146,20 +146,36 @@ LANIA_ENV_ICONS=ascii lan env ui   # 强制等宽纯文本 ◈
 
 ### 第二批（已实现自管下载）
 
-| 语言   | 上游                              | 产物形态                         | 备注                     |
-| ------ | --------------------------------- | -------------------------------- | ------------------------ |
-| Java   | api.adoptium.net（Temurin）       | `zip` / `tar.gz`                 | 设置 `JAVA_HOME`         |
-| Kotlin | github.com/JetBrains/kotlin       | `zip`（`kotlin-compiler-*.zip`） | 运行需要 JDK             |
-| Scala  | github.com/scala/scala3           | `zip`（`scala3-*.zip`）          | 运行需要 JDK             |
-| Dart   | storage.googleapis.com/dart-archive | `zip`（`dartsdk-*.zip`）         | 设置 `DART_SDK`          |
+| 语言   | 上游                                | 产物形态                         | 备注             |
+| ------ | ----------------------------------- | -------------------------------- | ---------------- |
+| Java   | api.adoptium.net（Temurin）         | `zip` / `tar.gz`                 | 设置 `JAVA_HOME` |
+| Kotlin | github.com/JetBrains/kotlin         | `zip`（`kotlin-compiler-*.zip`） | 运行需要 JDK     |
+| Scala  | github.com/scala/scala3             | `zip`（`scala3-*.zip`）          | 运行需要 JDK     |
+| Dart   | storage.googleapis.com/dart-archive | `zip`（`dartsdk-*.zip`）         | 设置 `DART_SDK`  |
 
-Swift 仍只做探测；自管安装待评估。
+### 第三批（已实现自管下载）
+
+| 语言    | 上游                                        | 产物形态                             | 备注                            |
+| ------- | ------------------------------------------- | ------------------------------------ | ------------------------------- |
+| Julia   | julialang-s3.julialang.org（versions.json） | `tar.gz` / `zip`，自带 sha256        | 自动跳过 `.dmg` / `.exe` 安装器 |
+| D       | downloads.dlang.org                         | `tar.xz`（DMD）                      | Windows 只发 `.7z`，暂不支持    |
+| V       | github.com/vlang/v                          | `zip`（`v/` 源码树 + 二进制）        | 摊平后根目录即 bin              |
+| Crystal | github.com/crystal-lang/crystal             | `tar.gz`（优先 bundled）             | Windows 产物上游标 unsupported  |
+| Gleam   | github.com/gleam-lang/gleam                 | `tar.gz` / `zip`，单文件 + `.sha256` | 根目录即 bin                    |
+| Haxe    | github.com/HaxeFoundation/haxe              | `tar.gz` / `zip`                     | 设置 `HAXE_STD_PATH`            |
+| Elixir  | github.com/elixir-lang/elixir               | `elixir-otp-<N>.zip` + `.sha256sum`  | 运行仍需 Erlang/OTP             |
+
+Elixir 与 Kotlin / Scala 一样只装编译器发行包：运行需要系统已有的 Erlang/OTP。
+D（Windows）和 Crystal（Windows）在 `lan env list` / `info` 里会标注不支持的原因。
+
+Swift / Elm / OCaml / Erlang / Haskell 等仍只做探测：Swift 缺少机器可读版本索引且各平台产物是安装器，
+Elm 是单文件 `.gz`（归档层暂只处理 tar/zip），其余需先确认上游可行性。
 
 其余语言仍可被 `lan env list` / `info` **探测**（显示本机系统安装的版本），但 `install` / `use` / `remove` 会明确报错：
 
 ```text
 $ lan env install ruby 3.3.0 --yes
-Error: ruby is not self-managed yet; available now: node, python, go, rust, deno, bun, zig, java, dart, kotlin, scala
+Error: ruby is not self-managed yet; available now: node, python, go, rust, deno, bun, zig, java, dart, kotlin, scala, julia, d, v, crystal, gleam, haxe, elixir
 ```
 
 每种语言的入口命令、上游渠道与平台矩阵集中定义在 `runex-core/src/provider/` 下，新增语言只需实现一个 `RuntimeProvider`。
