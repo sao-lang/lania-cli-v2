@@ -543,8 +543,9 @@ tree-sitter 的 build script 报 `Failed to find tool. Is gcc.exe installed?`。
    目前手写于约 10 个文件（Rust core、插件层、`lania-node-bridge::BridgeEventMethod`、
    宿主、TS 侧）。计划用一份 schema 生成两端绑定（`gen-bridge-protocol.mjs` + `--check`），
    消除「改动需同 PR」的人肉同步。
-2. **bridge 公共逻辑抽离 + 语言 Provider 化**：仓库已有 `lania-node-bridge` /
+2. **桥接层：Bridge Hub（Rust 实现）**：仓库已有 `lania-node-bridge` /
    `lania-py-bridge` / `lania-go-bridge` / `lania-dart-bridge` / `lania-rs-bridge` /
    `lania-bridge-support`，各语言 bridge 共用同一套 jsonl 协议但传输逻辑分散，
-   方案另文讨论。
+   且按语言寻址。方案已改为**语言中立 Hub + 端点按能力/主题通信**，详见
+   `bridge-layer.zh-CN.md`。**代码暂停未实施**（其它模块要重新设计，避免互相影响）。
 3. M4 遗留：AST 工具、MCP、`/skill`、`agent://` 输出文件、子 agent usage 汇总。
