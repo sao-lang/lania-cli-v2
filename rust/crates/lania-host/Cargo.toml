@@ -27,6 +27,6 @@ lania-pm = { path = "../lania-pm" }
 lania-progress = { path = "../lania-progress" }
 lania-prompt = { path = "../lania-prompt" }
 lania-runtime = { path = "../lania-runtime" }
-lania-task = { path = "../lania-task" }
+lania-task = { path = "../../../packages/foundation/capabilities/rust/lania-task" }
 lania-workflows = { path = "../lania-workflows" }
 lania-preferences = { path = "../../../packages/foundation/capabilities/rust/lania-preferences" }
