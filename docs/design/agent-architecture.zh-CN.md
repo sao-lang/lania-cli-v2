@@ -505,32 +505,37 @@ Rust 侧目前不校验 methods（只记录），因此安全；但**必须在 A
 | ---------------------- | ----------------------------------------------- | ---------------------- |
 | core + 产品层单测      | `cargo test -p lania-agent-core -p lania-agent` | ✅ 29 + 44 = 73 passed |
 | TS 引擎类型检查        | `pnpm --filter @lania-cli-v2/agent typecheck`   | ✅                     |
-| pi 插件 / 全 workspace | `cargo check -p lania-plugins-command-pi`       | ⏳ 环境阻塞（见 11.3） |
-| 端到端冒烟（8 项断言） | `node scripts/smoke-pi.mjs`                     | ⏳ 重构前 8/8，待重跑  |
+| pi 插件编译            | `cargo check -p lania-plugins-command-pi`       | ✅                     |
+| 全 workspace 编译      | `cargo check --workspace`（含 `lania-cli`）     | ✅                     |
+| 端到端冒烟（8 项断言） | `node scripts/smoke-pi.mjs`                     | ✅ 8/8 PASS            |
 
 本次收口修复：`lib.rs` 的 `AgentOptions` 重复导入（E0252）、`tui/actor.rs` 无用导入、
 `SessionPlan::resolve` 恢复不存在会话时暴露底层 os error（现返回 `unknown session ...`）。
 
-### 11.3 环境阻塞（非代码缺陷）
+### 11.3 本地构建工具链（Windows / 本仓库）
 
-本机没有 MSVC 的 VC 工具集/Windows SDK，也不再具备独立 MinGW-w64；
-`lania-workflows → tree-sitter` 的 C 代码需要完整 `gcc`（含 cc1），
-而 rustup 自带的 self-contained MinGW 只有链接工具（ld/as/ar/dlltool + gcc 驱动），
-缺 cc1，故 `cargo check` 停在 tree-sitter 的 build script：
-`Failed to find tool. Is gcc.exe installed?`。
-
-解除办法：安装 MinGW-w64（含 C 编译器）或 MSVC Build Tools 的 VC 工具集 + Windows SDK，然后重跑：
+本机没有 MSVC 的 VC 工具集/Windows SDK，Rust 编译走
+`stable-x86_64-pc-windows-gnu` + 便携 MinGW-w64。注意便携包是**嵌套目录**：
 
 ```bash
-cargo check -p lania-plugins-command-pi
-cargo test --workspace
+export MINGW="$HOME/.workbuddy/binaries/mingw64/mingw64/bin"   # 不是 .../mingw64/bin
+export PATH="$MINGW:$PATH"
+export TMP='E:\vsc-workspace\lania-zip\lania-cli-v2\rust\target\tmp'  # 沙箱禁止写系统 Temp
+export TEMP="$TMP"
+cargo check --workspace
+cargo test -p lania-agent-core -p lania-agent
 node scripts/smoke-pi.mjs
 ```
 
-本地临时配置（**不入库**）：`rust/.cargo/config.toml` 把 gnu target 的 linker 指向 rustup
-自带的 `x86_64-w64-mingw32-gcc.exe`；目录级 `rustup override` 到
-`stable-x86_64-pc-windows-gnu`；跑测试时用 `TMP/TEMP` 指向 `rust/target/tmp`
-（沙箱不允许写系统 Temp）。
+`lania-workflows → tree-sitter` 的 C 代码需要**完整** `gcc`（含 cc1）；
+rustup 自带的 self-contained MinGW 只有链接工具（ld/as/ar/dlltool + gcc 驱动），
+缺 cc1，只能用于纯 Rust 的链接，不能编译 C。少了便携 MinGW 会在
+tree-sitter 的 build script 报 `Failed to find tool. Is gcc.exe installed?`。
+
+本地临时配置（**不入库**，已加入 `.git/info/exclude`）：`rust/.cargo/config.toml`
+把 gnu target 的 linker 指向 rustup 自带的 `x86_64-w64-mingw32-gcc.exe`，
+目录级 `rustup override` 为 `stable-x86_64-pc-windows-gnu`。
+完整构建可用 `CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=gcc` 覆盖为便携 MinGW。
 
 ### 11.4 下一步待办（仅方案，未开工）
 

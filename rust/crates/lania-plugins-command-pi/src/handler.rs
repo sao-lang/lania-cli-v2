@@ -18,7 +18,7 @@ use lania_host::{
 };
 use lania_node_bridge::NodeBridgeClient;
 
-use crate::bridge::BridgeAgentSessionClient;
+use crate::bridge::bridge_client;
 use crate::options::CliArgs;
 
 pub struct PiCommandHandler;
@@ -71,8 +71,8 @@ impl CommandHandler for PiCommandHandler {
             }))
         });
 
-        let client = BridgeAgentSessionClient::new(NodeBridgeClient::clone(ctx.node_bridge()));
-        let outcome = run(options, Box::new(client), approvals).await;
+        let client = bridge_client(NodeBridgeClient::clone(ctx.node_bridge()));
+        let outcome = run(options, client, approvals).await;
 
         match outcome {
             Ok(outcome) => Ok(ctx.complete_template_info(
