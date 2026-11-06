@@ -1,11 +1,9 @@
 {
-  "name": "toolkit-monorepo",
+  "name": "toolkit",
   "schemaVersion": 1,
   "renderEngine": "node_bridge",
-  "legacyTemplateDir": "packages/templates/toolkit-monorepo",
+  "legacyTemplateDir": "packages/templates/toolkit",
   "ownership": "node_only",
-  "useCases": [
-    "create"
-  ],
+  "useCases": ["create", "add"],
   "migrationLayer": "runtime_template"
 }

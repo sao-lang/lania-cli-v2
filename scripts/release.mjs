@@ -31,7 +31,7 @@ function discoverAllPackages() {
   const all = [
     { name: '@lania-cli-v2/cli',             packageJsonPath: path.join(repoRoot, 'npm/cli/package.json') },
     { name: '@lania-cli-v2/node-bridge',     packageJsonPath: path.join(repoRoot, 'ts/packages/node-bridge/package.json') },
-    { name: '@lania-cli-v2/templates',       packageJsonPath: path.join(repoRoot, 'ts/packages/templates/package.json') },
+    { name: '@lania-cli-v2/templates',       packageJsonPath: path.join(repoRoot, 'packages/foundation/templates/package.json') },
     { name: 'lania',                      packageJsonPath: path.join(repoRoot, 'packages/foundation/lania/package.json') },
     ...platformPkgs,
   ];

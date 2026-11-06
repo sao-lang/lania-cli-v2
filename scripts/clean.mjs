@@ -30,7 +30,7 @@ function collectPathsToRemove() {
     'npm/cli/lib/node-bridge',
     'npm/cli/*.tgz',
     'ts/packages/node-bridge/dist',
-    'ts/packages/templates/dist',
+    'packages/foundation/templates/dist',
   ];
   for (const descriptor of discoverPlatformPackageDescriptors()) {
     targets.push(`npm/${descriptor.packageDirName}/bin/lania-cli`);

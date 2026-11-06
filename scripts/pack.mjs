@@ -89,7 +89,7 @@ function readRustWorkspaceVersion() {
 
 function assertVersionSync(expected) {
   const nodeBridge = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
-  const templates = readJson(path.join(repoRoot, 'ts/packages/templates/package.json'));
+  const templates = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
   const agentPkg = readJson(path.join(repoRoot, 'ts/packages/agent/package.json'));
   const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   const versions = [
@@ -121,7 +121,7 @@ function stageNodeBridgePayload() {
   ensureDir(payloadRoot);
 
   const bridgeDist = path.join(repoRoot, 'ts/packages/node-bridge/dist');
-  const templatesDist = path.join(repoRoot, 'ts/packages/templates/dist');
+  const templatesDist = path.join(repoRoot, 'packages/foundation/templates/dist');
   const agentDist = path.join(repoRoot, 'ts/packages/agent/dist');
 
   const stdioEntry = path.join(bridgeDist, 'entry', 'stdio.js');
@@ -149,7 +149,7 @@ function stageNodeBridgePayload() {
   // - `@lania-cli-v2/templates` can resolve `ejs`
   // - bridge can resolve `yaml`
   const nodeBridgePkg = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
-  const templatesPkg = readJson(path.join(repoRoot, 'ts/packages/templates/package.json'));
+  const templatesPkg = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
   const agentPkg = readJson(path.join(repoRoot, 'ts/packages/agent/package.json'));
   const payloadPkg = {
     name: '@lania-cli-v2/node-bridge-payload',
@@ -175,7 +175,7 @@ function stageNodeBridgePayload() {
   const templatesTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/templates');
   ensureDir(templatesTarget);
   copyFile(
-    path.join(repoRoot, 'ts/packages/templates/package.json'),
+    path.join(repoRoot, 'packages/foundation/templates/package.json'),
     path.join(templatesTarget, 'package.json'),
   );
   copyDir(templatesDist, path.join(templatesTarget, 'dist'));
@@ -381,7 +381,7 @@ async function main() {
   console.log(
     `- npm packages: npm/cli, ${descriptors.map((entry) => entry.packageDirName).join(', ')}`,
   );
-  console.log('- TS packages: ts/packages/templates, ts/packages/node-bridge');
+  console.log('- TS packages: packages/foundation/templates, ts/packages/node-bridge');
   console.log(
     `- platform staging: ${platformResults.map((entry) => `${entry.packageName}:${entry.status}`).join(', ')}`,
   );
