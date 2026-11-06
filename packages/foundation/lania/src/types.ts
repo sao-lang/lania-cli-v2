@@ -1,4 +1,4 @@
-import type { SchemaTools } from '@lania-cli-v2/node-bridge';
+import type { SchemaTools } from '@lania-cli-v2/bridge-runtime';
 
 type JsonRecord = Record<string, unknown>;
 

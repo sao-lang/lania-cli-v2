@@ -98,11 +98,33 @@ importers:
 
   packages/commands/env/npm/cmd-env-win32-x64: {}
 
+  packages/foundation/bridge-runtime/ts:
+    dependencies:
+      '@lania-cli-v2/agent':
+        specifier: workspace:*
+        version: link:../../../products/agent/ts/agent
+      '@lania-cli-v2/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      yaml:
+        specifier: ^2.8.1
+        version: 2.8.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/foundation/lania:
     dependencies:
-      '@lania-cli-v2/node-bridge':
+      '@lania-cli-v2/bridge-runtime':
         specifier: workspace:*
-        version: link:../../../ts/packages/node-bridge
+        version: link:../bridge-runtime/ts
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
@@ -168,28 +190,6 @@ importers:
   packages/products/runex/npm/runex-linux-x64: {}
 
   packages/products/runex/npm/runex-win32-x64: {}
-
-  ts/packages/node-bridge:
-    dependencies:
-      '@lania-cli-v2/agent':
-        specifier: workspace:*
-        version: link:../../../packages/products/agent/ts/agent
-      '@lania-cli-v2/templates':
-        specifier: workspace:*
-        version: link:../../../packages/foundation/templates
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      yaml:
-        specifier: ^2.8.1
-        version: 2.8.3
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.0
-        version: 22.19.17
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
 
 packages:
   '@anthropic-ai/sdk@0.129.0':

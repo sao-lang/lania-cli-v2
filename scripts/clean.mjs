@@ -29,7 +29,7 @@ function collectPathsToRemove() {
     'rust/target',
     'npm/cli/lib/node-bridge',
     'npm/cli/*.tgz',
-    'ts/packages/node-bridge/dist',
+    'packages/foundation/bridge-runtime/ts/dist',
     'packages/foundation/templates/dist',
   ];
   for (const descriptor of discoverPlatformPackageDescriptors()) {

@@ -88,7 +88,7 @@ function readRustWorkspaceVersion() {
 }
 
 function assertVersionSync(expected) {
-  const nodeBridge = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
+  const nodeBridge = readJson(path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'));
   const templates = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
   const agentPkg = readJson(path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'));
   const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
@@ -120,7 +120,7 @@ function stageNodeBridgePayload() {
   rmIfExists(payloadRoot);
   ensureDir(payloadRoot);
 
-  const bridgeDist = path.join(repoRoot, 'ts/packages/node-bridge/dist');
+  const bridgeDist = path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/dist');
   const templatesDist = path.join(repoRoot, 'packages/foundation/templates/dist');
   const agentDist = path.join(repoRoot, 'packages/products/agent/ts/agent/dist');
 
@@ -139,7 +139,7 @@ function stageNodeBridgePayload() {
 
   // Bridge runtime assets.
   copyFile(
-    path.join(repoRoot, 'ts/packages/node-bridge/package.json'),
+    path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'),
     path.join(payloadRoot, 'package.bridge.json'),
   );
   copyDir(bridgeDist, path.join(payloadRoot, 'dist'));
@@ -148,7 +148,7 @@ function stageNodeBridgePayload() {
   // - `node --import tsx ...` resolves `tsx` from payloadRoot
   // - `@lania-cli-v2/templates` can resolve `ejs`
   // - bridge can resolve `yaml`
-  const nodeBridgePkg = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
+  const nodeBridgePkg = readJson(path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'));
   const templatesPkg = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
   const agentPkg = readJson(path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'));
   const payloadPkg = {
@@ -381,7 +381,7 @@ async function main() {
   console.log(
     `- npm packages: npm/cli, ${descriptors.map((entry) => entry.packageDirName).join(', ')}`,
   );
-  console.log('- TS packages: packages/foundation/templates, ts/packages/node-bridge');
+  console.log('- TS packages: packages/foundation/templates, packages/foundation/bridge-runtime/ts');
   console.log(
     `- platform staging: ${platformResults.map((entry) => `${entry.packageName}:${entry.status}`).join(', ')}`,
   );

@@ -30,7 +30,7 @@
     "test": "node --import tsx --test ./src/**/*.test.ts"
   },
   "dependencies": {
-    "@lania-cli-v2/node-bridge": "workspace:*"
+    "@lania-cli-v2/bridge-runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

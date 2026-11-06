@@ -17,7 +17,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettier,
   {
-    files: ['ts/packages/**/*.{ts,tsx,js,mjs,cjs}', 'scripts/**/*.{mjs,js}'],
+    files: ['packages/**/*.{ts,tsx,js,mjs,cjs}', 'scripts/**/*.{mjs,js}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

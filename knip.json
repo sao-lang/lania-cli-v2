@@ -1,11 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
   "workspaces": {
-    "ts/packages/node-bridge": {
-      "entry": ["src/index.ts", "src/stdio.ts"],
+    "packages/foundation/bridge-runtime/ts": {
+      "entry": ["src/index.ts", "src/entry/stdio.ts"],
       "project": ["src/**/*.{ts,tsx}"]
     },
-    "ts/packages/templates": {
+    "packages/foundation/templates": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs"]
     },

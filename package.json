@@ -35,7 +35,7 @@
     "bridge:gen": "node ./packages/products/bridge-hub/protocol/gen.mjs",
     "bridge:check": "node ./scripts/check-bridge-protocol.mjs",
     "bridge:selftest": "node ./scripts/check-bridge-protocol.mjs --self-test",
-    "test": "pnpm -C ts test && cargo test --manifest-path rust/Cargo.toml --workspace",
+    "test": "pnpm -r test && cargo test --manifest-path rust/Cargo.toml --workspace",
     "smoke:pi": "node ./scripts/smoke-pi.mjs",
     "test:rust": "cargo nextest run --manifest-path rust/Cargo.toml --workspace",
     "test:rust:std": "cargo test --manifest-path rust/Cargo.toml --workspace",
@@ -46,18 +46,18 @@
     "audit:all": "pnpm audit:js && pnpm audit:rust",
     "deps:audit": "cargo deny check",
     "deps:unused": "pnpm exec knip",
-    "deps:depcheck": "pnpm --filter @lania-cli-v2/node-bridge exec depcheck . && pnpm --filter @lania-cli-v2/templates exec depcheck . && pnpm --filter @lania-cli-v2/cli exec depcheck . && pnpm --filter @lania-cli-v2/cli-darwin-arm64 exec depcheck .",
+    "deps:depcheck": "pnpm --filter @lania-cli-v2/bridge-runtime exec depcheck . && pnpm --filter @lania-cli-v2/templates exec depcheck . && pnpm --filter @lania-cli-v2/cli exec depcheck . && pnpm --filter @lania-cli-v2/cli-darwin-arm64 exec depcheck .",
     "deps:update:check": "pnpm exec ncu -r",
     "deps:update": "pnpm exec ncu -r -u",
     "deps:outdated": "pnpm outdated -r",
     "format": "prettier -w package.json pnpm-workspace.yaml .changeset .github scripts eslint.config.js prettier.config.cjs commitlint.config.cjs renovate.json knip.json dangerfile.mjs",
     "format:check": "prettier -c package.json pnpm-workspace.yaml .changeset .github scripts eslint.config.js prettier.config.cjs commitlint.config.cjs renovate.json knip.json dangerfile.mjs",
     "lint": "pnpm lint:ts && pnpm lint:rust",
-    "lint:ts": "eslint \"ts/packages/**/*.{ts,tsx,js,mjs,cjs}\"",
-    "lint:ts:fix": "eslint \"ts/packages/**/*.{ts,tsx,js,mjs,cjs}\" --fix",
+    "lint:ts": "eslint \"packages/**/*.{ts,tsx,js,mjs,cjs}\"",
+    "lint:ts:fix": "eslint \"packages/**/*.{ts,tsx,js,mjs,cjs}\" --fix",
     "lint:rust": "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
     "typecheck": "pnpm typecheck:ts",
-    "typecheck:ts": "pnpm -C ts typecheck",
+    "typecheck:ts": "pnpm -r typecheck",
     "format:rust": "cargo fmt --manifest-path rust/Cargo.toml --all",
     "format:rust:check": "cargo fmt --manifest-path rust/Cargo.toml --all -- --check",
     "coverage:rust": "cargo llvm-cov --manifest-path rust/Cargo.toml --workspace --lcov --output-path coverage/rust/lcov.info",
@@ -84,7 +84,7 @@
     }
   },
   "lint-staged": {
-    "ts/packages/**/*.{ts,tsx,js,mjs,cjs}": [
+    "packages/**/*.{ts,tsx,js,mjs,cjs}": [
       "eslint --fix",
       "prettier -w"
     ],
