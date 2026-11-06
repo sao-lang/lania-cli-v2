@@ -235,9 +235,14 @@ impl FormatService {
             ExternalFormatter::Black => {
                 ExecCommand::new("black").with_args(vec!["--quiet".to_string(), temp_path_string])
             }
-            ExternalFormatter::Dart => {
-                ExecCommand::new("dart").with_args(vec!["format".to_string(), temp_path_string])
-            }
+            ExternalFormatter::Dart => ExecCommand::new("dart")
+                .with_args(vec!["format".to_string(), temp_path_string])
+                // dart 的遥测在「被其它程序 spawn（非控制台父进程）」时对
+                // 遥测 session 文件 setLastModified 会得到 errno 5，把
+                // `dart format` 的退出码污染成 1（本机实测复现）。
+                // 格式化是无人值守的确定性操作，这里显式按 CI 运行以禁用
+                // dart/unified-analytics 遥测，保证退出码只反映格式化结果。
+                .with_env("CI", "true"),
         };
 
         // Best-effort: if command cannot spawn, treat as "skipped".
