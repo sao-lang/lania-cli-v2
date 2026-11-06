@@ -22,7 +22,7 @@ lania-git = { path = "../../../packages/foundation/capabilities/rust/lania-git" 
 lania-host = { path = "../lania-host" }
 lania-logger = { path = "../../../packages/foundation/capabilities/rust/lania-logger" }
 lania-progress = { path = "../../../packages/foundation/capabilities/rust/lania-progress" }
-lania-workflows = { path = "../lania-workflows" }
+lania-workflows = { path = "../../../packages/foundation/capabilities/rust/lania-workflows" }
 lania-plugins-command-add = { path = "../lania-plugins-command-add" }
 lania-plugins-command-build = { path = "../lania-plugins-command-build" }
 lania-plugins-command-create = { path = "../lania-plugins-command-create" }

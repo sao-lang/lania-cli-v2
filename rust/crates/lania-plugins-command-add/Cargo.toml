@@ -10,5 +10,5 @@ anyhow.workspace = true
 async-trait.workspace = true
 lania-command = { path = "../lania-command" }
 lania-host = { path = "../lania-host" }
-lania-workflows = { path = "../lania-workflows" }
+lania-workflows = { path = "../../../packages/foundation/capabilities/rust/lania-workflows" }
 serde_json.workspace = true

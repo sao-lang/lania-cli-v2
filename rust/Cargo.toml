@@ -29,7 +29,7 @@ members = [
   "../packages/products/bridge-hub/adaptors/go/lania-go-bridge",
   "../packages/products/bridge-hub/adaptors/dart/lania-dart-bridge",
   "../packages/products/bridge-hub/adaptors/rust/lania-rs-bridge",
-  "crates/lania-workflows",
+  "../packages/foundation/capabilities/rust/lania-workflows",
   # Bridge Hub 主包（packages/products/bridge-hub/rust/），进程内嵌入 CLI 进程
   "../packages/foundation/host-core/rust/lania-host-core",
   "../packages/foundation/cli-kit/rust/lania-cli-kit",

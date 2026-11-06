@@ -28,5 +28,5 @@ lania-progress = { path = "../../../packages/foundation/capabilities/rust/lania-
 lania-prompt = { path = "../../../packages/foundation/capabilities/rust/lania-prompt" }
 lania-runtime = { path = "../../../packages/foundation/capabilities/rust/lania-runtime" }
 lania-task = { path = "../../../packages/foundation/capabilities/rust/lania-task" }
-lania-workflows = { path = "../lania-workflows" }
+lania-workflows = { path = "../../../packages/foundation/capabilities/rust/lania-workflows" }
 lania-preferences = { path = "../../../packages/foundation/capabilities/rust/lania-preferences" }
