@@ -90,7 +90,7 @@ function readRustWorkspaceVersion() {
 function assertVersionSync(expected) {
   const nodeBridge = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
   const templates = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
-  const agentPkg = readJson(path.join(repoRoot, 'ts/packages/agent/package.json'));
+  const agentPkg = readJson(path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'));
   const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
   const versions = [
     ['rust workspace', expected],
@@ -122,7 +122,7 @@ function stageNodeBridgePayload() {
 
   const bridgeDist = path.join(repoRoot, 'ts/packages/node-bridge/dist');
   const templatesDist = path.join(repoRoot, 'packages/foundation/templates/dist');
-  const agentDist = path.join(repoRoot, 'ts/packages/agent/dist');
+  const agentDist = path.join(repoRoot, 'packages/products/agent/ts/agent/dist');
 
   const stdioEntry = path.join(bridgeDist, 'entry', 'stdio.js');
   const templatesEntry = path.join(templatesDist, 'index.js');
@@ -150,7 +150,7 @@ function stageNodeBridgePayload() {
   // - bridge can resolve `yaml`
   const nodeBridgePkg = readJson(path.join(repoRoot, 'ts/packages/node-bridge/package.json'));
   const templatesPkg = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
-  const agentPkg = readJson(path.join(repoRoot, 'ts/packages/agent/package.json'));
+  const agentPkg = readJson(path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'));
   const payloadPkg = {
     name: '@lania-cli-v2/node-bridge-payload',
     private: true,
@@ -184,7 +184,7 @@ function stageNodeBridgePayload() {
   const agentTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/agent');
   ensureDir(agentTarget);
   copyFile(
-    path.join(repoRoot, 'ts/packages/agent/package.json'),
+    path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'),
     path.join(agentTarget, 'package.json'),
   );
   copyDir(agentDist, path.join(agentTarget, 'dist'));

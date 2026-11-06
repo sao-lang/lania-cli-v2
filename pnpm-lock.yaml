@@ -133,6 +133,22 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/products/agent/ts/agent:
+    dependencies:
+      '@earendil-works/pi-agent-core':
+        specifier: 1.4.0
+        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.88)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.3.6)
+      '@earendil-works/pi-ai':
+        specifier: 1.4.0
+        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.88)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.3.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/products/bridge-hub/npm/bridge-hub: {}
 
   packages/products/runex/npm/runex:
@@ -153,27 +169,11 @@ importers:
 
   packages/products/runex/npm/runex-win32-x64: {}
 
-  ts/packages/agent:
-    dependencies:
-      '@earendil-works/pi-agent-core':
-        specifier: 1.4.0
-        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.88)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.3.6)
-      '@earendil-works/pi-ai':
-        specifier: 1.4.0
-        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.88)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.3.6)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.0
-        version: 22.19.17
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
   ts/packages/node-bridge:
     dependencies:
       '@lania-cli-v2/agent':
         specifier: workspace:*
-        version: link:../agent
+        version: link:../../../packages/products/agent/ts/agent
       '@lania-cli-v2/templates':
         specifier: workspace:*
         version: link:../../../packages/foundation/templates

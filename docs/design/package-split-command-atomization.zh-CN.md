@@ -1777,6 +1777,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 - ✅ 公共下沉阶段 1：16 个 capabilities crate 1:1 迁入 `packages/foundation/capabilities/rust/`（13 host leaf + presentation/format/validate，提交 `c5571e4..46fcbf6`，每 crate 一原子提交）；顺带修复 dart 遥测污染格式化退出码缺陷（`9807aca`）。
 - ✅ 阶段 2a：`lania-command` 迁入 `packages/foundation/command/rust/`（`0e7dbc7`）；dev-deps 环已打破——新建 `packages/foundation/command-conformance/rust/lania-command-conformance` 测试专用 crate 承接本地化覆盖测试（`20ff9c3`），覆盖度不降，§9.5 风险 5 消除；`cargo tree -p lania-command -e normal` 仅 clap/serde/serde_json。
 - ✅ 公共下沉 TS-1：`ts/packages/lania`（作者侧 DSL，npm 名不变）迁入 `packages/foundation/lania/`；`tsconfig.base.json` 上移仓库根；pnpm workspace 增补 `packages/**/npm|ts/*` glob，env/runex/bridge-hub npm 包纳入单一 workspace。
+- ✅ 公共下沉 TS-2：`ts/packages/templates`（脚手架资产包，npm 名不变）迁入 `packages/foundation/templates/`；pack/clean/release 脚本路径同步。
 - ⬜ 其余阶段按本表推进。
 
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
