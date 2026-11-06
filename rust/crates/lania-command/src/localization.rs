@@ -898,6 +898,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "报告缺失的运行时、shim 缺口与 PATH 问题",
             );
             set_example_desc(spec, "lan env ui", "打开终端界面以可视化管理运行时");
+            set_example_desc(
+                spec,
+                "lan env config set shim.host runex",
+                "让生成的 shim 改调 `runex which`（env 包级偏好）",
+            );
         }
         "command.env.list" => {
             spec.about = "显示所有受支持的工具链及探测到的版本".into();
@@ -974,6 +979,25 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "lan env ui --snapshot",
                 "渲染一帧画面而不进入交互模式",
             );
+        }
+        "command.env.config" => {
+            spec.about = "管理 env 命令包的包级偏好（~/.lania/config/env.json，按包隔离）".into();
+            set_example_desc(spec, "lan env config", "查看 env 包偏好及存储路径");
+            set_example_desc(spec, "lan env config get shim.host", "读取 shim 宿主偏好");
+            set_example_desc(
+                spec,
+                "lan env config set shim.host runex",
+                "让生成的 shim 改调 `runex which` 而非 `lan env which`",
+            );
+        }
+        "command.env.config.get" => {
+            spec.about = "读取 env 包偏好（省略 <key> 时输出全部）".into();
+            set_arg_help(spec, "key", "偏好 key：shim.host");
+        }
+        "command.env.config.set" => {
+            spec.about = "写入 env 包偏好".into();
+            set_arg_help(spec, "key", "偏好 key：shim.host");
+            set_arg_help(spec, "value", "偏好值（shim.host 的可选值：lan | runex）");
         }
 
         // pi（旧名 agent，保留为别名）

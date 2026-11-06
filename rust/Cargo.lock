@@ -1118,6 +1118,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lania-package-config"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "lania-plugins-command-add"
 version = "0.0.3"
 dependencies = [
@@ -1178,6 +1187,7 @@ dependencies = [
  "lania-cli-kit",
  "lania-command",
  "lania-host",
+ "lania-package-config",
  "runex",
  "runex-home",
  "serde_json",

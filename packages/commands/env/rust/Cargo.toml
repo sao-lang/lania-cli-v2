@@ -15,6 +15,7 @@ path = "src/bin/lan-env.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 lania-cli-kit = { path = "../../../foundation/cli-kit/rust/lania-cli-kit" }
+lania-package-config = { path = "../../../foundation/package-config/rust/lania-package-config" }
 runex-home = { path = "../../../foundation/runex-home/rust/runex-home" }
 tokio.workspace = true
 lania-command = { path = "../../../../rust/crates/lania-command" }

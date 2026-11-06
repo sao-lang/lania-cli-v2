@@ -1,0 +1,14 @@
+[package]
+name = "lania-package-config"
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "包级偏好配置引擎：~/.lania/config/<pkg>.json，按包隔离（拆分文档决策 #11 / §10.2）"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true

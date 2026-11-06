@@ -11,11 +11,13 @@
 //! - `init`       打印把 `~/.runex/shims` 加入 PATH 的 shell 片段
 //! - `doctor`     体检：缺失工具、shim 与 PATH 一致性
 //! - `ui`         终端 TUI
+//! - `config`     env 包级偏好（~/.lania/config/env.json，按包隔离，决策 #11）
 //!
 //! 执行语义：默认 dry-run 打印计划；只有 `--yes` 才真正执行。
 //! 安装/切换/卸载全部由 `runex` 完成，不转发给 nvm / volta 等外部管理器；
 //! 本 crate 只保留 lania 宿主的命令注册、参数、门控与输出。
 
+mod config;
 mod list;
 
 use anyhow::Result;
@@ -43,6 +45,9 @@ pub const DOCTOR_HANDLER_ID: &str = "command.env.doctor";
 pub const UI_HANDLER_ID: &str = "command.env.ui";
 pub const WHICH_HANDLER_ID: &str = "command.env.which";
 pub const INIT_HANDLER_ID: &str = "command.env.init";
+pub const CONFIG_HANDLER_ID: &str = "command.env.config";
+pub const CONFIG_GET_HANDLER_ID: &str = "command.env.config.get";
+pub const CONFIG_SET_HANDLER_ID: &str = "command.env.config.set";
 
 /// 命令名，必须等于 `spec().name`（§5.4 D.1 冻结导出面 / §10.3 CI 断言）。
 pub const COMMAND_NAME: &str = "env";
@@ -82,6 +87,7 @@ impl EnvCommandPlugin {
             which_spec(),
             init_spec(),
             ui_spec(),
+            config::config_spec(),
         ])
         .with_examples(examples())
     }
@@ -117,6 +123,9 @@ impl Plugin for EnvCommandPlugin {
                 UI_HANDLER_ID,
                 WHICH_HANDLER_ID,
                 INIT_HANDLER_ID,
+                CONFIG_HANDLER_ID,
+                CONFIG_GET_HANDLER_ID,
+                CONFIG_SET_HANDLER_ID,
             ],
             || EnvCommandHandler,
         )
@@ -128,6 +137,15 @@ impl CommandHandler for EnvCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         let command = ctx.command();
         let cwd = std::path::PathBuf::from(&command.cwd);
+
+        // `config` 只读写包级偏好文件，不需要构造 runex API（无 runex 环境也可用）。
+        match command.handler_id.as_str() {
+            CONFIG_HANDLER_ID | CONFIG_GET_HANDLER_ID | CONFIG_SET_HANDLER_ID => {
+                return config::execute_config(ctx);
+            }
+            _ => {}
+        }
+
         // 宿主只负责命令注册与输出；全部运行时能力都走 runex 的 Rust API。
         let api = runtime_api(&cwd)?;
 
@@ -391,10 +409,19 @@ fn execute_mutation(
 }
 
 /// 构造 runex API：宿主只做一层「路径 + 错误文本」适配，不复制任何运行时逻辑。
+///
+/// shim 的管理命令按包级偏好 `shim.host`（`~/.lania/config/env.json`）选择：
+/// `runex` → `ShimHost::binary("runex", …)`；未配置 / `lan`（默认）→ `ShimHost::lan()`，
+/// 与总包现状逐字节一致（拆分文档 §6.6 / §10.2）。
 pub(crate) fn runtime_api(cwd: &std::path::Path) -> Result<Runex> {
+    let host = if config::shim_host_preference().as_deref() == Some("runex") {
+        ShimHost::binary("runex", None)
+    } else {
+        ShimHost::lan()
+    };
     Runex::resolve()
-        // `lan env` 生成的 shim 必须继续调用 `lan env which`，而不是 `runex which`。
-        .map(|api| api.with_cwd(cwd).with_shim_host(ShimHost::lan()))
+        // `lan env` 生成的 shim 默认调用 `lan env which`（偏好可切到 `runex which`）。
+        .map(|api| api.with_cwd(cwd).with_shim_host(host))
         .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 
@@ -477,6 +504,10 @@ fn examples() -> Vec<Example> {
             command: "lan env ui".into(),
             description: "Open the terminal UI to manage runtimes visually".into(),
         },
+        Example {
+            command: "lan env config set shim.host runex".into(),
+            description: "Make generated shims call `runex which` (per-package preference)".into(),
+        },
     ]
 }
 
@@ -492,9 +523,10 @@ mod tests {
     };
 
     use super::{
-        EnvCommandPlugin, DOCTOR_HANDLER_ID, HANDLER_ID, INFO_HANDLER_ID, INIT_HANDLER_ID,
-        INSTALL_HANDLER_ID, LIST_HANDLER_ID, REMOVE_HANDLER_ID, UI_HANDLER_ID, USE_HANDLER_ID,
-        VERSIONS_HANDLER_ID, WHICH_HANDLER_ID,
+        EnvCommandPlugin, CONFIG_GET_HANDLER_ID, CONFIG_HANDLER_ID, CONFIG_SET_HANDLER_ID,
+        DOCTOR_HANDLER_ID, HANDLER_ID, INFO_HANDLER_ID, INIT_HANDLER_ID, INSTALL_HANDLER_ID,
+        LIST_HANDLER_ID, REMOVE_HANDLER_ID, UI_HANDLER_ID, USE_HANDLER_ID, VERSIONS_HANDLER_ID,
+        WHICH_HANDLER_ID,
     };
 
     #[test]
@@ -517,14 +549,14 @@ mod tests {
         let spec = &commands.commands()[0];
         assert_eq!(spec.name, "env");
         assert_eq!(spec.handler_id, HANDLER_ID);
-        assert_eq!(spec.subcommands.len(), 10);
+        assert_eq!(spec.subcommands.len(), 11);
 
         let names: Vec<&str> = spec.subcommands.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(
             names,
             vec![
                 "list", "info", "versions", "install", "use", "remove", "doctor", "which", "init",
-                "ui"
+                "ui", "config"
             ]
         );
 
@@ -540,6 +572,9 @@ mod tests {
             WHICH_HANDLER_ID,
             INIT_HANDLER_ID,
             UI_HANDLER_ID,
+            CONFIG_HANDLER_ID,
+            CONFIG_GET_HANDLER_ID,
+            CONFIG_SET_HANDLER_ID,
         ] {
             assert!(handlers.get(handler).is_some(), "missing handler {handler}");
         }

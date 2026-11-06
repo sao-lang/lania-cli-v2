@@ -34,6 +34,8 @@ members = [
   "../packages/foundation/host-core/rust/lania-host-core",
   "../packages/foundation/cli-kit/rust/lania-cli-kit",
   "../packages/foundation/runex-home/rust/runex-home",
+  # 包级偏好配置引擎（决策 #11 / 拆分文档 §10.2）：~/.lania/config/<pkg>.json 按包隔离
+  "../packages/foundation/package-config/rust/lania-package-config",
   "../packages/products/bridge-hub/rust/lania-bridge-protocol",
   "../packages/products/bridge-hub/rust/lania-bridge-core",
   "../packages/products/bridge-hub/rust/lania-bridge-bus",

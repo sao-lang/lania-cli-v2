@@ -19,18 +19,19 @@
 
 ## 0. 决策记录
 
-| #   | 决策         | 结论                                                                                                                                                                                                                                                                                          |
-| --- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | 目录形态     | 根目录新建 `packages/*` 统一容器；每个包内含 `ts/`、`rust/`、`npm/` 子目录归置不同语言代码，**不再按语言顶层分类**。现有顶层 `ts/`、`rust/`、`npm/` 逐步迁入后删除，最终只剩一套 pnpm workspace + 一套 Cargo workspace。通用骨架、功能独立模块、可直接成包的模块都成为 `packages/` 下独立包。 |
-| 2   | 三个主包     | `runex`（多运行时管理器）、`agent`（agent 核心）、`bridge-hub`（语言中立 Hub）各自独立成主包，统一「Rust lib API + 独立 bin + 可发 npm 包」双形态。                                                                                                                                           |
-| 3   | 命令原子化   | 12 个命令各拆成一个子包（`template` 并入 `create` 作为二级命令），目标是「只装 env 命令的包就能用 `lan env`，不必安装全量体量」。                                                                                                                                                             |
-| 4   | 子包双形态   | 每个命令子包**同时提供 API 与 CLI 两种调用方式**：单独安装使用时走 CLI；作为总包依赖时，总包通过 **API 静态链接**调用子包。                                                                                                                                                                   |
-| 5   | 总包         | 保留 `@lania-cli-v2/cli`，依赖全部命令子包、静态链接成单一 `lania-cli` 二进制，**行为与现在逐字节不变、不经过调度器、不新增进程跳转**；子包行为 = 单条命令的行为。                                                                                                                            |
-| 6   | 入口归属     | 极小 `@lania-cli-v2/core` 提供**唯一** `lan` 入口与调度器，按构建期已知命令表探测安装状态，路由到子包自带的 `lan-<cmd>` 二进制。装 1 个或 N 个子包都不冲突，未安装命令给 `npm i @lania-cli-v2/cmd-<name>` 提示。                                                                              |
-| 7   | 总包安装拓扑 | `@lania-cli-v2/cli` **移除 `bin.lan`**，改为 `dependencies` 带 `@lania-cli-v2/core`；launcher 检测到全量二进制就直接启动，不进入调度。装 cli 仍自动得到 `lan`。                                                                                                                               |
-| 8   | 首批产物范围 | 12 个命令**全部**首发平台二进制包（12 × 3 = 36 个产物）；CI 用动态 matrix、单平台单 job 内一次编译 + 多次链接。                                                                                                                                                                               |
-| 9   | Hub 部署形态 | **进程内嵌**：`lania-bridge-host` 静态链接进每个 `lan-<cmd>`。不采用 core 持有 sidecar Hub；独立 `lan-hub` bin 只作调试与未来长驻场景。此结论收敛 `bridge-layer.zh-CN.md` §6 未决项。                                                                                                         |
-| 10  | 兼容约束     | 12 个 builtin 命令（template 并入 create）行为不变（golden 基线 + `scripts/smoke-pi.mjs` 8/8 + `lan env` 13 条 e2e）；沿用 `os`/`cpu` + `optionalDependencies` + 无 postinstall + 安装期不联网；沿用 `框架化与产品化总览.zh-CN.md` §6 的四个分发边界。                                        |
+| #   | 决策         | 结论                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 目录形态     | 根目录新建 `packages/*` 统一容器；每个包内含 `ts/`、`rust/`、`npm/` 子目录归置不同语言代码，**不再按语言顶层分类**。现有顶层 `ts/`、`rust/`、`npm/` 逐步迁入后删除，最终只剩一套 pnpm workspace + 一套 Cargo workspace。通用骨架、功能独立模块、可直接成包的模块都成为 `packages/` 下独立包。                                                                                                                                                       |
+| 2   | 三个主包     | `runex`（多运行时管理器）、`agent`（agent 核心）、`bridge-hub`（语言中立 Hub）各自独立成主包，统一「Rust lib API + 独立 bin + 可发 npm 包」双形态。                                                                                                                                                                                                                                                                                                 |
+| 3   | 命令原子化   | 12 个命令各拆成一个子包（`template` 并入 `create` 作为二级命令），目标是「只装 env 命令的包就能用 `lan env`，不必安装全量体量」。                                                                                                                                                                                                                                                                                                                   |
+| 4   | 子包双形态   | 每个命令子包**同时提供 API 与 CLI 两种调用方式**：单独安装使用时走 CLI；作为总包依赖时，总包通过 **API 静态链接**调用子包。                                                                                                                                                                                                                                                                                                                         |
+| 5   | 总包         | 保留 `@lania-cli-v2/cli`，依赖全部命令子包、静态链接成单一 `lania-cli` 二进制，**行为与现在逐字节不变、不经过调度器、不新增进程跳转**；子包行为 = 单条命令的行为。                                                                                                                                                                                                                                                                                  |
+| 6   | 入口归属     | 极小 `@lania-cli-v2/core` 提供**唯一** `lan` 入口与调度器，按构建期已知命令表探测安装状态，路由到子包自带的 `lan-<cmd>` 二进制。装 1 个或 N 个子包都不冲突，未安装命令给 `npm i @lania-cli-v2/cmd-<name>` 提示。                                                                                                                                                                                                                                    |
+| 7   | 总包安装拓扑 | `@lania-cli-v2/cli` **移除 `bin.lan`**，改为 `dependencies` 带 `@lania-cli-v2/core`；launcher 检测到全量二进制就直接启动，不进入调度。装 cli 仍自动得到 `lan`。                                                                                                                                                                                                                                                                                     |
+| 8   | 首批产物范围 | 12 个命令**全部**首发平台二进制包（12 × 3 = 36 个产物）；CI 用动态 matrix、单平台单 job 内一次编译 + 多次链接。                                                                                                                                                                                                                                                                                                                                     |
+| 9   | Hub 部署形态 | **进程内嵌**：`lania-bridge-host` 静态链接进每个 `lan-<cmd>`。不采用 core 持有 sidecar Hub；独立 `lan-hub` bin 只作调试与未来长驻场景。此结论收敛 `bridge-layer.zh-CN.md` §6 未决项。                                                                                                                                                                                                                                                               |
+| 10  | 兼容约束     | 12 个 builtin 命令（template 并入 create）行为不变（golden 基线 + `scripts/smoke-pi.mjs` 8/8 + `lan env` 13 条 e2e）；沿用 `os`/`cpu` + `optionalDependencies` + 无 postinstall + 安装期不联网；沿用 `框架化与产品化总览.zh-CN.md` §6 的四个分发边界。                                                                                                                                                                                              |
+| 11  | config 归属  | **`config` 命令不独立成子包**（修订本文 §3.2/§3.3/§5.3/§5.4 原列的 `commands/config`）：保留在总包（crate `lania-plugins-command-locale` 不迁出 `rust/crates/`），角色 = 全局偏好 + 项目配置 + 跨包视角管理子包偏好。**每个命令子包自带 `config` 二级命令**管理本包包级偏好，配置引擎下沉为 foundation crate（§10.2 修订），存储 `~/.lania/config/<pkg>.json` 按包隔离。命令子包 12 → **11**，平台二进制 11 × 3 = 33；总包 builtin 命令仍为 12 条。 |
 
 ### 0.1 一句话看懂
 
@@ -122,7 +123,7 @@ npm i core cmd-env cmd-build │  同上，两个 lan-<cmd> 并存，bin 不冲�
 
 ## 2. 目标、原则与不变量
 
-**目标**：在保持 `@lania-cli-v2/cli` 全量总包行为逐字节不变的前提下，把仓库重构为 `packages/*` 单一容器；12 个命令各自成为可独立安装（CLI）、可被总包静态链接（API）的原子包（`template` 作为 `create` 二级命令，不单独成包）；`runex` / `agent` / `bridge-hub` 成为独立双形态主包。
+**目标**：在保持 `@lania-cli-v2/cli` 全量总包行为逐字节不变的前提下，把仓库重构为 `packages/*` 单一容器；11 个命令各自成为可独立安装（CLI）、可被总包静态链接（API）的原子包（`template` 作为 `create` 二级命令不单独成包；`config` 按决策 #11 保留在总包，不独立成包，每个命令子包自带 `config` 二级命令管理本包偏好）；`runex` / `agent` / `bridge-hub` 成为独立双形态主包。
 
 **原则（按优先级）**：
 
@@ -218,15 +219,17 @@ packages/
 │       ├── ts/                          # TS 端点 adaptor（endpoint.ts，由 npm payload 引用）
 │       └── npm/bridge-hub/              # @lania-cli-v2/bridge-hub + 可选 lan-hub bin
 │
-├── commands/                            # ③ 12 个命令包（template 已并入 create 作为二级命令）
+├── commands/                            # ③ 11 个命令包（template 并入 create；config 按决策 #11 留总包不成包）
 │   ├── dev/ build/ lint/ create/ add/ generate/ release/ git/
-│   ├── tools/ env/ pi/ config/    # config 目录对应原 crate lania-plugins-command-locale
-│   │   ├── lania.package.json
+│   ├── tools/ env/ pi/             # 每包自带 config 二级命令（包级偏好，§10.2），crate 内自有 config.rs
+│   │   ├── lania.package.json           # 含 configSchema（本包自有偏好 key + 类型，构建期校验）
 │   │   ├── rust/                        # lib crate + [[bin]] lan-<cmd>
 │   │   ├── ts/                          # 仅确需自有 TS 资产时存在
 │   │   ├── npm/cmd-<cmd>/               # @lania-cli-v2/cmd-<cmd>：bin/lan-<cmd>.mjs + lib/bridge/
 │   │   ├── npm/cmd-<cmd>-{darwin-arm64,linux-x64,win32-x64}/   # os/cpu + files:["bin"]
 │   │   └── describes/<cmd>.json         # 构建期由 spec() 序列化产出，随包发布
+│   # 注：`config` 命令（crate lania-plugins-command-locale）按决策 #11 保留在 rust/crates/，
+│   #     只随总包发布；不产生 lan-config 独立二进制与 cmd-config npm 包。
 │
 ├── runtime/                             # ④ 可扩展宿主设施（动态运行时命令 + 脚手架封装命令的执行宿主）
 │   ├── lania.package.json               # kind: "command-runtime"（非 builtin 命令，不被 known-commands 收录）
@@ -243,7 +246,7 @@ packages/
     └── rs-bridge/npm/rs-bridge/         # @lania-cli-v2/rs-bridge：独立 lan-rs-bridge bin
 ```
 
-### 3.3 12 个命令包对照表（template 已并入 create）
+### 3.3 11 个命令包对照表（template 并入 create；config 留总包，见决策 #11）
 
 > 「初始切片」是设计起点，施工时须按各命令实际 bridge 方法调用逐条核对（`rust/crates/lania-plugins-command-*/src/**`）。
 
@@ -260,9 +263,10 @@ packages/
 | `commands/tools`    | `tools`              | `...-tools` / `lan-tools`       | `cmd-tools`    | `cmd-tools-`    | node-bridge, exec, runtime        | config, system, toolchain                          |
 | **`commands/env`**  | **`env`**            | `...-env` / `lan-env`           | **`cmd-env`**  | `cmd-env-`      | **`runex`（lib）**                | **无**（`nodeBridge: false`）                      |
 | `commands/pi`       | `pi`                 | `...-pi` / `lan-pi`             | `cmd-pi`       | `cmd-pi-`       | agent, agent-core, node-bridge    | config, agent, system                              |
-| `commands/config`   | **`config`**         | `...-locale` / `lan-config`     | `cmd-config`   | `cmd-config-`   | config, logger, preferences       | **无**（`nodeBridge: false`）                      |
 
-**命名分叉警示**：`commands/config` 的目录名与 npm 名用 `config`（真实命令名），Cargo crate 沿用 `lania-plugins-command-locale`。**`manifest.command` 是唯一事实源，所有 `gen-*` 脚本禁止从目录名或 crate 名推断命令名**；CI 加断言 `manifest.command == describes/<cmd>.json 里的 spec().name`。
+> **`config` 命令不在上表**（决策 #11）：crate `lania-plugins-command-locale` 保留在 `rust/crates/`，只随总包发布，不产生 `lan-config` 独立二进制、`cmd-config` npm 包或 `describes/config.json`。每个命令子包自带 `config` 二级命令管理本包偏好（机制见 §10.2 修订版）。
+
+**命名分叉警示**：**`manifest.command` 是唯一事实源，所有 `gen-*` 脚本禁止从目录名或 crate 名推断命令名**；CI 加断言 `manifest.command == describes/<cmd>.json 里的 spec().name`。（历史背景：原 `commands/config` 方案中目录/npm 名用 `config` 而 Cargo crate 沿用 `...-locale`，该分叉随 config 不成子包而消除，规则保留适用于其余包。）
 
 > **`template` 命令已去除，能力并入 `create` 二级命令（评审决定）**：顶级 `template` 命令不再独立存在，也不再作为子包 `commands/template` 发布；其全部能力（基于 ejs 的 `templatePlugin` 渲染，对应 `bridge-slice-template`，见 §5.2 B.4）直接**迁移进 `create`**，以 `lan create template ...` 二级命令提供。因此：
 >
@@ -540,26 +544,26 @@ pub fn host_runtime_with_bridges() -> HostRuntime { /* host-core + bridge-host �
 
 **（7）迁移顺序与每步验收门（建议每步一个独立 commit）**
 
-| 步  | 动作                                                                                                                                                                                                 | 验收门（CI 必须绿）                                                                                                                            |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | 新建 `host-core`（迁入全部非 bridge 模块，`bridge: Option<Arc<dyn BridgeProvider>>`），`lania-host` 改为 facade 依赖 `host-core` + 临时 `bridge-host-stub`（trait 返回 unsupported）                 | 全量 `lania-cli` golden 不变；`cargo build -p lania-host` 通过                                                                                 |
-| 2   | 新建 `bridge-host`（迁入 `runtime/bridges.rs` + 具体 `BridgeProvider` impl + `register_*_bridge`），facade 替换 stub → `bridge-host`                                                                 | `lania-cli` golden 不变；`cargo tree -p lania-host` 仍只是 facade（不暴露具体 bridge 给命令层）                                                |
-| 3   | `commands/env`、`commands/config` 改依赖 `host-core` 且仅此（不用 `lania-host`、不用 `bridge-host`），产出 `lan-env`/`lan-config`                                                                    | `cargo tree -p lan-env` **不得出现** `bridge-host` / `lania-node-bridge` / `lania-py/go/dart/rs-bridge`；`lan env`/`lan config` 在干净环境可用 |
-| 4   | 6 个需 Node 的命令（`dev/build/lint/generate/tools` + `pi`；`create/add/release/git` 经 workflows 也需）改依赖 `host-core` + `bridge-host`                                                           | `cargo tree -p lan-build` 出现 `bridge-host` 但**不得出现** `lania-py/go/dart-bridge`（它们被桥接层封装在内部）；TS payload 切片按 §5.2 生效   |
-| 5   | 打破 `lania-command` 的 dev-dependencies 环：把 localization coverage 集成测试从 `lania-command` 迁到 `lania-cli`（或新建 `lania-cli-tests`）。`lania-command` 由此成为干净 leaf，命令子包可无环依赖 | `cargo build -p lania-command` 无 dev-dep 反向引用；`cargo test -p lania-cli` 该集成测试仍过                                                   |
+| 步  | 动作                                                                                                                                                                                                 | 验收门（CI 必须绿）                                                                                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 新建 `host-core`（迁入全部非 bridge 模块，`bridge: Option<Arc<dyn BridgeProvider>>`），`lania-host` 改为 facade 依赖 `host-core` + 临时 `bridge-host-stub`（trait 返回 unsupported）                 | 全量 `lania-cli` golden 不变；`cargo build -p lania-host` 通过                                                                               |
+| 2   | 新建 `bridge-host`（迁入 `runtime/bridges.rs` + 具体 `BridgeProvider` impl + `register_*_bridge`），facade 替换 stub → `bridge-host`                                                                 | `lania-cli` golden 不变；`cargo tree -p lania-host` 仍只是 facade（不暴露具体 bridge 给命令层）                                              |
+| 3   | `commands/env` 改依赖 `host-core` 且仅此（不用 `lania-host`、不用 `bridge-host`），产出 `lan-env`；`config` 命令按决策 #11 留总包，无独立 `lan-config`                                               | `cargo tree -p lan-env` **不得出现** `bridge-host` / `lania-node-bridge` / `lania-py/go/dart/rs-bridge`；`lan env` 在干净环境可用            |
+| 4   | 6 个需 Node 的命令（`dev/build/lint/generate/tools` + `pi`；`create/add/release/git` 经 workflows 也需）改依赖 `host-core` + `bridge-host`                                                           | `cargo tree -p lan-build` 出现 `bridge-host` 但**不得出现** `lania-py/go/dart-bridge`（它们被桥接层封装在内部）；TS payload 切片按 §5.2 生效 |
+| 5   | 打破 `lania-command` 的 dev-dependencies 环：把 localization coverage 集成测试从 `lania-command` 迁到 `lania-cli`（或新建 `lania-cli-tests`）。`lania-command` 由此成为干净 leaf，命令子包可无环依赖 | `cargo build -p lania-command` 无 dev-dep 反向引用；`cargo test -p lania-cli` 该集成测试仍过                                                 |
 
 **（8）最终每命令二进制的最小链接集（施工后的 `cargo tree` 基线）**
 
-| 命令包                   | 必链                                                                                            | 按需                                               | 显式不链                               |
-| ------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------- |
-| `env`                    | `host-core` + `runex-home` + `lania-cli-kit` + `lania-command`                                  | `runex`（lib）                                     | `bridge-host`、全部 node payload       |
-| `config`                 | `host-core`（config/preferences/logger 子集）+ `runex-home` + `lania-cli-kit` + `lania-command` | —                                                  | `bridge-host`、workflows、node payload |
-| `dev/build/lint/tools`   | `host-core` + `runex-home` + `lania-cli-kit` + `lania-command`                                  | `bridge-host`（node adaptor 经 stdio）             | `lania-py/go/dart-bridge`、agent       |
-| `generate`               | 同上                                                                                            | `bridge-host` + `lania-workflows`                  | —                                      |
-| `create/add/release/git` | `host-core` + `runex-home` + `lania-cli-kit` + `lania-command`                                  | `bridge-host` + `lania-workflows`                  | agent                                  |
-| `pi`                     | 同上                                                                                            | `bridge-host` + `lania-agent` + `lania-agent-core` | —                                      |
+| 命令包                          | 必链                                                           | 按需                                               | 显式不链                         |
+| ------------------------------- | -------------------------------------------------------------- | -------------------------------------------------- | -------------------------------- |
+| `env`                           | `host-core` + `runex-home` + `lania-cli-kit` + `lania-command` | `runex`（lib）                                     | `bridge-host`、全部 node payload |
+| （config 留总包，无独立二进制） | —（`lania-plugins-command-locale` 只随总包链接，见决策 #11）   | —                                                  | —                                |
+| `dev/build/lint/tools`          | `host-core` + `runex-home` + `lania-cli-kit` + `lania-command` | `bridge-host`（node adaptor 经 stdio）             | `lania-py/go/dart-bridge`、agent |
+| `generate`                      | 同上                                                           | `bridge-host` + `lania-workflows`                  | —                                |
+| `create/add/release/git`        | `host-core` + `runex-home` + `lania-cli-kit` + `lania-command` | `bridge-host` + `lania-workflows`                  | agent                            |
+| `pi`                            | 同上                                                           | `bridge-host` + `lania-agent` + `lania-agent-core` | —                                |
 
-验收硬门：`env`/`config` 二进制的 `cargo tree` 中**搜索不到 `bridge-host` 与任一 `lania-*-bridge`**；`cargo bloat` 对比 `lan-env` 体积应显著小于当前 `lania-cli` 单二进制（因为它根本没编进 5 个语言运行时）。
+验收硬门：`env` 等命令二进制的 `cargo tree` 中**搜索不到 `bridge-host` 与任一 `lania-*-bridge`**；`cargo bloat` 对比 `lan-env` 体积应显著小于当前 `lania-cli` 单二进制（因为它根本没编进 5 个语言运行时）。`config` 命令不产出独立二进制（决策 #11），不参与此验收。
 
 ### 5.2 B. TS payload 按命令切片
 
@@ -609,7 +613,7 @@ for (const name of sliceNames) {
 `env` 与 `config`：
 
 1. manifest 声明 `payload.slices: []`、`payload.nodeBridge: false`；命令包内**不存在** `lib/bridge/`；wrapper 与 core dispatcher **不注入** `LANIA_NODE_BRIDGE_DIR`。
-2. `lan-env` / `lan-config` 二进制**不链接** `lania-bridge-host`（bridge-hub 内聚 5 adaptor，但 env/config 不需要任何语言运行时，故零桥接依赖）。
+2. `lan-env` 二进制**不链接** `lania-bridge-host`（bridge-hub 内聚 5 adaptor，但 env 不需要任何语言运行时，故零桥接依赖；config 留总包，见决策 #11）。
 3. `config.loadLan` 的缺省值由 `lania-config` 补齐（纯 Rust、零 bridge，复用现有 crate，不另起 `config-native`）：纯 Rust 读 `lan.config.yaml/json` 的 `locale` / `output` / `validation_errors` 子集，构造与 `LanConfigSnapshot` 同构的值，喂给 `resolve_effective_locale` / `output_profile_from_sources`，使 envelope 与总包一致且不拉起 Node。
    - **已知边界**：`lan.config.ts` 仍需 tsx/Node（现状即如此，见 `pack.mjs:147-149`）。无 JS 命令遇到 `.ts` 配置时回落到 `lania_preferences` + 环境变量，并输出一条与现有 `validation_errors` 渲染同风格的 warning。现状 `.ok()` 本就吞掉加载失败，因此不破坏「行为不变」，登记为 §9.8 未决项。
 4. 总包 `payload.slices: ["*"]`，`stageNodeBridgePayload()` 的组装结果与迁移前**逐文件一致**（12 插件全在、ejs/tsx/yaml/pi-\* 全装）。
@@ -854,18 +858,12 @@ execDirect(bin, env, argv.slice(1)); // ["list", "--json", ...]
       "package": "@lania-cli-v2/cmd-env",
       "bin": "lan-env",
       "describe": "describes/env.json"
-    },
-    {
-      "command": "config",
-      "package": "@lania-cli-v2/cmd-config",
-      "bin": "lan-config",
-      "describe": "describes/config.json"
     }
   ]
 }
 ```
 
-共 12 条构建期静态表；运行时 launcher 对每条已知名只做 `require.resolve`，**不扫描目录、不发现未知命令**。
+共 11 条构建期静态表（config 留总包、不在调度表内，见决策 #11）；运行时 launcher 对每条已知名只做 `require.resolve`，**不扫描目录、不发现未知命令**。调度模式下 `lan config` 不在 `known-commands.json`，launcher 提示「config 属于总包，请安装 @lania-cli-v2/cli」。
 
 - 缓存 `lib/help-cache.json`（或用户缓存目录），键 = 各已安装 manifest 的 `version` + `coreVersion` + `protocol`；版本变化即失效，`--refresh-help` 显式重建。
 - 渲染：调度模式由 core 的 JS 用与 `render_builtin_command` 同构的模板渲染「已安装命令 + 未安装命令的可安装提示」；总包模式直接交给全量二进制。`lan <cmd> --help` 在调度模式下转发给 `lan-<cmd> --help`。
@@ -1024,15 +1022,17 @@ async fn main() {
 
 命名规约（单一事实源 = manifest `command`）：
 
-| 维度           | 规约                                      | env                  | 原 locale               |
-| -------------- | ----------------------------------------- | -------------------- | ----------------------- |
-| 目录           | `packages/commands/<command>/`            | `commands/env`       | `commands/config`       |
-| Cargo crate    | 沿用 `lania-plugins-command-<crate>`      | `...-env`            | `...-locale`            |
-| Cargo bin      | `lan-<command>`                           | `lan-env`            | `lan-config`            |
-| npm 主包       | `@lania-cli-v2/cmd-<command>`             | `cmd-env`            | `cmd-config`            |
-| npm 平台包     | `@lania-cli-v2/cmd-<command>-<os>-<arch>` | `cmd-env-win32-x64`  | `cmd-config-win32-x64`  |
-| 平台包内二进制 | `bin/lan-<command>[.exe]`                 | `bin/lan-env.exe`    | `bin/lan-config.exe`    |
-| describe       | `describes/<command>.json`                | `describes/env.json` | `describes/config.json` |
+| 维度           | 规约                                      | env                  | pi                  |
+| -------------- | ----------------------------------------- | -------------------- | ------------------- |
+| 目录           | `packages/commands/<command>/`            | `commands/env`       | `commands/pi`       |
+| Cargo crate    | 沿用 `lania-plugins-command-<crate>`      | `...-env`            | `...-pi`            |
+| Cargo bin      | `lan-<command>`                           | `lan-env`            | `lan-pi`            |
+| npm 主包       | `@lania-cli-v2/cmd-<command>`             | `cmd-env`            | `cmd-pi`            |
+| npm 平台包     | `@lania-cli-v2/cmd-<command>-<os>-<arch>` | `cmd-env-win32-x64`  | `cmd-pi-win32-x64`  |
+| 平台包内二进制 | `bin/lan-<command>[.exe]`                 | `bin/lan-env.exe`    | `bin/lan-pi.exe`    |
+| describe       | `describes/<command>.json`                | `describes/env.json` | `describes/pi.json` |
+
+（原表第二示例列为 `commands/config`，随决策 #11 改为 `commands/pi`。）
 
 #### D.4 同一份 `CommandPlugin` 服务双形态（monolith static vs atomic binary）
 
@@ -1183,7 +1183,7 @@ packages/runtime/  @lania-cli-v2/runtime   kind: "command-runtime"
 
 #### F.4 解：宿主底层能力对动态命令 / 脚手架**始终完整**
 
-因为动态命令与脚手架**只在 `runtime` 设施进程内执行**，而该进程链接**全量 `host-core`**，`ctx.tools`（`exec/fs/git/pm/runtime/scaffold/...`）与现状 `lania-cli` 完全一致。薄 per-command 二进制（`lan-env`/`lan-config`）不编译这些能力进来，**因为它们根本不执行动态命令**——能力可用性绑定在"执行该命令的设施"上，而非绑定在"你装了哪些 builtin 包"上。这样彻底解耦：
+因为动态命令与脚手架**只在 `runtime` 设施进程内执行**，而该进程链接**全量 `host-core`**，`ctx.tools`（`exec/fs/git/pm/runtime/scaffold/...`）与现状 `lania-cli` 完全一致。薄 per-command 二进制（`lan-env` 等）不编译这些能力进来，**因为它们根本不执行动态命令**——能力可用性绑定在"执行该命令的设施"上，而非绑定在"你装了哪些 builtin 包"上。这样彻底解耦：
 
 - 只装 `env` → `lan env` 极小、无 node-bridge；
 - 同一项目里又跑 `lan ops ping`（动态命令）→ 自动走 `runtime` 设施 → 完整 `ctx.tools`；
@@ -1596,7 +1596,7 @@ fn execute(&self, ctx: &CommandContext, host: &dyn HostApi) -> Result<CommandExe
 | 现有硬编码                                                                  | 改造                                                                                                                                                                                      |
 | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `stageNodeBridgePayload()` 写死 `npm/cli/lib/node-bridge` + 3 个 dist       | `discoverPackages()` 扫 `packages/*/lania.package.json`；按 `payload.slices` 组装**每个包自己的** `lib/bridge/`，`npm install --omit=dev` 只装该切片依赖；总包 `["*"]` 保持全量逐文件一致 |
-| `cargo build --release -p lania-cli`                                        | 从 manifest 汇总 `rust.bin` 生成 `-p` 列表，**一次** `cargo build --release -p lania-cli -p lan-dev ... -p lan-config -p runex`（共享 `target/` 缓存）                                    |
+| `cargo build --release -p lania-cli`                                        | 从 manifest 汇总 `rust.bin` 生成 `-p` 列表，**一次** `cargo build --release -p lania-cli -p lan-dev ... -p lan-pi -p runex`（共享 `target/` 缓存；config 不产出独立 bin，决策 #11）       |
 | `readRustWorkspaceVersion()` 从 `rust/Cargo.toml` 取全局版本                | 改为 `readVersionFamily(pkg)` 从 manifest 取；删除 `[workspace.package] version`                                                                                                          |
 | `assertVersionSync(expected)` 校验写死路径                                  | `assertVersionFamilies(packages)`：按 `versionFamily` 分组，组内 `package.json` / `Cargo.toml` / 平台包 / `describes/*.json` 全等，**组间允许不同**                                       |
 | `discoverPlatformPackageDescriptors()` 靠 `optionalDependencies` + 前缀派生 | 直接读 `npm.platformPackages[]`（含 `os`/`cpu`/`binary`），不再字符串替换                                                                                                                 |
@@ -1693,19 +1693,19 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 **禁止出现清单（验收断言）**：
 
 - `cmd-env` 的 `node_modules` 顶层不得有 `ejs` / `tsx` / `yaml` / `@earendil-works/pi-agent-core` / `@earendil-works/pi-ai` / `@lania-cli-v2/agent` / `@lania-cli-v2/templates`；
-- `cargo tree -p lan-env` 不得出现 `lania-agent` / `lania-agent-core` / `lania-bridge-host` / `lania-bridge-bus` / `lania-node-bridge` / `lania-py-bridge` / `lania-go-bridge` / `lania-dart-bridge` / `lania-plugins-command-pi` / `lania-workflows` / 其它 12 个命令 crate；
-- `cargo tree -p lan-config` 同上（且无 `runex`）；
+- `cargo tree -p lan-env` 不得出现 `lania-agent` / `lania-agent-core` / `lania-bridge-host` / `lania-bridge-bus` / `lania-node-bridge` / `lania-py-bridge` / `lania-go-bridge` / `lania-dart-bridge` / `lania-plugins-command-pi` / `lania-workflows` / 其它命令 crate；
 - `cargo tree -p lania-command -e normal` 只含 clap/serde/serde_json（dev-deps 为空）。
 
 ### 7.2 验收清单（13 条）
 
-1. `pnpm pack` 后，12 个 `cmd-*` 与总包 `npm pack` 成功；`cmd-env` / `cmd-config` 包内**不存在** `lib/bridge/`，manifest `payload.slices == []`。
+1. `pnpm pack` 后，11 个 `cmd-*` 与总包 `npm pack` 成功；`cmd-env` 等零 payload 命令包内**不存在** `lib/bridge/`，manifest `payload.slices == []`。
 2. 干净环境（临时 `npm prefix`）只装 `core + cmd-env`：`lan env list --json`、`lan env which node`、`lan env init`、`lan env ui`（TTY）通过；现有 `lan env` **13 条 e2e 全绿**。
 3. 总包 **12 命令输出逐字节对比**迁移前 golden 基线（含 stdout JSON envelope、stderr 渲染、退出码；原 `lan template` 输出改由 `lan create template` 对齐）；`scripts/smoke-pi.mjs` **8/8**。
 4. `lan --help` 在三种拓扑（`core+1 包` / `core+N 包` / `core+总包`）下聚合正确；未安装命令输出 `npm i @lania-cli-v2/cmd-<name>` 提示；`lan --refresh-help` 能重建缓存。
 5. 全局参数一致性：同一 `--json` / locale / output profile，在总包与 dispatcher 下输出一致。
 6. `ShimHost` 第三种模式：`lan env init` 生成的 shim exec `lan-env which <name>`，且 **`which` 不回退 PATH 扫描**。
-7. 冻结导出面：12 个 `frozen_export_surface_is_intact` 测试 + `runex` 同名守卫全绿；`cargo tree` 无环；`manifest.command == spec().name` 断言通过。
+7. 冻结导出面：11 个命令包的 `frozen_export_surface_is_intact` 测试 + `runex` 同名守卫全绿；`cargo tree` 无环；`manifest.command == spec().name` 断言通过。
+   7a. **每包 config 二级命令（决策 #11，§10.2）**：`packages/foundation/package-config` 引擎 crate 落位；每个命令子包 `lan <cmd> config`（bare / get / set）可读写且**仅能**读写 `~/.lania/config/<cmd>.json`（key 按该包 manifest `configSchema` 校验）；跨包/全局偏好（`~/.lania/preferences.json`、`lan.config.*`）由总包 `lan config` 独占，子包 config 触碰即报错；总包 `lan config set locale zh` 等既有行为 golden 不变。
 8. `lania-command/Cargo.toml` `[dev-dependencies]` 为空；`cargo test --workspace` 全绿；本地化覆盖测试由 `command-conformance` 承接且覆盖度不降。
 9. 全局搜索 `postinstall` 为空；安装期不联网（沿用现有 `optionalDependencies` + `require.resolve`）。
 10. Windows：`.exe` 命名、`os`/`cpu` 字段、shim 自引用不递归（`lan env which` / `lan env doctor` 专项 e2e）。
@@ -1721,17 +1721,36 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 
 > 全程不变量：每阶段结束都必须能 `pnpm pack && pnpm publish:all` 产出与现状等价的全量 `@lania-cli-v2/cli`；golden 回归失败即停在该阶段回滚。
 
-| 阶段  | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 验收                                                                                                                                                       | 回滚点                                                                                      |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **0** | **本次：产出本设计文档（不改代码）**。施工前置另需录 golden 基线                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 文档评审通过；golden 基线入库                                                                                                                              | —（无代码）                                                                                 |
-| **1** | 新增 `packages/*/lania.package.json`、`packages/schemas/`、5 个 `gen-*.mjs`（describes / builtin-commands / api-surface / cargo-workspace / artifact-matrix）。**不动任何现有代码路径**                                                                                                                                                                                                                                                                                                                                                       | `discoverPackages()` 枚举结果与现状（4 npm 包 + 42 crate + 3 平台包）完全一致；全量打包发布不变                                                            | 删新增目录/文件                                                                             |
-| **2** | foundation 下沉（**仍在旧 `rust/` 目录内**）：<br>2a `lania-command` 提升为 API 契约层 + dev-deps 归零（`command-conformance` 承接覆盖度）<br>2b 抽出 `lania-cli-kit`，`main.rs` 改调用 kit<br>2c 抽出 `runex-home`，`main.rs:290` 改依赖，`runex::api` 保持 `pub use`                                                                                                                                                                                                                                                                        | 全量 cli 12 命令 golden **逐字节不变**（含 `create template`）；`cargo test --workspace` 全绿；冻结守卫就位                                                | 2a/2b/2c 各自独立提交，任一失败 revert 该子步                                               |
-| **3** | host 拆分：<br>3a `host-core` 去 5 语言 bridge 硬依赖，改为依赖 `lania-bridge-host`（5 adaptor 内聚进 bridge-hub）<br>3b `config.loadLan` / `bootstrap_project_extensions` 经 `bridge-host` node adaptor，纯 `.yaml/.json` 由 `lania-config` 回退（不另起 config-native）<br>3c Rust 端点并入 bridge-hub（进程内 channel），删除独立 `lan-rs-bridge` 二进制                                                                                                                                                                                   | 全量 cli 链接 bridge-host 后 golden 不变；`cargo tree -p lan-env` 不含 `lania-bridge-host`                                                                 | 失败立即回滚到 lania-host 聚合态                                                            |
-| **4** | TS payload 切片：<br>4a `bridge-runtime` 最小核 + `plugin-registry.ts` 动态 import（落地 `agent-architecture.zh-CN.md` A4）<br>4b 拆 12 个 slice，按 `payload.slices` 装配                                                                                                                                                                                                                                                                                                                                                                    | 总包 payload 与迁移前**逐文件一致**；`bridge-runtime` 空 slices 启动不加载 agent/ejs                                                                       | 总包 `slices:["*"]` 恒可用                                                                  |
-| **5** | 命令双形态：<br>5a 12 crate 补 `factory()` + 冻结守卫 + `[[bin]] lan-<cmd>`，`run_single_command` 走 kit<br>5b **一次迁一个包**：`rust/crates/lania-plugins-command-*` → `packages/commands/*/rust/`、`ts/packages/*` → `packages/*/ts/`、`npm/*` → `packages/*/npm/`，Cargo workspace 切 glob<br>5c 删除顶层 `ts/` `rust/` `npm/` 与 `ts/pnpm-workspace.yaml`<br>5d **template 并入 create**：删除 `commands/template` 子包，把原 handler/spec 迁入 `create` 的 `template` 子命令分发，`known-commands.json` 与 `BUILTIN` 由 13 项降为 12 项 | 每迁一包跑全量 golden；`cargo metadata` + `pnpm list -r` 与 manifest 完全一致；全量 cli 仍可发布；`lan create template` 输出与旧 `lan template` 逐字节一致 | 5b 每包 git 原子提交；5d 单独提交并附 `lan template` → `lan create template` 的 golden 对照 |
-| **6** | core 调度器与分发：<br>6a launcher + `known-commands.json` + `describes/*` + help 聚合/缓存<br>6b 总包去 `bin.lan`、依赖 core；平台包命名不变<br>6c 发布 12 个 `cmd-*`，跑「只装 core+cmd-env」smoke<br>6d 新增 `packages/runtime/`（可扩展宿主设施，§5.6 F）：`lan-runtime` 二进制 + node-bridge 的 `dynamic-commands`/`scaffold`/`templates` 切片；launcher 增加 Phase 2 动态回退；`core` 对 `runtime` 为 optional/peer 依赖                                                                                                                | **§7 清单全绿**（含第 13 条动态命令）；总包 golden 逐字节不变（硬门槛，不过不发布）                                                                        | launcher 异常可一键退回旧 `lan.mjs` 路径（保留一个发布周期）                                |
-| **7** | 构建发布全量落地：pack/release/publish/assert/CI matrix 全部 manifest 驱动；runex/agent/bridge-hub 的 npm 包与独立 bin 矩阵                                                                                                                                                                                                                                                                                                                                                                                                                   | 4 版本族可独立发版；产物矩阵可复现；`assertVersionFamilies` 泛化通过                                                                                       | 脚本均保留 `--legacy` 路径一个发布周期                                                      |
-| **8** | Bridge Hub 集成（进程内嵌）+ 旧硬编码清理 + §9 未决项收敛 + 文档更新                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `bridge-layer.zh-CN.md` §6 未决项标记为「已定：内嵌」；全量回归                                                                                            | feature 开关可关闭 Hub 回到直连                                                             |
+| 阶段  | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 验收                                                                                                                                                       | 回滚点                                                                                      |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **0** | **本次：产出本设计文档（不改代码）**。施工前置另需录 golden 基线                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 文档评审通过；golden 基线入库                                                                                                                              | —（无代码）                                                                                 |
+| **1** | 新增 `packages/*/lania.package.json`、`packages/schemas/`、5 个 `gen-*.mjs`（describes / builtin-commands / api-surface / cargo-workspace / artifact-matrix）。**不动任何现有代码路径**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `discoverPackages()` 枚举结果与现状（4 npm 包 + 42 crate + 3 平台包）完全一致；全量打包发布不变                                                            | 删新增目录/文件                                                                             |
+| **2** | foundation 下沉（**仍在旧 `rust/` 目录内**）：<br>2a `lania-command` 提升为 API 契约层 + dev-deps 归零（`command-conformance` 承接覆盖度）<br>2b 抽出 `lania-cli-kit`，`main.rs` 改调用 kit<br>2c 抽出 `runex-home`，`main.rs:290` 改依赖，`runex::api` 保持 `pub use`                                                                                                                                                                                                                                                                                                                                                                                                           | 全量 cli 12 命令 golden **逐字节不变**（含 `create template`）；`cargo test --workspace` 全绿；冻结守卫就位                                                | 2a/2b/2c 各自独立提交，任一失败 revert 该子步                                               |
+| **3** | host 拆分：<br>3a `host-core` 去 5 语言 bridge 硬依赖，改为依赖 `lania-bridge-host`（5 adaptor 内聚进 bridge-hub）<br>3b `config.loadLan` / `bootstrap_project_extensions` 经 `bridge-host` node adaptor，纯 `.yaml/.json` 由 `lania-config` 回退（不另起 config-native）<br>3c Rust 端点并入 bridge-hub（进程内 channel），删除独立 `lan-rs-bridge` 二进制                                                                                                                                                                                                                                                                                                                      | 全量 cli 链接 bridge-host 后 golden 不变；`cargo tree -p lan-env` 不含 `lania-bridge-host`                                                                 | 失败立即回滚到 lania-host 聚合态                                                            |
+| **4** | TS payload 切片：<br>4a `bridge-runtime` 最小核 + `plugin-registry.ts` 动态 import（落地 `agent-architecture.zh-CN.md` A4）<br>4b 拆 12 个 slice，按 `payload.slices` 装配                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 总包 payload 与迁移前**逐文件一致**；`bridge-runtime` 空 slices 启动不加载 agent/ejs                                                                       | 总包 `slices:["*"]` 恒可用                                                                  |
+| **5** | 命令双形态：<br>5a 11 crate 补 `factory()` + 冻结守卫 + `[[bin]] lan-<cmd>`，`run_single_command` 走 kit；先落 `packages/foundation/package-config` 引擎，随后每迁一包随迁补 `config` 二级命令（决策 #11 / §10.2）<br>5b **一次迁一个包**：`rust/crates/lania-plugins-command-*` → `packages/commands/*/rust/`、`ts/packages/*` → `packages/*/ts/`、`npm/*` → `packages/*/npm/`，Cargo workspace 切 glob（config 除外，决策 #11）<br>5c 删除顶层 `ts/` `rust/` `npm/` 与 `ts/pnpm-workspace.yaml`<br>5d **template 并入 create**：删除 `commands/template` 子包，把原 handler/spec 迁入 `create` 的 `template` 子命令分发，`known-commands.json` 与 `BUILTIN` 由 13 项降为 12 项 | 每迁一包跑全量 golden；`cargo metadata` + `pnpm list -r` 与 manifest 完全一致；全量 cli 仍可发布；`lan create template` 输出与旧 `lan template` 逐字节一致 | 5b 每包 git 原子提交；5d 单独提交并附 `lan template` → `lan create template` 的 golden 对照 |
+| **6** | core 调度器与分发：<br>6a launcher + `known-commands.json` + `describes/*` + help 聚合/缓存<br>6b 总包去 `bin.lan`、依赖 core；平台包命名不变<br>6c 发布 11 个 `cmd-*`，跑「只装 core+cmd-env」smoke<br>6d 新增 `packages/runtime/`（可扩展宿主设施，§5.6 F）：`lan-runtime` 二进制 + node-bridge 的 `dynamic-commands`/`scaffold`/`templates` 切片；launcher 增加 Phase 2 动态回退；`core` 对 `runtime` 为 optional/peer 依赖                                                                                                                                                                                                                                                   | **§7 清单全绿**（含第 13 条动态命令）；总包 golden 逐字节不变（硬门槛，不过不发布）                                                                        | launcher 异常可一键退回旧 `lan.mjs` 路径（保留一个发布周期）                                |
+| **7** | 构建发布全量落地：pack/release/publish/assert/CI matrix 全部 manifest 驱动；runex/agent/bridge-hub 的 npm 包与独立 bin 矩阵                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 4 版本族可独立发版；产物矩阵可复现；`assertVersionFamilies` 泛化通过                                                                                       | 脚本均保留 `--legacy` 路径一个发布周期                                                      |
+| **8** | Bridge Hub 集成（进程内嵌）+ 旧硬编码清理 + §9 未决项收敛 + 文档更新                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `bridge-layer.zh-CN.md` §6 未决项标记为「已定：内嵌」；全量回归                                                                                            | feature 开关可关闭 Hub 回到直连                                                             |
+
+**施工进度（2026-11-06 更新）**：
+
+- ✅ 阶段 0：本文档产出；bridgehub（Bridge Hub 消息总线）已先实现并提交（`7723131`，master）。
+- ✅ 阶段 1（部分）：manifest 地基已落地——6 个包的 `lania.package.json`、`packages/schemas/lania.package.schema.json`、`scripts/check-package-manifests.mjs`、`scripts/lib/discover-packages.mjs`，并接入 `pnpm check`（`packages:check`）。
+- ✅ 阶段 2b / 2c：`lania-cli-kit`（output/profile + `run_single_command`）、`runex-home` 已抽出。
+- ✅ 阶段 3a / 3b（大部分）：`host-core`（零 bridge 接缝）、`lania-bridge-host`（`HubBridgeProvider`）已落地；5 个语言 bridge adaptor 内聚进 `packages/products/bridge-hub/`；bridge-layer 文档已更新。
+- ✅ 阶段 5b（首包）：`env` 已迁移为 `packages/commands/env/`（lib + `[[bin]] lan-env` + npm `cmd-env` + 3 平台包 + describe），双形态 help 逐字节一致，拆分零回归（提交 `505980a`）。
+- ⬜ 其余阶段按本表推进。
+
+**下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
+
+1. **公共部分下沉（先于任何新命令包）**——把 `rust/`、`ts/` 中「公共 / 可独立成目录」的代码迁入 `packages/foundation/`，每次迁移一个独立 commit，迁完即跑 `cargo check --workspace` + 相关单测 + 总包 golden：
+   1. capabilities leaf crate 按 §3.2 清单 1:1 迁移（crate 名不变）：`lania-config / hooks / exec / fs / git / logger / pm / progress / prompt / runtime / task / workflows / preferences` → `packages/foundation/capabilities/<name>/rust/`；
+   2. `lania-command` → `packages/foundation/command/rust/`；`command-conformance` 测试 crate（承接 dev-deps 环，见 §5.1 A.5(7) 步 5）；
+   3. TS 公共部分：`packages/foundation/bridge-runtime/`（最小 stdio 协议核）与 `bridge-slices/*` 切片包（阶段 4a/4b），`ts/packages/{node-bridge,templates,agent}` 之外的纯公共 TS 工具一并归位；
+   4. `packages/foundation/package-config`（决策 #11 的配置引擎，见 §10.2 修订版）。
+2. **按命令逐个拆子包**（每包一个原子 commit + 全量 golden，顺序按依赖从少到多）：`env` ✅ → `tools` → `generate` → `create`/`add` → `release`/`git` → `dev`/`build`/`lint` → `pi`；`config` 不拆（决策 #11）。
+3. 每迁一包随迁补该包 `config` 二级命令（`~/.lania/config/<pkg>.json` + manifest `configSchema`），先 env 后续包复用同一引擎。
 
 ---
 
@@ -1740,7 +1759,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 1. **spawn 开销与 TUI/交互命令**（`lan pi` REPL、`lan env ui` TUI、`lan dev` watch）：`stdio:'inherit'` 保证 TTY 归子进程，进程层数与现状等价（都是一层 Node → 二进制），**无额外 spawn 开销**。风险在信号链：Ctrl+C 在 `inherit` 下由终端发给进程组，若 Node 父进程先退出子进程会变孤儿 → launcher 必须在 `child.on('exit')` 前保持存活并转发（沿用 `lan.mjs:163-170`）。Windows 控制台进程组、`lan dev` 长驻 watch 热重载需专项 e2e。
 2. **Windows shim 自引用 / 递归**：`ShimHost::command_binary("lan-env", exe)` 生成的 shim 位于 `~/.runex/shims/`；约束「写绝对路径」「`lan-<cmd>` 不放入 shims 目录」「`which` 不回退 PATH 扫描」三者缺一不可。需独立 e2e 覆盖 `lan env which` 与 `lan env doctor`。
 3. **Bridge Hub 独立 / 内嵌**：本文已给明确答案（每进程内嵌，见 §5.5），但仍列为待验证项：若出现「一条命令内多语言端点 + 端点需跨命令复用」的长驻场景，需重评 sidecar；`lan-hub` 独立 bin + feature 已留兜底。
-4. **12 × 3 产物矩阵**：36+ 资产的 CI 时间/存储、`fetch-platform-binaries.mjs` 下载量与命名、Release 资产数。缓解：单 job 多 link、分 tag 触发、共享 `target/` 缓存、增量重建。用户已拍板首批全发。
+4. **11 × 3 产物矩阵**：33+ 资产的 CI 时间/存储、`fetch-platform-binaries.mjs` 下载量与命名、Release 资产数。缓解：单 job 多 link、分 tag 触发、共享 `target/` 缓存、增量重建。用户已拍板首批全发。（原「12 × 3」随决策 #11 config 不成子包降为 11。）
 5. **`lania-command` dev-dep 环**：现有反向 dev-dep 会让「只装 cmd-env」在 `cargo test --workspace` 时仍编译全量。阶段 2a 打破；风险是本地化覆盖测试丢失 → `command-conformance` 承接，需证明覆盖度不降。
 6. **命令间共享状态与项目动态命令**：单进程 `HostRuntime` 一次性加载 `LanConfigSnapshot` 并注入 envelope；拆多进程后每命令各读一次 —— 现状每条命令启动本来就是新进程，语义等价。但项目级动态命令（`lan.config.*` / `.lania/schemas`）在子包模式下只有带 `config` slice 的命令包能看见；`known-commands.json` **不含动态命令**，`lan --help` 也不呈现它们，只给「装总包或带 config 切片的包」提示。与「不做完全热插拔」一致，不发明新机制。
 7. **总包去 `bin.lan` 的安装拓扑变化**：单独装 `@lania-cli-v2/cli` 后 `lan` 由 core 依赖带入；若 npm 的 `--omit=optional` 或某些包管理器裁剪依赖，可能得不到 `lan`。缓解：把 core 放进 `dependencies`（非 optional/peer），并在验收清单加「装 cli 后 `lan --version` 可用」。
@@ -1750,7 +1769,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 11. **版本兼容矩阵的实际执行**：`optionalDependencies` 的平台包在 npm 里失败是静默的，`peerDependencies` 不会强校验；`api.protocol` 必须由 core launcher **运行时**读 manifest 校验，不能只写在 package.json 里。
 12. **无 bundler / tsx 依赖（施工前实测）**：TS 侧动态 `import()` 必须指向 tsc 编译后的 `dist/*.js`，切片包需在各自 `package.json` 声明 `exports`；`pack.mjs:147-149` 现在装 `tsx` 是为了 `node --import tsx`，说明 `dist/entry/stdio.js` 可能仍依赖 tsx 运行时。**施工前需实测 `node dist/entry/stdio.js` 能否在无 tsx 下启动**；若不能，`bridge-runtime` 最小核需保留 `tsx`（但仍不带 ejs/agent/pi），「完全无 JS 依赖」的边界相应收紧。这不影响 `env` / `config` 零 payload 的结论（它们根本不启动 bridge）。
 13. **总包 12 次注册 → 编译期数组**：`gen-builtin-commands.mjs` 生成的 `BUILTIN` 顺序必须与 `main.rs:62-75` 完全一致（template 并入 create 后为 12 项），否则 `lan --help` 输出会变。顺序写进 manifest `order` 并纳入 golden 对比。
-14. **`locale` crate 与 `config` 命令名分叉**：目录/crate 用 `locale`、命令/npm/bin 用 `config`，易在脚本里写错。缓解：`command` 字段为唯一事实源，`gen-*` 脚本禁止从目录名推断命令名；加 CI 断言 `manifest.command == spec().name`（由 `describes/*.json` 校验）。
+14. **`locale` crate 与 `config` 命令名分叉**：目录/crate 用 `locale`、命令名用 `config`，易在脚本里写错。缓解：`command` 字段为唯一事实源，`gen-*` 脚本禁止从目录名推断命令名；加 CI 断言 `manifest.command == spec().name`（由 `describes/*.json` 校验）。**随决策 #11 config 不再独立成子包，该分叉的发布面（cmd-config / lan-config）已消除**；crate 名 `lania-plugins-command-locale` 保留，仅总包内部使用。
 
 ---
 
@@ -1780,20 +1799,23 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 | 作用域                   | 存储位置                     | 归属                                                                              | 是否按包隔离                                                                  |
 | ------------------------ | ---------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | 项目配置                 | `<cwd>/lan.config.*`         | 项目级、跨命令共享                                                                | 否（单文件，每命令只读自己顶层 section，已由 `known_config_fields` 校验强制） |
-| 全局用户偏好             | `~/.lania/preferences.json`  | CLI 级跨命令（locale/output.mode/log.timestamps）                                 | 否（本就是全局，由 `commands/config` 独占）                                   |
+| 全局用户偏好             | `~/.lania/preferences.json`  | CLI 级跨命令（locale/output.mode/log.timestamps）                                 | 否（本就是全局，由总包 `lan config` 独占）                                    |
 | **包级用户偏好（新增）** | `~/.lania/config/<pkg>.json` | 命令专属（如 `env.defaultRuntime`、`agent.model`、`agent.baseUrl`、`pi.timeout`） | **是（按包隔离）**                                                            |
 
-**机制**：
+**机制（修订版，2026-11-06 决策 #11：config 不独立成子包）**：
 
-- `commands/config` 提供**配置引擎** + 包清单。每个命令包在 `lania.package.json` 声明 `configSchema`（该包自有 key 列表 + 类型）。
-- `lan <cmd> config get/set <key>`：调度器（或总包子命令）把请求路由到配置引擎并预设 `--namespace <cmd>`，作用域锁定 `~/.lania/config/<cmd>.json`，且按该包 `configSchema` 校验 key。
-- `lan config`（全局）保留：管全局偏好 + 可 `--package <cmd>` 管理某命名空间；`lan config list` 列出所有已装包的命名空间。
-- **"把总包的 config 迁入" = 复用 `commands/config` 的引擎逻辑**（`get` / `set` / `init` / `doctor` / `sync`），per-package `config` 子命令只是同一引擎的**作用域视图**，不是复制一份代码 → 无重复维护。
-- **隔离保证**：每次读写都带 namespace；命令包**无法**读写其它包的文件（引擎拒绝未在该包 schema 出现的 namespace / key）；跨包读取须经显式 API + 能力授权，而非直接文件访问。
+- 配置引擎下沉为 foundation crate：`packages/foundation/package-config/rust/lania-package-config`（零 lania 依赖，仅 serde/serde_json/anyhow）。提供：包级偏好路径（`~/.lania/config/<pkg>.json`，`<pkg>` 只允许 `[a-z0-9-]`，杜绝路径穿越）、load/save、点分 key 的 get/set，以及 schema 校验工具（key 白名单 + 类型/枚举 + 默认值）。
+- 每个命令包在 `lania.package.json` 声明 `configSchema`（该包自有 key 列表 + 类型 + 默认值），构建期与运行期共用这份事实源。
+- `lan <cmd> config`（bare）/ `get <key>` / `set <key> <value>`：是 `<cmd>` 命令包内的普通二级子命令（与 `env list` 同级），作用域**硬锁定** `~/.lania/config/<cmd>.json`，key 按该包 `configSchema` 校验；引擎 API 天然只能触碰传入的 `<pkg>` 命名空间 → **包间隔离由引擎保证，不靠调用方自觉**。
+- `lan config`（全局）**保留在总包**：管全局偏好（locale / log.timestamps / output.mode）+ 项目配置（`init` / `doctor` / `sync` / `set <项目路径>`），并可用 `--package <cmd>` 以总包视角管理某命名空间；`lan config list` 列出已装包的命名空间。crate `lania-plugins-command-locale` 不迁出 `rust/crates/`。
+- **per-package `config` 子命令 = 同一引擎的作用域视图**，不是复制一份代码 → 无重复维护。
+- **隔离保证**：子包 config 命令对 `~/.lania/preferences.json`、`lan.config.*` 与其它包的 `<pkg>.json` **无任何读写路径**（引擎拒绝 + 命令包不依赖 preferences crate）；跨包读取须经显式 API + 能力授权，而非直接文件访问。
 
-**一个关键边界**：`init` / `doctor` / `sync` 作用于**项目** `lan.config.*`（项目级、单文件、跨命令共享），**不应**被 per-package 隔离；只有 `get` / `set` 里"包级偏好"那部分走 `~/.lania/config/<pkg>.json`。换言之，per-package `config` 子命令只暴露该包**自有偏好键**，`init/doctor/sync` 仍归 `commands/config` 全局掌控。
+**一个关键边界**：`init` / `doctor` / `sync` 作用于**项目** `lan.config.*`（项目级、单文件、跨命令共享），**不应**被 per-package 隔离；per-package `config` 子命令只暴露该包**自有偏好键**（bare / get / set 三形态），`init/doctor/sync` 仍归总包 `lan config` 全局掌控。
 
-**总包模式**：`lan <cmd> config` 就是 env 等命令的一个普通子命令（与 `env list` 同级），无调度跳转，行为与原 `lan config` 的对应部分逐字节一致。
+**总包模式**：`lan <cmd> config` 就是 env 等命令的一个普通子命令（与 `env list` 同级），无调度跳转；`lan config` 行为与现状逐字节一致（决策 #11 不改总包任何行为）。
+
+**首个落地示例（env）**：`packages/commands/env/lania.package.json` 声明 `configSchema`，首个 key 为 `shim.host`（枚举 `lan` / `runex`，默认 `lan`）：`lan env config set shim.host runex` 后，`lan env use/install` 生成的 shim 里管理命令从 `lan env which`（`ShimHost::lan()`）切换为 `runex which`（`ShimHost::binary("runex", …)`）；默认值 `lan` 时与现状逐字节一致。与 §6.6 的 manifest `shimHost` 关系：manifest 决定「包形态默认值」，`shim.host` 偏好决定「用户显式覆盖」，用户覆盖优先。
 
 ### 10.3 Q3：`lania-host` 宿主层拆分到各命令子包
 
@@ -1821,14 +1843,14 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 
 **12 命令 → 宿主子集映射示例**（以 manifest 的 `deps` 字段为准，CI 校验"无命令二进制链接 `lania-host` 全量"）：
 
-| 命令包                                  | 宿主依赖（去 bridge 后）                              | 额外产品依赖                          |
-| --------------------------------------- | ----------------------------------------------------- | ------------------------------------- |
-| `commands/env`                          | `host-core` + `runex-home`                            | `runex`（零 bridge、零 node payload） |
-| `commands/config`（locale）             | `host-core`（config/preferences/logger 子集）         | —                                     |
-| `commands/build` `dev` `lint` `tools`   | `host-core` + `lania-bridge-host`                     | —                                     |
-| `commands/generate`                     | `host-core` + `lania-bridge-host` + `lania-workflows` | —                                     |
-| `commands/create` `add` `release` `git` | `host-core` + `lania-workflows`                       | —                                     |
-| `commands/pi`                           | `host-core` + `lania-bridge-host`                     | `lania-agent` + `lania-agent-core`    |
+| 命令包                                  | 宿主依赖（去 bridge 后）                                   | 额外产品依赖                          |
+| --------------------------------------- | ---------------------------------------------------------- | ------------------------------------- |
+| `commands/env`                          | `host-core` + `runex-home`                                 | `runex`（零 bridge、零 node payload） |
+| `config`（留总包，决策 #11）            | 不迁出 `rust/crates/`，仅随总包链接（依赖 host-core 全量） | —                                     |
+| `commands/build` `dev` `lint` `tools`   | `host-core` + `lania-bridge-host`                          | —                                     |
+| `commands/generate`                     | `host-core` + `lania-bridge-host` + `lania-workflows`      | —                                     |
+| `commands/create` `add` `release` `git` | `host-core` + `lania-workflows`                            | —                                     |
+| `commands/pi`                           | `host-core` + `lania-bridge-host`                          | `lania-agent` + `lania-agent-core`    |
 
 **验证门**：施工后 `cargo tree -p <cmd-bin>` 不得出现 `lania-node-bridge` / `lania-py-bridge` / `lania-go-bridge` / `lania-dart-bridge`（它们已并入 bridge-hub 的 adaptors）；`env` / `config` 二进制的 tree 更不得出现 `lania-bridge-host`；`cargo bloat` 对比 `env` 二进制体积应显著低于当前 `lania-cli` 单二进制。
 

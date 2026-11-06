@@ -290,3 +290,89 @@ fn lan_env_requires_tool_argument() {
     assert_ne!(output.status.code(), Some(0));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn lan_env_config_lists_keys_with_defaults() {
+    let root = temp_dir("env-config-view");
+    let view = run_env(&root, &["env", "config"]);
+    assert_eq!(view["kind"], "env_config");
+    assert_eq!(view["scope"], "package");
+    assert_eq!(view["package"], "env");
+    let path = view["path"].as_str().expect("config path");
+    assert!(path.contains(".lania"), "per-package store path: {path}");
+
+    let keys = view["keys"].as_array().expect("keys array");
+    let shim = keys
+        .iter()
+        .find(|key| key["key"] == "shim.host")
+        .expect("shim.host key declared");
+    assert_eq!(shim["value"], "lan", "default shim.host is lan");
+    assert_eq!(shim["default"], "lan");
+    assert_eq!(shim["choices"], serde_json::json!(["lan", "runex"]));
+
+    let single = run_env(&root, &["env", "config", "get", "shim.host"]);
+    assert_eq!(single["kind"], "env_config_value");
+    assert_eq!(single["value"], "lan");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_env_config_set_roundtrip_is_isolated_from_global_preferences() {
+    let root = temp_dir("env-config-set");
+    let home = isolated_home(&root);
+    let store = std::path::Path::new(&home)
+        .join(".lania")
+        .join("config")
+        .join("env.json");
+
+    let set = run_env(&root, &["env", "config", "set", "shim.host", "runex"]);
+    assert_eq!(set["kind"], "env_config_set");
+    assert_eq!(set["value"], "runex");
+
+    let store_value = read_json_file(&store);
+    assert_eq!(
+        store_value["shim"]["host"], "runex",
+        "dotted key maps to nested object in the per-package store"
+    );
+
+    let read_back = run_env(&root, &["env", "config", "get", "shim.host"]);
+    assert_eq!(read_back["value"], "runex");
+
+    // 包隔离：包级 config 不得创建/触碰全局偏好文件。
+    let preferences = std::path::Path::new(&home)
+        .join(".lania")
+        .join("preferences.json");
+    assert!(
+        !preferences.exists(),
+        "package config must not touch global preferences at {}",
+        preferences.display()
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lan_env_config_rejects_unknown_keys_and_values() {
+    for args in [
+        vec!["env", "config", "set", "shim.host", "bash"],
+        vec!["env", "config", "set", "locale", "zh"],
+        vec!["env", "config", "get", "nope.nope"],
+    ] {
+        let root = temp_dir("env-config-invalid");
+        let home = isolated_home(&root);
+        let output = run_cli(&root, &args, &[("HOME", home.as_str())]);
+        assert_ne!(
+            output.status.code(),
+            Some(0),
+            "args={args:?} must fail (schema validation / package isolation)"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let combined = format!("{stdout}{stderr}");
+        assert!(
+            combined.contains("invalid value")
+                || combined.contains("unknown env config key"),
+            "args={args:?}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+}
