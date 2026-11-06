@@ -7,7 +7,7 @@ members = [
   "crates/lania-host",
   "crates/lania-hooks",
   "crates/lania-command",
-  "crates/lania-config",
+  "../packages/foundation/capabilities/rust/lania-config",
   "../packages/foundation/capabilities/rust/lania-preferences",
   "crates/lania-prompt",
   "../packages/foundation/capabilities/rust/lania-exec",

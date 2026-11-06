@@ -17,7 +17,7 @@ protox = "0.9"
 prost-types = "0.14"
 lania-validate = { path = "../lania-validate" }
 lania-format = { path = "../lania-format" }
-lania-config = { path = "../lania-config" }
+lania-config = { path = "../../../packages/foundation/capabilities/rust/lania-config" }
 lania-command = { path = "../lania-command" }
 lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
 lania-fs = { path = "../../../packages/foundation/capabilities/rust/lania-fs" }
