@@ -80,6 +80,60 @@ importers:
 
   npm/cli-win32-x64: {}
 
+  packages/commands/env/npm/cmd-env:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-env-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-env-darwin-arm64
+      '@lania-cli-v2/cmd-env-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-env-linux-x64
+      '@lania-cli-v2/cmd-env-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-env-win32-x64
+
+  packages/commands/env/npm/cmd-env-darwin-arm64: {}
+
+  packages/commands/env/npm/cmd-env-linux-x64: {}
+
+  packages/commands/env/npm/cmd-env-win32-x64: {}
+
+  packages/foundation/lania:
+    dependencies:
+      '@lania-cli-v2/node-bridge':
+        specifier: workspace:*
+        version: link:../../../ts/packages/node-bridge
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/products/bridge-hub/npm/bridge-hub: {}
+
+  packages/products/runex/npm/runex:
+    optionalDependencies:
+      '@lania-cli-v2/runex-darwin-arm64':
+        specifier: 0.1.0
+        version: link:../runex-darwin-arm64
+      '@lania-cli-v2/runex-linux-x64':
+        specifier: 0.1.0
+        version: link:../runex-linux-x64
+      '@lania-cli-v2/runex-win32-x64':
+        specifier: 0.1.0
+        version: link:../runex-win32-x64
+
+  packages/products/runex/npm/runex-darwin-arm64: {}
+
+  packages/products/runex/npm/runex-linux-x64: {}
+
+  packages/products/runex/npm/runex-win32-x64: {}
+
   ts/packages/agent:
     dependencies:
       '@earendil-works/pi-agent-core':
@@ -92,22 +146,6 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.19.17
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
-  ts/packages/lania:
-    dependencies:
-      '@lania-cli-v2/node-bridge':
-        specifier: workspace:*
-        version: link:../node-bridge
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.0
-        version: 22.19.17
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
