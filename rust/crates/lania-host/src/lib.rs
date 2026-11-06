@@ -1,6 +1,8 @@
 //! 宿主运行时总入口，聚合 capability、hook、plugin、registry 与 runtime。
+pub mod approval;
 pub mod capability;
 pub mod execution;
+pub mod guard;
 // Hook 运行时已拆分到独立的 `lania-hooks` crate（避免与 host/workflows 等形成循环依赖）。
 pub mod plugin;
 pub mod registry;

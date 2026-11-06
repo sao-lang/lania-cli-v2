@@ -1,0 +1,15 @@
+[package]
+name = "lania-agent-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# 能力层：会话、事件、桥接、配置。
+# 硬约束：**不允许**依赖 lania-host / lania-command（见 docs/design/agent-architecture.zh-CN.md §3.1）。
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

@@ -64,7 +64,7 @@ pub(super) fn handle_agent_domain(
 
 fn tier_for(tool: &str) -> Result<Tier> {
     match tool {
-        "read" | "glob" | "grep" => Ok(Tier::Read),
+        "read" | "glob" | "grep" | "git_status" | "git_diff" => Ok(Tier::Read),
         "edit" | "write" => Ok(Tier::Write),
         "exec" | "project_command" => Ok(Tier::Exec),
         other => Err(anyhow!("unknown agent tool: {other}")),
@@ -82,7 +82,27 @@ fn exec_tool(adapter: &HostRpcAdapter, payload: &HostPayload) -> Result<HostRpcR
     let tier = tier_for(&tool)?;
     let target = approval_target(&tool, &params, &cwd);
 
-    if !auto_approved(tier, approval_mode) {
+    // 门禁先于审批：`deny` 不弹窗、不执行；`require-approval` 把 tier 的自动放行降级。
+    let mut forced_approval = false;
+    match crate::guard::evaluate(&tool, &target) {
+        crate::guard::GuardDecision::Deny(reason) => {
+            return Ok((
+                json!({
+                    "status": "denied",
+                    "isError": true,
+                    "content": format!(
+                        "tool call blocked by project guard: {reason}. Do not retry; explain what you need instead."
+                    ),
+                    "details": { "tier": tier.label(), "target": target },
+                }),
+                Vec::new(),
+            ));
+        }
+        crate::guard::GuardDecision::RequireApproval(_) => forced_approval = true,
+        crate::guard::GuardDecision::Allow => {}
+    }
+
+    if forced_approval || !auto_approved(tier, approval_mode) {
         let grant_key = format!("{tool}:{target}");
         if !has_grant(&cwd, &grant_key) {
             match ask_user(tier, &tool, &target) {
@@ -162,6 +182,18 @@ fn approval_target(tool: &str, params: &Value, cwd: &str) -> String {
                 .unwrap_or_default();
             format!("lan {args}")
         }
+        "git_status" | "git_diff" => {
+            let args = params
+                .get("path")
+                .and_then(Value::as_str)
+                .map(|path| format!("git diff {path}"))
+                .unwrap_or_else(|| "git".to_string());
+            if tool == "git_status" {
+                "git status".to_string()
+            } else {
+                args
+            }
+        }
         _ => params
             .get("path")
             .and_then(Value::as_str)
@@ -216,16 +248,27 @@ fn save_grant(cwd: &str, key: &str) -> Result<()> {
 }
 
 fn ask_user(tier: Tier, tool: &str, target: &str) -> Approval {
+    // 交互式 UI（TUI / GUI）装了 broker 就交给它画审批界面；
+    // 判定仍发生在这一次 `agent.tool.exec` 调用内，边界没有被挪到 Node 侧。
+    let request = crate::approval::ApprovalRequest::new(tier.label(), tool, target);
+    if let Some(decision) = crate::approval::ask(&request) {
+        return match decision {
+            crate::approval::ApprovalDecision::AllowOnce => Approval::Granted { remember: false },
+            crate::approval::ApprovalDecision::AllowAlways => Approval::Granted { remember: true },
+            crate::approval::ApprovalDecision::Deny => Approval::Denied,
+        };
+    }
+
     if !io::stdin().is_terminal() {
         eprintln!(
-            "[lan agent] {tier} {tool} requires approval, but stdin is not a terminal; denying. Re-run with --approval-mode yolo to allow.",
+            "[lan pi] {tier} {tool} requires approval, but stdin is not a terminal; denying. Re-run with --approval-mode yolo to allow.",
             tier = tier.label()
         );
         return Approval::Denied;
     }
 
     eprintln!();
-    eprintln!("[lan agent] approval required ({})", tier.label());
+    eprintln!("[lan pi] approval required ({})", tier.label());
     eprintln!("  {tool}: {target}");
     eprint!("  [a] allow once  [s] allow always  [d] deny > ");
     let _ = io::stderr().flush();
@@ -258,7 +301,10 @@ fn run_tool(
         "read" => tool_read(params, cwd),
         "glob" => tool_glob(params, cwd),
         "grep" => tool_grep(params, cwd),
+        "write" => tool_write(params, cwd),
         "edit" => tool_edit(params, cwd),
+        "git_status" => tool_git_status(adapter, cwd),
+        "git_diff" => tool_git_diff(adapter, params, cwd),
         "exec" => tool_exec(adapter, params, cwd),
         "project_command" => tool_project_command(adapter, params, cwd),
         other => Err(anyhow!("unknown agent tool: {other}")),
@@ -441,6 +487,82 @@ fn tool_grep(params: &Value, cwd: &str) -> Result<ToolOutcome> {
     })
 }
 
+fn tool_write(params: &Value, cwd: &str) -> Result<ToolOutcome> {
+    let path = param_str(params, "path")?;
+    let content = param_str(params, "content")?;
+    let resolved = resolve_path_from_cwd(cwd, path);
+    if let Some(parent) = resolved.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| anyhow!("failed to create {}: {error}", parent.display()))?;
+    }
+    let existed = resolved.exists();
+    let previous_len = fs::read_to_string(&resolved)
+        .ok()
+        .map(|text| text.len())
+        .unwrap_or(0);
+
+    fs::write(&resolved, content)
+        .map_err(|error| anyhow!("failed to write {}: {error}", resolved.display()))?;
+
+    let lines = content.lines().count();
+    Ok(ToolOutcome {
+        content: format!(
+            "{} {path}: {lines} lines, {previous_len} -> {} bytes",
+            if existed { "overwrote" } else { "created" },
+            content.len()
+        ),
+        details: json!({
+            "path": path,
+            "created": !existed,
+            "lines": lines,
+            "bytesBefore": previous_len,
+            "bytesAfter": content.len(),
+        }),
+        is_error: false,
+    })
+}
+
+/// 跑一次 `git <args>`。不做 shell 解析：参数以 argv 形式传入，避开引号与注入问题。
+fn run_git(adapter: &HostRpcAdapter, cwd: &str, args: &[&str]) -> Result<ToolOutcome> {
+    let request = ExecCommand::new("git")
+        .with_args(args.iter().copied())
+        .in_dir(cwd);
+    let result = adapter
+        .exec
+        .run_with_options(request, ExecRunOptions::default())?;
+    let label = format!("git {}", args.join(" "));
+    Ok(exec_result_outcome(result, &label))
+}
+
+fn tool_git_status(adapter: &HostRpcAdapter, cwd: &str) -> Result<ToolOutcome> {
+    let mut outcome = run_git(adapter, cwd, &["status", "--short", "--branch"])?;
+    if outcome.content.trim().is_empty() {
+        outcome.content = "working tree clean".to_string();
+    }
+    Ok(outcome)
+}
+
+fn tool_git_diff(adapter: &HostRpcAdapter, params: &Value, cwd: &str) -> Result<ToolOutcome> {
+    let mut args: Vec<&str> = vec!["diff", "--no-color", "-U3"];
+    if params
+        .get("staged")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        args.push("--staged");
+    }
+    let path = param_opt_str(params, "path");
+    if let Some(path) = path {
+        args.push("--");
+        args.push(path);
+    }
+    let mut outcome = run_git(adapter, cwd, &args)?;
+    if outcome.content.trim().is_empty() {
+        outcome.content = "no changes".to_string();
+    }
+    Ok(outcome)
+}
+
 fn tool_edit(params: &Value, cwd: &str) -> Result<ToolOutcome> {
     let path = param_str(params, "path")?;
     let old_string = param_str(params, "old_string")?;
@@ -611,6 +733,59 @@ mod tests {
     #[test]
     fn unknown_tool_is_rejected() {
         assert!(tier_for("rm_rf").is_err());
+    }
+
+    /// 装了 broker 时，审批必须走 UI 而不是 stdin。
+    #[test]
+    fn ask_user_prefers_installed_broker() {
+        struct DenyAll;
+        impl crate::approval::ApprovalBroker for DenyAll {
+            fn ask(
+                &self,
+                _request: &crate::approval::ApprovalRequest,
+            ) -> crate::approval::ApprovalDecision {
+                crate::approval::ApprovalDecision::AllowOnce
+            }
+        }
+
+        let handle = crate::approval::install(std::sync::Arc::new(DenyAll));
+        // 单例插槽：与其他用到 broker 的测试串行（本模块只有这一处）。
+        match ask_user(Tier::Write, "edit", "/repo/a.ts") {
+            Approval::Granted { remember } => assert!(!remember),
+            Approval::Denied => panic!("broker decision was ignored"),
+        }
+        drop(handle);
+        assert!(!crate::approval::is_installed());
+    }
+
+    #[test]
+    fn git_tools_are_read_only_and_write_needs_approval() {
+        assert_eq!(tier_for("git_status").unwrap(), Tier::Read);
+        assert_eq!(tier_for("git_diff").unwrap(), Tier::Read);
+        assert_eq!(tier_for("write").unwrap(), Tier::Write);
+    }
+
+    #[test]
+    fn write_creates_parent_dirs_and_reports_sizes() {
+        let dir = temp_workspace("write");
+        let cwd = dir.display().to_string();
+        let outcome = tool_write(
+            &json!({ "path": "nested/a.txt", "content": "hello\nworld\n" }),
+            &cwd,
+        )
+        .unwrap();
+        assert!(!outcome.is_error);
+        assert_eq!(outcome.details["created"], true);
+        assert_eq!(outcome.details["lines"], 2);
+        assert_eq!(
+            fs::read_to_string(dir.join("nested/a.txt")).unwrap(),
+            "hello\nworld\n"
+        );
+
+        // 二次写入是覆盖，不是新建。
+        let again = tool_write(&json!({ "path": "nested/a.txt", "content": "x" }), &cwd).unwrap();
+        assert_eq!(again.details["created"], false);
+        assert_eq!(again.details["bytesAfter"], 1);
     }
 
     #[test]

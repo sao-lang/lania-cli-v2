@@ -1,0 +1,19 @@
+[package]
+name = "lania-plugins-command-pi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "`lan pi` command: thin CLI adapter on top of the standalone lania-agent product"
+
+# 这一层才是「脚手架」：命令声明、宿主 bridge、审批/门禁接线都在这里。
+# 反向依赖是禁止的：lania-agent 不认识本 crate。
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
+lania-agent = { path = "../lania-agent" }
+lania-agent-core = { path = "../lania-agent-core" }
+lania-command = { path = "../lania-command" }
+lania-host = { path = "../lania-host" }
+lania-node-bridge = { path = "../lania-node-bridge" }

@@ -835,9 +835,21 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
- "lania-command",
- "lania-host",
- "lania-node-bridge",
+ "crossterm 0.29.0",
+ "lania-agent-core",
+ "ratatui",
+ "serde_json",
+ "tokio",
+ "unicode-width 0.2.0",
+]
+
+[[package]]
+name = "lania-agent-core"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
  "serde_json",
  "tokio",
 ]
@@ -871,6 +883,7 @@ dependencies = [
  "lania-plugins-command-git",
  "lania-plugins-command-lint",
  "lania-plugins-command-locale",
+ "lania-plugins-command-pi",
  "lania-plugins-command-release",
  "lania-plugins-command-template",
  "lania-plugins-command-tools",
@@ -1151,6 +1164,20 @@ dependencies = [
  "lania-host",
  "lania-logger",
  "lania-preferences",
+ "serde_json",
+]
+
+[[package]]
+name = "lania-plugins-command-pi"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "lania-agent",
+ "lania-agent-core",
+ "lania-command",
+ "lania-host",
+ "lania-node-bridge",
  "serde_json",
 ]
 

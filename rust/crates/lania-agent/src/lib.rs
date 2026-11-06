@@ -1,387 +1,323 @@
-//! `lan agent`：pi 驱动的 coding agent 命令。
+//! `lania-agent`：pi 驱动的编码 agent **产品层**。
 //!
-//! 职责边界：
-//! - 本 crate 只做「终端侧」：读输入、渲染流式事件、维护 REPL 生命周期。
-//! - 模型循环在 node-bridge 的 agent 插件里（`@lania-cli/agent`）。
-//! - 工具执行与审批在宿主 `agent.tool.exec`（见 `lania-host`）。
+//! 依赖纪律（与 `runex` 一致）：本 crate **不依赖任何 lania 宿主 crate**
+//! （`lania-host` / `lania-command` / `lania-node-bridge` 都不出现）。
+//! 想把它接进 CLI，就在适配层（`lania-plugins-command-pi`）里把
+//! 「传输实现」和「审批通道」注入进来。
+//!
+//! ```text
+//! lania-agent-core            ← 引擎：类型、会话文件、压缩、prompt（零 lania 依赖）
+//!   ▲
+//! lania-agent（本 crate）      ← 产品：运行时 + TUI/REPL + 会话规划（零 lania 依赖）
+//!   ▲
+//! lania-plugins-command-pi    ← 适配：CommandSpec + 宿主 bridge + 审批/门禁接线
+//!   ▲
+//! lania-cli
+//! ```
+//!
+//! 产品入口只有一个：[`run`]。它接收 [`AgentOptions`]、一个 [`AgentSessionClient`]
+//! （传输）、可选的 [`ApprovalSetup`]（审批 UI 通道），返回 [`RunOutcome`]。
 
-use std::io::{self, BufRead, Write};
+mod approval;
+mod context;
+mod event_helper;
+mod options;
+mod render;
+mod repl;
+mod runtime;
+mod session_plan;
+pub mod tui;
+
+use std::{
+    io::{self, IsTerminal, Read},
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Result;
-use async_trait::async_trait;
-use lania_command::{ArgSpec, CommandSpec, Example, OptionSpec, ValueKind};
-use lania_host::{
-    capability::CapabilityName,
-    execution::{
-        CommandExecution, CommandExecutionContext, CommandHandler, ExecutionError,
-        EXIT_RUNTIME_ERROR,
-    },
-    plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
+
+use lania_agent_core::{
+    build_system_prompt, generate_session_id, AgentSessionClient, SessionHeader, SessionSpec,
+    SessionStore,
 };
-use lania_node_bridge::{BridgeEvent, BridgeEventMethod, BridgeExchange};
-use serde_json::{json, Value};
 
-pub const HANDLER_ID: &str = "command.agent";
+use crate::render::{RenderMode, Renderer};
+use crate::runtime::PiRuntime;
+use crate::session_plan::SessionPlan;
 
-#[derive(Debug, Default)]
-pub struct AgentCommandPlugin;
+pub use approval::{
+    ApprovalBus, ApprovalDecision, ApprovalPrompt, ApprovalRequest, ApprovalSetup,
+};
+pub use options::AgentOptions;
+pub use lania_agent_core::{AgentEvent, Usage};
+pub use runtime::{NoticeLevel, TurnReport, UiSink};
 
-struct AgentCommandHandler;
+/// 产品名（TUI 标题、错误前缀都用它）。
+pub const PRODUCT_NAME: &str = "lan pi";
 
-impl AgentCommandPlugin {
-    pub fn spec() -> CommandSpec {
-        CommandSpec::new(
-            "agent",
-            "Run the pi-based coding agent (interactive REPL or one-shot)",
-            HANDLER_ID,
-        )
-        .with_args(vec![ArgSpec {
-            name: "prompt".into(),
-            required: false,
-            multiple: true,
-            help: "Prompt text; when present the agent runs one-shot".into(),
-        }])
-        .with_options(vec![
-            OptionSpec {
-                long: "model".into(),
-                short: Some('m'),
-                help: "Model id passed to pi (e.g. claude-sonnet-4-5)".into(),
-                value_kind: ValueKind::String,
-                default_value: None,
-                choices: vec![],
-                negatable: false,
-            },
-            OptionSpec {
-                long: "provider".into(),
-                short: None,
-                help: "Provider id (anthropic/openai/...)".into(),
-                value_kind: ValueKind::String,
-                default_value: None,
-                choices: vec![],
-                negatable: false,
-            },
-            OptionSpec {
-                long: "thinking".into(),
-                short: None,
-                help: "Reasoning level".into(),
-                value_kind: ValueKind::String,
-                default_value: None,
-                choices: vec![
-                    "minimal".into(),
-                    "low".into(),
-                    "medium".into(),
-                    "high".into(),
-                    "xhigh".into(),
-                    "max".into(),
-                ],
-                negatable: false,
-            },
-            OptionSpec {
-                long: "approval-mode".into(),
-                short: None,
-                help: "Tool approval mode: always-ask | write | yolo".into(),
-                value_kind: ValueKind::String,
-                default_value: Some("always-ask".into()),
-                choices: vec!["always-ask".into(), "write".into(), "yolo".into()],
-                negatable: false,
-            },
-        ])
-        .with_examples(vec![
-            Example {
-                command: "lan agent".into(),
-                description: "Start an interactive agent session".into(),
-            },
-            Example {
-                command: "lan agent \"explain the rust crate layout\"".into(),
-                description: "One-shot prompt".into(),
-            },
-            Example {
-                command: "lan agent --approval-mode yolo \"run the test suite\"".into(),
-                description: "One-shot without approval prompts".into(),
-            },
-        ])
-    }
+/// 一次运行的结果。
+#[derive(Debug, Clone)]
+pub struct RunOutcome {
+    pub exit_code: i32,
+    /// 结束时（可能被 `/new`、`/fork` 改过）的会话 id。
+    pub session_id: String,
+    /// 是否真的落盘了会话文件。
+    pub persisted: bool,
 }
 
-impl Plugin for AgentCommandPlugin {
-    fn meta(&self) -> PluginMeta {
-        PluginMeta {
-            name: "command-agent".into(),
-            version: "0.1.0".into(),
-            kind: PluginKind::Rust,
-            requires: vec![
-                CapabilityName::Exec,
-                CapabilityName::Fs,
-                CapabilityName::NodeBridge,
-            ],
-            before: vec![],
-            after: vec![],
-        }
+/// 跑一次 agent。适配层与独立二进制都走这里。
+pub async fn run(
+    options: AgentOptions,
+    client: Box<dyn AgentSessionClient + Send>,
+    approvals: Option<ApprovalSetup>,
+) -> Result<RunOutcome> {
+    options.validate()?;
+
+    // `--sessions` / `--snapshot` 是纯查询：不建会话、不碰传输（client 必须是惰性的）。
+    if options.list_sessions {
+        let mut renderer = Renderer::new(RenderMode::Human, use_color());
+        print_sessions(&SessionStore::new(&options.cwd), &mut renderer);
+        return Ok(RunOutcome {
+            exit_code: 0,
+            session_id: String::new(),
+            persisted: false,
+        });
+    }
+    if options.snapshot {
+        print!("{}", tui::snapshot_text(100, 24, false));
+        println!();
+        print!("{}", tui::snapshot_text(100, 24, true));
+        return Ok(RunOutcome {
+            exit_code: 0,
+            session_id: String::new(),
+            persisted: false,
+        });
     }
 
-    fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
-        register_builtin_command::<AgentCommandHandler, _>(
-            ctx,
-            "command-agent",
-            "agent",
-            Self::spec(),
-            &[HANDLER_ID],
-            || AgentCommandHandler,
-        )
-    }
-}
-
-#[async_trait(?Send)]
-impl CommandHandler for AgentCommandHandler {
-    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
-        let cwd = ctx.command().cwd.clone();
-        let provider = option_string(ctx, "provider");
-        let model = option_string(ctx, "model");
-        let thinking = option_string(ctx, "thinking");
-        let approval_mode =
-            option_string(ctx, "approval-mode").unwrap_or_else(|| "always-ask".into());
-        let prompt = positional_prompt(ctx);
-
-        let session_id = format!("lan-{}", std::process::id());
-        create_session(
-            ctx,
-            &session_id,
-            &cwd,
-            provider.as_deref(),
-            model.as_deref(),
-            thinking.as_deref(),
-            &approval_mode,
-        )
-        .await?;
-
-        let exit_code = match prompt {
-            Some(prompt) => run_prompt(ctx, &session_id, &prompt).await?,
-            None => run_repl(ctx, &session_id, &model).await?,
-        };
-
-        Ok(ctx.complete_template_info(
-            json!({ "kind": "agent_session", "status": "closed", "exitCode": exit_code }),
-            exit_code,
-        ))
-    }
-}
-
-fn option_string(ctx: &CommandExecutionContext<'_>, key: &str) -> Option<String> {
-    ctx.command()
-        .argv
-        .options
-        .get(key)
-        .and_then(|value| match value {
-            Value::String(text) => Some(text.clone()),
-            Value::Number(number) => Some(number.to_string()),
-            _ => None,
-        })
-        .filter(|value| !value.trim().is_empty())
-}
-
-fn positional_prompt(ctx: &CommandExecutionContext<'_>) -> Option<String> {
-    let value = ctx.command().argv.args.get("prompt")?;
-    let parts: Vec<String> = match value {
-        Value::Array(items) => items
-            .iter()
-            .filter_map(Value::as_str)
-            .map(ToOwned::to_owned)
-            .collect(),
-        Value::String(text) => vec![text.clone()],
-        _ => vec![],
-    };
-    let joined = parts.join(" ");
-    let trimmed = joined.trim();
-    if trimmed.is_empty() {
+    let plan = SessionPlan::resolve(&options)?;
+    let store = if options.no_session {
         None
     } else {
-        Some(trimmed.to_string())
-    }
-}
+        Some(SessionStore::new(&options.cwd))
+    };
 
-async fn create_session(
-    ctx: &CommandExecutionContext<'_>,
-    session_id: &str,
-    cwd: &str,
-    provider: Option<&str>,
-    model: Option<&str>,
-    thinking: Option<&str>,
-    approval_mode: &str,
-) -> Result<()> {
-    let request = ctx.node_bridge().request(
-        "agent.session.create",
-        json!({
-            "sessionId": session_id,
-            "cwd": cwd,
-            "provider": provider,
-            "model": model,
-            "thinking": thinking,
-            "approvalMode": approval_mode,
-        }),
-    );
-    let exchange = ctx.node_bridge().call_async(request).await?;
-    ensure_ok(&exchange).map_err(|message| {
-        anyhow::Error::from(ExecutionError {
-            exit_code: EXIT_RUNTIME_ERROR,
-            message,
-        })
-    })?;
+    let project = context::collect(&options);
+    let mut spec = SessionSpec::new(plan.session_id.clone(), options.cwd.clone());
+    spec.provider = options.provider.clone();
+    spec.model = options.model.clone();
+    spec.thinking = options.thinking;
+    spec.approval_mode = options.approval_mode;
+    spec.max_tokens = options.max_tokens;
+    spec.system_prompt = Some(build_system_prompt(&project));
+    spec.messages = plan.messages;
 
-    if let Some(result) = exchange.response.result.as_ref() {
-        let model_label = result
-            .get("model")
-            .and_then(Value::as_str)
-            .unwrap_or("unknown");
-        let tools = result
-            .get("tools")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            })
-            .unwrap_or_default();
-        eprintln!("[lan agent] model: {model_label}");
-        eprintln!("[lan agent] tools: {tools}");
-        eprintln!("[lan agent] approval mode: {approval_mode}");
-    }
-    Ok(())
-}
-
-fn ensure_ok(exchange: &BridgeExchange) -> std::result::Result<(), String> {
-    match exchange.response.error.as_ref() {
-        Some(error) => Err(format!("{}: {}", error.code, error.message)),
-        None => Ok(()),
-    }
-}
-
-async fn run_prompt(
-    ctx: &CommandExecutionContext<'_>,
-    session_id: &str,
-    prompt: &str,
-) -> Result<i32> {
-    let request = ctx.node_bridge().request(
-        "agent.prompt",
-        json!({ "sessionId": session_id, "prompt": prompt }),
-    );
-    let mut call = ctx.node_bridge().open_call(request)?;
-    while let Some(event) = call.next_event().await {
-        render_event(&event);
-    }
-    let exchange = call.collect_exchange().await?;
-    println!();
-    if let Err(message) = ensure_ok(&exchange) {
-        eprintln!("[lan agent] error: {message}");
-        return Ok(EXIT_RUNTIME_ERROR);
-    }
-    Ok(0)
-}
-
-async fn run_repl(
-    ctx: &CommandExecutionContext<'_>,
-    session_id: &str,
-    model: &Option<String>,
-) -> Result<i32> {
-    eprintln!("[lan agent] interactive mode. /help for commands, /quit to exit.");
-    loop {
-        eprint!("lan> ");
-        let _ = io::stderr().flush();
-
-        let mut line = String::new();
-        let read = io::stdin().lock().read_line(&mut line)?;
-        if read == 0 {
-            eprintln!();
-            return Ok(0);
+    if plan.is_new {
+        if let Some(store) = store.as_ref() {
+            let header = SessionHeader::new(&plan.session_id, &options.cwd)
+                .with_model(options.model.clone())
+                .with_thinking(options.thinking);
+            store.create(&header)?;
         }
-        let input = line.trim();
-        if input.is_empty() {
-            continue;
-        }
-
-        match input {
-            "/quit" | "/exit" => return Ok(0),
-            "/help" => {
-                eprintln!("  /help          show this help");
-                eprintln!("  /model         show the active model");
-                eprintln!("  /quit          exit the session");
-                continue;
-            }
-            "/model" => {
-                match model.as_deref() {
-                    Some(model) => eprintln!("  model: {model}"),
-                    None => eprintln!("  model: provider default"),
-                }
-                continue;
-            }
-            _ => {}
-        }
-
-        run_prompt(ctx, session_id, input).await?;
     }
-}
 
-fn render_event(event: &BridgeEvent) {
-    match event.method {
-        BridgeEventMethod::AgentTextDelta => {
-            if let Some(delta) = event.params.get("delta").and_then(Value::as_str) {
-                print!("{delta}");
-                let _ = io::stdout().flush();
+    // 中断句柄要在 client 被移动前取出来（TUI / REPL 的 Ctrl-C 用）。
+    let interruptor = client.interruptor();
+    let session_cell = Arc::new(Mutex::new(plan.session_id.clone()));
+    let mut runtime = PiRuntime::open(client, store, spec, options.compact_threshold)
+        .await?
+        .with_session_cell(Arc::clone(&session_cell));
+
+    let interactive = is_interactive(&options);
+    let exit_code = if interactive {
+        let mut setup = approvals;
+        let tui_config = tui::TuiConfig {
+            session_cell: Arc::clone(&session_cell),
+            interruptor: interruptor.clone(),
+            approvals: setup.as_mut().map(|setup| &mut setup.prompts),
+        };
+        match tui::run(runtime, tui_config).await {
+            Ok(()) => 0,
+            Err(error) => {
+                eprintln!("[{PRODUCT_NAME}] tui failed: {error:#}");
+                1
             }
         }
-        BridgeEventMethod::AgentToolStart => {
-            let tool = event
-                .params
-                .get("tool")
-                .and_then(Value::as_str)
-                .unwrap_or("tool");
-            let args = event
-                .params
-                .get("args")
-                .map(compact_json)
-                .unwrap_or_default();
-            eprintln!("\n[lan agent] {tool} {args}");
-        }
-        BridgeEventMethod::AgentToolEnd => {
-            let tool = event
-                .params
-                .get("tool")
-                .and_then(Value::as_str)
-                .unwrap_or("tool");
-            let ok = event
-                .params
-                .get("ok")
-                .and_then(Value::as_bool)
-                .unwrap_or(true);
-            let duration = event
-                .params
-                .get("durationMs")
-                .and_then(Value::as_u64)
-                .map(|value| format!(" {value}ms"))
-                .unwrap_or_default();
-            eprintln!(
-                "[lan agent] {tool} {}{duration}",
-                if ok { "done" } else { "failed" }
-            );
-            let _ = io::stderr().flush();
-        }
-        BridgeEventMethod::AgentEnd => {
-            let _ = io::stdout().flush();
-        }
-        _ => {}
-    }
-}
-
-fn compact_json(value: &Value) -> String {
-    let text = value.to_string();
-    if text.len() <= 200 {
-        text
     } else {
-        let mut end = 200;
-        while end > 0 && !text.is_char_boundary(end) {
-            end -= 1;
+        let watcher = spawn_interrupt_watcher(interruptor, Arc::clone(&session_cell));
+        let mut renderer = Renderer::new(render_mode(&options), use_color());
+        renderer.banner(runtime.info(), options.approval_mode, !plan.is_new);
+        if options.verbose {
+            let store = SessionStore::new(&options.cwd);
+            renderer.notice(&format!(
+                "session {} · file {}",
+                runtime.session_id(),
+                if options.no_session {
+                    "(not persisted)".to_string()
+                } else {
+                    store
+                        .layout()
+                        .session_file(runtime.session_id())
+                        .display()
+                        .to_string()
+                }
+            ));
+            renderer.notice(&format!(
+                "thinking {} · compact at {:.0}% · {} messages restored",
+                options.thinking,
+                options.compact_threshold * 100.0,
+                runtime.messages().map(|items| items.len()).unwrap_or(0),
+            ));
         }
-        format!("{}…", &text[..end])
+
+        let code = if options.is_one_shot() {
+            run_once(&mut runtime, &options, &mut renderer).await
+        } else {
+            match repl::run(&mut runtime, &mut renderer).await {
+                Ok(_) => 0,
+                Err(error) => fail(&mut renderer, &error),
+            }
+        };
+        watcher.abort();
+        runtime.close().await;
+        code
+    };
+
+    let session_id = session_cell
+        .lock()
+        .map(|guard| guard.clone())
+        .unwrap_or_default();
+
+    Ok(RunOutcome {
+        exit_code,
+        session_id,
+        persisted: !options.no_session,
+    })
+}
+
+async fn run_once<C: AgentSessionClient>(
+    runtime: &mut PiRuntime<C>,
+    options: &AgentOptions,
+    renderer: &mut Renderer,
+) -> i32 {
+    let Some(prompt) = one_shot_prompt(options) else {
+        renderer.error("empty prompt");
+        return 1;
+    };
+    match runtime.run_turn(&prompt, renderer).await {
+        Ok(report) => {
+            // `--json`：事件流之后补一条终态，脚本不必自己聚合。
+            if renderer.is_json() {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "type": "result",
+                        "text": report.text,
+                        "compacted": report.compacted,
+                        "contextTokens": report.context_tokens,
+                        "usage": {
+                            "inputTokens": report.usage.input_tokens,
+                            "outputTokens": report.usage.output_tokens,
+                            "totalTokens": report.usage.total_tokens,
+                        },
+                    })
+                );
+            }
+            if report.text.trim().is_empty() {
+                renderer.warning("the model returned no text");
+            }
+            if report.compacted {
+                renderer.notice("history was compacted; continue from the summary");
+            }
+            0
+        }
+        Err(error) => fail(renderer, &error),
     }
+}
+
+fn fail(renderer: &mut Renderer, error: &anyhow::Error) -> i32 {
+    renderer.error(&format!("{error:#}"));
+    1
+}
+
+fn one_shot_prompt(options: &AgentOptions) -> Option<String> {
+    if let Some(prompt) = options.prompt.clone() {
+        return Some(prompt);
+    }
+    // `-p` 且没有位置参数：从 stdin 读到底，方便管道使用。
+    let mut buffer = String::new();
+    io::stdin().read_to_string(&mut buffer).ok()?;
+    let trimmed = buffer.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
+fn print_sessions(store: &SessionStore, renderer: &mut Renderer) {
+    let sessions = store.list().unwrap_or_default();
+    if sessions.is_empty() {
+        renderer.notice("no sessions in this workspace yet");
+        return;
+    }
+    for session in sessions {
+        renderer.notice(&format!(
+            "{} · {} entries · {} · {}",
+            session.session_id,
+            session.entry_count,
+            session.model.as_deref().unwrap_or("(default model)"),
+            session.cwd,
+        ));
+    }
+}
+
+/// Ctrl-C 只中断当前生成（行式模式；TUI 在 raw mode 下自己收按键）。
+fn spawn_interrupt_watcher(
+    interruptor: Option<Arc<dyn lania_agent_core::SessionInterrupt>>,
+    session_cell: Arc<Mutex<String>>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let Some(interruptor) = interruptor else {
+            return;
+        };
+        loop {
+            if tokio::signal::ctrl_c().await.is_err() {
+                return;
+            }
+            let session_id = session_cell
+                .lock()
+                .map(|guard| guard.clone())
+                .unwrap_or_default();
+            if session_id.is_empty() {
+                continue;
+            }
+            let _ = interruptor.interrupt(&session_id).await;
+        }
+    })
+}
+
+fn render_mode(options: &AgentOptions) -> RenderMode {
+    if options.json {
+        RenderMode::Json
+    } else {
+        RenderMode::Human
+    }
+}
+
+fn use_color() -> bool {
+    if std::env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    if std::env::var("CLICOLOR_FORCE")
+        .map(|value| value != "0")
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    io::stdout().is_terminal()
+}
+
+/// 这次运行会不会进 TUI。适配层据此决定要不要装审批 UI。
+pub fn is_interactive(options: &AgentOptions) -> bool {
+    !options.is_one_shot() && !options.no_tui && io::stdout().is_terminal() && io::stdin().is_terminal()
+}
+
+/// 供适配层复用的会话 id 生成（避免各自实现漂移）。
+pub fn new_session_id() -> String {
+    generate_session_id()
 }

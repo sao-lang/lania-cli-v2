@@ -1,7 +1,9 @@
-# lan agent 技术方案
+# lan pi 技术方案
 
 > 目标：在 `lan` 上提供与 omp 同量级能力的 coding agent，但底座与 omp 相反——
 > **执行权威在 Rust 宿主，Node 只做模型编排**；长尾能力走插件协议而非内置。
+>
+> 命令名：`lan pi`（`lan agent` 保留为别名，见 §3.1）。
 
 ## 0. 范围
 
@@ -65,62 +67,120 @@
 现状：`lania-agent`（363 行、单文件 `lib.rs`）把**命令入口**与**会话能力**混装，且能力层直接依赖 `lania-host`。
 后果：任何非 lania 宿主（GUI / IDE 插件 / CI 脚本）想复用「agent 会话」都不得不连带整套插件框架。
 
-拆成两个 crate：
+> **已落地**（见 §10）：`lania-agent-core` 已建立，`lania-agent` 已瘦身为命令层，
+> 命令名改为 `pi`、`agent` 作为别名。以下是实际的文件布局。
+
+已落地的三层结构（仿 runex 拆法：`runex-core` → `runex` → `lania-plugins-command-env`）：
 
 ```text
-lania-agent-core                      ← 新增：能力层，禁止依赖 lania-host / lania-command
-├── Cargo.toml            deps: anyhow, async-trait, serde_json, lania-node-bridge
+lania-agent-core                   ← 零 lania 依赖：类型与算法
+├── Cargo.toml  deps: anyhow, async-trait, serde, serde_json, tokio
 └── src/
-    ├── lib.rs            re-export
-    ├── spec.rs           SessionSpec / PromptRequest / ApprovalMode
-    ├── event.rs          AgentEvent（与 BridgeEventMethod 一一映射）
-    ├── client.rs         trait AgentSessionClient
-    └── bridge.rs         BridgeAgentSessionClient（基于 lania-node-bridge 的默认实现）
+    ├── spec.rs     SessionSpec / PromptRequest / ApprovalMode / ThinkingLevel / ToolTier
+    ├── event.rs    AgentEvent::from_method(method, params) + Usage
+    ├── client.rs   trait AgentSessionClient / SessionInterrupt + mock
+    ├── session.rs  SessionStore / 分支与 leaf / fork
+    └── config.rs / tokens.rs / prompt.rs
 
-lania-agent                           ← 瘦身：只剩命令插件与终端渲染
-├── Cargo.toml            deps: + lania-agent-core, lania-host, lania-command
+lania-agent                        ← 产品层：零 lania 依赖（只依赖 core 与通用库）
+├── Cargo.toml  deps: core + crossterm / ratatui / unicode-width / tokio ...
 └── src/
-    ├── lib.rs            AgentCommandPlugin / spec / Plugin impl
-    ├── handler.rs        execute：argv → SessionSpec → core client
-    └── render.rs         REPL、事件渲染、compact_json
+    ├── lib.rs           run(AgentOptions, Box<dyn AgentSessionClient>, Option<ApprovalSetup>)
+    ├── options.rs       AgentOptions（纯数据，不认识 CommandExecutionContext）
+    ├── approval.rs      ApprovalBus / ApprovalPrompt（通道注入）
+    ├── session_plan.rs / context.rs / runtime.rs / render.rs / repl.rs
+    └── tui/             mod.rs / app.rs / view.rs / actor.rs
+
+lania-plugins-command-pi           ← CLI 适配层（唯一认识宿主的地方）
+├── Cargo.toml  deps: lania-agent, lania-agent-core, lania-command, lania-host, lania-node-bridge
+└── src/
+    ├── lib.rs        PiCommandPlugin（命令 pi，别名 agent）
+    ├── handler.rs    CommandExecutionContext → AgentOptions；装审批 broker / 门禁
+    ├── options.rs    参数提取（错误返回，不碰 EXIT_USAGE）
+    └── bridge.rs     BridgeAgentSessionClient：把 NodeBridgeClient 注入成 AgentSessionClient
 ```
 
-依赖方向（单向，无环）：
+依赖方向（单向，无环；引擎在 Node 子进程，通过 bridge 协议接入）：
 
 ```text
-lania-cli ──▶ lania-agent ──▶ lania-agent-core ──▶ lania-node-bridge
-                   └──▶ lania-host ──▶ lania-node-bridge
+lania-cli ──▶ lania-plugins-command-pi ──▶ lania-agent ──▶ lania-agent-core
+                        ├──▶ lania-host ──────────────▶ lania-node-bridge
+                        └──▶ lania-command
 ```
 
 **边界判定标准**（可作为 code review checklist）：
 
-| 判定项                                                | 归属               |
-| ----------------------------------------------------- | ------------------ |
-| `CommandSpec` / `Plugin` / `register_builtin_command` | `lania-agent`      |
-| argv 解析（`option_string` / `positional_prompt`）    | `lania-agent`      |
-| `eprintln!` / `print!` / `io::stdout().flush()`       | `lania-agent`      |
-| bridge 方法名与参数拼装（`agent.session.create` 等）  | `lania-agent-core` |
-| 事件结构（`AgentEvent`）与 `BridgeEventMethod` 的映射 | `lania-agent-core` |
-| 终端颜色、`/help` 文案、进度提示                      | `lania-agent`      |
+| 判定项                                                | 归属                               |
+| ----------------------------------------------------- | ---------------------------------- |
+| `CommandSpec` / `Plugin` / `register_builtin_command` | `lania-plugins-command-pi`         |
+| argv 解析（`option_string` / `positional_prompt`）    | `lania-plugins-command-pi`         |
+| `eprintln!` / `print!` / `io::stdout().flush()`       | `lania-agent`                      |
+| bridge 方法名与传输调用（`agent.session.create` 等）  | `lania-plugins-command-pi::bridge` |
+| 事件结构（`AgentEvent`）与事件名映射                  | `lania-agent-core`                 |
+| 终端颜色、`/help` 文案、进度提示                      | `lania-agent`                      |
+| 工具执行、门禁、审批裁决                              | `lania-host`（主包不见）           |
 
 **验收标准**：
 
-- [ ] `cargo tree -p lania-agent-core` 中不出现 `lania-host` / `lania-command`。
-- [ ] `agent` 命令行为零变化：`--approval-mode`、`/help`、`/model`、`/quit`、事件渲染格式逐字节一致。
-- [ ] `lania-agent-core` 的 `AgentSessionClient` 可被单测 mock（不启动 node 进程）。
+- [x] `cargo tree -p lania-agent-core` / `-p lania-agent` 中不出现 `lania-host` / `lania-command` / `lania-node-bridge`。
+- [x] 产品入口是纯数据 + trait：`run(AgentOptions, Box<dyn AgentSessionClient>, Option<ApprovalSetup>)`。
+- [x] `pi` 命令支持 `--approval-mode`、`/help`、`/model`、`/quit` 与新增的会话命令。
+- [x] `lania-agent-core` 的 `AgentSessionClient` 可被单测 mock（`mock::MockSessionClient`，不启动 node 进程）。
+- [ ] 原 `agent` 命令「输出逐字节一致」已不适用：命令名与交互形态都变了（见 §3.3）。
 
 ### 3.2 与 TS 包的对应关系
 
-| Rust                                   | TypeScript                         | 职责                     |
-| -------------------------------------- | ---------------------------------- | ------------------------ |
-| `lania-agent-core::AgentSessionClient` | `@lania-cli-v2/agent`（`kernel/`） | 会话与模型循环的**边界** |
-| `lania-agent`（命令插件）              | —                                  | 仅终端交互               |
-| `lania-node-bridge`（传输）            | `@lania-cli-v2/node-bridge`        | 协议与进程管理           |
+| Rust                                                           | TypeScript                         | 职责                                   |
+| -------------------------------------------------------------- | ---------------------------------- | -------------------------------------- |
+| `lania-agent-core::AgentSessionClient`                         | `@lania-cli-v2/agent`（`kernel/`） | 会话与模型循环的**边界**               |
+| `lania-agent`（产品层） / `lania-plugins-command-pi`（适配层） | —                                  | 运行/TUI 与 CLI 接线（都不含模型编排） |
+| `lania-node-bridge`（传输）                                    | `@lania-cli-v2/node-bridge`        | 协议与进程管理                         |
 
-⚠️ 跨语言边界只有一处：`agent.*` 5 个 bridge 方法与 `event.agent_*` 9 个事件。
+⚠️ 跨语言边界只有一处：`agent.*` 6 个 bridge 方法与 `event.agent_*` 9 个事件。
 两侧的 Rust 结构体与 TS 类型必须逐字段对齐（见 §4.2、§4.3），改动需同 PR 完成。
+**待改进（§11）**：这些名字/字段目前仍手写于 Rust core / 插件层 / 宿主 / TS 多处，
+下一步用「协议单一事实源 + 代码生成」消除重复定义。
 
 当前 TS 侧的耦合问题：`ts/packages/node-bridge/src/core/plugin-registry.ts` 在**模块顶层静态 import** `@lania-cli-v2/agent`，且 `node-bridge` 把它写在 `dependencies`。这让「装 CLI 必须拉 pi 依赖」。本方案不强制改（agent 是 CLI 的一等功能），但**在 `lania-agent-core` 落地后应改为动态 import**，使 bridge 可独立运行。
+
+### 3.3 命令形态与实现状态
+
+```bash
+lan pi                         # 全屏 TUI（stdout 是终端时）
+lan pi "explain the crate layout"
+lan pi -p                      # 单次；无位置参数时从 stdin 读
+lan pi -c                      # 续接最近一次会话
+lan pi --resume <session-id>
+lan pi --sessions              # 列出会话
+lan pi --new                   # 强制新建
+lan pi --no-session            # 不落盘
+lan pi --json                  # 一行一个事件（末尾补一条 result）
+lan pi --no-tui                # 强制行式 REPL
+lan pi --snapshot              # 渲染 TUI 两帧到 stdout 后退出（CI）
+lan pi --model claude-sonnet-4-5 --thinking high --approval-mode write
+```
+
+斜杠命令（TUI 与行式 REPL 共用一套语义）：`/help` `/status` `/model [id]` `/thinking [level]`
+`/approve [mode]` `/compact` `/rewind [n]` `/new` `/fork` `/sessions` `/quit`。
+
+TUI 键位：`Enter` 发送 · `Ctrl-J` 换行 · `PgUp/PgDn` 滚动 · `Up/Down` 历史（输入为空时）
+· `Esc` 中断生成 · `Ctrl-C` 中断/退出 · 审批弹窗内 `a` 单次 `s` 永久 `d`/`Esc` 拒绝。
+
+**本轮落地的范围**（对照 §7 里程碑）：
+
+| 里程碑                         | 状态 | 说明                                                                                                                                                                                           |
+| ------------------------------ | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0 骨架 + bridge + 一次性      | ✅   | `lan pi -p`，事件流可见                                                                                                                                                                        |
+| M1 工具 8 个 + 审批 + 会话落盘 | ✅   | 工具 10 个（见 §4.4），`--continue` 续上下文，未授权 exec 弹窗                                                                                                                                 |
+| M2 TUI                         | ✅   | 全屏 TUI（ratatui）：正文折行 + 底部对齐、工具三态卡片、thinking 折叠、多行输入 + 历史、审批覆盖层、状态栏、滚动、Esc/Ctrl-C 中断；`--no-tui` 回落行式 REPL，`--snapshot` 供 CI。实现见 §5.3。 |
+| M3 `task` 子 agent + hooks     | ✅   | 子 agent（只读并行/写串行/禁递归）；工具门禁 `custom.agent.guard`（deny / require-approval）。`agent://` 输出文件未做。                                                                        |
+| M4 AST / skills / MCP / memory | 部分 | skills 索引与 memory 注入已做（读 `.lan/skills`、`.lan/agent/memory`）；AST、MCP 未做                                                                                                          |
+
+**与原文的偏差（有意，均已在此登记）**：
+
+1. **工具 schema 留在 TS**（typebox），Rust 只做 tier 判定与执行。原文 §5.2 计划由 Rust 导出 schema；但 schema 只影响「模型看到什么」，tier 才影响「能不能干」，把安全相关的部分留在 Rust、把提示词相关的部分留在 TS，避免同一份 schema 在两种语言里各写一遍再对账。
+2. **压缩摘要是抽取式**（谁问过什么 / 动过哪些文件 / 用过哪些工具），不额外发起一次模型调用。确定性、可单测、零成本；语义摘要留到后续版本。
+3. **Ctrl-C 只中断生成**：通过 `NodeBridgeClient` 的 `Arc` 共享，在 `agent.prompt` 飞行期间插入 `agent.interrupt`，不 drop 未来的 future。
 
 ## 4. 关键接口
 
@@ -129,12 +189,13 @@ lania-cli ──▶ lania-agent ──▶ lania-agent-core ──▶ lania-node-
 | 方法                   | 参数                                                                     | 返回                                             |
 | ---------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
 | `agent.session.create` | `{sessionId, model, thinking, systemPrompt, messages, tools, maxTokens}` | `{sessionId, model, contextWindow}`              |
-| `agent.prompt`         | `{sessionId, prompt, images?}`                                           | 流式事件 + `{message, usage, stopReason}`        |
+| `agent.prompt`         | `{sessionId, prompt, images?}`                                           | 流式事件 + `{text, messages, usage, stopReason}` |
 | `agent.interrupt`      | `{sessionId}`                                                            | `{ok}`                                           |
 | `agent.state`          | `{sessionId}`                                                            | `{isStreaming, pendingToolCalls, contextTokens}` |
 | `agent.models.list`    | `{provider?}`                                                            | `[{provider, id, contextWindow, reasoning}]`     |
 
 会话历史由 Rust 持有：`session.create` 时把 JSONL 还原成 `messages` 一次性传入，Node 不落盘。
+`prompt` 返回的 `messages` 只含**本轮新增的模型产出**（assistant / toolResult）——user 消息在发问前已由 Rust 落盘，避免重复记录。
 
 ### 4.2 事件协议（新增，Node → Rust，逐条即时写出）
 
@@ -175,37 +236,44 @@ agent.tool.exec {
 
 ### 4.4 内置工具表（封顶 13）
 
-| 工具                      | tier  | 实现                              | 说明                                                                         |
-| ------------------------- | ----- | --------------------------------- | ---------------------------------------------------------------------------- |
-| `read`                    | read  | `lania-fs`                        | 支持 `path:start-end` 区间、二进制拒绝、图片按 mime 返回                     |
-| `glob`                    | read  | `ignore` + `globset`              | 遵循 .gitignore                                                              |
-| `grep`                    | read  | `ignore` + `regex`                | 输出文件:行:内容，上限截断                                                   |
-| `ast_grep`                | read  | `tree-sitter 0.20`                | 按语言查询节点                                                               |
-| `git_status` / `git_diff` | read  | `lania-git` / `lania-exec`        | diff 走 `git diff --no-color -U3`                                            |
-| `write`                   | write | `lania-fs`                        | 创建/整体覆盖；返回 diff 摘要                                                |
-| `edit`                    | write | `lania-agent-tools`               | 结构化补丁：`{path, ops:[{anchor, context, replacement}]}`，应用前校验上下文 |
-| `ast_edit`                | write | `tree-sitter`                     | 节点替换，失败回退 `edit`                                                    |
-| `exec`                    | exec  | `lania-exec`                      | 命令白名单 + 超时 + 输出截断；默认需要确认                                   |
-| `task`                    | exec  | 子 agent 调度                     | 见 5.5                                                                       |
-| `ask_user`                | read  | `lania-prompt` / host interaction | 阻塞式澄清                                                                   |
-| `web_fetch`               | read  | `reqwest`（新增依赖）             | 仅 http(s)，限大小                                                           |
+**已实现 11 个**（`lan pi` 启动时打印的实际工具表，与本节一致）：
 
-MCP 工具统一命名为 `mcp__<server>__<tool>`，默认 tier = `write`（与 omp 一致），按 server 配置可降级。
+| 工具               | tier  | 实现                      | 说明                                                           |
+| ------------------ | ----- | ------------------------- | -------------------------------------------------------------- |
+| `read`             | read  | `std::fs` + 行区间        | `start`/`end` 1-based、二进制拒绝、2000 行/20KB 截断           |
+| `glob`             | read  | `ignore` + `globset`      | 遵循 .gitignore，上限 500 条                                   |
+| `grep`             | read  | `ignore` + `regex`        | 输出 `path:line: text`，上限 200 条                            |
+| `git_status`       | read  | `lania-exec`（argv 直传） | `git status --short --branch`                                  |
+| `git_diff`         | read  | `lania-exec`（argv 直传） | `git diff --no-color -U3`，支持 `path` / `staged`              |
+| `write`            | write | `std::fs`                 | 自动建父目录、整体覆盖；返回字节数与行数                       |
+| `edit`             | write | 精确串替换                | `old_string` 必须唯一（或 `replace_all`），否则报错不写盘      |
+| `exec`             | exec  | `lania-exec`              | 超时 10 分钟、输出截断、默认需要确认                           |
+| `project_command`  | exec  | `lania-exec`              | 以 argv 形式跑 `lan <args>`，避免 shell 注入                   |
+| `task`             | exec  | Node 侧子 agent（§5.5）   | 独立上下文；只读并行、可写串行；深度 ≥1 不注册，禁递归         |
+| （MCP / 插件工具） | write | `lan.config` 声明         | 命名 `mcp__<server>__<tool>`，默认 tier = `write` 并按配置降级 |
+
+**未实现（保持名额）**：`ast_grep` / `ast_edit`（tree-sitter）、`ask_user`、`web_fetch`。
+名额上限仍是 13，新增内置工具需说明「为什么插件做不到」。
+
+工具**参数 schema 在 TS（typebox）**，tier 与执行在 Rust（见 §3.3 偏差说明 1）。
 
 ### 4.5 会话文件
 
 ```
 .lan/agent/sessions/<sessionId>.jsonl
 {"v":1,"type":"header","sessionId","cwd","createdAt","model","thinking","parentSessionId"?}
-{"type":"user","id","parentId","ts","content"}
-{"type":"assistant","id","parentId","ts","content","usage","stopReason"}
-{"type":"tool","id","parentId","ts","toolCallId","tool","params","result","isError","durationMs"}
+{"type":"user","id","parentId","ts","message":{"role":"user",...}}
+{"type":"assistant","id","parentId","ts","message":{"role":"assistant",...}}
+{"type":"tool","id","parentId","ts","message":{"role":"toolResult",...}}
 {"type":"compaction","id","parentId","ts","summary","firstKeptEntryId","tokensBefore"}
+{"type":"meta","id","parentId","ts","meta":{...}}
 ```
 
+- `message` 保存 pi 的**原始消息 JSON**（不做字段级重建）：恢复时原样回放，pi 升级消息结构不需要改 Rust。
 - append-only；当前分支叶子存 `.lan/agent/sessions/<sessionId>.leaf`（单行 id）。
 - `--continue` 读 leaf 重建；`/rewind` 只改 `.leaf`；`/fork` 新建文件并写 `parentSessionId`。
-- 不实现 omp 的版本迁移/blob 外置：v1 数据不跨大版本保留，破坏性变更直接拒绝加载并提示。
+- 损坏容忍：解析失败的尾行直接跳过（崩溃最多丢当前这一轮）。
+- 不实现 omp 的版本迁移/blob 外置：v1 数据不跨大版本保留，`v` 不匹配直接拒绝加载并提示。
 
 ### 4.6 配置
 
@@ -220,6 +288,11 @@ v1 从 `lan.config.*` 的 `custom.agent` 读取（`LanConfigSnapshot.custom: Val
     "subagents": { "maxConcurrent": 4, "isolation": "none" },
     "exec": { "allow": ["pnpm test", "cargo test", "git status"] },
     "skills": [".lan/skills"],
+    // 工具门禁：命中即拒绝 / 强制审批（顺序敏感，首个命中生效）
+    "guard": [
+      { "tool": "exec", "pattern": "rm\\s+-rf", "action": "deny", "reason": "no recursive delete" },
+      { "tool": "write", "pattern": "\\.env", "action": "require-approval" },
+    ],
     "tools": [
       // 插件工具（见 5.2）
       { "name": "db_query", "command": "lan db query", "approval": "exec" },
@@ -247,23 +320,44 @@ v1 从 `lan.config.*` 的 `custom.agent` 读取（`LanConfigSnapshot.custom: Val
 
 ### 5.3 TUI
 
-- 组件：`TranscriptView`（消息 + 工具卡片）、`Composer`（多行输入、历史）、`StatusBar`（model / token / context%）、`ApprovalDialog`、`TodoPanel`。
-- 事件循环：
+组件拆成三个文件，边界与 `render.rs` 一致——**只有 view 层认识 ratatui**：
+
+| 文件           | 职责                                                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `tui/app.rs`   | `App` 状态机：行模型（User/Assistant/Thinking/Tool/Notice/Error）、输入框（char 光标 + 历史）、弹窗、滚动。纯数据，可在单测里喂按键 |
+| `tui/view.rs`  | 只用 ratatui 画一帧：正文（按显示宽度手工折行）、输入框、状态栏、审批覆盖层、窄屏提示                                               |
+| `tui/actor.rs` | 运行时 actor：`UiCommand` 进 / `UiUpdate` 出，外加 `UiSink` 的通道实现与审批代理                                                    |
+| `tui/mod.rs`   | 终端生命周期（`TerminalGuard` 保证还原 raw mode）、输入线程、三路事件合流、`--snapshot`                                             |
+
+**为什么是 actor 而不是在 UI 里直接调运行时**：`run_turn` 会在 `await` 上停留数秒到数分钟，
+期间界面必须继续刷新并响应 Ctrl-C。所以运行时被搬进独立 task（`OwnedBridgePort` 让它 `'static`），
+UI 只发命令收更新。副作用是 `/model`、`/compact`、`/fork` 天然串行，不会出现「生成中切模型」。
+
+事件循环：
 
 ```
 loop {
+  terminal.draw(&app)?;
   select! {
-    key = crossterm EventStream => handle_key,
-    ev  = agent_events.recv()    => handle_agent_event,
-    _   = tick(100ms)            => {},
+    key   = key_rx.recv()     => handle_key,        // 独立线程 poll(80ms) + read
+    upd   = update_rx.recv()  => apply_update,      // actor
+    ask   = approval_rx.recv()=> app.dialog = Some(..),  // 宿主 broker
+    _     = sleep(120ms)      => spinner += 1,
   }
-  terminal.draw(...)?;
 }
 ```
 
-- 不使用 `event::read()` 阻塞（`command-env/tui` 是那种写法，不能照抄）；必须可被异步事件唤醒。
-- 工具卡片的状态机：`pending → running(with partial) → done(ok|error)`，对应 `agent_tool_*` 三个事件。
-- 窄屏（< 80×24）降级为纯文本流式输出，不做布局。
+- 键盘不用 `crossterm EventStream`：独立线程 `poll` 比引 `futures` 依赖更轻，
+  且主循环永远不会被 `event::read()` 卡住（`command-env/tui` 那种写法不能照抄）。
+- 工具卡片三态：`agent_tool_start → running`、`agent_tool_update → partial`、`agent_tool_end → done(ok|error)`。
+- 窄屏（< 40×10）只画一行提示，不做布局；`--snapshot` 用 `TestBackend` 渲染一帧，
+  CI 里比对文本即可发现渲染退化（不需要 TTY）。
+
+**审批为什么需要新通道**：授权判定必须留在宿主的 `agent.tool.exec` 内（防 TOCTOU），
+但「问用户」在 TUI 里要弹覆盖层、在行式 REPL 里读 stdin。
+因此宿主新增 `lania_host::approval::ApprovalBroker` 插槽：命令层进入交互前装上实现，
+退出时由 RAII handle 摘除；未安装时回落到原有终端提示。broker 的 `ask` 运行在 bridge
+reader 线程上，所以实现必须是**有界等待**（默认 600s，超时按拒绝）。
 
 ### 5.4 会话与压缩
 
@@ -276,20 +370,34 @@ loop {
 
 ### 5.5 子 agent
 
-- `task` 工具参数：`{context, tasks: [{name?, agent?: "task"|"scout", task, readOnly?, outputSchema?}]}`。
-- 调度（Rust `lania-task`）：
-  - `readOnly: true` → 并行，不占写锁，并发上限 `min(maxConcurrent, 8)`。
-  - 写型 → 排队持有工作区写锁，**串行**；`subagents.isolation = "worktree"` 时改为每个子 agent 一个 `git worktree`（需在 `lania-git` 新增 `worktree_add/remove/list`，当前只有分支类 API）。
-- 每个子 agent 一个 session 文件 + 一个输出文件 `.lan/agent/agents/<id>/output.md`；`read("agent://<id>")` 由 read 工具的内部 URL 解析。
-- 汇总：父会话只拿到 `{status, summary, outputPath, patchPath?, usage}`，避免上下文爆炸。
-- 预算：`maxConcurrent` + 每子 agent `maxTokens` 上限；超限直接 abort 并返回 `budget_exceeded`。
+**已实现**（`ts/packages/agent/src/kernel/subagent.ts`）：
+
+- 参数：`{description, prompt, read_only?}`，`read_only` 默认 true。
+- 与原文的关键差异：子 agent 是 **Node 侧又一个 pi `Agent` 实例**，不是 Rust 调度。
+  原因很硬：`agent.tool.exec` 跑在 bridge 的 reader 线程上，在那里再发**嵌套 bridge 请求**
+  （`agent.session.create` / `agent.prompt`）会自己等自己 → 死锁。
+  子 agent 的每次工具调用仍然走 `agent.tool.exec`，所以宿主的门禁与审批照常生效——
+  被移动的只是「模型循环」，那本来就是 Node 的职责。
+- 并发：上限 4；只读子 agent 并行，**可写子 agent 走全局写锁串行**。
+- 递归：深度 ≥ 1 时工具表里**不注册 `task`**，结构性禁止。
+- 结果：只回传最终文本（截断 8KB），父会话不会被子 agent 的中间过程撑爆。
+- 未实现（仍在设计中）：`tasks[]` 批量形态、`outputSchema`、worktree 隔离、
+  `.lan/agent/agents/<id>/output.md` 与 `agent://<id>` 解析、子 agent usage 汇总。
 
 ### 5.6 hooks / skills / MCP / memory
 
-- **hooks**：`lania-hooks` 新增键 `onAgentStart`、`onAgentToolCall`（waterfall，可改参数/拒绝）、`onAgentToolResult`、`onAgentCompact`、`onSessionSwitch`。
-- **skills**：扫描 `.lan/skills/*/SKILL.md`（项目）与 `~/.lan/skills`（用户）；启动时把 `name + description` 索引进 system prompt，正文由模型按需 `read`。
-- **MCP**：Rust `rmcp`（stdio + SSE）。配置 `.lan/agent/mcp.json`；工具注册进同一张表，命名 `mcp__<server>__<tool>`。
-- **memory**：仅 `local` 后端。启动注入 `MEMORY.md` 摘要（≤ 800 token）+ `learned.md` 最近 20 条；`learn` 工具（可选开启）追加条目，去重、限长 2000 字符。
+- **hooks（工具门禁，已实现）**：`custom.agent.guard` 规则在宿主内同步判定，
+  `deny` 直接拒绝、`require-approval` 把 yolo 降级为「要问」。
+  没有直接接 `lania-hooks` 的 hook bus：那条链路是 async 的，而 `agent.tool.exec`
+  跑在 bridge reader 线程上，`block_on` 一个可能拉起子进程的 hook 会把事件流与心跳一起卡住。
+  规则不经过 Node，模型无法伪造参数绕过。
+- **skills（已实现）**：扫描 `.lan/skills/*/SKILL.md`（项目）+ `~/.lan/skills`（用户），
+  把 `name + description + path` 索引进 system prompt，正文由模型按需 `read`。
+  `/skill` 显式调用未做（索引已覆盖主要场景）。
+- **MCP（未实现）**：计划用 `rmcp`（stdio + SSE），配置 `.lan/agent/mcp.json`，
+  工具命名 `mcp__<server>__<tool>`，默认 tier = write。
+- **memory（已实现）**：注入 `.lan/agent/memory/MEMORY.md` + `learned.md`（截断 4800 字符）；
+  `learn` 工具未做。
 
 ### 5.7 性能策略
 
@@ -308,17 +416,32 @@ loop {
 
 ## 7. 里程碑
 
-| 阶段 | 内容                                                                                               | 验收                                                         | 估时   |
-| ---- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------ |
-| M0   | `@lania-cli/agent` 骨架；bridge `agent.session.create` / `agent.prompt`；事件 emit；`lan agent -p` | 能对仓库提问并输出答案；事件流可见                           | 1 周   |
-| M1   | 工具 8 个（read/glob/grep/write/edit/exec/git_status/git_diff）+ 审批 + 会话落盘                   | 修真实 bug 并跑测试；`--continue` 续上下文；未授权 exec 弹窗 | 3 周   |
-| M2   | TUI（消息/工具卡片/输入/状态栏/审批）                                                              | 键盘全操作；Ctrl-C 只中断生成；退出终端干净                  | 2–3 周 |
-| M3   | `task` 子 agent（只读并行 + 写串行）+ hooks + `agent://`                                           | 三个并行 scout 汇总；hook 能拒绝工具调用                     | 2–3 周 |
-| M4   | AST 工具、skills、MCP、memory、压缩                                                                | 长会话不爆窗；`/skill` 生效；MCP 工具可用且受审批            | 3 周   |
+状态以 `scripts/smoke-pi.mjs`（无需真实模型）的通过情况为准。
+
+| 阶段 | 内容                                                                                                       | 验收                                                         | 估时   | 状态 |
+| ---- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------ | ---- |
+| M0   | `@lania-cli/agent` 骨架；bridge `agent.session.create` / `agent.prompt`；事件 emit；`lan pi -p`            | 能对仓库提问并输出答案；事件流可见                           | 1 周   | ✅   |
+| M1   | 工具 10 个（read/glob/grep/git_status/git_diff/write/edit/exec/project_command + 插件位）+ 审批 + 会话落盘 | 修真实 bug 并跑测试；`--continue` 续上下文；未授权 exec 弹窗 | 3 周   | ✅   |
+| M2   | TUI（消息/工具卡片/输入/状态栏/审批）                                                                      | 键盘全操作；Ctrl-C 只中断生成；退出终端干净                  | 2–3 周 | ✅   |
+| M3   | `task` 子 agent（只读并行 + 写串行）+ 工具门禁 + `agent://`                                                | 子 agent 结果回传；门禁能拒绝工具调用                        | 2–3 周 | ✅   |
+| M4   | AST 工具、skills、MCP、memory、压缩                                                                        | 长会话不爆窗；`/skill` 生效；MCP 工具可用且受审批            | 3 周   | 部分 |
+
+M2 现状：全屏 TUI 已落地（ratatui 0.28 + crossterm 0.29）。正文按显示宽度折行并底部对齐、
+工具三态卡片、thinking 折叠成一行、多行输入（Ctrl-J 换行）+ 历史、审批覆盖层
+（`a` 单次 / `s` 永久 / `d`·Esc 拒绝）、状态栏（model · thinking · approval · ctx%）、
+PageUp/PageDown 滚动、Esc/Ctrl-C 中断生成、Ctrl-C 空闲退出。
+`--no-tui` 回落到行式 REPL；stdout 非 TTY 时不进 TUI（脚本/管道安全）。
+`--snapshot` 渲染两帧（正文 / 审批弹窗）到 stdout，CI 可直接比对。
+
+M3 现状：`task` 子 agent（Node 侧 pi Agent，工具调用仍走宿主 → 门禁与审批不被绕过）；
+工具门禁 `custom.agent.guard` 在宿主内同步判定（`deny` / `require-approval`）；
+`/rewind [n]` 只移 leaf 不删数据。`agent://` 输出文件与子 agent usage 汇总未做。
+
+M4 现状：skills 索引、memory 注入、自动/手动压缩（抽取式摘要）已做；AST、MCP、`/skill` 未做。
 
 ## 8. 与 omp 的差异（同一张功能表，相反的底座）
 
-| 维度     | omp                       | lan agent                         |
+| 维度     | omp                       | lan pi                            |
 | -------- | ------------------------- | --------------------------------- |
 | 执行位置 | Node + N-API natives      | 全部 Rust，Node 只编排            |
 | 授权     | Node 进程内               | Rust 同调用内，防 TOCTOU          |
@@ -341,14 +464,82 @@ loop {
 
 拆包本身不改行为，属**纯重构**，可在功能开发过程中穿插进行。
 
-| 阶段 | 内容                                                                                               | 验收                                               |
-| ---- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| A0   | 新建 `lania-agent-core`，把 `spec.rs` / `event.rs` / `client.rs` 写出来（先只放类型，不接 bridge） | `cargo check` 通过；无 host 依赖                   |
-| A1   | `bridge.rs` 承接现有 `create_session` / `run_prompt` 的请求构造逻辑                                | `lania-agent` 改为调用 core，`agent` 命令 e2e 全绿 |
-| A2   | 把 `render_event` / REPL / `compact_json` 收到 `render.rs`                                         | 输出与改造前逐字节 diff 为空                       |
-| A3   | 加 `AgentSessionClient` 的 mock 实现 + 单测                                                        | 无 node 进程也能跑通 handler 主流程                |
-| A4   | （配套）TS 侧 `plugin-registry.ts` 改动态 import，agent 变可选                                     | 移除 agent 依赖后 `lan build` / `lint` 仍可用      |
+| 阶段 | 内容                                                                                               | 验收                                            | 状态 |
+| ---- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- |
+| A0   | 新建 `lania-agent-core`，把 `spec.rs` / `event.rs` / `client.rs` 写出来（先只放类型，不接 bridge） | `cargo check` 通过；无 host 依赖                | ✅   |
+| A1   | `bridge.rs` 承接现有 `create_session` / `run_prompt` 的请求构造逻辑                                | `lania-agent` 改为调用 core，`pi` 命令 e2e 全绿 | ✅   |
+| A2   | 把 `render_event` / REPL / `compact_json` 收到 `render.rs` / `repl.rs`                             | 渲染层与传输层无交叉引用                        | ✅   |
+| A3   | 加 `AgentSessionClient` 的 mock 实现 + 单测                                                        | 无 node 进程也能跑通 handler 主流程             | ✅   |
+| A4   | （配套）TS 侧 `plugin-registry.ts` 改动态 import，agent 变可选                                     | 移除 agent 依赖后 `lan build` / `lint` 仍可用   | ⏳   |
 
 **A4 的风险**：`readyEvent().plugins` 与 `HandshakeResponse.methods` 会随 agent 是否安装而变化。
 Rust 侧目前不校验 methods（只记录），因此安全；但**必须在 A4 同 PR 补一条 e2e**：临时将
 `node_modules/@lania-cli-v2/agent` 改名，验证 `lan --help` / `lan build` / `lan lint` 均不报错。
+
+> 已知坑（A4 之前也值得知道）：`NodeBridgeClient::call_async` 在 process transport 启动失败时会
+> **静默退回 mock**，表现为 `E_METHOD_NOT_FOUND: Unsupported method: agent.session.create`。
+> 排查时设 `LANIA_BRIDGE_DEBUG=1` 可看到真实的 spawn 错误。
+
+## 11. 收口进度（2026-11-06）
+
+本次收口 = 三层拆包重构完成 + 可验证部分的验证结果 + 遗留待办。
+
+### 11.1 拆包落地状态
+
+| 层     | crate / 包                 | 职责                                              | 依赖                                                 | 状态        |
+| ------ | -------------------------- | ------------------------------------------------- | ---------------------------------------------------- | ----------- |
+| 能力层 | `lania-agent-core`         | 类型、事件、会话文件、配置、压缩、prompt          | 仅通用库，**零 lania 依赖**                          | ✅          |
+| 产品层 | `lania-agent`              | `run()`、TUI/REPL、审批通道、会话规划             | core + ratatui/crossterm 等通用库，**零 lania 依赖** | ✅          |
+| 适配层 | `lania-plugins-command-pi` | `lan pi` 命令、bridge 客户端、审批/门禁接线       | `lania-host` / `lania-command` / `lania-node-bridge` | ✅ 代码完成 |
+| 引擎   | `ts/packages/agent`        | pi-agent-core / pi-ai 编排、工具 schema、子 agent | `pi-agent-core@1.4.0` / `pi-ai@1.4.0`                | ✅          |
+| 宿主   | `lania-host`               | 工具执行、门禁、审批裁决                          | —                                                    | ✅          |
+
+关键接缝（保证主包不反向依赖脚手架）：`AgentOptions` 是纯数据，由适配层从
+`CommandExecutionContext` 翻译；传输以 `AgentSessionClient` trait 注入，
+`BridgeAgentSessionClient` 只存在于适配层；审批是 `UnboundedReceiver<ApprovalPrompt>`
+单向通道；工具执行/门禁/裁决全在宿主，主包完全不见。
+
+### 11.2 验证结果
+
+| 项目                   | 命令                                            | 结果                   |
+| ---------------------- | ----------------------------------------------- | ---------------------- |
+| core + 产品层单测      | `cargo test -p lania-agent-core -p lania-agent` | ✅ 29 + 44 = 73 passed |
+| TS 引擎类型检查        | `pnpm --filter @lania-cli-v2/agent typecheck`   | ✅                     |
+| pi 插件 / 全 workspace | `cargo check -p lania-plugins-command-pi`       | ⏳ 环境阻塞（见 11.3） |
+| 端到端冒烟（8 项断言） | `node scripts/smoke-pi.mjs`                     | ⏳ 重构前 8/8，待重跑  |
+
+本次收口修复：`lib.rs` 的 `AgentOptions` 重复导入（E0252）、`tui/actor.rs` 无用导入、
+`SessionPlan::resolve` 恢复不存在会话时暴露底层 os error（现返回 `unknown session ...`）。
+
+### 11.3 环境阻塞（非代码缺陷）
+
+本机没有 MSVC 的 VC 工具集/Windows SDK，也不再具备独立 MinGW-w64；
+`lania-workflows → tree-sitter` 的 C 代码需要完整 `gcc`（含 cc1），
+而 rustup 自带的 self-contained MinGW 只有链接工具（ld/as/ar/dlltool + gcc 驱动），
+缺 cc1，故 `cargo check` 停在 tree-sitter 的 build script：
+`Failed to find tool. Is gcc.exe installed?`。
+
+解除办法：安装 MinGW-w64（含 C 编译器）或 MSVC Build Tools 的 VC 工具集 + Windows SDK，然后重跑：
+
+```bash
+cargo check -p lania-plugins-command-pi
+cargo test --workspace
+node scripts/smoke-pi.mjs
+```
+
+本地临时配置（**不入库**）：`rust/.cargo/config.toml` 把 gnu target 的 linker 指向 rustup
+自带的 `x86_64-w64-mingw32-gcc.exe`；目录级 `rustup override` 到
+`stable-x86_64-pc-windows-gnu`；跑测试时用 `TMP/TEMP` 指向 `rust/target/tmp`
+（沙箱不允许写系统 Temp）。
+
+### 11.4 下一步待办（仅方案，未开工）
+
+1. **协议单一事实源**：`agent.*` / `event.agent_*` / `agent.tool.exec` 的方法名与字段名
+   目前手写于约 10 个文件（Rust core、插件层、`lania-node-bridge::BridgeEventMethod`、
+   宿主、TS 侧）。计划用一份 schema 生成两端绑定（`gen-bridge-protocol.mjs` + `--check`），
+   消除「改动需同 PR」的人肉同步。
+2. **bridge 公共逻辑抽离 + 语言 Provider 化**：仓库已有 `lania-node-bridge` /
+   `lania-py-bridge` / `lania-go-bridge` / `lania-dart-bridge` / `lania-rs-bridge` /
+   `lania-bridge-support`，各语言 bridge 共用同一套 jsonl 协议但传输逻辑分散，
+   方案另文讨论。
+3. M4 遗留：AST 工具、MCP、`/skill`、`agent://` 输出文件、子 agent usage 汇总。

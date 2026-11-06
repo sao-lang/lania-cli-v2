@@ -4,12 +4,17 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "pi-powered coding agent product (TUI/REPL), standalone and host-agnostic"
 
+# 依赖纪律（与 runex 一致）：对 lania 宿主零依赖。
+# 这里只允许出现 lania-agent-core（引擎）与通用库；
+# 传输与审批 UI 的接线放在 `lania-plugins-command-pi`。
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-lania-command = { path = "../lania-command" }
-lania-host = { path = "../lania-host" }
-lania-node-bridge = { path = "../lania-node-bridge" }
+crossterm = "0.29"
+ratatui = { version = "0.28", default-features = false, features = ["crossterm"] }
+unicode-width = "0.2"
+lania-agent-core = { path = "../lania-agent-core" }

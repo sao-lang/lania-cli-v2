@@ -103,14 +103,24 @@ pub enum BridgeEventMethod {
     LintSummary,
     #[serde(rename = "event.watch_change")]
     WatchChange,
+    #[serde(rename = "event.agent_start")]
+    AgentStart,
     #[serde(rename = "event.agent_text_delta")]
     AgentTextDelta,
+    #[serde(rename = "event.agent_thinking_delta")]
+    AgentThinkingDelta,
     #[serde(rename = "event.agent_tool_start")]
     AgentToolStart,
+    #[serde(rename = "event.agent_tool_update")]
+    AgentToolUpdate,
     #[serde(rename = "event.agent_tool_end")]
     AgentToolEnd,
+    #[serde(rename = "event.agent_turn_end")]
+    AgentTurnEnd,
     #[serde(rename = "event.agent_end")]
     AgentEnd,
+    #[serde(rename = "event.agent_error")]
+    AgentError,
     #[serde(rename = "event.shutdown")]
     Shutdown,
     #[serde(rename = "event.heartbeat")]

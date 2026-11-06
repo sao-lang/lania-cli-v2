@@ -976,11 +976,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             );
         }
 
-        // agent
-        "command.agent" => {
+        // pi（旧名 agent，保留为别名）
+        "command.pi" => {
             spec.about = "运行基于 pi 的编码 agent（交互式 REPL 或单次执行）".into();
             set_arg_help(spec, "prompt", "提示词文本；提供后 agent 以单次模式运行");
-            set_option_help(spec, "model", "传给 pi 的模型 id（例如 claude-sonnet-4-5）");
+            set_option_help(spec, "model", "模型 id（例如 claude-sonnet-4-5）");
             set_option_help(spec, "provider", "提供商 id（anthropic/openai/...）");
             set_option_help(spec, "thinking", "推理强度");
             set_option_help(
@@ -988,15 +988,31 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "approval-mode",
                 "工具审批模式：always-ask | write | yolo",
             );
-            set_example_desc(spec, "lan agent", "启动交互式 agent 会话");
+            set_option_help(spec, "print", "单次模式：无位置参数时从 stdin 读取提示词");
+            set_option_help(spec, "continue", "续接最近一次会话");
+            set_option_help(spec, "resume", "续接指定会话（见 --sessions）");
+            set_option_help(spec, "new", "强制新建会话");
+            set_option_help(spec, "no-session", "不把对话写入 .lan/agent");
+            set_option_help(spec, "sessions", "列出本工作区的会话后退出");
+            set_option_help(spec, "json", "每个事件输出一行 JSON");
+            set_option_help(spec, "no-tui", "强制使用行式 REPL，不进入全屏 TUI");
+            set_option_help(
+                spec,
+                "snapshot",
+                "渲染 TUI 画面到 stdout 后退出（CI / 无终端环境）",
+            );
+            set_option_help(spec, "verbose", "输出额外诊断信息");
+            set_example_desc(spec, "lan pi", "启动交互式会话");
             set_example_desc(
                 spec,
-                "lan agent \"explain the rust crate layout\"",
+                "lan pi \"explain the rust crate layout\"",
                 "单次执行提示词",
             );
+            set_example_desc(spec, "lan pi -c", "续接上一次会话");
+            set_example_desc(spec, "lan pi --sessions", "列出已保存的会话");
             set_example_desc(
                 spec,
-                "lan agent --approval-mode yolo \"run the test suite\"",
+                "lan pi --approval-mode yolo \"run the test suite\"",
                 "单次执行且不弹出审批提示",
             );
         }

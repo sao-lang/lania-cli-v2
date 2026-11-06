@@ -31,6 +31,9 @@ impl NodeBridgeClient {
             match self.open_call(request.clone()) {
                 Ok(call) => return call.collect_exchange().await,
                 Err(_error) => {
+                    if std::env::var_os("LANIA_BRIDGE_DEBUG").is_some() {
+                        eprintln!("[bridge] process transport unavailable: {_error:#}");
+                    }
                     // 这里静默继续走 mock，而不是立刻把错误抛给上层。
                     // 这和 `call()` 的设计一致：`call_async()` 在当前项目里也偏“体验优先”入口，
                     // 目的是尽量给上层一个结构稳定的 exchange。

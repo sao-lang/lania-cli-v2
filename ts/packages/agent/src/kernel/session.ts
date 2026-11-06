@@ -1,4 +1,5 @@
 import { Agent } from '@earendil-works/pi-agent-core';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { getModels, getProviders, streamSimple } from '@earendil-works/pi-ai/compat';
 
 import type { AgentPluginContext, AgentPluginResult, HostCall } from '../types.js';
@@ -6,8 +7,18 @@ import { isRecord } from './guards.js';
 import { resolveModel } from './model.js';
 import { createAgentTools } from './tools.js';
 
+/**
+ * 这个文件是「模型编排」的全部：建 agent、跑一轮、把 pi 的事件翻译成 bridge 事件。
+ *
+ * 三条不变量：
+ * 1. 不落盘：历史由 Rust 通过 `agent.session.create.messages` 传入，Node 只持有内存态；
+ * 2. 不判权限：工具执行一律 `hostCall('agent.tool.exec')`，审批在 Rust；
+ * 3. 适配而非镜像：pi 的事件语义在 `translateEvent()` 里收敛，
+ *    其余文件不应该出现 `agent.subscribe`。
+ */
+
 const DEFAULT_SYSTEM_PROMPT = [
-  'You are `lan agent`, a coding agent running inside the lan CLI on a real workspace.',
+  'You are `lan pi`, a coding agent running inside the lan CLI on a real workspace.',
   '- Inspect before you edit. Keep changes minimal and match the repository conventions.',
   '- Every tool runs in the host process and may require user approval.',
   '- If a tool call is denied, do not retry it blindly: explain what you need instead.',
@@ -19,6 +30,7 @@ interface SessionHandle {
   agent: Agent;
   cwd: string;
   modelLabel: string;
+  contextWindow: number | null;
 }
 
 const sessions = new Map<string, SessionHandle>();
@@ -40,15 +52,33 @@ function sessionKey(params: Record<string, unknown>): string {
   return id;
 }
 
-function assistantText(message: unknown): string {
+function requireHandle(params: Record<string, unknown>): SessionHandle {
+  const sessionId = sessionKey(params);
+  const handle = sessions.get(sessionId);
+  if (!handle) {
+    throw new Error(`unknown agent session: ${sessionId}`);
+  }
+  return handle;
+}
+
+/** 把 content 数组里某一类块按顺序拼起来。 */
+function contentText(message: unknown, blockType: 'text' | 'thinking'): string {
   if (!isRecord(message) || !Array.isArray(message.content)) {
     return '';
   }
   return message.content
     .map((block) =>
-      isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? block.text : '',
+      isRecord(block) && block.type === blockType
+        ? typeof block[blockType === 'text' ? 'text' : 'thinking'] === 'string'
+          ? String(block[blockType === 'text' ? 'text' : 'thinking'])
+          : ''
+        : '',
     )
     .join('');
+}
+
+function assistantText(message: unknown): string {
+  return contentText(message, 'text');
 }
 
 function lastAssistant(messages: unknown[]): Record<string, unknown> | undefined {
@@ -59,6 +89,16 @@ function lastAssistant(messages: unknown[]): Record<string, unknown> | undefined
     }
   }
   return undefined;
+}
+
+/** 历史回放：Rust 传进来的就是 pi 自己的消息形状，这里只做基本校验。 */
+function restoreMessages(value: unknown): AgentMessage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (message) => isRecord(message) && typeof message.role === 'string',
+  ) as AgentMessage[];
 }
 
 export async function createSession(
@@ -73,7 +113,16 @@ export async function createSession(
   const approvalMode = typeof params.approvalMode === 'string' ? params.approvalMode : 'always-ask';
 
   const { model, apiKey } = resolveModel(provider, modelId);
-  const tools = createAgentTools({ hostCall, cwd, sessionId, approvalMode });
+  const tools = createAgentTools({
+    hostCall,
+    cwd,
+    sessionId,
+    approvalMode,
+    model,
+    apiKey,
+    depth: 0,
+  });
+  const messages = restoreMessages(params.messages);
 
   const agent = new Agent({
     sessionId,
@@ -85,18 +134,25 @@ export async function createSession(
       model,
       thinkingLevel: thinking,
       tools,
-      messages: [],
+      // 空数组会被 pi 当成「没有历史」；只有恢复时才传 messages。
+      ...(messages.length > 0 ? { messages } : {}),
     },
     streamFn: (requestModel, context, options) =>
       streamSimple(requestModel, context, { ...options, apiKey }),
   });
 
-  sessions.set(sessionId, { agent, cwd, modelLabel: `${model.provider}/${model.id}` });
+  sessions.set(sessionId, {
+    agent,
+    cwd,
+    modelLabel: `${model.provider}/${model.id}`,
+    contextWindow: typeof model.contextWindow === 'number' ? model.contextWindow : null,
+  });
 
   return {
     sessionId,
     model: `${model.provider}/${model.id}`,
-    contextWindow: model.contextWindow,
+    contextWindow: model.contextWindow ?? null,
+    restoredMessages: messages.length,
     tools: tools.map((tool) => tool.name),
   };
 }
@@ -119,39 +175,47 @@ export async function runPrompt(
     throw new Error('prompt must not be empty');
   }
 
-  const streamed = new Map<string, string>();
-  const messageKey = (message: unknown, fallback: string): string => {
-    const id = isRecord(message) ? message.id : undefined;
-    return typeof id === 'string' && id.length > 0 ? id : fallback;
-  };
+  // 记录起点：本轮新增的消息要原样回传给 Rust 落盘。
+  const startIndex = handle.agent.state.messages.length;
+  const toolsUsed: string[] = [];
 
   const unsubscribe = handle.agent.subscribe(async (event) => {
     switch (event.type) {
-      case 'message_start': {
-        streamed.set(messageKey(event.message, 'current'), '');
+      case 'agent_start': {
+        await emit({
+          method: 'event.agent_start',
+          params: { sessionId, model: handle.modelLabel },
+        });
         break;
       }
       case 'message_update': {
-        const key = messageKey(event.message, 'current');
-        const text = assistantText(event.message);
-        const previous = streamed.get(key) ?? '';
-        if (text.length > previous.length && text.startsWith(previous)) {
-          streamed.set(key, text);
-          await emit({
-            method: 'event.agent_text_delta',
-            params: { sessionId, messageId: key, delta: text.slice(previous.length) },
-          });
+        for (const delta of streamDeltas(handle, event.message)) {
+          await emit({ method: delta.method, params: { sessionId, ...delta.params } });
         }
         break;
       }
       case 'tool_execution_start': {
+        if (!toolsUsed.includes(event.toolName)) {
+          toolsUsed.push(event.toolName);
+        }
         await emit({
           method: 'event.agent_tool_start',
           params: {
             sessionId,
             toolCallId: event.toolCallId,
             tool: event.toolName,
-            args: event.args,
+            params: event.args ?? null,
+          },
+        });
+        break;
+      }
+      case 'tool_execution_update': {
+        await emit({
+          method: 'event.agent_tool_update',
+          params: {
+            sessionId,
+            toolCallId: event.toolCallId,
+            partial: event.partialResult ?? null,
           },
         });
         break;
@@ -165,7 +229,16 @@ export async function runPrompt(
             tool: event.toolName,
             ok: !event.isError,
             durationMs: event.durationMs ?? null,
+            summary: summarizeToolResult(event.result, event.isError),
           },
+        });
+        break;
+      }
+      case 'turn_end': {
+        const usage = isRecord(event.message) ? event.message.usage : undefined;
+        await emit({
+          method: 'event.agent_turn_end',
+          params: { sessionId, usage: usage ?? null },
         });
         break;
       }
@@ -173,7 +246,11 @@ export async function runPrompt(
         const last = lastAssistant(event.messages);
         await emit({
           method: 'event.agent_end',
-          params: { sessionId, usage: last?.usage ?? null, stopReason: last?.stopReason ?? null },
+          params: {
+            sessionId,
+            usage: last?.usage ?? null,
+            stopReason: last?.stopReason ?? null,
+          },
         });
         break;
       }
@@ -184,11 +261,26 @@ export async function runPrompt(
 
   try {
     await handle.agent.prompt(prompt);
+  } catch (error) {
+    await emit({
+      method: 'event.agent_error',
+      params: {
+        sessionId,
+        code: 'E_AGENT_RUN',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
   } finally {
     unsubscribe();
   }
 
   const messages: unknown[] = handle.agent.state.messages;
+  // 只回传「模型产出」的消息：user 消息由 Rust 在发问前就已落盘，
+  // 这里再带回去会导致会话文件里出现两条重复的 user 记录。
+  const added = messages
+    .slice(startIndex)
+    .filter((message) => !(isRecord(message) && message.role === 'user'));
   const last = lastAssistant(messages);
   return {
     result: {
@@ -197,17 +289,98 @@ export async function runPrompt(
       usage: last?.usage ?? null,
       stopReason: last?.stopReason ?? null,
       messageCount: messages.length,
+      // 只回传本轮新增的消息：Rust 把它们 append 到 jsonl。
+      messages: added,
+      toolsUsed,
+    },
+    events: [],
+  };
+}
+
+/**
+ * 增量文本/思考：pi 给的是「整条消息的最新内容」，
+ * 因此这里 diff 出增量，避免把全文重复推给 Rust。
+ */
+const streamState = new WeakMap<SessionHandle, Map<string, { text: string; thinking: string }>>();
+
+function streamDeltas(
+  handle: SessionHandle,
+  message: unknown,
+): Array<{ method: string; params: Record<string, unknown> }> {
+  let perSession = streamState.get(handle);
+  if (!perSession) {
+    perSession = new Map();
+    streamState.set(handle, perSession);
+  }
+  const id =
+    isRecord(message) && typeof message.id === 'string' && message.id.length > 0
+      ? message.id
+      : 'current';
+  const previous = perSession.get(id) ?? { text: '', thinking: '' };
+  const text = assistantText(message);
+  const thinking = contentText(message, 'thinking');
+  perSession.set(id, { text, thinking });
+
+  const deltas: Array<{ method: string; params: Record<string, unknown> }> = [];
+  if (text.length > previous.text.length && text.startsWith(previous.text)) {
+    deltas.push({
+      method: 'event.agent_text_delta',
+      params: { messageId: id, delta: text.slice(previous.text.length) },
+    });
+  }
+  if (thinking.length > previous.thinking.length && thinking.startsWith(previous.thinking)) {
+    deltas.push({
+      method: 'event.agent_thinking_delta',
+      params: { messageId: id, delta: thinking.slice(previous.thinking.length) },
+    });
+  }
+  return deltas;
+}
+
+/** 工具结果的单行摘要（给 TUI 的工具卡片用，不参与上下文）。 */
+function summarizeToolResult(result: unknown, isError: boolean): string | null {
+  if (isError) {
+    return 'failed';
+  }
+  const details = isRecord(result) ? result.details : undefined;
+  if (isRecord(details)) {
+    const keys = ['count', 'lines', 'exitCode', 'replacements'];
+    const parts = keys
+      .filter((key) => typeof details[key] === 'number')
+      .map((key) => `${key}=${details[key]}`);
+    if (parts.length > 0) {
+      return parts.join(' ');
+    }
+  }
+  if (isRecord(result) && Array.isArray(result.content)) {
+    const text = result.content
+      .map((block) => (isRecord(block) && typeof block.text === 'string' ? block.text : ''))
+      .join('');
+    const lines = text.split('\n').filter(Boolean).length;
+    if (lines > 0) {
+      return `${lines} lines`;
+    }
+  }
+  return null;
+}
+
+export function sessionState(params: Record<string, unknown>): AgentPluginResult {
+  const handle = requireHandle(params);
+  const state = handle.agent.state;
+  return {
+    result: {
+      isStreaming: Boolean(state.isStreaming),
+      pendingToolCalls: Array.isArray(state.pendingToolCalls) ? state.pendingToolCalls.length : 0,
+      messageCount: Array.isArray(state.messages) ? state.messages.length : 0,
+      contextWindow: handle.contextWindow,
+      error: state.errorMessage ?? null,
     },
     events: [],
   };
 }
 
 export function interruptSession(params: Record<string, unknown>): AgentPluginResult {
-  const sessionId = sessionKey(params);
-  const handle = sessions.get(sessionId);
-  if (!handle) {
-    throw new Error(`unknown agent session: ${sessionId}`);
-  }
+  const handle = requireHandle(params);
   handle.agent.abort();
   return { result: { ok: true }, events: [] };
 }
@@ -233,6 +406,7 @@ export function listModels(): AgentPluginResult {
           provider,
           id,
           contextWindow: typeof model.contextWindow === 'number' ? model.contextWindow : null,
+          reasoning: model.reasoning === true,
         });
       }
     }
@@ -244,6 +418,10 @@ export function listModels(): AgentPluginResult {
 
 export function disposeSession(params: Record<string, unknown>): AgentPluginResult {
   const sessionId = sessionKey(params);
+  const handle = sessions.get(sessionId);
+  if (handle) {
+    streamState.delete(handle);
+  }
   sessions.delete(sessionId);
   return { result: { ok: true }, events: [] };
 }

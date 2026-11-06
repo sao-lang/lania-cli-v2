@@ -3,12 +3,18 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 
 import type { HostCall } from '../types.js';
 import { isRecord } from './guards.js';
+import { runSubagent } from './subagent.js';
 
 export interface ToolRuntime {
   hostCall: HostCall;
   cwd: string;
   sessionId: string;
   approvalMode: string;
+  /** 子 agent 需要自己起 pi agent，因此要把解析好的模型带上。 */
+  model?: import('@earendil-works/pi-ai').Model<any>;
+  apiKey?: string;
+  /** 0 = 主 agent；>0 表示子 agent，工具表里不再提供 `task`（结构性禁止递归）。 */
+  depth?: number;
 }
 
 interface HostToolResult {
@@ -90,6 +96,18 @@ export function createAgentTools(runtime: ToolRuntime): AgentTool<any>[] {
         runHostTool(runtime, 'grep', asParams(params)),
     },
     {
+      name: 'write',
+      label: 'Write file',
+      description:
+        'Create or overwrite a file with the given content. Prefer `edit` for small changes to existing files; use `write` for new files or full rewrites.',
+      parameters: Type.Object({
+        path: Type.String({ description: 'Path relative to the workspace root' }),
+        content: Type.String({ description: 'Full file content' }),
+      }),
+      execute: async (_callId: string, params: unknown) =>
+        runHostTool(runtime, 'write', asParams(params)),
+    },
+    {
       name: 'edit',
       label: 'Edit file',
       description:
@@ -116,6 +134,29 @@ export function createAgentTools(runtime: ToolRuntime): AgentTool<any>[] {
         runHostTool(runtime, 'exec', asParams(params)),
     },
     {
+      name: 'git_status',
+      label: 'Git status',
+      description:
+        'Show `git status --short --branch` for the workspace. Use it before summarizing what changed.',
+      parameters: Type.Object({}),
+      execute: async (_callId: string, params: unknown) =>
+        runHostTool(runtime, 'git_status', asParams(params)),
+    },
+    {
+      name: 'git_diff',
+      label: 'Git diff',
+      description:
+        'Show `git diff` (working tree by default, `--staged` for the index). Read-only; use it to review your own edits.',
+      parameters: Type.Object({
+        path: Type.Optional(Type.String({ description: 'Limit the diff to this path' })),
+        staged: Type.Optional(
+          Type.Boolean({ description: 'Diff the index instead of the worktree' }),
+        ),
+      }),
+      execute: async (_callId: string, params: unknown) =>
+        runHostTool(runtime, 'git_diff', asParams(params)),
+    },
+    {
       name: 'project_command',
       label: 'Run lan command',
       description:
@@ -126,5 +167,41 @@ export function createAgentTools(runtime: ToolRuntime): AgentTool<any>[] {
       execute: async (_callId: string, params: unknown) =>
         runHostTool(runtime, 'project_command', asParams(params)),
     },
+    // 子 agent 只在主 agent 上提供：深度 ≥ 1 时整条分支都不注册，从结构上禁止递归。
+    ...((runtime.depth ?? 0) === 0
+      ? [
+          {
+            name: 'task',
+            label: 'Run sub-agent',
+            description:
+              'Delegate an investigation to a fresh sub-agent that has its own context window. Use it for broad searches or "read a lot, report little" work. read_only=false is serialized and its writes still need approval.',
+            parameters: Type.Object({
+              description: Type.String({ description: 'Short label for this sub-task' }),
+              prompt: Type.String({ description: 'Self-contained instructions for the sub-agent' }),
+              read_only: Type.Optional(
+                Type.Boolean({
+                  description: 'Restrict the sub-agent to read-tier tools (default true)',
+                }),
+              ),
+            }),
+            execute: async (_callId: string, params: unknown) => {
+              const input = asParams(params);
+              const result = await runSubagent(
+                {
+                  prompt: String(input.prompt ?? ''),
+                  description:
+                    typeof input.description === 'string' ? input.description : undefined,
+                  readOnly: input.read_only !== false,
+                },
+                runtime,
+              );
+              return {
+                content: [{ type: 'text' as const, text: result.text }],
+                details: { toolCalls: result.toolCalls, stopReason: result.stopReason },
+              };
+            },
+          },
+        ]
+      : []),
   ];
 }

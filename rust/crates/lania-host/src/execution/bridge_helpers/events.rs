@@ -332,11 +332,16 @@ impl<'a> CommandExecutionContext<'a> {
                         "bridge heartbeat received",
                     );
                 }
-                // agent 事件由 `lan agent` 命令层自行消费（REPL/TUI），宿主不额外渲染。
-                BridgeEventMethod::AgentTextDelta
+                // agent 事件由 `lan pi` 命令层自行消费（REPL/TUI），宿主不额外渲染。
+                BridgeEventMethod::AgentStart
+                | BridgeEventMethod::AgentTextDelta
+                | BridgeEventMethod::AgentThinkingDelta
                 | BridgeEventMethod::AgentToolStart
+                | BridgeEventMethod::AgentToolUpdate
                 | BridgeEventMethod::AgentToolEnd
-                | BridgeEventMethod::AgentEnd => {}
+                | BridgeEventMethod::AgentTurnEnd
+                | BridgeEventMethod::AgentEnd
+                | BridgeEventMethod::AgentError => {}
                 BridgeEventMethod::Ready => {}
             }
         }

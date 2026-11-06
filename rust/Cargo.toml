@@ -2,6 +2,8 @@
 members = [
   "crates/lania-cli",
   "crates/lania-agent",
+  "crates/lania-agent-core",
+  "crates/lania-plugins-command-pi",
   "crates/lania-host",
   "crates/lania-hooks",
   "crates/lania-command",

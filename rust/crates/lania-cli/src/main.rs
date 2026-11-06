@@ -13,7 +13,7 @@ use std::{env, sync::Arc};
 
 use anyhow::Result;
 use clap::error::ErrorKind as ClapErrorKind;
-use lania_agent::AgentCommandPlugin;
+use lania_plugins_command_pi::PiCommandPlugin;
 use lania_host::{plugin::EmptyPlugin, ExecutionError, Host, HostRuntime, EXIT_RUNTIME_ERROR};
 use lania_logger::{AutoStyledLogRenderer, CliMessageLevel, LogRenderer, StderrLogSink};
 use lania_plugins_command_add::AddCommandPlugin;
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
     host.register_plugin(Box::new(TemplateCommandPlugin))?;
     host.register_plugin(Box::new(ToolsCommandPlugin))?;
     host.register_plugin(Box::new(EnvCommandPlugin))?;
-    host.register_plugin(Box::new(AgentCommandPlugin))?;
+    host.register_plugin(Box::new(PiCommandPlugin))?;
     host.register_plugin(Box::new(ConfigCommandPlugin))?;
     host.initialize().await?;
     let cwd = env::current_dir()?.display().to_string();
