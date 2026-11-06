@@ -15,7 +15,7 @@ tree-sitter.workspace = true
 tree-sitter-thrift.workspace = true
 protox = "0.9"
 prost-types = "0.14"
-lania-validate = { path = "../lania-validate" }
+lania-validate = { path = "../../../packages/foundation/capabilities/rust/lania-validate" }
 lania-format = { path = "../lania-format" }
 lania-config = { path = "../../../packages/foundation/capabilities/rust/lania-config" }
 lania-command = { path = "../lania-command" }
