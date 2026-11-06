@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lania-cli-v2/schemas/lania.package.schema.json",
+  "title": "lania.package.json",
+  "description": "packages/* 单一事实源。字段与 docs/design/package-split-command-atomization.zh-CN.md §6.1 一致。",
+  "type": "object",
+  "required": ["name", "kind", "versionFamily", "version", "api"],
+  "additionalProperties": true,
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "kind": { "enum": ["foundation", "product", "command", "distribution"] },
+    "command": {
+      "type": "string",
+      "description": "仅 command 类必填，且必须等于 describes/<cmd>.json 里的 spec().name"
+    },
+    "versionFamily": { "enum": ["lan", "runex", "agent", "bridge-hub"] },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "api": {
+      "type": "object",
+      "required": ["protocol", "rust"],
+      "properties": {
+        "protocol": { "type": "integer", "minimum": 1 },
+        "rust": {
+          "type": "object",
+          "required": ["lib"],
+          "properties": {
+            "cratePath": { "type": "string", "default": "rust" },
+            "lib": { "type": "string" },
+            "bin": { "type": "string" },
+            "features": { "type": "array", "items": { "type": "string" } },
+            "dependencies": { "type": "array", "items": { "type": "string" } },
+            "api": {
+              "type": "object",
+              "required": ["factory", "spec", "surface"],
+              "properties": {
+                "factory": { "type": "string" },
+                "spec": { "type": "string" },
+                "surface": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rust": {
+      "type": "object",
+      "description": "包内全部 Cargo crate 的相对路径，供 workspace 覆盖校验",
+      "properties": {
+        "crates": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "npm": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "bin": { "type": "object", "additionalProperties": { "type": "string" } },
+        "optionalDependencies": { "type": "object" },
+        "platformPackages": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "slices": { "type": "array", "items": { "type": "string" } },
+        "nodeBridge": { "type": "boolean" }
+      }
+    },
+    "shimHost": { "enum": ["lan", "runex-binary", "command-binary"] },
+    "describe": { "type": "string" },
+    "order": { "type": "integer" },
+    "hostDependencies": { "type": "array", "items": { "type": "string" } },
+    "scripts": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "command" } }, "required": ["kind"] },
+      "then": { "required": ["command", "order", "describe"] }
+    }
+  ]
+}

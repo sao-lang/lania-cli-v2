@@ -36,7 +36,7 @@ pub struct RuntimeSummary {
     pub project_node_plugins: Vec<NodePluginMeta>,
     pub project_plugin_report: ProjectPluginReport,
     pub manifest: PluginManifest,
-    pub handshake: lania_node_bridge::HandshakeRequest,
+    pub handshake: lania_bridge_host::node_bridge::HandshakeRequest,
 }
 
 #[derive(Debug, Clone, Serialize)]

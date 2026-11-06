@@ -875,9 +875,17 @@ dependencies = [
 name = "lania-bridge-host"
 version = "0.0.3"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "lania-bridge-bus",
  "lania-bridge-core",
  "lania-bridge-protocol",
+ "lania-dart-bridge",
+ "lania-go-bridge",
+ "lania-host-core",
+ "lania-node-bridge",
+ "lania-py-bridge",
+ "lania-rs-bridge",
  "serde_json",
 ]
 
@@ -903,12 +911,13 @@ dependencies = [
  "anyhow",
  "clap",
  "lania-agent",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-config",
  "lania-git",
  "lania-host",
  "lania-logger",
- "lania-node-bridge",
  "lania-plugins-command-add",
  "lania-plugins-command-build",
  "lania-plugins-command-create",
@@ -924,9 +933,26 @@ dependencies = [
  "lania-plugins-command-tools",
  "lania-preferences",
  "lania-progress",
- "lania-rs-bridge",
  "lania-workflows",
- "runex",
+ "runex-home",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "lania-cli-kit"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "clap",
+ "lania-command",
+ "lania-config",
+ "lania-git",
+ "lania-host",
+ "lania-logger",
+ "lania-preferences",
+ "lania-progress",
  "serde",
  "serde_json",
  "tokio",
@@ -937,7 +963,6 @@ name = "lania-command"
 version = "0.0.3"
 dependencies = [
  "clap",
- "lania-agent",
  "lania-host",
  "lania-plugins-command-add",
  "lania-plugins-command-build",
@@ -948,6 +973,7 @@ dependencies = [
  "lania-plugins-command-git",
  "lania-plugins-command-lint",
  "lania-plugins-command-locale",
+ "lania-plugins-command-pi",
  "lania-plugins-command-release",
  "lania-plugins-command-template",
  "lania-plugins-command-tools",
@@ -1037,22 +1063,19 @@ dependencies = [
  "anyhow",
  "async-trait",
  "ignore",
+ "lania-bridge-host",
  "lania-command",
  "lania-config",
- "lania-dart-bridge",
  "lania-exec",
  "lania-fs",
  "lania-git",
- "lania-go-bridge",
  "lania-hooks",
+ "lania-host-core",
  "lania-logger",
- "lania-node-bridge",
  "lania-pm",
  "lania-preferences",
  "lania-progress",
  "lania-prompt",
- "lania-py-bridge",
- "lania-rs-bridge",
  "lania-runtime",
  "lania-task",
  "lania-workflows",
@@ -1061,6 +1084,16 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "lania-host-core"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1142,10 +1175,13 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "runex",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1891,6 +1927,7 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "flate2",
+ "runex-home",
  "serde",
  "serde_json",
  "sha2",
@@ -1900,6 +1937,13 @@ dependencies = [
  "xz2",
  "zip",
  "zstd",
+]
+
+[[package]]
+name = "runex-home"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
 ]
 
 [[package]]

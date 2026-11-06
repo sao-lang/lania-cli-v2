@@ -4,7 +4,7 @@ use lania_hooks::{
     default_hook_kind, HookBusImpl, HookErrorPolicy, HookInvokerOptions, HookKind, HookRuntime,
 };
 use lania_logger::LoggerService;
-use lania_node_bridge::NodeBridgeClient;
+use lania_bridge_host::node_bridge::NodeBridgeClient;
 use serde_json::Value;
 
 use crate::runtime::ProjectExtensionBootstrapSummary;

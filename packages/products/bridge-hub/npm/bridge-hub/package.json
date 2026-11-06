@@ -1,0 +1,16 @@
+{
+  "name": "@lania-cli-v2/bridge-hub",
+  "version": "0.0.3",
+  "description": "Bridge Hub — 语言中立消息总线（可选独立调试 bin）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-hub": "./bin/lan-hub.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -19,7 +19,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use lania_node_bridge::{BridgeClientConfig, BridgeLaunchSpec, NodeBridgeClient};
+use lania_bridge_host::node_bridge::{BridgeClientConfig, BridgeLaunchSpec, NodeBridgeClient};
 
 /// 本文覆盖的七个运行时。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1024,7 +1024,7 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
 #[cfg(test)]
 mod tests {
     use super::{localize_command_specs, CommandSpec};
-    use lania_agent::AgentCommandPlugin;
+    use lania_plugins_command_pi::PiCommandPlugin;
     use lania_host::{
         capability::CapabilityContainer,
         plugin::{Plugin, PluginSetupContext},
@@ -1078,7 +1078,7 @@ mod tests {
         setup!(TemplateCommandPlugin);
         setup!(ToolsCommandPlugin);
         setup!(EnvCommandPlugin);
-        setup!(AgentCommandPlugin);
+        setup!(PiCommandPlugin);
         setup!(ConfigCommandPlugin);
 
         // Dev-dependencies form a cycle through `lania-command`, so Cargo builds
@@ -1150,7 +1150,7 @@ mod tests {
         let mut specs = builtin_command_specs();
         for expected in [
             "dev", "build", "lint", "create", "add", "generate", "release", "git", "template",
-            "tools", "env", "agent", "config",
+            "tools", "env", "pi", "config",
         ] {
             assert!(
                 specs.iter().any(|spec| spec.name == expected),

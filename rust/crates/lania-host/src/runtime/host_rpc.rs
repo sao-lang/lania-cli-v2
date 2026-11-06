@@ -17,7 +17,7 @@ use lania_exec::{ExecCommand, ExecService};
 use lania_fs::FsService;
 use lania_git::GitService;
 use lania_logger::{LogLevel, LoggerService};
-use lania_node_bridge::{BridgeEvent, HostRpcHandler};
+use lania_bridge_host::node_bridge::{BridgeEvent, HostRpcHandler};
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;

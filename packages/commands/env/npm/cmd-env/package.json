@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-env",
+  "version": "0.0.3",
+  "description": "lan env — 可独立安装的 env 命令子包（零 TS payload）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-env": "./bin/lan-env.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-env-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-env-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-env-win32-x64": "0.0.3"
+  }
+}

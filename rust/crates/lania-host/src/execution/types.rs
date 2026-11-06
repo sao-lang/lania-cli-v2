@@ -8,7 +8,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::CommandContext;
-use lania_node_bridge::{BridgeExchange, BridgeRequest};
+use lania_bridge_host::node_bridge::{BridgeExchange, BridgeRequest};
 use lania_workflows::WorkflowExecution;
 use serde::Serialize;
 

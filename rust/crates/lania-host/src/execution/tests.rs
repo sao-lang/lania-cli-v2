@@ -4,7 +4,7 @@ use super::bridge_helpers::format_diag_line;
 
 #[test]
 fn diag_lines_are_prefixed_by_channel() {
-    use lania_node_bridge::DiagChannel;
+    use lania_bridge_host::node_bridge::DiagChannel;
 
     // §7.5.3：`app` 日志必须带 `[app]` 前缀，才能与构建日志在视觉上区分。
     assert_eq!(

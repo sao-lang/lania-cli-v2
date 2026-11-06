@@ -19,7 +19,7 @@ use lania_fs::FsService;
 use lania_git::GitService;
 use lania_hooks::HookRuntime;
 use lania_logger::LoggerService;
-use lania_node_bridge::NodeBridgeClient;
+use lania_bridge_host::node_bridge::NodeBridgeClient;
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;

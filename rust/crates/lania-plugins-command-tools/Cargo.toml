@@ -11,7 +11,7 @@ async-trait.workspace = true
 lania-command = { path = "../lania-command" }
 lania-exec = { path = "../lania-exec" }
 lania-host = { path = "../lania-host" }
-lania-node-bridge = { path = "../lania-node-bridge" }
+lania-node-bridge = { path = "../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
 lania-runtime = { path = "../lania-runtime" }
 serde_json.workspace = true
 regex.workspace = true

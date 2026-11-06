@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/runex",
+  "version": "0.1.0",
+  "description": "runex — 自管多运行时管理器（独立 CLI 双形态）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "runex": "./bin/runex.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/runex-darwin-arm64": "0.1.0",
+    "@lania-cli-v2/runex-linux-x64": "0.1.0",
+    "@lania-cli-v2/runex-win32-x64": "0.1.0"
+  }
+}

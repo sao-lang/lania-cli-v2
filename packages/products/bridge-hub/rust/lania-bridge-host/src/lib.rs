@@ -9,7 +9,9 @@ use std::io;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
-use lania_bridge_bus::{BridgeHub, Endpoint, HubDiagnostics, StdioChannel};
+pub use lania_bridge_bus::{
+    BridgeHub, BusFrame, Endpoint, Handler, HubDiagnostics, StdioChannel,
+};
 use lania_bridge_core::AssetStore;
 
 macro_rules! embedded {
@@ -200,5 +202,35 @@ impl BridgeHost {
 impl Drop for BridgeHost {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+// ---------------------------------------------------------------- 宿主装配入口
+// §5.1 A.1 / §5.5 E.1：宿主与命令只依赖本 crate，永远不 import 具体语言 bridge crate。
+// 5 个 adaptor 的类型/启动函数在这里统一重新导出，作为「1:1 直连 → Hub 端点」过渡期的兼容面。
+pub mod provider;
+
+pub use lania_host_core::{
+    capability_not_linked, BridgeLaunchSpec, BridgeProvider, BridgeSlot, ConfigSource,
+    NullConfigSource,
+};
+pub use provider::{load_bridge_provider, HubBridgeProvider};
+
+pub use lania_node_bridge as node_bridge;
+pub use lania_rs_bridge as rust_bridge;
+
+/// 各语言端点的懒启动装配函数（原 `lania_{py,go,dart,rs}_bridge::launch_spec`）。
+pub mod adaptors {
+    pub mod py {
+        pub use lania_py_bridge::launch_spec;
+    }
+    pub mod go {
+        pub use lania_go_bridge::launch_spec;
+    }
+    pub mod dart {
+        pub use lania_dart_bridge::launch_spec;
+    }
+    pub mod rust {
+        pub use lania_rs_bridge::launch_spec;
     }
 }

@@ -18,7 +18,10 @@ import { parseRuffDiagnostics } from './parsers.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // source 布局：ts/packages/node-bridge/src/plugins/lint/<this file>
-const fixtures = join(here, '../../../../../../rust/crates/lania-py-bridge/assets/fixtures');
+const fixtures = join(
+  here,
+  '../../../../../../packages/products/bridge-hub/adaptors/py/lania-py-bridge/assets/fixtures',
+);
 
 test('ruff parser matches the python bridge golden', () => {
   const raw = readFileSync(join(fixtures, 'ruff-sample.json'), 'utf8');

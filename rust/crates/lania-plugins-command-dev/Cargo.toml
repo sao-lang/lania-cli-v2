@@ -10,7 +10,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 lania-command = { path = "../lania-command" }
 lania-host = { path = "../lania-host" }
-lania-node-bridge = { path = "../lania-node-bridge" }
+lania-node-bridge = { path = "../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
 serde_json.workspace = true
 tokio.workspace = true
 notify.workspace = true

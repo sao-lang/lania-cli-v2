@@ -30,14 +30,10 @@ use lania_plugins_command_template::TemplateCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
 use lania_progress::TerminalProgressMode;
 
-mod output;
-mod profile;
-
-use output::{error_json_value, execution_json_value, render_output_value, should_suppress_output};
-use profile::{
-    cli_message_renderer, cli_parse_error_message, cli_text, cli_version, localized_user_message,
-    normalize_os_args, output_profile_from_sources, resolve_effective_locale, OutputMode,
-    OutputProfile, ProgressMode,
+use lania_cli_kit::{
+    cli_message_renderer, cli_parse_error_message, cli_text, cli_version, error_json_value,
+    execution_json_value, localized_user_message, normalize_os_args, output_profile_from_sources,
+    render_output_value, resolve_effective_locale, should_suppress_output, OutputMode, ProgressMode,
 };
 
 #[tokio::main]
@@ -50,8 +46,8 @@ async fn main() -> Result<()> {
     //
     // 必须在任何宿主装配之前短路：bridge 模式只需要 stdin/stdout 协议循环，
     // 不加载插件、不读项目配置，也不打印任何额外输出（§3.1 约定 1）。
-    if lania_rs_bridge::is_bridge_invocation(env::args_os()) {
-        let code = lania_rs_bridge::run_stdio_bridge()?;
+    if lania_bridge_host::rust_bridge::is_bridge_invocation(env::args_os()) {
+        let code = lania_bridge_host::rust_bridge::run_stdio_bridge()?;
         std::process::exit(code);
     }
 
@@ -288,7 +284,5 @@ async fn main() -> Result<()> {
 ///
 /// 失败必须**静默忽略**：自管运行时是可选能力，任何解析/权限问题都不应阻断命令本身。
 fn activate_managed_runtimes() {
-    if let Ok(home) = runex::RuntimeHome::resolve() {
-        home.activate();
-    }
+    runex_home::activate_managed_runtimes();
 }

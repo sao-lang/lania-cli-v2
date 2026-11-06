@@ -22,7 +22,7 @@ lania-command = { path = "../lania-command" }
 lania-exec = { path = "../lania-exec" }
 lania-fs = { path = "../lania-fs" }
 lania-git = { path = "../lania-git" }
-lania-node-bridge = { path = "../lania-node-bridge" }
+lania-node-bridge = { path = "../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
 lania-logger = { path = "../lania-logger" }
 lania-pm = { path = "../lania-pm" }
 lania-progress = { path = "../lania-progress" }

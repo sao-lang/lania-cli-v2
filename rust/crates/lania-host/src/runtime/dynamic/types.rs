@@ -10,7 +10,7 @@
 
 use lania_command::CommandSpec;
 use lania_logger::LoggerService;
-use lania_node_bridge::NodeBridgeClient;
+use lania_bridge_host::node_bridge::NodeBridgeClient;
 use serde::Deserialize;
 use serde_json::Value;
 

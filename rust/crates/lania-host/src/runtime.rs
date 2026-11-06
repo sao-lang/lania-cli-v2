@@ -8,12 +8,13 @@
 use std::sync::Arc;
 
 use lania_command::CommandSpec;
+use lania_host_core::BridgeSlot;
 use lania_exec::ExecService;
 use lania_fs::FsService;
 use lania_git::GitService;
 use lania_hooks::{HookBusImpl, HookRuntime, HookSnapshot};
 use lania_logger::LoggerService;
-use lania_node_bridge::NodeBridgeClient;
+use lania_bridge_host::node_bridge::NodeBridgeClient;
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;
@@ -81,6 +82,9 @@ pub struct HostRuntime {
     pub(super) registries: HostRuntimeRegistries,
     pub(super) services: HostRuntimeServices,
     pub(super) state: HostRuntimeState,
+    /// 桥接层注入槽（§5.1 A.5(3) / §5.5 E.1）。默认未注入：
+    /// env / config 等纯 Rust 命令保持零 bridge-host。
+    pub(super) bridge_slot: BridgeSlot,
 }
 
 impl Host for HostRuntime {

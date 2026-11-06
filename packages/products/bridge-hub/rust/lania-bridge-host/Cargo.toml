@@ -8,8 +8,27 @@ license.workspace = true
 authors.workspace = true
 description = "Bridge Hub 进程内装配：Hub 生命周期、端点注册表、内嵌端点资产落盘与诊断"
 
+[features]
+default = []
+# 可选独立 `lan-hub` bin：正式形态是进程内嵌，默认不启用（文档 §3.4 / §5.5）
+standalone-hub = []
+
+[[bin]]
+name = "lan-hub"
+path = "src/bin/lan-hub.rs"
+required-features = ["standalone-hub"]
+
 [dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
 lania-bridge-bus = { path = "../lania-bridge-bus" }
 lania-bridge-core = { path = "../lania-bridge-core" }
 lania-bridge-protocol = { path = "../lania-bridge-protocol" }
+lania-host-core = { path = "../../../../foundation/host-core/rust/lania-host-core" }
+# 5 个内置端点 adaptor 内聚于此（§3.2 / §5.1 A.1）：宿主只依赖 host，不 import 具体语言 crate
+lania-node-bridge = { path = "../../adaptors/ts/lania-node-bridge" }
+lania-py-bridge = { path = "../../adaptors/py/lania-py-bridge" }
+lania-go-bridge = { path = "../../adaptors/go/lania-go-bridge" }
+lania-dart-bridge = { path = "../../adaptors/dart/lania-dart-bridge" }
+lania-rs-bridge = { path = "../../adaptors/rust/lania-rs-bridge" }
 serde_json.workspace = true

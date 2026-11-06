@@ -1,0 +1,13 @@
+[package]
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../../rust"
+name = "lania-rs-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Rust runtime bridge for lan (jsonl stdio protocol, served by the lan binary itself)"
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true

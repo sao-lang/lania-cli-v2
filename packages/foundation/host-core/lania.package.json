@@ -1,0 +1,32 @@
+{
+  "name": "host-core",
+  "kind": "foundation",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania-host-core",
+      "features": [],
+      "dependencies": [],
+      "api": {
+        "factory": "lania_host_core::BridgeSlot::default",
+        "spec": "lania_host_core::BridgeProvider",
+        "surface": [
+          "BridgeProvider",
+          "BridgeLaunchSpec",
+          "BridgeSlot",
+          "ConfigSource",
+          "NullConfigSource",
+          "capability_not_linked"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust/lania-host-core"]
+  },
+  "payload": { "slices": [], "nodeBridge": false },
+  "shimHost": "lan"
+}

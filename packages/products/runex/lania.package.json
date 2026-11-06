@@ -1,0 +1,47 @@
+{
+  "name": "runex",
+  "kind": "product",
+  "versionFamily": "runex",
+  "version": "0.1.0",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "runex",
+      "bin": "runex",
+      "features": [],
+      "dependencies": ["runex-core"],
+      "api": {
+        "factory": "runex::api::Runex::resolve",
+        "spec": "runex::api::Runex",
+        "surface": [
+          "Runex",
+          "RuntimeHome",
+          "ShimHost",
+          "EnvAction",
+          "EnvPlan",
+          "EnvService",
+          "RuntimeStore",
+          "Language",
+          "Platform",
+          "DiagnosticLevel",
+          "supported_language_ids"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust/runex-core", "rust/runex"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/runex",
+    "bin": { "runex": "npm/runex/bin/runex.mjs" },
+    "platformPackages": [
+      "@lania-cli-v2/runex-darwin-arm64",
+      "@lania-cli-v2/runex-linux-x64",
+      "@lania-cli-v2/runex-win32-x64"
+    ]
+  },
+  "payload": { "slices": [], "nodeBridge": false },
+  "shimHost": "runex-binary"
+}

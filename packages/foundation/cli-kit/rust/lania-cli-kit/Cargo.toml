@@ -1,0 +1,23 @@
+[package]
+name = "lania-cli-kit"
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "CLI 输出渲染与单命令执行支点（文档 §5.1 A.4 / §5.4 D.1）"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+lania-command = { path = "../../../../../rust/crates/lania-command" }
+lania-config = { path = "../../../../../rust/crates/lania-config" }
+lania-git = { path = "../../../../../rust/crates/lania-git" }
+lania-host = { path = "../../../../../rust/crates/lania-host" }
+lania-logger = { path = "../../../../../rust/crates/lania-logger" }
+lania-preferences = { path = "../../../../../rust/crates/lania-preferences" }
+lania-progress = { path = "../../../../../rust/crates/lania-progress" }

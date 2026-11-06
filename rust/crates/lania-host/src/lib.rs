@@ -36,3 +36,9 @@ pub use runtime::{
     FEATURE_PRIORITY,
 };
 pub use runtime::{Host, HostRuntime};
+
+// facade：host-core 的桥无关接缝由宿主统一重新导出（§5.1 A.5(6) 去环过渡）。
+pub use lania_host_core::{
+    capability_not_linked, BridgeLaunchSpec, BridgeProvider, BridgeSlot, ConfigSource,
+    NullConfigSource,
+};

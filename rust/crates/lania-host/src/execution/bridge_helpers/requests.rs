@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use lania_logger::LogLevel;
-use lania_node_bridge::{BridgeActiveCall, BridgeError, BridgeExchange, BridgeRequest};
+use lania_bridge_host::node_bridge::{BridgeActiveCall, BridgeError, BridgeExchange, BridgeRequest};
 
 use super::super::{
     context::{CommandExecutionContext, ExecutionError},

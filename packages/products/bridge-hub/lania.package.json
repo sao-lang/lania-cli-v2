@@ -1,0 +1,66 @@
+{
+  "name": "bridge-hub",
+  "kind": "product",
+  "versionFamily": "bridge-hub",
+  "version": "0.0.3",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania-bridge-host",
+      "bin": "lan-hub",
+      "features": ["standalone-hub"],
+      "dependencies": [
+        "lania-bridge-protocol",
+        "lania-bridge-core",
+        "lania-bridge-bus",
+        "lania-bridge-support"
+      ],
+      "api": {
+        "factory": "lania_bridge_host::BridgeHost::new",
+        "spec": "lania_bridge_host::BridgeHub",
+        "surface": [
+          "BridgeHost",
+          "BridgeHub",
+          "BridgeHub::attach",
+          "BridgeHub::attach_channel",
+          "BridgeHub::pump_until_idle",
+          "Endpoint",
+          "Handler",
+          "Channel",
+          "InProcessChannel",
+          "StdioChannel",
+          "ProviderPolicy",
+          "HubDiagnostics"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": [
+      "rust/lania-bridge-protocol",
+      "rust/lania-bridge-core",
+      "rust/lania-bridge-bus",
+      "rust/lania-bridge-host",
+      "rust/lania-bridge-support",
+      "adaptors/ts/lania-node-bridge",
+      "adaptors/py/lania-py-bridge",
+      "adaptors/go/lania-go-bridge",
+      "adaptors/dart/lania-dart-bridge",
+      "adaptors/rust/lania-rs-bridge"
+    ]
+  },
+  "protocol": {
+    "schema": "protocol/schema.json",
+    "generator": "protocol/gen.mjs",
+    "frames": 8,
+    "languages": ["ts", "py", "go", "dart", "rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/bridge-hub",
+    "bin": { "lan-hub": "npm/bridge-hub/bin/lan-hub.mjs" },
+    "platformPackages": []
+  },
+  "payload": { "slices": [], "nodeBridge": false },
+  "shimHost": "lan"
+}

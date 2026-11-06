@@ -1,7 +1,7 @@
 //! bridge events 到宿主副作用的映射逻辑。
 
 use lania_logger::LogLevel;
-use lania_node_bridge::{
+use lania_bridge_host::node_bridge::{
     BridgeEvent, BridgeEventMethod, BridgeExchange, BridgeRequest, DiagChannel,
 };
 
@@ -357,18 +357,18 @@ impl<'a> CommandExecutionContext<'a> {
     /// `channel: "app"` 默认开启（否则用户看不到服务端接口日志），可被
     /// `ui.dev.quietApp` 或 `dev --quiet-app` 关闭（§7.5.3）。
     fn apply_diag_event(&self, request: &BridgeRequest, event: &BridgeEvent) {
-        let Some(line) = lania_node_bridge::parse_diag_line(&event.params) else {
+        let Some(line) = lania_bridge_host::node_bridge::parse_diag_line(&event.params) else {
             return;
         };
         if line.channel == DiagChannel::App && self.suppresses_app_logs() {
             return;
         }
         let level = match line.level {
-            lania_node_bridge::LogLevelName::Trace => LogLevel::Trace,
-            lania_node_bridge::LogLevelName::Debug => LogLevel::Debug,
-            lania_node_bridge::LogLevelName::Warn => LogLevel::Warn,
-            lania_node_bridge::LogLevelName::Error => LogLevel::Error,
-            lania_node_bridge::LogLevelName::Info => LogLevel::Info,
+            lania_bridge_host::node_bridge::LogLevelName::Trace => LogLevel::Trace,
+            lania_bridge_host::node_bridge::LogLevelName::Debug => LogLevel::Debug,
+            lania_bridge_host::node_bridge::LogLevelName::Warn => LogLevel::Warn,
+            lania_bridge_host::node_bridge::LogLevelName::Error => LogLevel::Error,
+            lania_bridge_host::node_bridge::LogLevelName::Info => LogLevel::Info,
         };
         self.log(
             level,
@@ -413,7 +413,7 @@ impl<'a> CommandExecutionContext<'a> {
 #[cfg(test)]
 mod tests {
     use super::format_diag_line;
-    use lania_node_bridge::DiagChannel;
+    use lania_bridge_host::node_bridge::DiagChannel;
 
     /// §7.5.3 / §12：四个通道都有固定前缀，`app` 才是「应用自身日志」。
     #[test]

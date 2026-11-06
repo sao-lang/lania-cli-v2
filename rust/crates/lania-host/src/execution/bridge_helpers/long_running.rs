@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use lania_logger::LogLevel;
-use lania_node_bridge::{BridgeActiveCall, BridgeExchange, BridgeRequest};
+use lania_bridge_host::node_bridge::{BridgeActiveCall, BridgeExchange, BridgeRequest};
 use tokio_util::sync::CancellationToken;
 
 use super::super::context::CommandExecutionContext;
@@ -131,7 +131,7 @@ pub(in crate::execution) fn is_long_running_request(
 
 #[cfg(test)]
 mod tests {
-    use lania_node_bridge::{BridgeExchange, BridgeRequest, BridgeResponse};
+    use lania_bridge_host::node_bridge::{BridgeExchange, BridgeRequest, BridgeResponse};
     use serde_json::json;
 
     use super::is_long_running_request;

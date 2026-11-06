@@ -1,0 +1,44 @@
+{
+  "name": "env",
+  "kind": "command",
+  "command": "env",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 11,
+  "describe": "describes/env.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania-plugins-command-env",
+      "bin": "lan-env",
+      "features": [],
+      "dependencies": ["runex", "lania-cli-kit", "runex-home"],
+      "api": {
+        "factory": "lania_plugins_command_env::factory",
+        "spec": "lania_plugins_command_env::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "EnvCommandPlugin",
+          "EnvCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": { "crates": ["rust"] },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-env",
+    "bin": { "lan-env": "npm/cmd-env/bin/lan-env.mjs" },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-env-darwin-arm64",
+      "@lania-cli-v2/cmd-env-linux-x64",
+      "@lania-cli-v2/cmd-env-win32-x64"
+    ]
+  },
+  "payload": { "slices": [], "nodeBridge": false },
+  "hostDependencies": [],
+  "shimHost": "command-binary"
+}

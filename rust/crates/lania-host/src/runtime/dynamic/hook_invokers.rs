@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use lania_hooks::{HookInvokeOutcome, HookInvoker, HookKind};
 use lania_logger::{LogLevel, LoggerService};
-use lania_node_bridge::{BridgeEvent, BridgeEventMethod};
+use lania_bridge_host::node_bridge::{BridgeEvent, BridgeEventMethod};
 use serde_json::{json, Value};
 
 use super::super::types::{BridgeHookInvoker, InlineHookInvoker};

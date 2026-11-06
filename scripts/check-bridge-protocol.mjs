@@ -32,7 +32,6 @@ const SELF_TEST = process.argv.includes('--self-test');
 
 const schema = JSON.parse(readFileSync(join(PROTOCOL, 'schema.json'), 'utf8'));
 const SOURCE_EXT = new Set(['.ts', '.mjs', '.js', '.py', '.go', '.dart', '.rs']);
-const SKIP_DIRS = new Set(['node_modules', 'target', '.git', 'dist', 'gen', 'golden']);
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const SKELETON_RULES = schema.busInvariant.forbiddenSkeletonKeywords.map((keyword) => ({
@@ -57,19 +56,6 @@ function scanFile(fullPath) {
     if (line >= 0) hits.push({ rule: rule.why, line: line + 1, file: fullPath });
   }
   return hits;
-}
-
-function walk(dir, visit) {
-  if (!existsSync(dir)) return;
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) {
-      if (!SKIP_DIRS.has(entry)) walk(full, visit);
-      continue;
-    }
-    if (!SOURCE_EXT.has(full.slice(full.lastIndexOf('.')))) continue;
-    visit(full);
-  }
 }
 
 function checkGenerated() {
@@ -126,7 +112,25 @@ function checkGolden() {
 
 function checkBoundary() {
   const problems = [];
-  walk(ADAPTORS, (file) => problems.push(...scanFile(file)));
+  // 只扫 adaptors/<lang>/ 下的手写端点文件（endpoint.*）。
+  // 同目录下的 lania-*-bridge/ 是暂停前遗留的 1:1 stdio 桥（阶段 8 过渡对象），
+  // 含 stdin / requestId / protocolVersion 等旧骨架，不属于新端点 adaptor，不纳入扫描。
+  for (const lang of ['rust', 'ts', 'py', 'go', 'dart']) {
+    const dir = join(ADAPTORS, lang);
+    if (!existsSync(dir)) {
+      fail(`missing hand-written adaptor directory for ${lang}`);
+      continue;
+    }
+    let hasEndpoint = false;
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (!statSync(full).isFile()) continue;
+      if (!SOURCE_EXT.has(full.slice(full.lastIndexOf('.')))) continue;
+      if (name.startsWith('endpoint.')) hasEndpoint = true;
+      problems.push(...scanFile(full));
+    }
+    if (!hasEndpoint) fail(`missing hand-written endpoint adaptor for ${lang}`);
+  }
 
   // 生成绑定只允许检查语言字段；runtime.* 是合法骨架，含 stdin/json.loads 属预期。
   for (const lang of ['rust', 'ts', 'py', 'go', 'dart']) {

@@ -1,0 +1,15 @@
+[package]
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../../rust"
+name = "lania-node-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

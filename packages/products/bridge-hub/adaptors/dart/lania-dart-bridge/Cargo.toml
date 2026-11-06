@@ -1,0 +1,13 @@
+[package]
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../../rust"
+name = "lania-dart-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Dart runtime bridge for lan (jsonl stdio protocol, same as node-bridge)"
+
+[dependencies]
+anyhow.workspace = true
+lania-bridge-support = { path = "../../../rust/lania-bridge-support" }

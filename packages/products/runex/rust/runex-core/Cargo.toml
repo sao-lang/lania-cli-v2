@@ -1,0 +1,25 @@
+[package]
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../rust"
+name = "runex-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Self-managed multi-runtime engine for runex (install / use / remove / list)"
+
+# 对 lania 宿主零依赖：这是「runex 独立产品」的硬约束。
+# 外部消费者只依赖 runex；本 crate 是 runex 的内部引擎。
+[dependencies]
+runex-home = { path = "../../../../foundation/runex-home/rust/runex-home" }
+anyhow.workspace = true
+flate2.workspace = true
+serde = { workspace = true }
+serde_json.workspace = true
+sha2.workspace = true
+tar.workspace = true
+thiserror.workspace = true
+ureq.workspace = true
+xz2.workspace = true
+zip.workspace = true
+zstd.workspace = true

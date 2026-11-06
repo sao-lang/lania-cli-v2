@@ -1,0 +1,12 @@
+[package]
+name = "runex-home"
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "极小运行时根目录 crate：PATH 前置，不拉下载引擎（§5.1 A.2）"
+
+[dependencies]
+anyhow.workspace = true

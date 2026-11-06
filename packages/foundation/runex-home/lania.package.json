@@ -1,0 +1,25 @@
+{
+  "name": "runex-home",
+  "kind": "foundation",
+  "versionFamily": "runex",
+  "version": "0.0.3",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "runex-home",
+      "features": [],
+      "dependencies": [],
+      "api": {
+        "factory": "runex_home::RuntimeHome::resolve",
+        "spec": "runex_home::RuntimeHome",
+        "surface": ["RuntimeHome", "activate_managed_runtimes", "HOME_ENV", "META_FILE", "PATH_ENV"]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust/runex-home"]
+  },
+  "payload": { "slices": [], "nodeBridge": false },
+  "shimHost": "runex-binary"
+}

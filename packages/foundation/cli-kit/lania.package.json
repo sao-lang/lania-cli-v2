@@ -1,0 +1,32 @@
+{
+  "name": "cli-kit",
+  "kind": "foundation",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania-cli-kit",
+      "features": [],
+      "dependencies": ["lania-command", "lania-config", "lania-logger", "lania-preferences"],
+      "api": {
+        "factory": "lania_cli_kit::run_single_command",
+        "spec": "lania_cli_kit::OutputProfile",
+        "surface": [
+          "run_single_command",
+          "execution_json_value",
+          "error_json_value",
+          "render_output_value",
+          "should_suppress_output",
+          "OutputProfile",
+          "OutputMode",
+          "ProgressMode"
+        ]
+      }
+    }
+  },
+  "rust": { "crates": ["rust/lania-cli-kit"] },
+  "payload": { "slices": [], "nodeBridge": false },
+  "shimHost": "lan"
+}

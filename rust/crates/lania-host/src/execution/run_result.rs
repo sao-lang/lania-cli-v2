@@ -16,7 +16,7 @@
 //! 这里只实现 ② → ③ 的聚合；渲染器（`LintReportRenderer` / `BuildReportRenderer`）
 //! 独立实现，共用 `Diagnostic` 但不共用布局。
 
-use lania_node_bridge::{DiagCounts, Diagnostic, DiagnosticSeverity};
+use lania_bridge_host::node_bridge::{DiagCounts, Diagnostic, DiagnosticSeverity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -54,7 +54,7 @@ impl RunResult {
         diagnostics: Vec<Diagnostic>,
         duration_ms: u64,
     ) -> Self {
-        let diagnostics = lania_node_bridge::normalize_diagnostics(diagnostics);
+        let diagnostics = lania_bridge_host::node_bridge::normalize_diagnostics(diagnostics);
         let counts = DiagCounts::from_diagnostics(&diagnostics);
         Self {
             kind,
@@ -126,8 +126,8 @@ mod tests {
             severity: DiagnosticSeverity::Warning,
             message: "m".into(),
             file: Some(file.into()),
-            range: Some(lania_node_bridge::DiagnosticRange {
-                start: lania_node_bridge::DiagnosticPosition { line, col },
+            range: Some(lania_bridge_host::node_bridge::DiagnosticRange {
+                start: lania_bridge_host::node_bridge::DiagnosticPosition { line, col },
                 end: None,
             }),
             url: None,

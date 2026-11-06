@@ -1,0 +1,15 @@
+{
+  "name": "@lania-cli-v2/runex-darwin-arm64",
+  "version": "0.1.0",
+  "description": "runex binary for darwin-arm64 (staged at release time)",
+  "license": "MIT",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin"
+  ]
+}

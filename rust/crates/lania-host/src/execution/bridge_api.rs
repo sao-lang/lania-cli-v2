@@ -11,7 +11,7 @@
 use anyhow::Result;
 use lania_hooks::hook_keys;
 use lania_logger::LogLevel;
-use lania_node_bridge::{BridgeExchange, BridgeRequest, NodeBridgeClient};
+use lania_bridge_host::node_bridge::{BridgeExchange, BridgeRequest, NodeBridgeClient};
 use lania_workflows::WorkflowExecution;
 use serde_json::json;
 

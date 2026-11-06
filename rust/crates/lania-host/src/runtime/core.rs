@@ -11,7 +11,7 @@ use lania_fs::FsService;
 use lania_git::GitService;
 use lania_hooks::HookBusImpl;
 use lania_logger::{LogLevel, LoggerService};
-use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
+use lania_bridge_host::node_bridge::{BridgeClientConfig, NodeBridgeClient};
 use lania_pm::PackageManagerService;
 use lania_progress::ProgressService;
 use lania_prompt::PromptService;
@@ -84,7 +84,19 @@ impl HostRuntime {
                 phase_history: vec![],
                 locale,
             },
+            bridge_slot: lania_host_core::BridgeSlot::default(),
         }
+    }
+
+    /// 注入桥接层（§5.5 E.1）。命令二进制按需调用；总包保持现有链路不变。
+    pub async fn attach_bridge(&mut self, provider: Arc<dyn lania_host_core::BridgeProvider>) {
+        self.bridge_slot.attach(provider);
+    }
+
+    /// 当前注入的桥接 provider；未注入时为 `None`（走 `lania-config` 纯 Rust 回退）。
+    /// 不叫 `bridge()` 是为了与既有「按 RuntimeKind 取 client」的过渡方法区分。
+    pub fn bridge_provider(&self) -> Option<Arc<dyn lania_host_core::BridgeProvider>> {
+        self.bridge_slot.get()
     }
 
     pub fn set_locale(&mut self, locale: impl Into<String>) {
@@ -95,7 +107,7 @@ impl HostRuntime {
         self.registries.plugin_registry.register(plugin)
     }
 
-    pub fn handshake_preview(&self) -> lania_node_bridge::HandshakeRequest {
+    pub fn handshake_preview(&self) -> lania_bridge_host::node_bridge::HandshakeRequest {
         self.services.node_bridge.handshake_request()
     }
 
@@ -164,7 +176,7 @@ impl HostRuntime {
     /// 失败（没有 python 解释器）时**不报错**：回落矩阵要求「装了就更好，不装也能用」
     /// （§5.3），因此这里按 best-effort 处理，由调用方用 `has_runtime_bridge` 判断。
     pub fn register_python_bridge(&self, cwd: &std::path::Path) -> Result<()> {
-        let launch = lania_py_bridge::launch_spec(cwd)?;
+        let launch = lania_bridge_host::adaptors::py::launch_spec(cwd)?;
         self.register_runtime_bridge(
             RuntimeKind::Python,
             crate::runtime::bridges::BridgeProgram::new(launch.program, launch.args, launch.dir),
@@ -174,14 +186,14 @@ impl HostRuntime {
     /// 登记内置的 Go bridge（`lan-go-bridge`，§3.4）。
     ///
     /// **延迟解析**：登记只记下 cwd 与解析函数，首次真正需要时才会
-    /// 「定位 go + 编译一次 bridge 并缓存」（见 `lania_go_bridge::ensure_binary`）。
+    /// 「定位 go + 编译一次 bridge 并缓存」（见 `lania_bridge_host::adaptors::go::ensure_binary`）。
     /// 这样 Go 项目里执行 `lan env` / `lan add` 不会白白付一次 `go build`。
     pub fn register_go_bridge(&self, cwd: &std::path::Path) -> Result<()> {
         self.services
             .bridges
             .borrow_mut()
             .register_deferred(RuntimeKind::Go, cwd, |dir| {
-                let launch = lania_go_bridge::launch_spec(dir)?;
+                let launch = lania_bridge_host::adaptors::go::launch_spec(dir)?;
                 Ok(crate::runtime::bridges::BridgeProgram::new(
                     launch.program,
                     launch.args,
@@ -196,7 +208,7 @@ impl HostRuntime {
             .bridges
             .borrow_mut()
             .register_deferred(RuntimeKind::Dart, cwd, |dir| {
-                let launch = lania_dart_bridge::launch_spec(dir)?;
+                let launch = lania_bridge_host::adaptors::dart::launch_spec(dir)?;
                 Ok(crate::runtime::bridges::BridgeProgram::new(
                     launch.program,
                     launch.args,
@@ -215,7 +227,7 @@ impl HostRuntime {
             .bridges
             .borrow_mut()
             .register_deferred(RuntimeKind::Rust, cwd, |dir| {
-                let launch = lania_rs_bridge::launch_spec(dir)?;
+                let launch = lania_bridge_host::adaptors::rust::launch_spec(dir)?;
                 Ok(crate::runtime::bridges::BridgeProgram::new(
                     launch.program,
                     launch.args,
