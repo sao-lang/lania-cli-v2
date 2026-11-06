@@ -14,7 +14,7 @@ clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-lania-command = { path = "../../../../../rust/crates/lania-command" }
+lania-command = { path = "../../../command/rust/lania-command" }
 lania-config = { path = "../../../capabilities/rust/lania-config" }
 lania-git = { path = "../../../capabilities/rust/lania-git" }
 lania-host = { path = "../../../../../rust/crates/lania-host" }

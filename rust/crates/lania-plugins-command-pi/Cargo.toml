@@ -14,6 +14,6 @@ async-trait.workspace = true
 serde_json.workspace = true
 lania-agent = { path = "../lania-agent" }
 lania-agent-core = { path = "../lania-agent-core" }
-lania-command = { path = "../lania-command" }
+lania-command = { path = "../../../packages/foundation/command/rust/lania-command" }
 lania-host = { path = "../lania-host" }
 lania-node-bridge = { path = "../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }

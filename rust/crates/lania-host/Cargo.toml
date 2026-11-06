@@ -16,7 +16,7 @@ tokio.workspace = true
 tokio-util.workspace = true
 lania-bridge-host = { path = "../../../packages/products/bridge-hub/rust/lania-bridge-host" }
 lania-host-core = { path = "../../../packages/foundation/host-core/rust/lania-host-core" }
-lania-command = { path = "../lania-command" }
+lania-command = { path = "../../../packages/foundation/command/rust/lania-command" }
 lania-config = { path = "../../../packages/foundation/capabilities/rust/lania-config" }
 lania-hooks = { path = "../../../packages/foundation/capabilities/rust/lania-hooks" }
 lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
