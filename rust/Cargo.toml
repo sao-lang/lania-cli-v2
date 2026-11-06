@@ -30,6 +30,11 @@ members = [
   "crates/lania-dart-bridge",
   "crates/lania-rs-bridge",
   "crates/lania-workflows",
+  # Bridge Hub 主包（packages/products/bridge-hub/rust/），进程内嵌入 CLI 进程
+  "../packages/products/bridge-hub/rust/lania-bridge-protocol",
+  "../packages/products/bridge-hub/rust/lania-bridge-core",
+  "../packages/products/bridge-hub/rust/lania-bridge-bus",
+  "../packages/products/bridge-hub/rust/lania-bridge-host",
   "crates/lania-plugins-command-locale",
   "crates/lania-plugins-command-dev",
   "crates/lania-plugins-command-build",

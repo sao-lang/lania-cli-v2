@@ -1,0 +1,72 @@
+{
+  "frames": [
+    {
+      "kind": "announce",
+      "endpointId": "cli",
+      "provides": [
+        "tool.exec"
+      ],
+      "subscribes": [
+        "event.agent_*"
+      ]
+    },
+    {
+      "kind": "subscribe",
+      "topic": "event.diag"
+    },
+    {
+      "kind": "unsubscribe",
+      "topic": "event.diag"
+    },
+    {
+      "kind": "publish",
+      "topic": "event.diag",
+      "payload": {
+        "text": "hello"
+      }
+    },
+    {
+      "kind": "event",
+      "topic": "event.diag",
+      "payload": {
+        "text": "hello"
+      },
+      "from": "cli"
+    },
+    {
+      "kind": "request",
+      "id": "cli-1",
+      "capability": "agent.prompt",
+      "params": {
+        "text": "hi"
+      }
+    },
+    {
+      "kind": "response",
+      "id": "cli-1",
+      "result": {
+        "messages": []
+      }
+    },
+    {
+      "kind": "response",
+      "id": "cli-2",
+      "error": {
+        "code": "E_METHOD_NOT_FOUND",
+        "message": "no provider"
+      }
+    },
+    {
+      "kind": "bye",
+      "endpointId": "cli"
+    }
+  ],
+  "errors": [
+    "E_METHOD_NOT_FOUND",
+    "E_INVALID_PARAMS",
+    "E_INTERNAL",
+    "E_TIMEOUT",
+    "E_ENDPOINT_GONE",
+    "E_BAD_FRAME"
+  ]
+}

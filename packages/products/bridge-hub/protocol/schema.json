@@ -1,0 +1,149 @@
+{
+  "name": "lania.bridge.bus",
+  "version": 1,
+  "description": "Bridge Hub 帧协议唯一事实源。禁止在其它文件中手写帧名/字段名/错误码；改动后运行 node packages/products/bridge-hub/protocol/gen.mjs。",
+  "discriminator": "kind",
+  "transport": "newline-delimited JSON over a Channel (in-process mpsc / stdio / socket)",
+  "busInvariant": {
+    "statement": "帧内不得出现 language / runtime / RuntimeKind / protocolVersion 等任何语言或运行时字段。寻址键只有 capability、topic、opaque endpointId 与 correlation id；两端不需要知道对方是什么语言。",
+    "addressingKeys": ["capability", "topic", "endpointId", "id", "from"],
+    "forbiddenFrameFields": [
+      "language",
+      "lang",
+      "runtime",
+      "runtimeKind",
+      "RuntimeKind",
+      "protocolVersion"
+    ],
+    "forbiddenSkeletonKeywords": [
+      "stdin",
+      "requestId",
+      "json.loads",
+      "JSON.parse(line",
+      "jsonDecode(line",
+      "protocolVersion",
+      "process.stdin",
+      "bufio.NewScanner",
+      "LineSplitter",
+      "dispatch("
+    ],
+    "note": "协议层只描述帧；传输循环、id 管理、心跳、错误包装由 gen.mjs 产出的 runtime 骨架负责，手写 adaptor 只允许注册 onRequest / onEvent。"
+  },
+  "naming": {
+    "capability": {
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$",
+      "examples": ["agent.prompt", "tool.exec", "lint.run", "echo.ping"]
+    },
+    "topic": {
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_*]+)*$",
+      "examples": ["event.diag", "event.agent_*", "event.heartbeat"],
+      "wildcard": "订阅串以 * 结尾时按前缀匹配；publish 的 topic 必须是具体值（不含 *）。"
+    },
+    "endpointId": "opaque 字符串，Hub 只用作表键，不做语言/运行时推断"
+  },
+  "errors": [
+    {
+      "code": "E_METHOD_NOT_FOUND",
+      "meaning": "没有端点声明该 capability，Hub 直接回错"
+    },
+    {
+      "code": "E_INVALID_PARAMS",
+      "meaning": "请求参数不符合能力约定"
+    },
+    {
+      "code": "E_INTERNAL",
+      "meaning": "端点处理请求时内部错误，由 runtime 骨架包装"
+    },
+    {
+      "code": "E_TIMEOUT",
+      "meaning": "请求超时（pending 表回收）"
+    },
+    {
+      "code": "E_ENDPOINT_GONE",
+      "meaning": "目标端点已断开"
+    },
+    {
+      "code": "E_BAD_FRAME",
+      "meaning": "帧解码失败或 kind 未知"
+    }
+  ],
+  "types": {
+    "BusErrorDetail": {
+      "description": "response.error / runtime 包装错误",
+      "fields": [
+        { "name": "code", "type": "string" },
+        { "name": "message", "type": "string" },
+        { "name": "data", "type": "value?" }
+      ]
+    }
+  },
+  "frames": [
+    {
+      "kind": "announce",
+      "direction": "endpoint_to_hub",
+      "meaning": "端点上线，声明能力与订阅，取代按语言注册",
+      "fields": [
+        { "name": "endpointId", "type": "string", "doc": "opaque 端点 id" },
+        { "name": "provides", "type": "string[]", "doc": "声明可提供的 capability 列表" },
+        { "name": "subscribes", "type": "string[]", "doc": "订阅的 topic 列表，支持尾部通配" }
+      ]
+    },
+    {
+      "kind": "subscribe",
+      "direction": "endpoint_to_hub",
+      "meaning": "动态订阅主题",
+      "fields": [{ "name": "topic", "type": "string" }]
+    },
+    {
+      "kind": "unsubscribe",
+      "direction": "endpoint_to_hub",
+      "meaning": "取消订阅",
+      "fields": [{ "name": "topic", "type": "string" }]
+    },
+    {
+      "kind": "publish",
+      "direction": "endpoint_to_hub",
+      "meaning": "向主题广播，Hub 转成 event 投递给订阅者（默认不含发布者自身）",
+      "fields": [
+        { "name": "topic", "type": "string" },
+        { "name": "payload", "type": "value" }
+      ]
+    },
+    {
+      "kind": "event",
+      "direction": "hub_to_endpoint",
+      "meaning": "Hub 投递给订阅者；from 是 opaque 端点 id，不是语言标签",
+      "fields": [
+        { "name": "topic", "type": "string" },
+        { "name": "payload", "type": "value" },
+        { "name": "from", "type": "string" }
+      ]
+    },
+    {
+      "kind": "request",
+      "direction": "endpoint_to_hub",
+      "meaning": "按 capability 发起请求，Hub 选一个 provider 转发并记录 pending",
+      "fields": [
+        { "name": "id", "type": "string", "doc": "correlation id" },
+        { "name": "capability", "type": "string" },
+        { "name": "params", "type": "value" }
+      ]
+    },
+    {
+      "kind": "response",
+      "direction": "endpoint_to_hub",
+      "meaning": "响应，Hub 按 pending 表把帧送回发起方",
+      "fields": [
+        { "name": "id", "type": "string", "doc": "与 request.id 对应" },
+        { "name": "result", "type": "value?" },
+        { "name": "error", "type": "error?" }
+      ]
+    },
+    {
+      "kind": "bye",
+      "direction": "endpoint_to_hub",
+      "meaning": "端点下线，Hub 摘除端点表/能力表/主题表",
+      "fields": [{ "name": "endpointId", "type": "string" }]
+    }
+  ]
+}

@@ -9,3 +9,8 @@ npm/cli/lib/node-bridge/**
 ts/packages/templates/src/templates/**
 ts/packages/templates/dist/templates/**
 
+# Bridge Hub 协议生成物：禁止格式化（prettier 会改写 golden JSON 造成 --check 漂移）
+packages/products/bridge-hub/protocol/gen/**
+packages/products/bridge-hub/protocol/golden/**
+packages/products/bridge-hub/protocol/schema.json
+

@@ -1,10 +1,11 @@
 # 桥接层设计：Bridge Hub（语言中立消息总线）
 
-> 状态：**方案定稿 / 代码暂停未实施**（2026-11-06）
+> 状态：**方案定稿 / 第一阶段已实施**（2026-11-06 重新开工，进展见 §9）
 >
 > - **Bridge Hub 用 Rust 实现**，这是定死的技术选型。
-> - 暂停原因：其它模块要重新设计，先落代码会互相影响，因此桥接层实现整体回退，
->   本文只固化设计决策，作为后续重新开工的基线。**仓库中当前不含任何桥接层实现代码。**
+> - 暂停记录（历史）：其它模块要重新设计，先落代码会互相影响，因此桥接层实现整体回退，
+>   本文只固化设计决策，作为后续重新开工的基线。**下述「仓库中当前不含任何桥接层实现代码」是暂停时点的状态**，
+>   重新开工后的落点与验证结果见 §9。
 > - 代码基线：`894bbb9`（agent 三层拆包收口，`af02077` / `894bbb9` 两个提交保留不动）。
 > - 暂停前的实现存档：分支 `archive/bridge-hub-wip`（含 `9fe6faf` / `6cb01f7` 两个提交）
 >   - `git stash@{0}`（`bridge-hub WIP (paused, not merged)`，含 Hub 与拆包草稿）。
@@ -208,10 +209,59 @@ cli.publish("event.diag", json!({"text": "..."}));
 
 ## 8. 重新开工检查清单
 
-- [ ] 其它模块重设计定稿，确认不会与桥接层互相影响
-- [ ] §6 未决问题拍板（尤其 Hub 部署形态、能力命名空间、鉴权）
-- [ ] 按本文重建 `bridge/protocol/schema.json` 与生成器，先跑契约检查
-- [ ] 实现 Rust Hub + `Channel`，进程内多端点广播/请求测试全绿
-- [ ] 逐个接入内置端点 adaptor，边界扫描 0 违规
-- [ ] 过渡现有直连链路，冒烟 `node scripts/smoke-pi.mjs` 保持 8/8
-- [ ] `cargo check --workspace` / `cargo test --workspace` / `pnpm check` 全绿
+- [x] 其它模块重设计定稿（`package-split-command-atomization.zh-CN.md`，提交 `1480979`）
+- [ ] §6 未决问题拍板：Hub 部署形态已由该文档 §5.5 定为**进程内嵌**；
+      多 provider 冲突/优先级、背压/超时/重连、能力命名空间、端点鉴权仍待定
+- [x] 按本文重建帧协议与生成器，先跑契约检查（路径按该文档映射到 `packages/products/bridge-hub/protocol/`）
+- [x] 实现 Rust Hub + `Channel`，进程内多端点广播/请求测试全绿
+- [x] 逐个接入内置端点 adaptor，边界扫描 0 违规
+- [ ] 过渡现有直连链路（`NodeBridgeClient` / `BridgeRegistry` / `RuntimeKind`）；
+      冒烟 `node scripts/smoke-pi.mjs` 已复验 8/8 无退化
+- [ ] `cargo check --workspace` / `cargo test --workspace` / `pnpm check` 全绿：
+      `cargo check --workspace` 已通过（仅存量告警）；新 crate 单测/clippy 全绿；
+      `cargo test --workspace` 在本机被既有 C build script 卡住（需完整 C 工具链，与本阶段改动无关）；
+      `pnpm format:check` 仍受仓库既有 CRLF 问题影响（与本次改动无关）
+
+---
+
+## 9. 第一阶段实施记录（2026-11-06 重新开工）
+
+> 落点按 `package-split-command-atomization.zh-CN.md` §5.5 / §10.1 映射：
+> 旧 `bridge/protocol` → `packages/products/bridge-hub/protocol/`，
+> 旧 `bridge/adaptors/<lang>` → `packages/products/bridge-hub/adaptors/<lang>/`，
+> 4 个 crate → `packages/products/bridge-hub/rust/`。Hub 采用**进程内嵌**。
+
+| 层                      | 落点                                | 内容                                                                                                                                                                     |
+| ----------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 协议单一事实源          | `protocol/schema.json`              | 8 种帧（`kind` 判别）、`busInvariant`（禁止 language/runtime 字段）、6 个错误码、capability/topic 命名规范                                                               |
+| 生成器                  | `protocol/gen.mjs`                  | 产出 5 语言 `protocol.*` + `runtime.*` 绑定与 golden，共 12 个产物；`--check` 按 LF 归一化校验漂移                                                                       |
+| `lania-bridge-protocol` | `rust/lania-bridge-protocol/`       | 生成物薄壳（`include!`），帧类型/编解码/错误码                                                                                                                           |
+| `lania-bridge-core`     | `rust/lania-bridge-core/`           | `Channel` trait、`ChannelError`、`PendingTable`、端点生命周期、`AssetStore` 资产落盘                                                                                     |
+| `lania-bridge-bus`      | `rust/lania-bridge-bus/`            | `BridgeHub`（端点/能力/主题/pending 四表）、同步 pump、round-robin `ProviderPolicy`、通配主题匹配、`InProcessChannel` / `StdioChannel`、`Endpoint` + `Handler`、诊断计数 |
+| `lania-bridge-host`     | `rust/lania-bridge-host/`           | 进程内装配、内嵌资产落盘、stdio 子进程接入、`shutdown` 生命周期                                                                                                          |
+| 端点 adaptor            | `adaptors/{ts,py,go,dart,rust}/`    | 只写 manifest + `onRequest` / `onEvent`；帧编解码、id、心跳、错误包装全由生成骨架负责                                                                                    |
+| CI 检查                 | `scripts/check-bridge-protocol.mjs` | 生成物漂移 + golden 契约 + 语言侧边界扫描，`--self-test` 验证扫描器自身                                                                                                  |
+
+**关键约束已落地**：帧里没有 `language` / `runtime` / `RuntimeKind` / `protocolVersion`；
+Hub 只按 `capability` / `topic` / opaque `endpointId` / correlation id 路由；
+publish 默认不回投发布者；无 provider 直接回 `E_METHOD_NOT_FOUND`；
+端点断连自动摘除并清理 pending。Rust 端点走进程内 channel，
+TS/Py/Go/Dart 走 stdio 子进程，Hub 与端点代码都不认语言。
+
+**验证结果**：
+
+- 五语言生成物分别通过 Node 运行、`py_compile`、`go build`/`go vet`、`dart analyze`。
+- Rust：protocol/core/bus 共 18 个单测、host 4 个 stdio 集成测试全绿；
+  另 1 个 Go/Dart 端点测试（`--ignored`，需本机 SDK）显式跑通。
+- 跨语言用例：Python + Node 两个端点同时声明 `echo.ping`，Rust 端点 publish 一次 →
+  收到两个 `event.echo_ack`（`from` 为 opaque id）；连续两次 request →
+  分别由两个端点应答（round-robin），全程不出现语言字段。
+- `node scripts/check-bridge-protocol.mjs` 三项检查与 `--self-test` 通过；
+  `gen.mjs --check` 12 产物零漂移；新 crate `cargo clippy -- -D warnings` 零告警；
+  `cargo check --workspace` 通过（仅存量告警）；`node scripts/smoke-pi.mjs` 8/8 无退化。
+  `cargo test --workspace` 在本机被既有 C build script 卡住（缺完整 C 工具链），需在 CI 补跑。
+
+**尚未做**：现有 1:1 `NodeBridgeClient` 直连链路的过渡、
+`BridgeRegistry` / `RuntimeKind` 从通信 API 移除、`lania-host` 5 条语言硬依赖改接 `bridge-host`，
+以及 §6 剩余未决问题（鉴权/超时/背压/命名空间细则）。这些属于 §5「过渡」阶段，
+本阶段未触碰任何既有消费点，因此不影响现有行为。

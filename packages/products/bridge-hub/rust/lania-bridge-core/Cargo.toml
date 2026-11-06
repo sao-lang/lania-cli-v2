@@ -1,0 +1,13 @@
+[package]
+name = "lania-bridge-core"
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Bridge Hub 共享核心：Channel 抽象、pending 表、端点生命周期、资产落盘"
+
+[dependencies]
+lania-bridge-protocol = { path = "../lania-bridge-protocol" }
+serde_json.workspace = true

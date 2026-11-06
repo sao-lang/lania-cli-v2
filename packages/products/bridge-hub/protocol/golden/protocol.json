@@ -1,0 +1,201 @@
+{
+  "name": "lania.bridge.bus",
+  "version": 1,
+  "discriminator": "kind",
+  "busInvariant": {
+    "statement": "帧内不得出现 language / runtime / RuntimeKind / protocolVersion 等任何语言或运行时字段。寻址键只有 capability、topic、opaque endpointId 与 correlation id；两端不需要知道对方是什么语言。",
+    "addressingKeys": [
+      "capability",
+      "topic",
+      "endpointId",
+      "id",
+      "from"
+    ],
+    "forbiddenFrameFields": [
+      "language",
+      "lang",
+      "runtime",
+      "runtimeKind",
+      "RuntimeKind",
+      "protocolVersion"
+    ],
+    "forbiddenSkeletonKeywords": [
+      "stdin",
+      "requestId",
+      "json.loads",
+      "JSON.parse(line",
+      "jsonDecode(line",
+      "protocolVersion",
+      "process.stdin",
+      "bufio.NewScanner",
+      "LineSplitter",
+      "dispatch("
+    ],
+    "note": "协议层只描述帧；传输循环、id 管理、心跳、错误包装由 gen.mjs 产出的 runtime 骨架负责，手写 adaptor 只允许注册 onRequest / onEvent。"
+  },
+  "naming": {
+    "capability": {
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$",
+      "examples": [
+        "agent.prompt",
+        "tool.exec",
+        "lint.run",
+        "echo.ping"
+      ]
+    },
+    "topic": {
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_*]+)*$",
+      "examples": [
+        "event.diag",
+        "event.agent_*",
+        "event.heartbeat"
+      ],
+      "wildcard": "订阅串以 * 结尾时按前缀匹配；publish 的 topic 必须是具体值（不含 *）。"
+    },
+    "endpointId": "opaque 字符串，Hub 只用作表键，不做语言/运行时推断"
+  },
+  "errors": [
+    {
+      "code": "E_METHOD_NOT_FOUND",
+      "meaning": "没有端点声明该 capability，Hub 直接回错"
+    },
+    {
+      "code": "E_INVALID_PARAMS",
+      "meaning": "请求参数不符合能力约定"
+    },
+    {
+      "code": "E_INTERNAL",
+      "meaning": "端点处理请求时内部错误，由 runtime 骨架包装"
+    },
+    {
+      "code": "E_TIMEOUT",
+      "meaning": "请求超时（pending 表回收）"
+    },
+    {
+      "code": "E_ENDPOINT_GONE",
+      "meaning": "目标端点已断开"
+    },
+    {
+      "code": "E_BAD_FRAME",
+      "meaning": "帧解码失败或 kind 未知"
+    }
+  ],
+  "frames": [
+    {
+      "kind": "announce",
+      "direction": "endpoint_to_hub",
+      "fields": [
+        {
+          "name": "endpointId",
+          "type": "string"
+        },
+        {
+          "name": "provides",
+          "type": "string[]"
+        },
+        {
+          "name": "subscribes",
+          "type": "string[]"
+        }
+      ]
+    },
+    {
+      "kind": "subscribe",
+      "direction": "endpoint_to_hub",
+      "fields": [
+        {
+          "name": "topic",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "kind": "unsubscribe",
+      "direction": "endpoint_to_hub",
+      "fields": [
+        {
+          "name": "topic",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "kind": "publish",
+      "direction": "endpoint_to_hub",
+      "fields": [
+        {
+          "name": "topic",
+          "type": "string"
+        },
+        {
+          "name": "payload",
+          "type": "value"
+        }
+      ]
+    },
+    {
+      "kind": "event",
+      "direction": "hub_to_endpoint",
+      "fields": [
+        {
+          "name": "topic",
+          "type": "string"
+        },
+        {
+          "name": "payload",
+          "type": "value"
+        },
+        {
+          "name": "from",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "kind": "request",
+      "direction": "endpoint_to_hub",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "capability",
+          "type": "string"
+        },
+        {
+          "name": "params",
+          "type": "value"
+        }
+      ]
+    },
+    {
+      "kind": "response",
+      "direction": "endpoint_to_hub",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "result",
+          "type": "value?"
+        },
+        {
+          "name": "error",
+          "type": "error?"
+        }
+      ]
+    },
+    {
+      "kind": "bye",
+      "direction": "endpoint_to_hub",
+      "fields": [
+        {
+          "name": "endpointId",
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

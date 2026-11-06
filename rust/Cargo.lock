@@ -855,6 +855,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "lania-bridge-bus"
+version = "0.0.3"
+dependencies = [
+ "lania-bridge-core",
+ "lania-bridge-protocol",
+ "serde_json",
+]
+
+[[package]]
+name = "lania-bridge-core"
+version = "0.0.3"
+dependencies = [
+ "lania-bridge-protocol",
+ "serde_json",
+]
+
+[[package]]
+name = "lania-bridge-host"
+version = "0.0.3"
+dependencies = [
+ "lania-bridge-bus",
+ "lania-bridge-core",
+ "lania-bridge-protocol",
+ "serde_json",
+]
+
+[[package]]
+name = "lania-bridge-protocol"
+version = "0.0.3"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "lania-bridge-support"
 version = "0.0.3"
 dependencies = [
