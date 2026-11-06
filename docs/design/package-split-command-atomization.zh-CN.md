@@ -1745,7 +1745,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
 
 1. **公共部分下沉（先于任何新命令包）**——把 `rust/`、`ts/` 中「公共 / 可独立成目录」的代码迁入 `packages/foundation/`，每次迁移一个独立 commit，迁完即跑 `cargo check --workspace` + 相关单测 + 总包 golden：
-   1. capabilities leaf crate 按 §3.2 清单 1:1 迁移（crate 名不变）：`lania-config / hooks / exec / fs / git / logger / pm / progress / prompt / runtime / task / workflows / preferences` → `packages/foundation/capabilities/<name>/rust/`；
+   1. capabilities leaf crate 按 §3.2 清单 1:1 迁移（crate 名不变，目录名 = crate 名）：`lania-config / hooks / exec / fs / git / logger / pm / progress / prompt / runtime / task / workflows / preferences` → `packages/foundation/capabilities/rust/<crate>/`（与 §3.2 目录树一致，capabilities 下暂不加包 manifest，待包清单阶段统一登记）；
    2. `lania-command` → `packages/foundation/command/rust/`；`command-conformance` 测试 crate（承接 dev-deps 环，见 §5.1 A.5(7) 步 5）；
    3. TS 公共部分：`packages/foundation/bridge-runtime/`（最小 stdio 协议核）与 `bridge-slices/*` 切片包（阶段 4a/4b），`ts/packages/{node-bridge,templates,agent}` 之外的纯公共 TS 工具一并归位；
    4. `packages/foundation/package-config`（决策 #11 的配置引擎，见 §10.2 修订版）。

@@ -29,4 +29,4 @@ lania-prompt = { path = "../lania-prompt" }
 lania-runtime = { path = "../lania-runtime" }
 lania-task = { path = "../lania-task" }
 lania-workflows = { path = "../lania-workflows" }
-lania-preferences = { path = "../lania-preferences" }
+lania-preferences = { path = "../../../packages/foundation/capabilities/rust/lania-preferences" }

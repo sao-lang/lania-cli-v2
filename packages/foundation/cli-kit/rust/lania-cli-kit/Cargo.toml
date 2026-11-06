@@ -19,5 +19,5 @@ lania-config = { path = "../../../../../rust/crates/lania-config" }
 lania-git = { path = "../../../../../rust/crates/lania-git" }
 lania-host = { path = "../../../../../rust/crates/lania-host" }
 lania-logger = { path = "../../../../../rust/crates/lania-logger" }
-lania-preferences = { path = "../../../../../rust/crates/lania-preferences" }
+lania-preferences = { path = "../../../../../packages/foundation/capabilities/rust/lania-preferences" }
 lania-progress = { path = "../../../../../rust/crates/lania-progress" }

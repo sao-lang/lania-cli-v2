@@ -35,4 +35,4 @@ lania-plugins-command-locale = { path = "../lania-plugins-command-locale" }
 lania-plugins-command-release = { path = "../lania-plugins-command-release" }
 lania-plugins-command-template = { path = "../lania-plugins-command-template" }
 lania-plugins-command-tools = { path = "../lania-plugins-command-tools" }
-lania-preferences = { path = "../lania-preferences" }
+lania-preferences = { path = "../../../packages/foundation/capabilities/rust/lania-preferences" }
