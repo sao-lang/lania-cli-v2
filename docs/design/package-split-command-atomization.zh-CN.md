@@ -1779,6 +1779,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 - ✅ 公共下沉 TS-1：`ts/packages/lania`（作者侧 DSL，npm 名不变）迁入 `packages/foundation/lania/`；`tsconfig.base.json` 上移仓库根；pnpm workspace 增补 `packages/**/npm|ts/*` glob，env/runex/bridge-hub npm 包纳入单一 workspace。
 - ✅ 公共下沉 TS-2：`ts/packages/templates`（脚手架资产包，npm 名不变）迁入 `packages/foundation/templates/`；pack/clean/release 脚本路径同步。
 - ✅ 公共下沉 TS-3：`ts/packages/agent` 迁入 `packages/products/agent/ts/agent/`（主包，不切片）；pack/clean/release 脚本路径同步。ts/ 仅余 node-bridge 待阶段 4 拆分。
+- ✅ 阶段 4a：node-bridge 迁入 `packages/foundation/bridge-runtime/ts/`（npm 名 `@lania-cli-v2/bridge-runtime`）；`core/slices.ts` 切片懒加载表 + plugin-registry 动态装配（A4 落地）；顶层 `ts/` 嵌套 workspace 删除。**帧层统一（决策 #12）按 §8 阶段表归入阶段 8**，本阶段保留现有 stdio 帧协议保证 Rust 宿主零改动。
 - ⬜ 其余阶段按本表推进。
 
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
