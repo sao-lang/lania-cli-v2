@@ -26,6 +26,6 @@ lania-node-bridge = { path = "../../../packages/products/bridge-hub/adaptors/ts/
 lania-logger = { path = "../lania-logger" }
 lania-pm = { path = "../lania-pm" }
 lania-progress = { path = "../lania-progress" }
-lania-prompt = { path = "../lania-prompt" }
+lania-prompt = { path = "../../../packages/foundation/capabilities/rust/lania-prompt" }
 lania-task = { path = "../../../packages/foundation/capabilities/rust/lania-task" }
 lania-hooks = { path = "../../../packages/foundation/capabilities/rust/lania-hooks" }
