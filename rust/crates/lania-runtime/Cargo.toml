@@ -9,4 +9,4 @@ authors.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 shell-words.workspace = true
-lania-exec = { path = "../lania-exec" }
+lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }

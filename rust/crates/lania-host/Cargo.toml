@@ -19,7 +19,7 @@ lania-host-core = { path = "../../../packages/foundation/host-core/rust/lania-ho
 lania-command = { path = "../lania-command" }
 lania-config = { path = "../lania-config" }
 lania-hooks = { path = "../lania-hooks" }
-lania-exec = { path = "../lania-exec" }
+lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
 lania-fs = { path = "../lania-fs" }
 lania-git = { path = "../lania-git" }
 lania-logger = { path = "../lania-logger" }

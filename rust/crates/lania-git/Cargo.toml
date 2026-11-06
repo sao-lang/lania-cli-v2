@@ -8,4 +8,4 @@ authors.workspace = true
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true
-lania-exec = { path = "../lania-exec" }
+lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
