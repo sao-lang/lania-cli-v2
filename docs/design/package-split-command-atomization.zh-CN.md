@@ -1733,22 +1733,25 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 | **7** | 构建发布全量落地：pack/release/publish/assert/CI matrix 全部 manifest 驱动；runex/agent/bridge-hub 的 npm 包与独立 bin 矩阵                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 4 版本族可独立发版；产物矩阵可复现；`assertVersionFamilies` 泛化通过                                                                                       | 脚本均保留 `--legacy` 路径一个发布周期                                                      |
 | **8** | Bridge Hub 集成（进程内嵌）+ 旧硬编码清理 + §9 未决项收敛 + 文档更新                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `bridge-layer.zh-CN.md` §6 未决项标记为「已定：内嵌」；全量回归                                                                                            | feature 开关可关闭 Hub 回到直连                                                             |
 
-**施工进度（2026-11-06 更新）**：
+**施工进度（2026-11-07 更新）**：
 
 - ✅ 阶段 0：本文档产出；bridgehub（Bridge Hub 消息总线）已先实现并提交（`7723131`，master）。
 - ✅ 阶段 1（部分）：manifest 地基已落地——6 个包的 `lania.package.json`、`packages/schemas/lania.package.schema.json`、`scripts/check-package-manifests.mjs`、`scripts/lib/discover-packages.mjs`，并接入 `pnpm check`（`packages:check`）。
 - ✅ 阶段 2b / 2c：`lania-cli-kit`（output/profile + `run_single_command`）、`runex-home` 已抽出。
 - ✅ 阶段 3a / 3b（大部分）：`host-core`（零 bridge 接缝）、`lania-bridge-host`（`HubBridgeProvider`）已落地；5 个语言 bridge adaptor 内聚进 `packages/products/bridge-hub/`；bridge-layer 文档已更新。
 - ✅ 阶段 5b（首包）：`env` 已迁移为 `packages/commands/env/`（lib + `[[bin]] lan-env` + npm `cmd-env` + 3 平台包 + describe），双形态 help 逐字节一致，拆分零回归（提交 `505980a`）。
+- ✅ 阶段 5a（部分）：决策 #11 落地——`packages/foundation/package-config`（包级偏好引擎，`~/.lania/config/<pkg>.json` 按包隔离 + schema 校验）与 `lan env config` 二级命令（提交 `d233289`）；§9.5 风险 5 的配套机制就绪。
+- ✅ 公共下沉阶段 1：16 个 capabilities crate 1:1 迁入 `packages/foundation/capabilities/rust/`（13 host leaf + presentation/format/validate，提交 `c5571e4..46fcbf6`，每 crate 一原子提交）；顺带修复 dart 遥测污染格式化退出码缺陷（`9807aca`）。
+- ✅ 阶段 2a：`lania-command` 迁入 `packages/foundation/command/rust/`（`0e7dbc7`）；dev-deps 环已打破——新建 `packages/foundation/command-conformance/rust/lania-command-conformance` 测试专用 crate 承接本地化覆盖测试（`20ff9c3`），覆盖度不降，§9.5 风险 5 消除；`cargo tree -p lania-command -e normal` 仅 clap/serde/serde_json。
 - ⬜ 其余阶段按本表推进。
 
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
 
 1. **公共部分下沉（先于任何新命令包）**——把 `rust/`、`ts/` 中「公共 / 可独立成目录」的代码迁入 `packages/foundation/`，每次迁移一个独立 commit，迁完即跑 `cargo check --workspace` + 相关单测 + 总包 golden：
-   1. capabilities leaf crate 按 §3.2 清单 1:1 迁移（crate 名不变，目录名 = crate 名）：`lania-config / hooks / exec / fs / git / logger / pm / progress / prompt / runtime / task / workflows / preferences` → `packages/foundation/capabilities/rust/<crate>/`（与 §3.2 目录树一致，capabilities 下暂不加包 manifest，待包清单阶段统一登记）；
-   2. `lania-command` → `packages/foundation/command/rust/`；`command-conformance` 测试 crate（承接 dev-deps 环，见 §5.1 A.5(7) 步 5）；
+   1. capabilities leaf crate 按 §3.2 清单 1:1 迁移（crate 名不变，目录名 = crate 名）：`lania-config / hooks / exec / fs / git / logger / pm / progress / prompt / runtime / task / workflows / preferences` → `packages/foundation/capabilities/rust/<crate>/`（与 §3.2 目录树一致，capabilities 下暂不加包 manifest，待包清单阶段统一登记）✅；
+   2. `lania-command` → `packages/foundation/command/rust/`；`command-conformance` 测试 crate（承接 dev-deps 环，见 §5.1 A.5(7) 步 5）✅；
    3. TS 公共部分：`packages/foundation/bridge-runtime/`（最小 stdio 协议核）与 `bridge-slices/*` 切片包（阶段 4a/4b），`ts/packages/{node-bridge,templates,agent}` 之外的纯公共 TS 工具一并归位；
-   4. `packages/foundation/package-config`（决策 #11 的配置引擎，见 §10.2 修订版）。
+   4. `packages/foundation/package-config`（决策 #11 的配置引擎，见 §10.2 修订版）✅。
 2. **按命令逐个拆子包**（每包一个原子 commit + 全量 golden，顺序按依赖从少到多）：`env` ✅ → `tools` → `generate` → `create`/`add` → `release`/`git` → `dev`/`build`/`lint` → `pi`；`config` 不拆（决策 #11）。
 3. 每迁一包随迁补该包 `config` 二级命令（`~/.lania/config/<pkg>.json` + manifest `configSchema`），先 env 后续包复用同一引擎。
 
@@ -1760,7 +1763,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 2. **Windows shim 自引用 / 递归**：`ShimHost::command_binary("lan-env", exe)` 生成的 shim 位于 `~/.runex/shims/`；约束「写绝对路径」「`lan-<cmd>` 不放入 shims 目录」「`which` 不回退 PATH 扫描」三者缺一不可。需独立 e2e 覆盖 `lan env which` 与 `lan env doctor`。
 3. **Bridge Hub 独立 / 内嵌**：本文已给明确答案（每进程内嵌，见 §5.5），但仍列为待验证项：若出现「一条命令内多语言端点 + 端点需跨命令复用」的长驻场景，需重评 sidecar；`lan-hub` 独立 bin + feature 已留兜底。
 4. **11 × 3 产物矩阵**：33+ 资产的 CI 时间/存储、`fetch-platform-binaries.mjs` 下载量与命名、Release 资产数。缓解：单 job 多 link、分 tag 触发、共享 `target/` 缓存、增量重建。用户已拍板首批全发。（原「12 × 3」随决策 #11 config 不成子包降为 11。）
-5. **`lania-command` dev-dep 环**：现有反向 dev-dep 会让「只装 cmd-env」在 `cargo test --workspace` 时仍编译全量。阶段 2a 打破；风险是本地化覆盖测试丢失 → `command-conformance` 承接，需证明覆盖度不降。
+5. ~~**`lania-command` dev-dep 环**~~（已消除，2026-11-07）：反向 dev-dep 已在阶段 2a 打破（提交 `0e7dbc7` / `20ff9c3`）；本地化覆盖测试由 `command-conformance` 承接且覆盖度不降（1/1 绿）；`cargo tree -p lania-command -e normal` 仅 clap/serde/serde_json，命令子包可无环依赖它。
 6. **命令间共享状态与项目动态命令**：单进程 `HostRuntime` 一次性加载 `LanConfigSnapshot` 并注入 envelope；拆多进程后每命令各读一次 —— 现状每条命令启动本来就是新进程，语义等价。但项目级动态命令（`lan.config.*` / `.lania/schemas`）在子包模式下只有带 `config` slice 的命令包能看见；`known-commands.json` **不含动态命令**，`lan --help` 也不呈现它们，只给「装总包或带 config 切片的包」提示。与「不做完全热插拔」一致，不发明新机制。
 7. **总包去 `bin.lan` 的安装拓扑变化**：单独装 `@lania-cli-v2/cli` 后 `lan` 由 core 依赖带入；若 npm 的 `--omit=optional` 或某些包管理器裁剪依赖，可能得不到 `lan`。缓解：把 core 放进 `dependencies`（非 optional/peer），并在验收清单加「装 cli 后 `lan --version` 可用」。
 8. **`lan.config.ts` 与 `config.loadLan` 的隐式依赖**：`env` / `config` 完全不带 payload 后，项目级 locale / output profile 由 `lania-config`（纯 Rust、零 bridge，复用现有 crate，不另起 config-native）读 `lan.config.yaml/json` 补齐；`.ts` 配置仍需 Node/tsx，回落 preferences + warning。此差异登记为已知边界，不破坏「行为不变」（现状 `.ok()` 本就吞掉加载失败）。
