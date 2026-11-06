@@ -22,7 +22,7 @@ lania-hooks = { path = "../../../packages/foundation/capabilities/rust/lania-hoo
 lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
 lania-fs = { path = "../../../packages/foundation/capabilities/rust/lania-fs" }
 lania-git = { path = "../../../packages/foundation/capabilities/rust/lania-git" }
-lania-logger = { path = "../lania-logger" }
+lania-logger = { path = "../../../packages/foundation/capabilities/rust/lania-logger" }
 lania-pm = { path = "../../../packages/foundation/capabilities/rust/lania-pm" }
 lania-progress = { path = "../../../packages/foundation/capabilities/rust/lania-progress" }
 lania-prompt = { path = "../../../packages/foundation/capabilities/rust/lania-prompt" }

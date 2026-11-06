@@ -13,7 +13,7 @@ members = [
   "../packages/foundation/capabilities/rust/lania-exec",
   "../packages/foundation/capabilities/rust/lania-task",
   "../packages/foundation/capabilities/rust/lania-progress",
-  "crates/lania-logger",
+  "../packages/foundation/capabilities/rust/lania-logger",
   "../packages/foundation/capabilities/rust/lania-fs",
   "../packages/foundation/capabilities/rust/lania-format",
   "../packages/foundation/capabilities/rust/lania-validate",
