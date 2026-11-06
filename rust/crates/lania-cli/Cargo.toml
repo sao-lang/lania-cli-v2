@@ -18,7 +18,7 @@ lania-command = { path = "../lania-command" }
 lania-agent = { path = "../lania-agent" }
 lania-plugins-command-pi = { path = "../lania-plugins-command-pi" }
 lania-config = { path = "../../../packages/foundation/capabilities/rust/lania-config" }
-lania-git = { path = "../lania-git" }
+lania-git = { path = "../../../packages/foundation/capabilities/rust/lania-git" }
 lania-host = { path = "../lania-host" }
 lania-logger = { path = "../lania-logger" }
 lania-progress = { path = "../lania-progress" }

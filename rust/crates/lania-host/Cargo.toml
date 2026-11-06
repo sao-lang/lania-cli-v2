@@ -21,7 +21,7 @@ lania-config = { path = "../../../packages/foundation/capabilities/rust/lania-co
 lania-hooks = { path = "../../../packages/foundation/capabilities/rust/lania-hooks" }
 lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
 lania-fs = { path = "../../../packages/foundation/capabilities/rust/lania-fs" }
-lania-git = { path = "../lania-git" }
+lania-git = { path = "../../../packages/foundation/capabilities/rust/lania-git" }
 lania-logger = { path = "../lania-logger" }
 lania-pm = { path = "../lania-pm" }
 lania-progress = { path = "../lania-progress" }

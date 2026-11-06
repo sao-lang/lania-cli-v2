@@ -17,7 +17,7 @@ members = [
   "../packages/foundation/capabilities/rust/lania-fs",
   "../packages/foundation/capabilities/rust/lania-format",
   "../packages/foundation/capabilities/rust/lania-validate",
-  "crates/lania-git",
+  "../packages/foundation/capabilities/rust/lania-git",
   "crates/lania-pm",
   "crates/lania-runtime",
   "../packages/products/runex/rust/runex-core",
