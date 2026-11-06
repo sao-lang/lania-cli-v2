@@ -20,7 +20,7 @@ lania-format = { path = "../lania-format" }
 lania-config = { path = "../lania-config" }
 lania-command = { path = "../lania-command" }
 lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
-lania-fs = { path = "../lania-fs" }
+lania-fs = { path = "../../../packages/foundation/capabilities/rust/lania-fs" }
 lania-git = { path = "../lania-git" }
 lania-node-bridge = { path = "../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
 lania-logger = { path = "../lania-logger" }

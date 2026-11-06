@@ -9,5 +9,5 @@ authors.workspace = true
 anyhow.workspace = true
 serde_json.workspace = true
 lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
-lania-fs = { path = "../lania-fs" }
+lania-fs = { path = "../../../packages/foundation/capabilities/rust/lania-fs" }
 

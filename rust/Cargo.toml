@@ -14,7 +14,7 @@ members = [
   "../packages/foundation/capabilities/rust/lania-task",
   "crates/lania-progress",
   "crates/lania-logger",
-  "crates/lania-fs",
+  "../packages/foundation/capabilities/rust/lania-fs",
   "crates/lania-format",
   "crates/lania-validate",
   "crates/lania-git",
