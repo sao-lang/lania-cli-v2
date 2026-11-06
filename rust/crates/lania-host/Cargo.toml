@@ -18,7 +18,7 @@ lania-bridge-host = { path = "../../../packages/products/bridge-hub/rust/lania-b
 lania-host-core = { path = "../../../packages/foundation/host-core/rust/lania-host-core" }
 lania-command = { path = "../lania-command" }
 lania-config = { path = "../../../packages/foundation/capabilities/rust/lania-config" }
-lania-hooks = { path = "../lania-hooks" }
+lania-hooks = { path = "../../../packages/foundation/capabilities/rust/lania-hooks" }
 lania-exec = { path = "../../../packages/foundation/capabilities/rust/lania-exec" }
 lania-fs = { path = "../../../packages/foundation/capabilities/rust/lania-fs" }
 lania-git = { path = "../lania-git" }

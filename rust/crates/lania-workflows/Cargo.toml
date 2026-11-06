@@ -28,4 +28,4 @@ lania-pm = { path = "../lania-pm" }
 lania-progress = { path = "../lania-progress" }
 lania-prompt = { path = "../lania-prompt" }
 lania-task = { path = "../../../packages/foundation/capabilities/rust/lania-task" }
-lania-hooks = { path = "../lania-hooks" }
+lania-hooks = { path = "../../../packages/foundation/capabilities/rust/lania-hooks" }
