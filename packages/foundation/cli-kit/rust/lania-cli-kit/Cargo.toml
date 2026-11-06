@@ -20,4 +20,4 @@ lania-git = { path = "../../../capabilities/rust/lania-git" }
 lania-host = { path = "../../../../../rust/crates/lania-host" }
 lania-logger = { path = "../../../../../rust/crates/lania-logger" }
 lania-preferences = { path = "../../../capabilities/rust/lania-preferences" }
-lania-progress = { path = "../../../../../rust/crates/lania-progress" }
+lania-progress = { path = "../../../capabilities/rust/lania-progress" }
