@@ -12,20 +12,6 @@ clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-# Test-only: the localization coverage test assembles the real built-in command
-# tree from the plugin crates that the CLI binary registers.
-[dev-dependencies]
-lania-plugins-command-pi = { path = "../../../../../rust/crates/lania-plugins-command-pi" }
-lania-host = { path = "../../../../../rust/crates/lania-host" }
-lania-plugins-command-add = { path = "../../../../../rust/crates/lania-plugins-command-add" }
-lania-plugins-command-build = { path = "../../../../../rust/crates/lania-plugins-command-build" }
-lania-plugins-command-create = { path = "../../../../../rust/crates/lania-plugins-command-create" }
-lania-plugins-command-dev = { path = "../../../../../rust/crates/lania-plugins-command-dev" }
-lania-plugins-command-env = { path = "../../../../../packages/commands/env/rust" }
-lania-plugins-command-generate = { path = "../../../../../rust/crates/lania-plugins-command-generate" }
-lania-plugins-command-git = { path = "../../../../../rust/crates/lania-plugins-command-git" }
-lania-plugins-command-lint = { path = "../../../../../rust/crates/lania-plugins-command-lint" }
-lania-plugins-command-locale = { path = "../../../../../rust/crates/lania-plugins-command-locale" }
-lania-plugins-command-release = { path = "../../../../../rust/crates/lania-plugins-command-release" }
-lania-plugins-command-template = { path = "../../../../../rust/crates/lania-plugins-command-template" }
-lania-plugins-command-tools = { path = "../../../../../rust/crates/lania-plugins-command-tools" }
+# 本 crate 是干净 leaf：不得有 [dev-dependencies] 反向引用命令插件或 lania-host。
+# 原 dev-deps 承载的本地化覆盖测试已迁至
+# packages/foundation/command-conformance/rust/lania-command-conformance（拆分文档 §5.1 A.5(7) 步 5）。

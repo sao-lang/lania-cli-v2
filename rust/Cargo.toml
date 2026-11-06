@@ -7,6 +7,8 @@ members = [
   "crates/lania-host",
   "../packages/foundation/capabilities/rust/lania-hooks",
   "../packages/foundation/command/rust/lania-command",
+  # 测试专用 crate：承接 lania-command 的本地化覆盖测试（拆分文档 §5.1 A.5(7) 步 5）
+  "../packages/foundation/command-conformance/rust/lania-command-conformance",
   "../packages/foundation/capabilities/rust/lania-config",
   "../packages/foundation/capabilities/rust/lania-preferences",
   "../packages/foundation/capabilities/rust/lania-prompt",

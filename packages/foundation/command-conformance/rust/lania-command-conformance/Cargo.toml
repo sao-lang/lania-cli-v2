@@ -1,0 +1,30 @@
+[package]
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../rust"
+name = "lania-command-conformance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# 测试专用 crate（拆分文档 §3.2 / §5.1 A.5(7) 步 5）：
+# 承接原 lania-command [dev-dependencies] 的本地化覆盖测试，
+# 使 lania-command 成为干净 leaf（cargo tree -p lania-command -e normal
+# 仅出现 clap / serde / serde_json）。
+# 本 crate 不参与任何产物：不发布、不被任何业务 crate 依赖。
+[dependencies]
+lania-command = { path = "../../../command/rust/lania-command" }
+lania-host = { path = "../../../../../rust/crates/lania-host" }
+lania-plugins-command-add = { path = "../../../../../rust/crates/lania-plugins-command-add" }
+lania-plugins-command-build = { path = "../../../../../rust/crates/lania-plugins-command-build" }
+lania-plugins-command-create = { path = "../../../../../rust/crates/lania-plugins-command-create" }
+lania-plugins-command-dev = { path = "../../../../../rust/crates/lania-plugins-command-dev" }
+lania-plugins-command-env = { path = "../../../../../packages/commands/env/rust" }
+lania-plugins-command-generate = { path = "../../../../../rust/crates/lania-plugins-command-generate" }
+lania-plugins-command-git = { path = "../../../../../rust/crates/lania-plugins-command-git" }
+lania-plugins-command-lint = { path = "../../../../../rust/crates/lania-plugins-command-lint" }
+lania-plugins-command-locale = { path = "../../../../../rust/crates/lania-plugins-command-locale" }
+lania-plugins-command-pi = { path = "../../../../../rust/crates/lania-plugins-command-pi" }
+lania-plugins-command-release = { path = "../../../../../rust/crates/lania-plugins-command-release" }
+lania-plugins-command-template = { path = "../../../../../rust/crates/lania-plugins-command-template" }
+lania-plugins-command-tools = { path = "../../../../../rust/crates/lania-plugins-command-tools" }

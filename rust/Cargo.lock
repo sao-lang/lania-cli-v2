@@ -963,6 +963,15 @@ name = "lania-command"
 version = "0.0.3"
 dependencies = [
  "clap",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lania-command-conformance"
+version = "0.0.3"
+dependencies = [
+ "lania-command",
  "lania-host",
  "lania-plugins-command-add",
  "lania-plugins-command-build",
@@ -977,8 +986,6 @@ dependencies = [
  "lania-plugins-command-release",
  "lania-plugins-command-template",
  "lania-plugins-command-tools",
- "serde",
- "serde_json",
 ]
 
 [[package]]
