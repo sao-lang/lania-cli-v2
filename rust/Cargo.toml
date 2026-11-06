@@ -22,7 +22,7 @@ members = [
   "crates/lania-runtime",
   "../packages/products/runex/rust/runex-core",
   "../packages/products/runex/rust/runex",
-  "crates/lania-presentation",
+  "../packages/foundation/capabilities/rust/lania-presentation",
   "../packages/products/bridge-hub/adaptors/ts/lania-node-bridge",
   "../packages/products/bridge-hub/rust/lania-bridge-support",
   "../packages/products/bridge-hub/adaptors/py/lania-py-bridge",
