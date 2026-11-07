@@ -29,6 +29,9 @@ use lania_preferences::{
 use serde_json::json;
 
 pub const HANDLER_ID: &str = "command.config";
+
+/// 命令名，必须等于 `spec().name`（§5.4 D.1 冻结导出面 / §10.3 CI 断言）。
+pub const COMMAND_NAME: &str = "config";
 pub const GET_HANDLER_ID: &str = "command.config.get";
 pub const SET_HANDLER_ID: &str = "command.config.set";
 pub const INIT_HANDLER_ID: &str = "command.config.init";
@@ -37,6 +40,17 @@ pub const SYNC_HANDLER_ID: &str = "command.config.sync";
 
 #[derive(Debug, Default)]
 pub struct ConfigCommandPlugin;
+
+/// 命令双形态的唯一契约（§5.4 D.1）：总包 `lan` 与独立二进制 `lan-config`
+/// 都用它装配同一个插件。
+pub fn factory() -> Box<dyn lania_host::plugin::Plugin> {
+    Box::new(ConfigCommandPlugin)
+}
+
+/// 冻结导出面：`spec()` 作为自由函数，供 `--describe` 与 known-commands.json 使用。
+pub fn spec() -> lania_command::CommandSpec {
+    ConfigCommandPlugin::spec()
+}
 
 struct ConfigRootHandler;
 struct ConfigGetHandler;
@@ -661,5 +675,27 @@ mod tests {
         assert_eq!(output["kind"], "config");
         assert_eq!(output["config"]["locale"], "en");
         assert_eq!(output["config"]["output"]["mode"], "json");
+    }
+}
+
+
+#[cfg(test)]
+mod frozen_export_surface {
+    //! 冻结导出面守卫（§5.4 D.1 / §10.3 CI 断言）。
+    use super::*;
+
+    #[test]
+    fn command_name_matches_spec() {
+        assert_eq!(spec().name, COMMAND_NAME);
+    }
+
+    #[test]
+    fn handler_id_is_frozen() {
+        assert_eq!(spec().handler_id, HANDLER_ID);
+    }
+
+    #[test]
+    fn factory_builds_the_plugin() {
+        let _plugin = factory();
     }
 }

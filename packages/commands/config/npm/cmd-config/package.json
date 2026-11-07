@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-config",
+  "version": "0.0.3",
+  "description": "lan-config — config 命令子包（零 TS payload，包级偏好配置引擎）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-config": "./bin/lan-config.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-config-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-config-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-config-win32-x64": "0.0.3"
+  }
+}

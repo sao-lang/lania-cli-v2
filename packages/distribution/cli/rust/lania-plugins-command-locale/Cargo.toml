@@ -8,6 +8,9 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+tokio.workspace = true
+lania-cli-kit = { path = "../../../../../packages/foundation/cli-kit/rust/lania-cli-kit" }
+runex-home = { path = "../../../../../packages/foundation/runex-home/rust/runex-home" }
 anyhow.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
@@ -17,3 +20,6 @@ lania-host = { path = "../lania-host" }
 lania-logger = { path = "../../../../../packages/foundation/capabilities/rust/lania-logger" }
 lania-preferences = { path = "../../../../../packages/foundation/capabilities/rust/lania-preferences" }
 
+[[bin]]
+name = "lan-config"
+path = "src/bin/lan-config.rs"

@@ -1274,12 +1274,15 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-cli-kit",
  "lania-command",
  "lania-config",
  "lania-host",
  "lania-logger",
  "lania-preferences",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
