@@ -1,7 +1,0 @@
-# 本机无 MSVC VC 工具集/Windows SDK，也无独立 MinGW 安装。
-# 统一使用 stable-x86_64-pc-windows-gnu toolchain（rustup 已为本目录设置 override），
-# 并复用 rustup 自带的自包含 MinGW 工具链作为 linker（self-contained 目录内含
-# x86_64-w64-mingw32-gcc.exe / ld.exe / crt 对象等）。
-# 如在其他机器上使用 MSVC，删除本文件或改用 msvc toolchain 即可。
-[target.x86_64-pc-windows-gnu]
-linker = "C:\\Users\\30895\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\lib\\rustlib\\x86_64-pc-windows-gnu\\bin\\self-contained\\x86_64-w64-mingw32-gcc.exe"
