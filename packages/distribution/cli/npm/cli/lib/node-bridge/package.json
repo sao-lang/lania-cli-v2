@@ -1,0 +1,12 @@
+{
+  "name": "@lania-cli-v2/node-bridge-payload",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ejs": "^5.0.1",
+    "tsx": "^4.19.0",
+    "yaml": "^2.8.1",
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0"
+  }
+}

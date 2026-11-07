@@ -10,7 +10,7 @@ function readJson(filePath) {
 }
 
 function discoverPlatformPackageDescriptors() {
-  const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
+  const cli = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
   const optionalDependencies = cli.optionalDependencies ?? {};
   return Object.keys(optionalDependencies)
     .filter((packageName) => packageName.startsWith('@lania-cli-v2/cli-'))
@@ -27,8 +27,8 @@ function discoverPlatformPackageDescriptors() {
 function collectPathsToRemove() {
   const targets = [
     'rust/target',
-    'npm/cli/lib/node-bridge',
-    'npm/cli/*.tgz',
+    'packages/distribution/cli/npm/cli/lib/node-bridge',
+    'packages/distribution/cli/npm/cli/*.tgz',
     'packages/foundation/bridge-runtime/ts/dist',
     'packages/foundation/templates/dist',
   ];

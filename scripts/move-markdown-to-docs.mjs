@@ -11,7 +11,7 @@ const ignoreDirs = new Set(['node_modules', 'dist', 'target', '.git']);
 
 function isIgnoredPath(absolutePath) {
   const rel = path.relative(repoRoot, absolutePath);
-  if (rel.startsWith('npm/cli/lib/node-bridge')) return true; // generated payload
+  if (rel.startsWith('packages/distribution/cli/npm/cli/lib/node-bridge')) return true; // generated payload
   return rel.split(path.sep).some((seg) => ignoreDirs.has(seg));
 }
 

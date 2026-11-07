@@ -91,7 +91,7 @@ function assertVersionSync(expected) {
   const nodeBridge = readJson(path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'));
   const templates = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
   const agentPkg = readJson(path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'));
-  const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
+  const cli = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
   const versions = [
     ['rust workspace', expected],
     ['@lania-cli-v2/node-bridge', nodeBridge.version],
@@ -116,7 +116,7 @@ function assertVersionSync(expected) {
 }
 
 function stageNodeBridgePayload() {
-  const payloadRoot = path.join(repoRoot, 'npm/cli/lib/node-bridge');
+  const payloadRoot = path.join(repoRoot, 'packages/distribution/cli/npm/cli/lib/node-bridge');
   rmIfExists(payloadRoot);
   ensureDir(payloadRoot);
 
@@ -239,13 +239,13 @@ function platformToEnvSuffix(platform) {
 }
 
 function discoverPlatformPackageDescriptors() {
-  const cli = readJson(path.join(repoRoot, 'npm/cli/package.json'));
+  const cli = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
   const optionalDependencies = cli.optionalDependencies ?? {};
   return Object.entries(optionalDependencies)
     .filter(([packageName]) => packageName.startsWith('@lania-cli-v2/cli-'))
     .map(([packageName, version]) => {
       const packageDirName = packageName.replace('@lania-cli-v2/', '');
-      const packageRoot = path.join(repoRoot, 'npm', packageDirName);
+      const packageRoot = path.join(repoRoot, 'packages/distribution/cli/npm', packageDirName);
       const packageJsonPath = path.join(packageRoot, 'package.json');
       const packageExists = fs.existsSync(packageJsonPath);
       const packageJson = packageExists ? readJson(packageJsonPath) : {};
@@ -412,7 +412,7 @@ async function main() {
 
   console.log('[pack] done');
   console.log(
-    `- npm packages: npm/cli, ${descriptors.map((entry) => entry.packageDirName).join(', ')}`,
+    `- npm packages: packages/distribution/cli/npm/cli, ${descriptors.map((entry) => entry.packageDirName).join(', ')}`,
   );
   console.log('- TS packages: packages/foundation/templates, packages/foundation/bridge-runtime/ts');
   console.log(

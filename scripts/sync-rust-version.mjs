@@ -26,7 +26,7 @@ function syncRustWorkspaceVersion(version) {
 }
 
 function main() {
-  const cliPkg = readJson(path.join(repoRoot, 'npm/cli/package.json'));
+  const cliPkg = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
   syncRustWorkspaceVersion(cliPkg.version);
   console.log(`Synced Rust workspace version to ${cliPkg.version}`);
 }

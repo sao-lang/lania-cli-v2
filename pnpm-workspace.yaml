@@ -1,5 +1,4 @@
 packages:
-  - 'npm/*'
   # packages/* 统一容器（拆分文档 §3.1）：按包内 npm/ 与 ts/ 子目录收口
   - 'packages/**/npm/*'
   - 'packages/**/ts/*'

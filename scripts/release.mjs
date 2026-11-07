@@ -19,17 +19,22 @@ function cancel(msg) { log.error(msg); process.exit(0); }
 // ── 包发现 ──
 
 function discoverAllPackages() {
-  const cliPkg = readJson(path.join(repoRoot, 'npm/cli/package.json'));
+  const cliPkg = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
   const platformPkgs = Object.keys(cliPkg.optionalDependencies ?? {})
     .filter((n) => n.startsWith('@lania-cli-v2/cli-'))
     .map((n) => ({
       name: n,
-      packageJsonPath: path.join(repoRoot, 'npm', n.replace('@lania-cli-v2/', ''), 'package.json'),
+      packageJsonPath: path.join(
+        repoRoot,
+        'packages/distribution/cli/npm',
+        n.replace('@lania-cli-v2/', ''),
+        'package.json',
+      ),
     }))
     .filter((p) => fs.existsSync(p.packageJsonPath));
 
   const all = [
-    { name: '@lania-cli-v2/cli',             packageJsonPath: path.join(repoRoot, 'npm/cli/package.json') },
+    { name: '@lania-cli-v2/cli',             packageJsonPath: path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json') },
     { name: '@lania-cli-v2/bridge-runtime',       packageJsonPath: path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json') },
     { name: '@lania-cli-v2/templates',       packageJsonPath: path.join(repoRoot, 'packages/foundation/templates/package.json') },
     { name: 'lania',                      packageJsonPath: path.join(repoRoot, 'packages/foundation/lania/package.json') },
@@ -60,11 +65,11 @@ function bumpRustWorkspaceVersion(version) {
 }
 
 function bumpCliOptionalDeps(version) {
-  const cliPkg = readJson(path.join(repoRoot, 'npm/cli/package.json'));
+  const cliPkg = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
   for (const [key] of Object.entries(cliPkg.optionalDependencies ?? {})) {
     if (key.startsWith('@lania-cli-v2/cli-')) cliPkg.optionalDependencies[key] = version;
   }
-  writeJson(path.join(repoRoot, 'npm/cli/package.json'), cliPkg);
+  writeJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'), cliPkg);
 }
 
 function writeChangelog(version, entries) {

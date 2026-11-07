@@ -62,23 +62,95 @@ importers:
         specifier: ^8.0.0
         version: 8.58.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
 
-  npm/cli:
+  packages/commands/add/npm/cmd-add:
     optionalDependencies:
-      '@lania-cli-v2/cli-darwin-arm64':
+      '@lania-cli-v2/cmd-add-darwin-arm64':
         specifier: 0.0.3
-        version: link:../cli-darwin-arm64
-      '@lania-cli-v2/cli-linux-x64':
+        version: link:../cmd-add-darwin-arm64
+      '@lania-cli-v2/cmd-add-linux-x64':
         specifier: 0.0.3
-        version: link:../cli-linux-x64
-      '@lania-cli-v2/cli-win32-x64':
+        version: link:../cmd-add-linux-x64
+      '@lania-cli-v2/cmd-add-win32-x64':
         specifier: 0.0.3
-        version: link:../cli-win32-x64
+        version: link:../cmd-add-win32-x64
 
-  npm/cli-darwin-arm64: {}
+  packages/commands/add/npm/cmd-add-darwin-arm64: {}
 
-  npm/cli-linux-x64: {}
+  packages/commands/add/npm/cmd-add-linux-x64: {}
 
-  npm/cli-win32-x64: {}
+  packages/commands/add/npm/cmd-add-win32-x64: {}
+
+  packages/commands/build/npm/cmd-build:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-build-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-build-darwin-arm64
+      '@lania-cli-v2/cmd-build-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-build-linux-x64
+      '@lania-cli-v2/cmd-build-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-build-win32-x64
+
+  packages/commands/build/npm/cmd-build-darwin-arm64: {}
+
+  packages/commands/build/npm/cmd-build-linux-x64: {}
+
+  packages/commands/build/npm/cmd-build-win32-x64: {}
+
+  packages/commands/config/npm/cmd-config:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-config-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-config-darwin-arm64
+      '@lania-cli-v2/cmd-config-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-config-linux-x64
+      '@lania-cli-v2/cmd-config-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-config-win32-x64
+
+  packages/commands/config/npm/cmd-config-darwin-arm64: {}
+
+  packages/commands/config/npm/cmd-config-linux-x64: {}
+
+  packages/commands/config/npm/cmd-config-win32-x64: {}
+
+  packages/commands/create/npm/cmd-create:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-create-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-create-darwin-arm64
+      '@lania-cli-v2/cmd-create-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-create-linux-x64
+      '@lania-cli-v2/cmd-create-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-create-win32-x64
+
+  packages/commands/create/npm/cmd-create-darwin-arm64: {}
+
+  packages/commands/create/npm/cmd-create-linux-x64: {}
+
+  packages/commands/create/npm/cmd-create-win32-x64: {}
+
+  packages/commands/dev/npm/cmd-dev:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-dev-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-dev-darwin-arm64
+      '@lania-cli-v2/cmd-dev-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-dev-linux-x64
+      '@lania-cli-v2/cmd-dev-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-dev-win32-x64
+
+  packages/commands/dev/npm/cmd-dev-darwin-arm64: {}
+
+  packages/commands/dev/npm/cmd-dev-linux-x64: {}
+
+  packages/commands/dev/npm/cmd-dev-win32-x64: {}
 
   packages/commands/env/npm/cmd-env:
     optionalDependencies:
@@ -97,6 +169,132 @@ importers:
   packages/commands/env/npm/cmd-env-linux-x64: {}
 
   packages/commands/env/npm/cmd-env-win32-x64: {}
+
+  packages/commands/generate/npm/cmd-generate:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-generate-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-generate-darwin-arm64
+      '@lania-cli-v2/cmd-generate-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-generate-linux-x64
+      '@lania-cli-v2/cmd-generate-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-generate-win32-x64
+
+  packages/commands/generate/npm/cmd-generate-darwin-arm64: {}
+
+  packages/commands/generate/npm/cmd-generate-linux-x64: {}
+
+  packages/commands/generate/npm/cmd-generate-win32-x64: {}
+
+  packages/commands/git/npm/cmd-git:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-git-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-git-darwin-arm64
+      '@lania-cli-v2/cmd-git-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-git-linux-x64
+      '@lania-cli-v2/cmd-git-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-git-win32-x64
+
+  packages/commands/git/npm/cmd-git-darwin-arm64: {}
+
+  packages/commands/git/npm/cmd-git-linux-x64: {}
+
+  packages/commands/git/npm/cmd-git-win32-x64: {}
+
+  packages/commands/lint/npm/cmd-lint:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-lint-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-lint-darwin-arm64
+      '@lania-cli-v2/cmd-lint-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-lint-linux-x64
+      '@lania-cli-v2/cmd-lint-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-lint-win32-x64
+
+  packages/commands/lint/npm/cmd-lint-darwin-arm64: {}
+
+  packages/commands/lint/npm/cmd-lint-linux-x64: {}
+
+  packages/commands/lint/npm/cmd-lint-win32-x64: {}
+
+  packages/commands/pi/npm/cmd-pi:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-pi-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-pi-darwin-arm64
+      '@lania-cli-v2/cmd-pi-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-pi-linux-x64
+      '@lania-cli-v2/cmd-pi-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-pi-win32-x64
+
+  packages/commands/pi/npm/cmd-pi-darwin-arm64: {}
+
+  packages/commands/pi/npm/cmd-pi-linux-x64: {}
+
+  packages/commands/pi/npm/cmd-pi-win32-x64: {}
+
+  packages/commands/release/npm/cmd-release:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-release-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-release-darwin-arm64
+      '@lania-cli-v2/cmd-release-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-release-linux-x64
+      '@lania-cli-v2/cmd-release-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-release-win32-x64
+
+  packages/commands/release/npm/cmd-release-darwin-arm64: {}
+
+  packages/commands/release/npm/cmd-release-linux-x64: {}
+
+  packages/commands/release/npm/cmd-release-win32-x64: {}
+
+  packages/commands/tools/npm/cmd-tools:
+    optionalDependencies:
+      '@lania-cli-v2/cmd-tools-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cmd-tools-darwin-arm64
+      '@lania-cli-v2/cmd-tools-linux-x64':
+        specifier: 0.0.3
+        version: link:../cmd-tools-linux-x64
+      '@lania-cli-v2/cmd-tools-win32-x64':
+        specifier: 0.0.3
+        version: link:../cmd-tools-win32-x64
+
+  packages/commands/tools/npm/cmd-tools-darwin-arm64: {}
+
+  packages/commands/tools/npm/cmd-tools-linux-x64: {}
+
+  packages/commands/tools/npm/cmd-tools-win32-x64: {}
+
+  packages/distribution/cli/npm/cli:
+    optionalDependencies:
+      '@lania-cli-v2/cli-darwin-arm64':
+        specifier: 0.0.3
+        version: link:../cli-darwin-arm64
+      '@lania-cli-v2/cli-linux-x64':
+        specifier: 0.0.3
+        version: link:../cli-linux-x64
+      '@lania-cli-v2/cli-win32-x64':
+        specifier: 0.0.3
+        version: link:../cli-win32-x64
+
+  packages/distribution/cli/npm/cli-darwin-arm64: {}
+
+  packages/distribution/cli/npm/cli-linux-x64: {}
+
+  packages/distribution/cli/npm/cli-win32-x64: {}
 
   packages/foundation/bridge-runtime/ts:
     dependencies:

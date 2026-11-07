@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function publishPackage(pkgDir, access = 'public') {
-  const cwd = path.join(repoRoot, 'npm', pkgDir);
+  const cwd = path.join(repoRoot, 'packages/distribution/cli/npm', pkgDir);
   console.log(`\n[发布] ${pkgDir} ...`);
   const result = spawnSync('npm', ['publish', '--access', access], {
     cwd,
