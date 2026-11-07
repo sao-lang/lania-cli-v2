@@ -1784,6 +1784,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 - ✅ 主包 Rust 侧：`lania-agent` / `lania-agent-core` 迁入 `packages/products/agent/rust/`（runex、bridge-hub 此前已迁入）。`cargo check --workspace` 全绿。
 - ✅ 阶段 5b：10 个命令 crate（dev/build/lint/create/add/git/release/generate/template/pi）迁入 `packages/commands/<cmd>/rust/`。`cargo check --workspace` 全绿，conformance 真实命令树覆盖通过。rust/crates 仅余总包三件套（lania-cli/lania-host/locale）待 5c。
 - ✅ 阶段 5d：template 并入 create 二级命令（handler 零改动迁移至 `create/src/template.rs`；BUILTIN 13→12；`lan template` golden 需按 §7 重录为 `lan create template`）。
+- ✅ 阶段 5c：总包 Rust 三件套（lania-cli / lania-host facade / locale=config 命令）迁入 `packages/distribution/cli/rust/`；顶层 `rust/crates/` 清空删除；`ts/` 已于阶段 4a 删除。Cargo workspace 根暂留 `rust/`（workspace 指针模式），根 Cargo.toml 上移 + glob members 随阶段 6 收口。
 - ⬜ 其余阶段按本表推进。
 
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
