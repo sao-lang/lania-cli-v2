@@ -2,24 +2,24 @@
 
 这页专门服务于 `lan release`。这条链最容易读乱的地方，是把“计划对象”“状态快照”“最终返回结果”混在一起。本文就是把这三层拆开。
 
+> 包拆分后，release 实现已收敛为单一文件 `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`（旧的 plan/state/execution 拆分与部分中间函数如 `build_release_plan` 已合并重写）。本文按旧实现的符号粒度描述阅读思路，追代码时以 `release.rs` 当前实现为准。
+
 ## 1. 入口
 
 主入口顺序：
 
 ```text
-rust/crates/lania-plugins-command-release/src/lib.rs
+packages/commands/release/rust/src/lib.rs
 -> ReleaseCommandPlugin handler
--> rust/crates/lania-workflows/src/release/mod.rs
+-> packages/foundation/capabilities/rust/lania-workflows/src/release.rs
 -> ReleaseWorkflow::run(...)
 ```
 
 建议先看：
 
-- `rust/crates/lania-plugins-command-release/src/lib.rs`
-- `rust/crates/lania-workflows/src/release/mod.rs`
-- `rust/crates/lania-workflows/src/release/plan.rs`
-- `rust/crates/lania-workflows/src/release/state.rs`
-- `rust/crates/lania-workflows/src/release/execution.rs`
+- `packages/commands/release/rust/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 ## 2. 关键结构体
 
@@ -27,7 +27,7 @@ rust/crates/lania-plugins-command-release/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 关键字段：
 
@@ -62,7 +62,7 @@ rust/crates/lania-plugins-command-release/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 职责：
 
@@ -95,7 +95,7 @@ rust/crates/lania-plugins-command-release/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 职责：
 
@@ -120,7 +120,7 @@ rust/crates/lania-plugins-command-release/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 关键字段：
 
@@ -134,7 +134,7 @@ rust/crates/lania-plugins-command-release/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 在 `release` 链里最重要的字段：
 
@@ -204,7 +204,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/mod.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -217,7 +217,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/plan.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -239,7 +239,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/plan.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -249,7 +249,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/plan.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -259,7 +259,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/plan.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -269,7 +269,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/plan.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -279,7 +279,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/state.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -289,7 +289,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/state.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -299,7 +299,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/state.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -309,7 +309,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/state.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -319,7 +319,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/execution.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -331,7 +331,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/execution.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -342,7 +342,7 @@ services.git.status(&plan.cwd)
 
 位置：
 
-- `rust/crates/lania-workflows/src/release/execution.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
 职责：
 
@@ -383,6 +383,6 @@ services.git.status(&plan.cwd)
 ## 7. 检索切口
 
 ```bash
-rg -n "ReleaseWorkflow::run|build_release_plan|release_state_from_plan|merge_release_state|write_release_state|execute_release_plan|execute_stage_commands|workflow_from_state" rust/crates/lania-workflows/src/release -g '*.rs'
-rg -n "struct ReleaseWorkflowInput|struct ReleasePlan|struct ReleaseStateSnapshot|struct ReleaseStageSnapshot" rust/crates/lania-workflows/src/models.rs -g '*.rs'
+rg -n "ReleaseWorkflow::run|build_release_plan|release_state_from_plan|merge_release_state|write_release_state|execute_release_plan|execute_stage_commands|workflow_from_state" packages/foundation/capabilities/rust/lania-workflows/src -g '*.rs'
+rg -n "struct ReleaseWorkflowInput|struct ReleasePlan|struct ReleaseStateSnapshot|struct ReleaseStageSnapshot" packages/foundation/capabilities/rust/lania-workflows/src/models.rs -g '*.rs'
 ```

@@ -16,8 +16,8 @@
    - `v2.3`、模板、权限、类型契约、Phase 3 工程化增强的收敛说明
 6. `operations/成熟度地图.zh-CN.md`
    - 当前哪些能力已经被验证、哪些能力应谨慎使用
-7. `design/transports/`
-   - 按协议查看传输层专项方案（历史设计，对应已下线的 generate 命令）
+7. `operations/known-issues.zh-CN.md`
+   - 已知测试失败与遗留问题（当前进度入口）
 
 ## 目录结构
 
@@ -43,14 +43,6 @@
 
 - `design/专题设计与对账.zh-CN.md`
   - 专题级设计决策与实现对账
-- `design/transports/thrift-http-rest-技术方案.zh-CN.md`
-  - `thrift -> http rest` 场景下的传输层技术方案（历史设计）
-- `design/transports/protobuf-grpc-技术方案.zh-CN.md`
-  - `protobuf -> grpc` 场景下的传输层技术方案（历史设计）
-- `design/transports/graphql-graphql-技术方案.zh-CN.md`
-  - `graphql -> graphql` 场景下的传输层技术方案（历史设计）
-- `design/transports/thrift-ws-技术方案.zh-CN.md`
-  - `thrift -> ws` 场景下的传输层技术方案（历史设计）
 
 ### `operations/`
 
@@ -58,8 +50,8 @@
   - 发布 CI、本地 registry 演练与收尾事项
 - `operations/成熟度地图.zh-CN.md`
   - 当前成熟度判断
-- `operations/lania-cli-v2-任务执行.zh-CN.md`
-  - 当前功能验收、缺陷修复与 VitePress 文档站建设任务执行文档
+- `operations/known-issues.zh-CN.md`
+  - 已知测试失败、遗留问题与当前进度入口
 - `operations/changesets/README.md`
   - 版本变更记录与 release 版本同步流程
 

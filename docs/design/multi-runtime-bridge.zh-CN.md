@@ -108,13 +108,13 @@ Node 生态 = 宿主语言，同构带来三个红利：**零序列化、可传�
 
 同一份知识被写在 4 个地方，且不一致：
 
-| 知识                     | 位置 A                                | 位置 B                                            | 位置 C                | 位置 D          | 一致？         |
-| ------------------------ | ------------------------------------- | ------------------------------------------------- | --------------------- | --------------- | -------------- |
+| 知识                     | 位置 A                                | 位置 B                                 | 位置 C                | 位置 D          | 一致？         |
+| ------------------------ | ------------------------------------- | -------------------------------------- | --------------------- | --------------- | -------------- |
 | 特征文件 → 运行时        | `compiler-shared.ts`（5 项）          | `runex-core/language.rs`（版本文件）   | —                     | —               | ❌             |
-| 运行时 → 包管理器        | `lania-pm`（`managers_for_language`） | `templates/language-options.ts`                   | —                     | —               | ❌             |
+| 运行时 → 包管理器        | `lania-pm`（`managers_for_language`） | `templates/language-options.ts`        | —                     | —               | ❌             |
 | 运行时 → lint 工具集     | `language-runners.ts`（8 个 adaptor） | `runex-core/language.rs`（companions） | —                     | —               | ❌             |
-| 运行时 → 可执行文件位置  | `lania-exec::resolve_executable`      | `language-runners.ts::resolveTool`                | `spawn()`（交给系统） | `lan env which` | ❌             |
-| 运行时 → 默认 build 命令 | `runtime-adapters/commands.ts`        | —                                                 | —                     | —               | ✅（唯一单点） |
+| 运行时 → 可执行文件位置  | `lania-exec::resolve_executable`      | `language-runners.ts::resolveTool`     | `spawn()`（交给系统） | `lan env which` | ❌             |
+| 运行时 → 默认 build 命令 | `runtime-adapters/commands.ts`        | —                                      | —                     | —               | ✅（唯一单点） |
 
 ### 1.4 七运行时全景（本文覆盖范围）
 
@@ -267,7 +267,7 @@ pub(super) fn bridge_launch_spec_for(program: &Path, args: &[String], dir: &Path
 三者共用 `@lania-cli-v2/node-bridge` 进程，按 `params.runtime` 切换工具表。
 
 ```text
-ts/packages/node-bridge/src/plugins/
+packages/foundation/bridge-runtime/ts/src/plugins/
 ├── compiler.ts            ← 按 runtime 分派：node→vite/webpack；bun→bun build；deno→deno bundle
 ├── lint/
 │   ├── plugin.ts          ← 统一入口
@@ -309,7 +309,7 @@ ts/packages/node-bridge/src/plugins/
 且 Python 是**纯脚本**，无需编译，**零平台包**。
 
 ```text
-rust/crates/lania-py-bridge/          ← Rust crate：定位 python + 分发脚本
+packages/products/bridge-hub/adaptors/py/lania-py-bridge/          ← Rust crate：定位 python + 分发脚本
 └── assets/lan_py_bridge.py           ← 单文件 Python 脚本，随 binary 打包
 
 实现要点：
@@ -335,7 +335,7 @@ rust/crates/lania-py-bridge/          ← Rust crate：定位 python + 分发脚
 1. 统一事件模型（`LintFile` / `LintSummary`）比解析 mypy 文本输出可靠；
 2. 为后续接入 `pylint` / `pyright`（有 API）留出位置。
 
-**B8 落地说明**（`rust/crates/lania-py-bridge/`）：
+**B8 落地说明**（`packages/products/bridge-hub/adaptors/py/lania-py-bridge/`）：
 
 | 项                               | 落地方式                                                                                                                      |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -368,7 +368,7 @@ B10 已把 `build` 命令按运行时路由到 Python / Go / Dart bridge（`buil
 可在 Go 进程内完成静态分析，避免 `golangci-lint` 的配置解析开销。
 
 ```text
-rust/crates/lania-go-bridge/          ← Rust crate：定位 go toolchain + 分发源码
+packages/products/bridge-hub/adaptors/go/lania-go-bridge/          ← Rust crate：定位 go toolchain + 分发源码
 └── assets/                            ← Go 源码（构建期编译成二进制，见 §8）
 ```
 
@@ -386,7 +386,7 @@ rust/crates/lania-go-bridge/          ← Rust crate：定位 go toolchain + 分
 `go build` / `golangci-lint` 仍是子进程（bridge 内 `exec`）。
 落地时的实际选择见下方「有意偏离」——净收益改为「去掉 Node 中转 + 统一 `Diagnostic`」。
 
-**B10 落地说明**（`rust/crates/lania-go-bridge/`）：
+**B10 落地说明**（`packages/products/bridge-hub/adaptors/go/lania-go-bridge/`）：
 
 | 项                   | 落地方式                                                                                                                   |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -420,7 +420,7 @@ rust/crates/lania-go-bridge/          ← Rust crate：定位 go toolchain + 分
 **建议**：Rust bridge 在本轮**只实现协议骨架 + `lint.rust`（委托 `cargo clippy` spawn）**，
 不追求 API 化。目的是让「七个运行时同构」成立，便于统一事件模型。
 
-**B11 落地说明**（`rust/crates/lania-rs-bridge/`）：
+**B11 落地说明**（`packages/products/bridge-hub/adaptors/rust/lania-rs-bridge/`）：
 
 | 项            | 落地方式                                                                                                                               |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -454,7 +454,7 @@ rust/crates/lania-go-bridge/          ← Rust crate：定位 go toolchain + 分
   放在 Dart bridge 内比放在 Node 的 `language-runners.ts` 更内聚。
 
 ```text
-rust/crates/lania-dart-bridge/        ← Rust crate：定位 dart SDK + 分发源码
+packages/products/bridge-hub/adaptors/dart/lania-dart-bridge/        ← Rust crate：定位 dart SDK + 分发源码
 └── assets/                            ← Dart 源码（构建期编译成二进制，见 §9）
 ```
 
@@ -462,7 +462,7 @@ rust/crates/lania-dart-bridge/        ← Rust crate：定位 dart SDK + 分发�
 （约 300 行：协议循环 + 3 个 method + machine 格式解析），是验证
 "Rust 侧注册表 + 多 bridge" 最合适的**第一个落地样本**。
 
-**B9 落地说明**（`rust/crates/lania-dart-bridge/`）：
+**B9 落地说明**（`packages/products/bridge-hub/adaptors/dart/lania-dart-bridge/`）：
 
 | 项                  | 落地方式                                                                                                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -478,7 +478,7 @@ rust/crates/lania-dart-bridge/        ← Rust crate：定位 dart SDK + 分发�
 
 **验收**：Dart 项目的 `lan lint` / `lan build` 进程链都是 `Rust → dart bridge → dart tool`（2 层），
 `runtime` 字段为 `dart`，`bridge` 为 `lan-dart-bridge`（e2e 见
-`rust/crates/lania-cli/tests/phase3_e2e/build_and_lint.rs`）。
+`packages/distribution/cli/rust/lania-cli/tests/phase3_e2e/build_and_lint.rs`）。
 
 > ⚠️ 砍需求的优先级（维护成本 > 收益时）：
 >
@@ -626,7 +626,7 @@ Rust 仍走 JS 簇的 spawn 适配器（B11 未开工）。实现要点：
 **为什么只补这 4 个**：bridge 不可用时的损失集中在非 Node 语言项目，
 因为 Node 项目不可能没有 bridge（bridge 就是 Node 进程）。
 
-**B12 落地说明**（`rust/crates/lania-workflows/src/create/templates.rs`）：
+**B12 落地说明**（`packages/foundation/capabilities/rust/lania-workflows/src/create/templates.rs`）：
 
 - 文件集合与条件分支按各语言的 `templates/<name>/config.ts` 逐条对齐，
   `DeclaredFileRule::when` 支持 `key:value`（列表包含）/ `key=value` / `key!=value`。
@@ -965,7 +965,7 @@ pub const FEATURE_PRIORITY: &[(&str, RuntimeKind)];  // 上表的数组形式
 
 | 消费者                           | 读取方式                                                      |
 | -------------------------------- | ------------------------------------------------------------- |
-| Rust `create` 工作流             | 直接 `use runex_core::toolchain`                   |
+| Rust `create` 工作流             | 直接 `use runex_core::toolchain`                              |
 | Rust 命令 handler                | 直接调用，决定选哪个 bridge                                   |
 | JS 簇 bridge（node/bun/deno）    | 通过 `toolchain.describe` bridge 方法读取一次，进程内缓存     |
 | 其他 bridge                      | 同上（各自只取自己那一条）                                    |
@@ -1342,7 +1342,7 @@ const resolved = typeof candidate === 'function' ? await candidate(configContext
 但换来的是"函数配置可用"，权衡上更合理 —— 配置是低频修改、手动编辑可接受；
 而函数能力一旦不能表达，用户只能去写 hook 脚本，反而更绕。
 
-**B13 落地说明**（`rust/crates/lania-plugins-command-locale/src/project_config.rs`）：
+**B13 落地说明**（`packages/distribution/cli/rust/lania-plugins-command-locale/src/project_config.rs`）：
 
 | 项              | 落地方式                                                                                                                                                                                |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1801,7 +1801,7 @@ changeset 标 `minor`（新增）而非 `major`，同时把旧字段标 `depreca
 `stageNodeBridgePayload()` 需增加：
 
 ```text
-npm/cli/lib/py-bridge/lan_py_bridge.py     ← 从 rust/crates/lania-py-bridge/assets 复制
+packages/products/bridge-hub/adaptors/py/lania-py-bridge/lib/lan_py_bridge.py     ← 从 packages/products/bridge-hub/adaptors/py/lania-py-bridge/assets 复制
 ```
 
 Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mjs` 的
@@ -1959,7 +1959,7 @@ Go / Rust / Dart bridge 二进制通过 `optionalDependencies` 分发，`pack.mj
       打一行 → stderr 出现 `[app] GET /api/user 200`，`--quiet-app` 后不再出现；
       `format_diag_line` 单测固定四个通道前缀；`diag.test.ts` 锁 `seq` 跨流严格递增。）
 - [x] **同一份 ruff 输出经 Python bridge 与 Rust 回落路径解析，`Diagnostic` 深度相等。**
-      （共享 fixture：`rust/crates/lania-py-bridge/assets/fixtures/ruff-{sample,diagnostics}.json`。
+      （共享 fixture：`packages/products/bridge-hub/adaptors/py/lania-py-bridge/assets/fixtures/ruff-{sample,diagnostics}.json`。
       Python 侧 `ruff_parser_matches_the_shared_golden`（真跑 bridge 脚本的 `parse_ruff_json`），
       TS 侧 `plugins/lint/ruff-fixture.test.ts` 用 `parseRuffDiagnostics` 断言同一份 golden；
       两边任一字段漂移都会各自失败。解析器语义已对齐：ruff 恒为 `error`，

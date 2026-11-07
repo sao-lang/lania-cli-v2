@@ -1,8 +1,8 @@
 # Changesets
 
-Use `npm run changeset:add` to record user-facing package changes.
+Use `pnpm run changeset:add` to record user-facing package changes.
 
-Use `npm run changeset:version` to:
+Use `pnpm run changeset:version` to:
 
 - apply version bumps to all JS packages
 - update internal dependency ranges

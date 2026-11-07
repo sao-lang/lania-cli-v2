@@ -7,19 +7,19 @@
 主入口顺序：
 
 ```text
-rust/crates/lania-plugins-command-create/src/lib.rs
+packages/commands/create/rust/src/lib.rs
 -> CreateCommandPlugin handler
--> rust/crates/lania-workflows/src/create/create_workflow.rs
+-> packages/foundation/capabilities/rust/lania-workflows/src/create/create_workflow.rs
 -> CreateWorkflow::run(...)
 ```
 
 建议先看：
 
-- `rust/crates/lania-plugins-command-create/src/lib.rs`
-- `rust/crates/lania-workflows/src/create/create_workflow.rs`
-- `rust/crates/lania-workflows/src/create/capability.rs`
-- `rust/crates/lania-workflows/src/create/prompts.rs`
-- `rust/crates/lania-workflows/src/workflow_hooks.rs`
+- `packages/commands/create/rust/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/create_workflow.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/capability.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/prompts.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/workflow_hooks.rs`
 
 ## 2. 关键结构体
 
@@ -27,7 +27,7 @@ rust/crates/lania-plugins-command-create/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 关键字段：
 
@@ -56,7 +56,7 @@ rust/crates/lania-plugins-command-create/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 `create` 最常用的字段：
 
@@ -81,8 +81,8 @@ rust/crates/lania-plugins-command-create/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
-- `rust/crates/lania-workflows/src/create/capability.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/capability.rs`
 
 职责：
 
@@ -102,7 +102,7 @@ rust/crates/lania-plugins-command-create/src/lib.rs
 
 定义位置：
 
-- `rust/crates/lania-workflows/src/models.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/models.rs`
 
 在 `create` 链里最重要的字段：
 
@@ -189,7 +189,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/create/create_workflow.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/create_workflow.rs`
 
 职责分三段：
 
@@ -201,7 +201,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/create/prompts.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/prompts.rs`
 
 职责：
 
@@ -213,7 +213,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/create/prompts.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/prompts.rs`
 
 职责：
 
@@ -223,7 +223,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/create/prompts.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/prompts.rs`
 
 职责：
 
@@ -233,7 +233,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/create/helpers/package.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/helpers/package.rs`
 
 职责：
 
@@ -243,7 +243,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/create/helpers/package.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/helpers/package.rs`
 
 职责：
 
@@ -254,7 +254,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/workflow_hooks.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/workflow_hooks.rs`
 
 职责：
 
@@ -264,7 +264,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/workflow_hooks.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/workflow_hooks.rs`
 
 职责：
 
@@ -274,7 +274,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/workflow_hooks.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/workflow_hooks.rs`
 
 职责：
 
@@ -284,7 +284,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/workflow_hooks.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/workflow_hooks.rs`
 
 职责：
 
@@ -296,7 +296,7 @@ capability.render(...)
 
 位置：
 
-- `rust/crates/lania-workflows/src/create/helpers/package.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/helpers/package.rs`
 
 职责：
 
@@ -338,6 +338,6 @@ capability.render(...)
 ## 7. 检索切口
 
 ```bash
-rg -n "CreateWorkflow::run|run_create_prompt|run_template_prompt|TemplateCapability|resolve_dependency_versions|write_files_with_hooks|run_package_command" rust/crates/lania-workflows/src -g '*.rs'
-rg -n "template.list|template.getQuestions|template.getDependencies|template.getOutputTasks|template.render" rust ts -g '*.rs' -g '*.ts'
+rg -n "CreateWorkflow::run|run_create_prompt|run_template_prompt|TemplateCapability|resolve_dependency_versions|write_files_with_hooks|run_package_command" packages/foundation/capabilities/rust/lania-workflows/src -g '*.rs'
+rg -n "template.list|template.getQuestions|template.getDependencies|template.getOutputTasks|template.render" packages -g '*.rs' -g '*.ts'
 ```

@@ -17,7 +17,7 @@
 
 ## 1. 五条硬规则
 
-1. **Node 无 I/O**：`ts/packages/agent/**` 禁止 `import fs | child_process | net | http`。工具只能经 `hostCall('agent.tool.*')`。CI 用 eslint `no-restricted-imports` 强制。
+1. **Node 无 I/O**：`packages/products/agent/**` 禁止 `import fs | child_process | net | http`。工具只能经 `hostCall('agent.tool.*')`。CI 用 eslint `no-restricted-imports` 强制。
 2. **授权先于执行且同进程**：`agent.tool.exec` 在 Rust 内完成「策略 → 审批 → 执行」，不允许 Node 先授权再调用。
 3. **工具表封顶 13 个**：新增内置工具需说明「为什么插件做不到」。
 4. **写操作全局单写者**：Rust 侧按工作区加 `writer` 锁，进程内唯一。
@@ -37,7 +37,7 @@
 │ lania-node-bridge  ◄── jsonl：request / event* / response / host_request ──┐│
 └────────────────────────────────────────────────────────────────────────────┘│
                                      │                                       │
-┌────────────────────────────────────▼──── ts/packages/agent ────────────────┐
+┌────────────────────────────────────▼──── packages/products/agent ────────────────┐
 │ kernel   @earendil-works/pi-agent-core 1.4.0   Agent × N（主 + 子）         │
 │ provider @earendil-works/pi-ai 1.4.0           Models / streamSimple       │
 │ adapter  typebox schema → AgentTool → hostCall('agent.tool.exec')          │
@@ -141,7 +141,7 @@ lania-cli ──▶ lania-plugins-command-pi ──▶ lania-agent ──▶ lan
 **待改进（§11）**：这些名字/字段目前仍手写于 Rust core / 插件层 / 宿主 / TS 多处，
 下一步用「协议单一事实源 + 代码生成」消除重复定义。
 
-当前 TS 侧的耦合问题：`ts/packages/node-bridge/src/core/plugin-registry.ts` 在**模块顶层静态 import** `@lania-cli-v2/agent`，且 `node-bridge` 把它写在 `dependencies`。这让「装 CLI 必须拉 pi 依赖」。本方案不强制改（agent 是 CLI 的一等功能），但**在 `lania-agent-core` 落地后应改为动态 import**，使 bridge 可独立运行。
+当前 TS 侧的耦合问题：`packages/foundation/bridge-runtime/ts/src/core/plugin-registry.ts` 在**模块顶层静态 import** `@lania-cli-v2/agent`，且 `node-bridge` 把它写在 `dependencies`。这让「装 CLI 必须拉 pi 依赖」。本方案不强制改（agent 是 CLI 的一等功能），但**在 `lania-agent-core` 落地后应改为动态 import**，使 bridge 可独立运行。
 
 ### 3.3 命令形态与实现状态
 
@@ -199,7 +199,7 @@ TUI 键位：`Enter` 发送 · `Ctrl-J` 换行 · `PgUp/PgDn` 滚动 · `Up/Down
 
 ### 4.2 事件协议（新增，Node → Rust，逐条即时写出）
 
-现行 `handleExchange()` 在完成前不写 envelope（`ts/packages/node-bridge/src/entry/stdio.ts`），需要改为 `handleExchange(request, emit)`，`emit` 直接写 `{type:'event', requestId, payload}`。
+现行 `handleExchange()` 在完成前不写 envelope（`packages/foundation/bridge-runtime/ts/src/entry/stdio.ts`），需要改为 `handleExchange(request, emit)`，`emit` 直接写 `{type:'event', requestId, payload}`。
 
 `BridgeEventMethod` 封闭枚举新增：
 
@@ -370,7 +370,7 @@ reader 线程上，所以实现必须是**有界等待**（默认 600s，超时�
 
 ### 5.5 子 agent
 
-**已实现**（`ts/packages/agent/src/kernel/subagent.ts`）：
+**已实现**（`packages/products/agent/src/kernel/subagent.ts`）：
 
 - 参数：`{description, prompt, read_only?}`，`read_only` 默认 true。
 - 与原文的关键差异：子 agent 是 **Node 侧又一个 pi `Agent` 实例**，不是 Rust 调度。
@@ -452,13 +452,13 @@ M4 现状：skills 索引、memory 注入、自动/手动压缩（抽取式摘�
 
 ## 9. 风险
 
-| 风险                   | 处理                                                                                    |
-| ---------------------- | --------------------------------------------------------------------------------------- |
-| pi 上游 API 变更       | 版本精确锁定；所有 pi 导入收敛在 `ts/packages/agent/src/kernel/`，其余代码不直接 import |
-| Windows 终端兼容       | TUI 走 crossterm 跨平台路径；CI 至少覆盖 Windows 冒烟（`--snapshot` 渲染一帧）          |
-| 子 agent 成本失控      | 并发上限 + 每 agent token 预算 + 总量告警                                               |
-| 压缩质量差导致行为退化 | 保留最近 40% 原文；摘要 entry 可见可回滚（rewind 到 compaction 之前）                   |
-| RPC 长任务超时         | 工具调用使用独立 timeout（默认 10 分钟），与 bridge 请求超时分离                        |
+| 风险                   | 处理                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| pi 上游 API 变更       | 版本精确锁定；所有 pi 导入收敛在 `packages/products/agent/src/kernel/`，其余代码不直接 import |
+| Windows 终端兼容       | TUI 走 crossterm 跨平台路径；CI 至少覆盖 Windows 冒烟（`--snapshot` 渲染一帧）                |
+| 子 agent 成本失控      | 并发上限 + 每 agent token 预算 + 总量告警                                                     |
+| 压缩质量差导致行为退化 | 保留最近 40% 原文；摘要 entry 可见可回滚（rewind 到 compaction 之前）                         |
+| RPC 长任务超时         | 工具调用使用独立 timeout（默认 10 分钟），与 bridge 请求超时分离                              |
 
 ## 10. 拆包施工计划（`lania-agent-core`）
 
@@ -491,7 +491,7 @@ Rust 侧目前不校验 methods（只记录），因此安全；但**必须在 A
 | 能力层 | `lania-agent-core`         | 类型、事件、会话文件、配置、压缩、prompt          | 仅通用库，**零 lania 依赖**                          | ✅          |
 | 产品层 | `lania-agent`              | `run()`、TUI/REPL、审批通道、会话规划             | core + ratatui/crossterm 等通用库，**零 lania 依赖** | ✅          |
 | 适配层 | `lania-plugins-command-pi` | `lan pi` 命令、bridge 客户端、审批/门禁接线       | `lania-host` / `lania-command` / `lania-node-bridge` | ✅ 代码完成 |
-| 引擎   | `ts/packages/agent`        | pi-agent-core / pi-ai 编排、工具 schema、子 agent | `pi-agent-core@1.4.0` / `pi-ai@1.4.0`                | ✅          |
+| 引擎   | `packages/products/agent`  | pi-agent-core / pi-ai 编排、工具 schema、子 agent | `pi-agent-core@1.4.0` / `pi-ai@1.4.0`                | ✅          |
 | 宿主   | `lania-host`               | 工具执行、门禁、审批裁决                          | —                                                    | ✅          |
 
 关键接缝（保证主包不反向依赖脚手架）：`AgentOptions` 是纯数据，由适配层从

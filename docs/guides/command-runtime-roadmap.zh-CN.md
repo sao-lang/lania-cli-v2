@@ -12,24 +12,26 @@
 - `../architecture/模块设计与通信总览.zh-CN.md`：再看模块边界和通信模型
 - `../archive/phase0/node-bridge-protocol.md`：需要看协议细节时再下钻
 
+> 仓库已按包拆分（packages/ 布局）。本文所有路径均为拆分后路径；`generate` 命令已删除并归档到本地分支 `archive/generate-command`，重新设计后再启用。
+
 ## 1. 先记住固定主链路
 
 不管执行哪条命令，都会先经过同一条启动主链路：
 
 1. 用户执行 `lan ...`
-2. `npm/cli/bin/lan.mjs`
-   - 选择平台二进制
+2. `packages/distribution/core` 的 launcher
+   - 按 `known-commands.json` 选中对应子包二进制
    - 注入 `LANIA_NODE_BRIDGE_DIR`、`LANIA_PRODUCT_ROOT`、`LANIA_RUNTIME_MODE`
-3. `rust/crates/lania-cli/src/main.rs`
+3. `packages/distribution/cli/rust/lania-cli/src/main.rs`
    - `main()`
-   - 注册所有 Rust 命令插件
+   - 注册 Rust 命令插件
    - `host.initialize().await?`
    - `host.load_lan_config_snapshot_from_cwd_async(...)`
    - `host.bootstrap_project_extensions_from_cwd_async(...)`
    - `lania_command::build_cli(...)`
    - `lania_command::command_context_from_matches(...)`
    - `host.execute_command(&context).await`
-4. `rust/crates/lania-host/src/runtime/execute.rs`
+4. `packages/distribution/cli/rust/lania-host/src/runtime.rs`
    - `HostRuntime::execute_command()`
    - 按 `handler_id` 取 handler
    - 触发 `onCommandPreInit` / `onArgsParsed`
@@ -45,8 +47,8 @@
 
 ```text
 lan
--> npm wrapper
--> Rust main()
+-> launcher (packages/distribution/core)
+-> 子包二进制 Rust main()
 -> HostRuntime.initialize()
 -> command_context_from_matches()
 -> HostRuntime.execute_command()
@@ -58,12 +60,12 @@ lan
 
 仓库里的功能，最终都可以归到这四类：
 
-| 类型        | 典型命令                                                        | 主控层 | 执行层                              |
-| ----------- | --------------------------------------------------------------- | ------ | ----------------------------------- |
-| Bridge 型   | `dev` `build` `lint` `template` `tools list` `product *`        | Rust   | Node bridge                         |
-| Workflow 型 | `create` `add` `generate api` `generate module` `release` `git` | Rust   | Rust workflow，必要时再调 bridge    |
-| 本地宿主型  | `tools run` `tools view` `config` `product dev`                 | Rust   | Rust 本地服务                       |
-| 动态命令型  | 项目通过 `lan.config.*` / `lania.schemas.*` 注入的命令          | Rust   | 启动时 Node 解析，运行时再回调 Node |
+| 类型        | 典型命令                                                 | 主控层 | 执行层                              |
+| ----------- | -------------------------------------------------------- | ------ | ----------------------------------- |
+| Bridge 型   | `dev` `build` `lint` `template` `tools list` `product *` | Rust   | Node bridge                         |
+| Workflow 型 | `create` `add` `release` `git`                           | Rust   | Rust workflow，必要时再调 bridge    |
+| 本地宿主型  | `tools run` `tools view` `config` `product dev`          | Rust   | Rust 本地服务                       |
+| 动态命令型  | 项目通过 `lan.config.*` / `lania.schemas.*` 注入的命令   | Rust   | 启动时 Node 解析，运行时再回调 Node |
 
 理解命令时，先判断它属于哪类，再往下追，不要把所有分支混在一起看。
 
@@ -71,41 +73,43 @@ lan
 
 ### 3.1 顶层注册入口
 
-Rust 命令插件统一在 `rust/crates/lania-cli/src/main.rs` 的 `main()` 里注册：
+内置命令共 11 个：`dev`、`build`、`lint`、`create`、`add`、`release`、`git`、`tools`、`env`、`pi`、`config`。Rust 命令插件统一在 `packages/distribution/cli/rust/lania-cli/src/main.rs` 的 `main()` 里注册：
 
 - `DevCommandPlugin`
 - `BuildCommandPlugin`
 - `LintCommandPlugin`
 - `CreateCommandPlugin`
 - `AddCommandPlugin`
-- `GenerateCommandPlugin`
 - `ReleaseCommandPlugin`
 - `GitCommandPlugin`
-- `TemplateCommandPlugin`
 - `ToolsCommandPlugin`
+- `EnvCommandPlugin`
+- `PiCommandPlugin`
 - `ConfigCommandPlugin`
+
+`template` 是 `create` 的二级命令；`generate` 已删除并归档（分支 `archive/generate-command`）。
 
 ### 3.2 命令族 -> 落点矩阵
 
-| 命令族                                      | 入口 crate / 文件                            | handler 落点              | 继续追踪                                             |
-| ------------------------------------------- | -------------------------------------------- | ------------------------- | ---------------------------------------------------- | --- | ---------------------- | ----------------------------------------- | ---------------------------- | ------------------- |
-| `dev`                                       | `rust/crates/lania-plugins-command-dev`      | bridge `compiler.dev`     | `ts/packages/node-bridge/src/plugins/compiler.ts`    |
-| `product dev`                               | `rust/crates/lania-plugins-command-dev`      | 本地 watch / re-exec      | `watch.rs`                                           |
-| `build`                                     | `rust/crates/lania-plugins-command-build`    | bridge `compiler.build`   | `plugins/compiler.ts`                                |
-| `product build/pack/publish/inspect/doctor` | `rust/crates/lania-plugins-command-build`    | bridge `product.*`        | `plugins/product.ts`                                 |
-| `lint`                                      | `rust/crates/lania-plugins-command-lint`     | bridge `lint.run`         | `plugins/lint/plugin.ts`                             |
-| `create`                                    | `rust/crates/lania-plugins-command-create`   | `CreateWorkflow`          | `rust/crates/lania-workflows/src/create/`            |
-| `add`                                       | `rust/crates/lania-plugins-command-add`      | `AddWorkflow`             | `rust/crates/lania-workflows/src/create/`            |
-| `template`                                  | `rust/crates/lania-plugins-command-template` | bridge `template.list`    | `plugins/template.ts`                                |
-| `generate api`                              | `rust/crates/lania-plugins-command-generate` | `GenerateApiWorkflow`     | `rust/crates/lania-workflows/src/generate/api.rs`    |
-| `generate module`                           | `rust/crates/lania-plugins-command-generate` | `GenerateModuleWorkflow`  | `rust/crates/lania-workflows/src/generate/module.rs` |
-| `product generate`                          | `rust/crates/lania-plugins-command-generate` | bridge `product.generate` | `plugins/product.ts`                                 |
-| `release`                                   | `rust/crates/lania-plugins-command-release`  | `ReleaseWorkflow`         | `rust/crates/lania-workflows/src/release/`           |
-| `git`                                       | `rust/crates/lania-plugins-command-git`      | `GitWorkflow`             | `rust/crates/lania-workflows/src/git/`               |
-| `git sync` / `commit` / `push`              | `rust/crates/lania-plugins-command-git`      | `SyncWorkflow`            | `rust/crates/lania-workflows/src/sync/`              |     | `tools` / `tools list` | `rust/crates/lania-plugins-command-tools` | bridge `system.listCommands` | `plugins/system.ts` |
-| `tools run`                                 | `rust/crates/lania-plugins-command-tools`    | 本地执行                  | `run.rs`                                             |
-| `tools view`                                | `rust/crates/lania-plugins-command-tools`    | 本地查看 / 系统打开       | `view.rs`                                            |
-| `config`                                    | `rust/crates/lania-plugins-command-locale`   | 本地 preferences          | `lania_preferences`                                  |
+| 命令族                                      | 入口 crate / 文件                                             | handler 落点                 | 继续追踪                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| `dev`                                       | `packages/commands/dev/rust`                                  | bridge `compiler.dev`        | `bridge-slices/compiler/ts/src/plugins/compiler.ts`                           |
+| `product dev`                               | `packages/commands/dev/rust`                                  | 本地 watch / re-exec         | `packages/commands/dev/rust/src/watch.rs`                                     |
+| `build`                                     | `packages/commands/build/rust`                                | bridge `compiler.build`      | `bridge-slices/compiler/ts/src/plugins/compiler.ts`                           |
+| `product build/pack/publish/inspect/doctor` | `packages/commands/build/rust`                                | bridge `product.*`           | `bridge-slices/product/ts/src/plugins/product.ts`                             |
+| `lint`                                      | `packages/commands/lint/rust`                                 | bridge `lint.run`            | `bridge-slices/lint/ts/src/plugins/lint/`                                     |
+| `create`                                    | `packages/commands/create/rust`                               | `CreateWorkflow`             | `capabilities/rust/lania-workflows/src/create/`                               |
+| `add`                                       | `packages/commands/add/rust`                                  | `AddWorkflow`                | `capabilities/rust/lania-workflows/src/create/`                               |
+| `template`（`create` 二级命令）             | `packages/commands/create/rust`                               | bridge `template.list`       | `bridge-slices/template/ts/src/plugins/template.ts`                           |
+| `generate api`                              | 已归档（`archive/generate-command` 分支）                     | —                            | 重新设计后再启用                                                              |
+| `generate module`                           | 已归档（`archive/generate-command` 分支）                     | —                            | 重新设计后再启用                                                              |
+| `release`                                   | `packages/commands/release/rust`                              | `ReleaseWorkflow`            | `capabilities/rust/lania-workflows/src/release.rs`                            |
+| `git`                                       | `packages/commands/git/rust`                                  | `GitWorkflow`                | `capabilities/rust/lania-workflows/src/git/`                                  |
+| `git sync` / `commit` / `push`              | `packages/commands/git/rust`                                  | `SyncWorkflow`               | `capabilities/rust/lania-workflows/src/sync/plan.rs`                          |
+| `tools` / `tools list`                      | `packages/commands/tools/rust`                                | bridge `system.listCommands` | `bridge-slices/system/ts/src/plugins/system.ts`                               |
+| `tools run`                                 | `packages/commands/tools/rust`                                | 本地执行                     | `packages/commands/tools/rust/src/run.rs`                                     |
+| `tools view`                                | `packages/commands/tools/rust`                                | 本地查看 / 系统打开          | `packages/commands/tools/rust/src/view.rs`                                    |
+| `config`                                    | `packages/distribution/cli/rust/lania-plugins-command-locale` | 本地 preferences             | `capabilities/rust/lania-preferences` 与 `packages/foundation/package-config` |
 
 ## 4. 每条主功能链路怎么串
 
@@ -117,27 +121,27 @@ Rust 命令插件统一在 `rust/crates/lania-cli/src/main.rs` 的 `main()` 里�
 
 ```text
 lan dev
--> npm/cli/bin/lan.mjs
+-> launcher 选中 cmd-dev 二进制
 -> lania-cli main()
 -> lania_command::command_context_from_matches()
 -> HostRuntime::execute_command()
--> rust/crates/lania-plugins-command-dev/src/handlers.rs
+-> packages/commands/dev/rust/src/handlers.rs
 -> 构造 compiler.dev request
 -> ctx.call_bridge(...)
--> ts/packages/node-bridge/src/entry/index.ts::handleExchange()
--> ts/packages/node-bridge/src/plugins/compiler.ts
+-> bridge-runtime ts/src/entry/index.ts::handleExchange()
+-> bridge-slices/compiler/ts/src/plugins/compiler.ts
 -> compiler adapter / toolchain
 -> bridge result -> CommandExecution
 ```
 
 关键入口：
 
-- `rust/crates/lania-plugins-command-dev/src/spec.rs`
-- `rust/crates/lania-plugins-command-dev/src/registry.rs`
-- `rust/crates/lania-plugins-command-dev/src/handlers.rs`
-- `rust/crates/lania-plugins-command-dev/src/request.rs`
-- `ts/packages/node-bridge/src/plugins/compiler.ts`
-- `ts/packages/node-bridge/src/plugins/compiler-adapters/`
+- `packages/commands/dev/rust/src/spec.rs`
+- `packages/commands/dev/rust/src/registry.rs`
+- `packages/commands/dev/rust/src/handlers.rs`
+- `packages/commands/dev/rust/src/request.rs`
+- `packages/foundation/bridge-slices/compiler/ts/src/plugins/compiler.ts`
+- `packages/foundation/bridge-slices/compiler/ts/src/plugins/compiler-adapters/`
 
 你在函数级继续追踪时，优先找：
 
@@ -162,33 +166,34 @@ lan product dev
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-dev/src/watch.rs`
+- `packages/commands/dev/rust/src/watch.rs`
 
 ### 4.3 `lan build`
 
 ```text
 lan build
+-> launcher 选中 cmd-build 二进制
 -> main()
 -> HostRuntime::execute_command()
--> rust/crates/lania-plugins-command-build/src/handlers.rs
+-> packages/commands/build/rust/src/handlers.rs
 -> 构造 compiler.build request
 -> ctx.call_bridge(...)
 -> entry/index.ts::handleExchange()
--> plugins/compiler.ts
+-> bridge-slices/compiler/ts/src/plugins/compiler.ts
 -> compiler adapter
 ```
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-build/src/spec.rs`
-- `rust/crates/lania-plugins-command-build/src/registry.rs`
-- `rust/crates/lania-plugins-command-build/src/handlers.rs`
-- `rust/crates/lania-plugins-command-build/src/request.rs`
-- `ts/packages/node-bridge/src/plugins/compiler.ts`
+- `packages/commands/build/rust/src/spec.rs`
+- `packages/commands/build/rust/src/registry.rs`
+- `packages/commands/build/rust/src/handlers.rs`
+- `packages/commands/build/rust/src/request.rs`
+- `packages/foundation/bridge-slices/compiler/ts/src/plugins/compiler.ts`
 
 ### 4.4 `lan product build` / `pack` / `publish` / `inspect` / `doctor`
 
-这组命令都由 `lania-plugins-command-build` 注册，但桥接到 Node 侧 `product` 插件。
+这组命令都由 build 命令包注册，但桥接到 Node 侧 `product` 切片。
 
 ```text
 lan product <subcommand>
@@ -196,19 +201,19 @@ lan product <subcommand>
 -> 构造 product.<method> request
 -> ctx.call_bridge(...)
 -> entry/index.ts::handleExchange()
--> plugins/product.ts
--> plugins/product/handlers/*.ts
+-> bridge-slices/product/ts/src/plugins/product.ts
+-> bridge-slices/product/ts/src/plugins/product/handlers/*.ts
 -> product snapshot / pack / publish / inspect 逻辑
 ```
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-build/src/request.rs`
-- `ts/packages/node-bridge/src/plugins/product.ts`
-- `ts/packages/node-bridge/src/plugins/product/handlers/build.ts`
-- `ts/packages/node-bridge/src/plugins/product/handlers/pack.ts`
-- `ts/packages/node-bridge/src/plugins/product/handlers/publish.ts`
-- `ts/packages/node-bridge/src/plugins/product/handlers/inspect.ts`
+- `packages/commands/build/rust/src/request.rs`
+- `packages/foundation/bridge-slices/product/ts/src/plugins/product.ts`
+- `packages/foundation/bridge-slices/product/ts/src/plugins/product/handlers/build.ts`
+- `packages/foundation/bridge-slices/product/ts/src/plugins/product/handlers/pack.ts`
+- `packages/foundation/bridge-slices/product/ts/src/plugins/product/handlers/publish.ts`
+- `packages/foundation/bridge-slices/product/ts/src/plugins/product/handlers/inspect.ts`
 
 ### 4.5 `lan lint` / `lan lint check` / `lan lint fix`
 
@@ -216,20 +221,18 @@ lan product <subcommand>
 lan lint [check|fix]
 -> main()
 -> HostRuntime::execute_command()
--> rust/crates/lania-plugins-command-lint/src/lib.rs
+-> packages/commands/lint/rust/src/lib.rs
 -> lint_run_request(...)
 -> ctx.call_bridge(...)
 -> entry/index.ts::handleExchange()
--> plugins/lint/plugin.ts
--> plugins/lint/runners.ts
+-> bridge-slices/lint/ts/src/plugins/lint/
 -> 返回诊断与 exitCode
 ```
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-lint/src/lib.rs`
-- `ts/packages/node-bridge/src/plugins/lint/plugin.ts`
-- `ts/packages/node-bridge/src/plugins/lint/runners.ts`
+- `packages/commands/lint/rust/src/lib.rs`
+- `packages/foundation/bridge-slices/lint/ts/src/plugins/lint/`
 
 ### 4.6 `lan create`
 
@@ -253,12 +256,12 @@ lan create
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-create/src/lib.rs`
-- `rust/crates/lania-workflows/src/create/create_workflow.rs`
-- `rust/crates/lania-workflows/src/create/capability.rs`
-- `rust/crates/lania-workflows/src/create/helpers/`
-- `ts/packages/node-bridge/src/plugins/template.ts`
-- `ts/packages/templates/src/`
+- `packages/commands/create/rust/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/create_workflow.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/capability.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/helpers/`
+- `packages/foundation/bridge-slices/template/ts/src/plugins/template.ts`
+- `packages/foundation/templates/src/`
 
 继续追时，重点看：
 
@@ -280,85 +283,35 @@ lan add
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-add/src/lib.rs`
-- `rust/crates/lania-workflows/src/create/add_workflow.rs`
-- `rust/crates/lania-workflows/src/create/capability.rs`
+- `packages/commands/add/rust/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/add_workflow.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/create/capability.rs`
 
-### 4.8 `lan template`
+### 4.8 `lan create template ...`
+
+`template` 是 `create` 的二级命令。
 
 ```text
-lan template [name]
+lan create template [name]
 -> main()
 -> HostRuntime::execute_command()
--> TemplateCommandPlugin handler
+-> create 命令包的 template 子命令 handler
 -> bridge request template.list
 -> entry/index.ts::handleExchange()
--> plugins/template.ts
+-> bridge-slices/template/ts/src/plugins/template.ts
 -> Rust 侧渲染列表或详情
 ```
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-template/src/lib.rs`
-- `ts/packages/node-bridge/src/plugins/template.ts`
+- `packages/commands/create/rust/src/lib.rs`
+- `packages/foundation/bridge-slices/template/ts/src/plugins/template.ts`
 
-### 4.9 `lan generate api ...`
+### 4.9 `lan generate api ...` / `lan generate module ...`（已归档）
 
-```text
-lan generate api <plan|diff|init>
--> main()
--> HostRuntime::execute_command()
--> GenerateCommandPlugin 分发
--> GenerateApiWorkflow::run()
--> generate_api_support/*
--> plan / diff / apply / manifest update
--> workflow result
-```
+`generate` 命令已删除，相关实现归档到本地分支 `archive/generate-command`，重新设计后再启用。此节仅保留路线占位，链路细节随归档分支封存。
 
-关键文件：
-
-- `rust/crates/lania-plugins-command-generate/src/lib.rs`
-- `rust/crates/lania-plugins-command-generate/src/specs.rs`
-- `rust/crates/lania-workflows/src/generate/api.rs`
-- `rust/crates/lania-workflows/src/generate_api_support/`
-
-### 4.10 `lan generate module ...`
-
-```text
-lan generate module <plan|diff|init|apply>
--> main()
--> HostRuntime::execute_command()
--> GenerateCommandPlugin 分发
--> GenerateModuleWorkflow::run()
--> generate_module_prepare / generate_module_manifest
--> 文件生成、注入、manifest 维护
-```
-
-关键文件：
-
-- `rust/crates/lania-workflows/src/generate/module.rs`
-- `rust/crates/lania-workflows/src/generate_module_prepare/`
-- `rust/crates/lania-workflows/src/generate_module_manifest/`
-
-### 4.11 `lan product generate`
-
-```text
-lan product generate
--> main()
--> HostRuntime::execute_command()
--> GenerateCommandPlugin 分发
--> bridge request product.generate
--> entry/index.ts::handleExchange()
--> plugins/product.ts
--> plugins/product/handlers/generate.ts
-```
-
-关键文件：
-
-- `rust/crates/lania-plugins-command-generate/src/lib.rs`
-- `ts/packages/node-bridge/src/plugins/product/handlers/generate.ts`
-
-### 4.12 `lan release ...`
+### 4.10 `lan release ...`
 
 ```text
 lan release <plan|run|resume|status>
@@ -374,13 +327,10 @@ lan release <plan|run|resume|status>
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-release/src/lib.rs`
-- `rust/crates/lania-workflows/src/release/mod.rs`
-- `rust/crates/lania-workflows/src/release/plan.rs`
-- `rust/crates/lania-workflows/src/release/execution.rs`
-- `rust/crates/lania-workflows/src/release/state.rs`
+- `packages/commands/release/rust/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/release.rs`
 
-### 4.13 `lan git ...`
+### 4.11 `lan git ...`
 
 ```text
 lan git <status|log|diff|branch|tag|add|restore|sync|commit|push>
@@ -398,13 +348,13 @@ lan git <status|log|diff|branch|tag|add|restore|sync|commit|push>
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-git/src/lib.rs`
-- `rust/crates/lania-workflows/src/git/mod.rs`
-- `rust/crates/lania-workflows/src/sync/plan.rs`（sync/commit/push 内核）
-- `ts/packages/node-bridge/src/plugins/commitizen.ts`
-- `ts/packages/node-bridge/src/plugins/commitlint.ts`
+- `packages/commands/git/rust/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/git/mod.rs`
+- `packages/foundation/capabilities/rust/lania-workflows/src/sync/plan.rs`（sync/commit/push 内核）
+- `packages/foundation/bridge-slices/commitizen/ts/src/plugins/commitizen.ts`
+- `packages/foundation/bridge-slices/commitlint/ts/src/plugins/commitlint.ts`
 
-### 4.14 `lan tools` / `lan tools list`
+### 4.12 `lan tools` / `lan tools list`
 
 ```text
 lan tools [list]
@@ -414,17 +364,17 @@ lan tools [list]
 -> list::execute()
 -> bridge request system.listCommands
 -> entry/index.ts::handleExchange()
--> plugins/system.ts
+-> bridge-slices/system/ts/src/plugins/system.ts
 -> Rust 侧做 plain / group / unique / namesOnly 变换
 ```
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-tools/src/lib.rs`
-- `rust/crates/lania-plugins-command-tools/src/list.rs`
-- `ts/packages/node-bridge/src/plugins/system.ts`
+- `packages/commands/tools/rust/src/lib.rs`
+- `packages/commands/tools/rust/src/list.rs`
+- `packages/foundation/bridge-slices/system/ts/src/plugins/system.ts`
 
-### 4.15 `lan tools run`
+### 4.13 `lan tools run`
 
 ```text
 lan tools run <file>
@@ -440,13 +390,13 @@ lan tools run <file>
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-tools/src/run.rs`
-- `rust/crates/lania-runtime/src/lib.rs`
-- `rust/crates/lania-runtime/src/registry.rs`
+- `packages/commands/tools/rust/src/run.rs`
+- `packages/foundation/capabilities/rust/lania-runtime/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-runtime/src/registry.rs`
 
 这是纯宿主路径，不走 bridge，不走 workflow。运行时识别/计划/执行统一由 `lania-runtime` 提供，`host.runtime.*` 与 `ctx.tools.runtime` 复用同一实现。
 
-### 4.16 `lan tools view`
+### 4.14 `lan tools view`
 
 ```text
 lan tools view <path>
@@ -460,9 +410,9 @@ lan tools view <path>
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-tools/src/view.rs`
+- `packages/commands/tools/rust/src/view.rs`
 
-### 4.17 `lan config` / `config get` / `config set`
+### 4.15 `lan config` / `config get` / `config set`
 
 ```text
 lan config ...
@@ -474,17 +424,18 @@ lan config ...
 
 关键文件：
 
-- `rust/crates/lania-plugins-command-locale/src/lib.rs`
-- `rust/crates/lania-config/src/service.rs`
+- `packages/distribution/cli/rust/lania-plugins-command-locale/src/lib.rs`
+- `packages/foundation/capabilities/rust/lania-config/src/service.rs`
+- `packages/foundation/package-config/`（lania-package-config 偏好引擎与 lania-command-config 共享 config 实现）
 
-这组命令也是纯本地路径。
+这组命令也是纯本地路径。各命令子包自带 `config` 二级命令（bare/get/set/init/doctor/sync + `--global`），总包额外提供 `lan config packages/apply` 与 `--package` 归一化。
 
 ## 5. Node Bridge 总分发图
 
-所有桥接命令最终都会落到：
+Node Bridge 是「核 + 切片」结构：协议核在 `bridge-runtime`，能力按 12 个切片拆在 `bridge-slices/*`。所有桥接命令最终都会落到：
 
-- `ts/packages/node-bridge/src/entry/stdio.ts`
-- `ts/packages/node-bridge/src/entry/index.ts`
+- `packages/foundation/bridge-runtime/ts/src/entry/stdio.ts`
+- `packages/foundation/bridge-runtime/ts/src/entry/index.ts`
 
 关键函数是：
 
@@ -503,18 +454,20 @@ bridge request
 
 插件注册中心在：
 
-- `ts/packages/node-bridge/src/core/plugin-registry.ts`
+- `packages/foundation/bridge-runtime/ts/src/core/plugin-registry.ts`
 
-内建插件包括：
+内建切片包括（`packages/foundation/bridge-slices/`）：
 
-- `config`
-- `dynamic-commands`
-- `lifecycle`
 - `compiler`
-- `product`
 - `lint`
-- `system`
 - `template`
+- `product`
+- `toolchain`
+- `system`
+- `lifecycle`
+- `config`
+- `agent`
+- `dynamic-commands`
 - `commitizen`
 - `commitlint`
 
@@ -529,7 +482,7 @@ main()
 -> host.bootstrap_project_extensions_from_cwd_async(...)
 -> runtime/config/project_extensions_dynamic_commands.rs::bootstrap_dynamic_commands()
 -> node bridge request "commands.resolveDynamic"
--> plugins/dynamic-commands/index.ts
+-> bridge-slices/dynamic-commands/ts/src/plugins/dynamic-commands/index.ts
 -> resolveDynamicCommands()
 -> Rust 注册 command specs
 -> Rust 注册 handlers
@@ -538,9 +491,9 @@ main()
 
 关键文件：
 
-- `rust/crates/lania-host/src/runtime/config/project_extensions_dynamic_commands.rs`
-- `ts/packages/node-bridge/src/plugins/dynamic-commands/index.ts`
-- `ts/packages/node-bridge/src/plugins/dynamic-commands/parse.ts`
+- `packages/distribution/cli/rust/lania-host/src/runtime/config/project_extensions_dynamic_commands.rs`
+- `packages/foundation/bridge-slices/dynamic-commands/ts/src/plugins/dynamic-commands/index.ts`
+- `packages/foundation/bridge-slices/dynamic-commands/ts/src/plugins/dynamic-commands/parse.ts`
 
 ### 6.2 运行时的 invoke 链路
 
@@ -557,22 +510,22 @@ main()
 
 关键文件：
 
-- `rust/crates/lania-host/src/runtime/dynamic/command.rs`
-- `rust/crates/lania-host/src/runtime/dynamic/prompt.rs`
-- `ts/packages/node-bridge/src/plugins/dynamic-commands/execute.ts`
-- `ts/packages/node-bridge/src/plugins/dynamic-commands/execute-runner.ts`
+- `packages/distribution/cli/rust/lania-host/src/runtime/dynamic/command.rs`
+- `packages/distribution/cli/rust/lania-host/src/runtime/dynamic/prompt.rs`
+- `packages/foundation/bridge-slices/dynamic-commands/ts/src/plugins/dynamic-commands/execute.ts`
+- `packages/foundation/bridge-slices/dynamic-commands/ts/src/plugins/dynamic-commands/execute-runner.ts`
 
 ## 7. Host RPC 路线图
 
 Host RPC 是反向链路：不是 Rust 调 Node，而是 Node 执行过程中回调 Rust 宿主能力。
 
 ```text
-Node plugin / dynamic command
--> ts/packages/node-bridge/src/core/host-rpc.ts::hostCall()
+Node slice / dynamic command
+-> bridge-runtime ts/src/core/host-rpc.ts::hostCall()
 -> stdout 写出 host_request
--> rust/crates/lania-node-bridge/src/client/process.rs
+-> lania-node-bridge client process
 -> handle_host_request(...)
--> rust/crates/lania-host/src/runtime/host_rpc.rs::dispatch_host_rpc()
+-> lania-host runtime host_rpc dispatch
 -> host.exec.* / host.fs.* / host.git.* / host.pm.* / ...
 -> host_response
 -> Node pending promise resolve
@@ -580,11 +533,10 @@ Node plugin / dynamic command
 
 关键文件：
 
-- `ts/packages/node-bridge/src/core/host-rpc.ts`
-- `ts/packages/node-bridge/src/entry/stdio.ts`
-- `rust/crates/lania-node-bridge/src/client/process.rs`
-- `rust/crates/lania-host/src/runtime/host_rpc.rs`
-- `rust/crates/lania-host/src/runtime/host_rpc/`
+- `packages/foundation/bridge-runtime/ts/src/core/host-rpc.ts`
+- `packages/foundation/bridge-runtime/ts/src/entry/stdio.ts`
+- `packages/products/bridge-hub/adaptors/ts/lania-node-bridge/src/client/`
+- `packages/distribution/cli/rust/lania-host/src/runtime/`
 
 常见域包括：
 
@@ -606,16 +558,16 @@ Node plugin / dynamic command
 3. 找 handler 的 `execute()`
 4. 判断它走 bridge、workflow、local 还是 dynamic
 5. 找请求 method 或 workflow `run()`
-6. 再追到 Node 插件或 Rust 子模块
+6. 再追到 Node 切片或 Rust 子模块
 
 ### 8.1 最常用检索切口
 
 ```bash
-rg -n "command_context_from_matches|execute_command" rust ts
-rg -n "call_bridge|handleExchange|handlePluginRequest" rust ts
-rg -n "compiler.dev|compiler.build|lint.run|template.list|system.listCommands|product.generate|product.build|product.pack|product.publish|product.inspect" rust ts
-rg -n "CreateWorkflow::run|AddWorkflow::run|GenerateApiWorkflow::run|GenerateModuleWorkflow::run|ReleaseWorkflow::run|SyncWorkflow::run" rust
-rg -n "commands.resolveDynamic|command.invokeDynamic|host_request|host_response" rust ts
+rg -n "command_context_from_matches|execute_command" packages
+rg -n "call_bridge|handleExchange|handlePluginRequest" packages
+rg -n "compiler.dev|compiler.build|lint.run|template.list|system.listCommands|product.build|product.pack|product.publish|product.inspect" packages
+rg -n "CreateWorkflow::run|AddWorkflow::run|ReleaseWorkflow::run|SyncWorkflow::run" packages
+rg -n "commands.resolveDynamic|command.invokeDynamic|host_request|host_response" packages
 ```
 
 ### 8.2 追变量时的建议
@@ -638,9 +590,9 @@ rg -n "commands.resolveDynamic|command.invokeDynamic|host_request|host_response"
 
 尤其推荐看这些测试：
 
-- `rust/crates/lania-host/src/runtime/tests.rs`
-- `ts/packages/node-bridge/src/entry/index.test.ts`
-- `ts/packages/node-bridge/src/plugins/dynamic-commands-test/`
+- `packages/distribution/cli/rust/lania-host/src/`（宿主运行时测试）
+- `packages/foundation/bridge-runtime/ts/src/entry/index.test.ts`
+- `packages/foundation/bridge-slices/dynamic-commands/ts/src/plugins/dynamic-commands-test/`
 
 ## 9. 推荐阅读顺序
 
@@ -656,8 +608,8 @@ rg -n "commands.resolveDynamic|command.invokeDynamic|host_request|host_response"
 
 1. `lan create`
 2. `lan dev`
-3. `lan generate module`
-4. `lan release`
+3. `lan release`
+4. `lan git`
 5. 动态命令
 
 这五条链把仓库里最重要的边界几乎都覆盖了。
@@ -668,18 +620,15 @@ rg -n "commands.resolveDynamic|command.invokeDynamic|host_request|host_response"
 
 如果你要继续往下追，直接用以下索引页：
 
-- `create`：[create-symbol-index.zh-CN.md](file:///Users/bytedance/Desktop/files/projects/self/lania-zip/lania-cli-v2/docs/guides/create-symbol-index.zh-CN.md)
-- `release`：[release-symbol-index.zh-CN.md](file:///Users/bytedance/Desktop/files/projects/self/lania-zip/lania-cli-v2/docs/guides/release-symbol-index.zh-CN.md)
+- `create`：[create-symbol-index.zh-CN.md](./create-symbol-index.zh-CN.md)
+- `release`：[release-symbol-index.zh-CN.md](./release-symbol-index.zh-CN.md)
 
 建议的下钻顺序：
 
 1. `create`
    - 先看 `TemplateCapability`
    - 再看 `prompt_state`、`template_runtime_options` 和 `write_files_with_hooks(...)`
-2. `generate module`
-   - 先看 `PreparedGenerateModulePlan`
-   - 再看 `render_module_entry(...)` 和 `apply_contract_generation(...)`
-3. `release`
+2. `release`
    - 先看 `ReleasePlan` 和 `ReleaseStateSnapshot`
    - 再看 `stage_commands(...)` 和 `execute_release_plan(...)`
 
