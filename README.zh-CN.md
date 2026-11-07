@@ -42,20 +42,22 @@
 
 ## 架构概览
 
-系统由三部分组成：
+仓库已按包拆分（阶段 1-9 完成），全部能力位于 `packages/`，旧顶层 `rust/`、`ts/`、`npm/` 目录不复存在。每包自带 `lania.package.json`（单一事实源，`description` 字段说明职责）：
 
-1. `rust/`
-   - 提供 `lania-cli` 二进制、HostRuntime、命令解析、工作流编排，以及日志、进度、交互、文件系统、Git、任务调度等宿主能力。
-2. `ts/`
-   - 提供 Node Bridge、配置加载、插件注册、安全校验、模板运行时，以及与 JS 工具链直接交互的能力。
-3. `npm/`
-   - 提供面向最终用户的 `lan` 包装器，负责选择平台二进制并为 Rust 宿主注入 Node Bridge 载荷路径。
+1. 调度层 `packages/distribution/core`
+   - 唯一 `lan` 入口（launcher）：按构建期静态表 `known-commands.json` 调度到已安装子包的平台二进制 `lan-<cmd>`，并注入 Bridge 载荷路径；同时提供子包管理（`lan package`）与聚合帮助。
+2. 命令层 `packages/commands/<cmd>`（11 个）
+   - 每个内置命令一个原子子包：Rust crate（spec/handler）+ npm 包 + `describes/` 快照 + 包级 `configSchema`；`config` 是总包管理面。
+3. 宿主与基建 `packages/foundation/*`
+   - `bridge-runtime`（stdio 协议核）+ `bridge-slices/*`（12 个 TS 切片）、`templates`（10 个模板 + EJS）、`cli-kit`（输出渲染）、`host-core`、`command`、`package-config`、`capabilities/*`（16 个 leaf crate）等。
+4. 产品层 `packages/products/*`
+   - `runex`（自管多运行时管理器）、`bridge-hub`（语言中立消息总线）、`agent`（pi 编码 agent）。
 
 一句话概括：
 
-- Rust 负责命令树、执行编排和统一输出。
-- Node 负责配置加载、模板运行时、编译器、Lint 与动态插件执行。
-- npm 包负责安装和分发体验。
+- Rust（launcher + 子包二进制）负责命令树、执行编排和统一输出。
+- Node 通过各包 payload 里的 bridge 核与切片提供配置加载、模板运行时、编译器、Lint 与动态插件执行。
+- npm 包负责安装和分发体验（`npm i @lania-cli-v2/cmd-<cmd>` 独立安装单个命令）。
 
 ## 快速开始
 
@@ -79,11 +81,11 @@ lan dev
 lan create --name demo-app --template spa-react
 ```
 
-查看模板信息：
+查看模板信息（`template` 是 `create` 的二级命令）：
 
 ```bash
-lan template
-lan template toolkit
+lan create template
+lan create template toolkit
 ```
 
 查看当前终端可直接运行的全局命令：
@@ -154,9 +156,7 @@ NODE_AUTH_TOKEN=xxxxx node ./scripts/configure-npm-auth.mjs \
   --output ./.lania/tmp/npmrc.publish
 
 NPM_CONFIG_USERCONFIG=./.lania/tmp/npmrc.publish \
-./rust/target/debug/lania-cli publish product \
-  --execute \
-  --yes \
+lan product publish --execute --yes \
   --max-retries 2 \
   --retry-delay-ms 2000
 ```
@@ -201,45 +201,46 @@ lan product publish --execute --dry-run --yes
 
 ### 仓库开发环境
 
+Rust workspace 与 pnpm workspace 的根都在**仓库根目录**：
+
 ```bash
-cd ts
 pnpm install
-pnpm build
-cd ../rust
-cargo build -p lania-cli
+pnpm -r build        # 构建全部 TS 包（bridge-runtime、切片、templates 等）
+cargo build --workspace --bins   # 构建全部 Rust 二进制（lan-<cmd> 等）
 ```
 
-如果需要从仓库根目录验证 CLI：
+本地验证 CLI（launcher 按 known-commands 调度，需要先完成上面两步构建）：
 
 ```bash
-cd rust
-cargo run -p lania-cli -- help
-cargo run -p lania-cli -- create --preview --name demo-app
+node packages/distribution/core/npm/core/bin/lan.mjs --help
+node packages/distribution/core/npm/core/bin/lan.mjs create --preview --name demo-app
+# 或直接运行总包二进制（仅注册 config，其余命令走子包二进制）
+cargo run -p lania-cli -- config doctor
 ```
 
 ## 命令总览
 
-| 命令       | 类型        | 作用                                                                                                     |
-| ---------- | ----------- | -------------------------------------------------------------------------------------------------------- |
-| `dev`      | Bridge      | 启动当前项目的开发流程                                                                                   |
-| `build`    | Bridge      | 触发构建或 watch 构建                                                                                    |
-| `lint`     | Bridge      | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复                                                  |
-| `tools`    | 混合命令    | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件 |
-| `env`      | 混合 / TUI  | 查看与管理 Node/Python/Rust/Go/Dart/Kotlin/Java/C 的工具链版本，`lan env ui` 提供终端双栏界面            |
-| `create`   | Workflow    | 以模板创建新项目                                                                                         |
-| `add`      | Workflow    | 向现有仓库补充局部模板、配置或代码片段                                                                   |
-| `template` | Bridge 查询 | 列出模板或查看模板详情                                                                                   |
-| `release`  | Workflow    | 规划、执行、恢复或查询一次发布流程                                                                       |
-| `git`      | Workflow    | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                 |
-| `config`   | Workflow    | 读取或更新 CLI 全局偏好，例如语言和输出模式                                                              |
+| 命令      | 类型       | 作用                                                                                                                                               |
+| --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev`     | Bridge     | 启动当前项目的开发流程（并承载 `lan product dev`）                                                                                                 |
+| `build`   | Bridge     | 触发构建或 watch 构建（并承载 `lan product build/pack/publish/inspect/doctor`）                                                                    |
+| `lint`    | Bridge     | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复                                                                                            |
+| `tools`   | 混合命令   | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件                                           |
+| `env`     | 混合 / TUI | 自管 18 种语言工具链（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir），`lan env ui` 提供终端双栏界面 |
+| `pi`      | Bridge     | 编码 agent（pi 引擎，交互 REPL 或一次性执行）                                                                                                      |
+| `create`  | Workflow   | 以模板创建新项目；`lan create template` 查询模板目录与详情                                                                                         |
+| `add`     | Workflow   | 向现有仓库补充局部模板、配置或代码片段                                                                                                             |
+| `release` | Workflow   | 规划、执行、恢复或查询一次发布流程                                                                                                                 |
+| `git`     | Workflow   | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                                                           |
+| `config`  | 管理面     | 全局偏好、包级偏好与跨包配置的统一管理（`packages` / `apply` / `--package`）                                                                       |
 
 ## 关键链路
 
 ### `dev` / `build` / `lint`
 
-- `lan` 包装器启动 Rust 二进制。
-- Rust Host 完成命令解析，并把请求转发给 Node Bridge。
-- Node Bridge 根据方法名分发到 `compiler` 或 `lint` 插件。
+- launcher（`@lania-cli-v2/core`）按静态表调度到子包二进制（如 `lan-build`）。
+- 子包内的 Rust Host 完成命令解析，并把请求转发给包内 payload 的 Node Bridge。
+- Bridge 根据方法名分发到 `compiler` 或 `lint` 切片。
 - `compiler` / `lint` 插件负责工具链执行。
 - 运行事件和结果通过 Bridge 回传给 Rust，由 Host 统一渲染并生成最终输出。
 
@@ -963,18 +964,18 @@ lan config apply --package env --set locale=zh --set output.mode=human
 
 ## 安装与分发
 
-最终安装形态要求 Rust 二进制和 Node Bridge 载荷共同存在。典型布局如下：
+最终安装形态要求子包二进制和 Node Bridge 载荷共同存在。典型布局如下：
 
 ```text
 <install-root>/
   bin/
-    lan
-    lania-cli
+    lan                    # launcher（@lania-cli-v2/core）
+    lan-<cmd>              # 各命令子包二进制
   lib/
-    node-bridge/
+    bridge/                # 「核 + 切片」payload（阶段 7a 起的统一布局）
       package.json
       dist/
-      node_modules/
+      node_modules/        # bridge-runtime + bridge-slice-* + templates + agent
 ```
 
 Bridge 目录查找顺序如下：

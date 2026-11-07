@@ -56,7 +56,7 @@ In practice:
 | `tools run`, `tools view` | Rust host utilities                                     | detect runtimes, execute local code files, or display/open local files |
 | `create`, `add`           | Rust workflow + template bridge calls                   | multi-runtime project and partial scaffolding                          |
 | `release`, `git`          | Rust workflow                                           | release orchestration and Git automation                               |
-| `template`                | Rust query -> Node Bridge                               | template catalog and template detail lookup                            |
+| `create template`         | Rust query -> Node Bridge                               | template catalog and template detail lookup (a `create` subcommand)    |
 | dynamic commands          | project manifest -> Rust registration -> Node execution | runtime command extension                                              |
 
 ## Project templates
@@ -127,7 +127,7 @@ lan tools run ./scripts/demo.go
 lan tools view ./src/index.ts
 lan create --name demo-app --template spa-react
 lan create --name svc --template go-service --package-manager go
-lan template
+lan create template
 lan release plan --profile package --version 1.2.3
 ```
 
@@ -155,9 +155,7 @@ NODE_AUTH_TOKEN=xxxxx node ./scripts/configure-npm-auth.mjs \
   --output ./.lania/tmp/npmrc.publish
 
 NPM_CONFIG_USERCONFIG=./.lania/tmp/npmrc.publish \
-./rust/target/debug/lania-cli publish product \
-  --execute \
-  --yes \
+lan product publish --execute --yes \
   --max-retries 2 \
   --retry-delay-ms 2000
 ```
@@ -254,13 +252,14 @@ GitHub Actions entry points:
 
 ## Contributor Setup
 
+The Rust workspace and the pnpm workspace both live at the repository root:
+
 ```bash
-cd ts
 pnpm install
-pnpm build
-cd ../rust
-cargo build -p lania-cli
-cargo test -p lania-cli
+pnpm -r build                    # build all TS packages (bridge-runtime, slices, templates, ...)
+cargo build --workspace --bins   # build all Rust binaries (lan-<cmd>, lan-runtime, ...)
+cargo test --workspace
+node packages/distribution/core/npm/core/bin/lan.mjs --help
 ```
 
 ## Dynamic Commands
@@ -284,13 +283,13 @@ The CLI is distributed as a Rust binary plus a colocated Node Bridge payload.
 ```text
 <install-root>/
   bin/
-    lan
-    lania-cli
+    lan                    # launcher (@lania-cli-v2/core)
+    lan-<cmd>              # per-command subpackage binaries
   lib/
-    node-bridge/
+    bridge/                # "core + slices" payload (unified since phase 7a)
       package.json
       dist/
-      node_modules/
+      node_modules/        # bridge-runtime + bridge-slice-* + templates + agent
 ```
 
 Bridge lookup order:
