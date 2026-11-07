@@ -34,12 +34,16 @@ target/
 # Staged npm payloads / release artifacts
 npm/cli/lib/node-bridge/
 npm/cli/*.tgz
-npm/cli-darwin-arm64/bin/lania-cli
-npm/cli-darwin-arm64/*.tgz
-npm/cli-linux-x64/bin/lania-cli
-npm/cli-linux-x64/*.tgz
-npm/cli-win32-x64/bin/lania-cli.exe
-npm/cli-win32-x64/*.tgz
+# 平台二进制包的 bin/ 在发布时填充，仓库态只有 .gitkeep。
+# 阶段 6a-1 后 npm/ 迁入 packages/，旧规则（npm/cli-*/bin/...）对新目录失效；
+# 改用新布局通配，避免本机编译产物（数百 MB 的 debug exe）被意外提交。
+packages/commands/*/npm/cmd-*-darwin-arm64/bin/*
+packages/commands/*/npm/cmd-*-linux-x64/bin/*
+packages/commands/*/npm/cmd-*-win32-x64/bin/*
+packages/distribution/cli/npm/cli-darwin-arm64/bin/*
+packages/distribution/cli/npm/cli-linux-x64/bin/*
+packages/distribution/cli/npm/cli-win32-x64/bin/*
+packages/distribution/cli/npm/cli-*/*.tgz
 .lania/platform-binaries/
 
 # Package manager / tooling caches
