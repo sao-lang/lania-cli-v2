@@ -1,0 +1,193 @@
+{
+  "protocol": 1,
+  "coreVersion": "0.0.3",
+  "commands": [
+    {
+      "command": "dev",
+      "package": "@lania-cli-v2/cmd-dev",
+      "bin": "lan-dev",
+      "npmBin": "lan-dev.mjs",
+      "order": 1,
+      "describe": "describes/dev.json",
+      "about": "Start the project development workflow",
+      "needsNodeBridge": true,
+      "slices": ["compiler", "product", "config", "lifecycle"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-dev-darwin-arm64",
+        "@lania-cli-v2/cmd-dev-linux-x64",
+        "@lania-cli-v2/cmd-dev-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "build",
+      "package": "@lania-cli-v2/cmd-build",
+      "bin": "lan-build",
+      "npmBin": "lan-build.mjs",
+      "order": 2,
+      "describe": "describes/build.json",
+      "about": "Run the project build workflow",
+      "needsNodeBridge": true,
+      "slices": ["compiler", "product", "config", "lifecycle"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-build-darwin-arm64",
+        "@lania-cli-v2/cmd-build-linux-x64",
+        "@lania-cli-v2/cmd-build-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "lint",
+      "package": "@lania-cli-v2/cmd-lint",
+      "bin": "lan-lint",
+      "npmBin": "lan-lint.mjs",
+      "order": 3,
+      "describe": "describes/lint.json",
+      "about": "Run project lint checks",
+      "needsNodeBridge": true,
+      "slices": ["lint", "toolchain", "config"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-lint-darwin-arm64",
+        "@lania-cli-v2/cmd-lint-linux-x64",
+        "@lania-cli-v2/cmd-lint-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "create",
+      "package": "@lania-cli-v2/cmd-create",
+      "bin": "lan-create",
+      "npmBin": "lan-create.mjs",
+      "order": 4,
+      "describe": "describes/create.json",
+      "about": "Create a new project from a template",
+      "needsNodeBridge": true,
+      "slices": ["template", "dynamic-commands", "toolchain", "config"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-create-darwin-arm64",
+        "@lania-cli-v2/cmd-create-linux-x64",
+        "@lania-cli-v2/cmd-create-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "add",
+      "package": "@lania-cli-v2/cmd-add",
+      "bin": "lan-add",
+      "npmBin": "lan-add.mjs",
+      "order": 5,
+      "describe": "describes/add.json",
+      "about": "Add generated content into an existing workspace",
+      "needsNodeBridge": false,
+      "slices": [],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-add-darwin-arm64",
+        "@lania-cli-v2/cmd-add-linux-x64",
+        "@lania-cli-v2/cmd-add-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "generate",
+      "package": "@lania-cli-v2/cmd-generate",
+      "bin": "lan-generate",
+      "npmBin": "lan-generate.mjs",
+      "order": 6,
+      "describe": "describes/generate.json",
+      "about": "Generate project artifacts",
+      "needsNodeBridge": true,
+      "slices": ["product", "dynamic-commands", "toolchain", "config"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-generate-darwin-arm64",
+        "@lania-cli-v2/cmd-generate-linux-x64",
+        "@lania-cli-v2/cmd-generate-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "release",
+      "package": "@lania-cli-v2/cmd-release",
+      "bin": "lan-release",
+      "npmBin": "lan-release.mjs",
+      "order": 7,
+      "describe": "describes/release.json",
+      "about": "Project release orchestration",
+      "needsNodeBridge": false,
+      "slices": [],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-release-darwin-arm64",
+        "@lania-cli-v2/cmd-release-linux-x64",
+        "@lania-cli-v2/cmd-release-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "git",
+      "package": "@lania-cli-v2/cmd-git",
+      "bin": "lan-git",
+      "npmBin": "lan-git.mjs",
+      "order": 8,
+      "describe": "describes/git.json",
+      "about": "Inspect and sync git state",
+      "needsNodeBridge": false,
+      "slices": [],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-git-darwin-arm64",
+        "@lania-cli-v2/cmd-git-linux-x64",
+        "@lania-cli-v2/cmd-git-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "tools",
+      "package": "@lania-cli-v2/cmd-tools",
+      "bin": "lan-tools",
+      "npmBin": "lan-tools.mjs",
+      "order": 9,
+      "describe": "describes/tools.json",
+      "about": "List commands, run files by type, or view local files",
+      "needsNodeBridge": true,
+      "slices": ["system", "dynamic-commands", "toolchain", "config"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-tools-darwin-arm64",
+        "@lania-cli-v2/cmd-tools-linux-x64",
+        "@lania-cli-v2/cmd-tools-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "env",
+      "package": "@lania-cli-v2/cmd-env",
+      "bin": "lan-env",
+      "npmBin": "lan-env.mjs",
+      "order": 11,
+      "describe": "describes/env.json",
+      "about": "Install and switch language runtimes managed by lania itself (node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir)",
+      "needsNodeBridge": false,
+      "slices": [],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-env-darwin-arm64",
+        "@lania-cli-v2/cmd-env-linux-x64",
+        "@lania-cli-v2/cmd-env-win32-x64"
+      ],
+      "protocol": 1
+    },
+    {
+      "command": "pi",
+      "package": "@lania-cli-v2/cmd-pi",
+      "bin": "lan-pi",
+      "npmBin": "lan-pi.mjs",
+      "order": 12,
+      "describe": "describes/pi.json",
+      "about": "Run the coding agent (interactive REPL or one-shot)",
+      "needsNodeBridge": true,
+      "slices": ["agent", "toolchain"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-pi-darwin-arm64",
+        "@lania-cli-v2/cmd-pi-linux-x64",
+        "@lania-cli-v2/cmd-pi-win32-x64"
+      ],
+      "protocol": 1
+    }
+  ]
+}

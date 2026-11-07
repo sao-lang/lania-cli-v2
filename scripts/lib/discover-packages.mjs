@@ -72,7 +72,9 @@ export function validatePackage(entry) {
     if (!Number.isInteger(manifest.api.protocol) || manifest.api.protocol < 1) {
       fail('api.protocol 必须是 >= 1 的整数');
     }
-    if (!rust?.lib) fail('缺少 api.rust.lib');
+    // Rust 段是可选的：纯 JS 分发包（如 core 调度器）没有 crate。
+    // 一旦声明了 Rust 段，就必须给出 lib 与 api 三元组（文档 §6.1）。
+    if (rust !== undefined && !rust?.lib) fail('缺少 api.rust.lib');
     if (rust?.api) {
       for (const key of ['factory', 'spec', 'surface']) {
         if (rust.api[key] === undefined) fail(`缺少 api.rust.api.${key}`);

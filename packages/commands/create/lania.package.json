@@ -41,5 +41,9 @@
       "@lania-cli-v2/cmd-create-linux-x64",
       "@lania-cli-v2/cmd-create-win32-x64"
     ]
+  },
+  "payload": {
+    "slices": ["template", "dynamic-commands", "toolchain", "config"],
+    "nodeBridge": true
   }
 }

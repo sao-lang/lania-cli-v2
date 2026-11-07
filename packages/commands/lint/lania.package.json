@@ -41,5 +41,9 @@
       "@lania-cli-v2/cmd-lint-linux-x64",
       "@lania-cli-v2/cmd-lint-win32-x64"
     ]
+  },
+  "payload": {
+    "slices": ["lint", "toolchain", "config"],
+    "nodeBridge": true
   }
 }

@@ -14,8 +14,8 @@
     "node": ">=20"
   },
   "optionalDependencies": {
-    "@lania-cli-v2/cmd-lint-darwin-arm64": "0.0.3",
-    "@lania-cli-v2/cmd-lint-linux-x64": "0.0.3",
-    "@lania-cli-v2/cmd-lint-win32-x64": "0.0.3"
+    "@lania-cli-v2/cmd-lint-darwin-arm64": "workspace:*",
+    "@lania-cli-v2/cmd-lint-linux-x64": "workspace:*",
+    "@lania-cli-v2/cmd-lint-win32-x64": "workspace:*"
   }
 }

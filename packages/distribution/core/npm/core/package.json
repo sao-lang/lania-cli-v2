@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/core",
+  "version": "0.0.3",
+  "private": false,
+  "description": "Lania CLI 核心调度器（唯一 lan 入口；总包直启 + 按需命令调度）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan": "./bin/lan.mjs"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@lania-cli-v2/cmd-env": "workspace:*"
+  }
+}

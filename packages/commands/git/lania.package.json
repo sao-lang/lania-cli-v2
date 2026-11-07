@@ -41,5 +41,9 @@
       "@lania-cli-v2/cmd-git-linux-x64",
       "@lania-cli-v2/cmd-git-win32-x64"
     ]
+  },
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
   }
 }

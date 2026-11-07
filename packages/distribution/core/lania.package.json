@@ -1,0 +1,16 @@
+{
+  "name": "core",
+  "kind": "distribution",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "shimHost": "lan",
+  "api": {
+    "protocol": 1
+  },
+  "npm": {
+    "name": "@lania-cli-v2/core",
+    "bin": {
+      "lan": "npm/core/bin/lan.mjs"
+    }
+  }
+}

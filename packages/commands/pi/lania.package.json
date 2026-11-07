@@ -41,5 +41,9 @@
       "@lania-cli-v2/cmd-pi-linux-x64",
       "@lania-cli-v2/cmd-pi-win32-x64"
     ]
+  },
+  "payload": {
+    "slices": ["agent", "toolchain"],
+    "nodeBridge": true
   }
 }

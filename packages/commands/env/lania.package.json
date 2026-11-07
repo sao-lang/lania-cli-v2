@@ -28,17 +28,24 @@
       }
     }
   },
-  "rust": { "crates": ["rust"] },
+  "rust": {
+    "crates": ["rust"]
+  },
   "npm": {
     "name": "@lania-cli-v2/cmd-env",
-    "bin": { "lan-env": "npm/cmd-env/bin/lan-env.mjs" },
+    "bin": {
+      "lan-env": "npm/cmd-env/bin/lan-env.mjs"
+    },
     "platformPackages": [
       "@lania-cli-v2/cmd-env-darwin-arm64",
       "@lania-cli-v2/cmd-env-linux-x64",
       "@lania-cli-v2/cmd-env-win32-x64"
     ]
   },
-  "payload": { "slices": [], "nodeBridge": false },
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
+  },
   "configSchema": {
     "scope": "package",
     "path": "~/.lania/config/env.json",

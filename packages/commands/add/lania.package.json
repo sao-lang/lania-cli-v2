@@ -41,5 +41,9 @@
       "@lania-cli-v2/cmd-add-linux-x64",
       "@lania-cli-v2/cmd-add-win32-x64"
     ]
+  },
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
   }
 }

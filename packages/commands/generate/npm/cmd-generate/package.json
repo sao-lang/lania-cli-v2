@@ -14,8 +14,8 @@
     "node": ">=20"
   },
   "optionalDependencies": {
-    "@lania-cli-v2/cmd-generate-darwin-arm64": "0.0.3",
-    "@lania-cli-v2/cmd-generate-linux-x64": "0.0.3",
-    "@lania-cli-v2/cmd-generate-win32-x64": "0.0.3"
+    "@lania-cli-v2/cmd-generate-darwin-arm64": "workspace:*",
+    "@lania-cli-v2/cmd-generate-linux-x64": "workspace:*",
+    "@lania-cli-v2/cmd-generate-win32-x64": "workspace:*"
   }
 }
