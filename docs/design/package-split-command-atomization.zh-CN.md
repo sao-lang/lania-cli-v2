@@ -1787,6 +1787,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 - ✅ 阶段 5c：总包 Rust 三件套（lania-cli / lania-host facade / locale=config 命令）迁入 `packages/distribution/cli/rust/`；顶层 `rust/crates/` 清空删除；`ts/` 已于阶段 4a 删除。Cargo workspace 根暂留 `rust/`（workspace 指针模式），根 Cargo.toml 上移 + glob members 随阶段 6 收口。
 - ✅ 阶段 5a：12 个命令子包双形态代码完成。冻结导出面（COMMAND_NAME/factory/spec + frozen_export_surface 守卫测试 39 项）、`lan-<cmd>` 独立二进制 ×12（runex-home 激活 + B11 Rust bridge 短路 + `--describe` + EmptyPlugin/factory 装配 + py/go/dart best-effort 登记 + run_single_command）、lania.package.json ×12（order 唯一）、npm cmd-\* ×12 + 平台包 ×36、describes ×12 全部由 bin `--describe` 真实生成；check-package-manifests 17 包 OK。
 - ✅ 阶段 6a/6b/6c：`packages/distribution/core/`（`@lania-cli-v2/core`）提供唯一 `lan` 入口——总包模式直启、调度模式按构建期静态表 `known-commands.json`（11 条，config 留总包不入表）路由到 `lan-<cmd>[.exe]`，平台包从命令包自身目录解析；总包移除 `bin.lan` 改依赖 core；`scripts/gen-known-commands.mjs` + `scripts/smoke-core-dispatch.mjs`（「只装 core+cmd-env」smoke 通过）；各命令 `payload.slices` 按实际 bridge method 推导。
+- ✅ 阶段 6d：`packages/runtime/`（`@lania-cli-v2/runtime`，kind=`command-runtime`）落地——Rust crate `lania-command-runtime`（`lan-runtime --list/--resolve/执行`，动态命令解析复用 node-bridge `commands.resolveDynamic`，执行走 cli-kit `run_single_command`）+ npm 包 + 3 平台包 + describes；launcher Phase 2 动态回退（F.2）接入（Phase 1 未命中/builtin 未装 → 询问 runtime 设施；设施未装提示 `npm i @lania-cli-v2/runtime`）；core 对 runtime 为可选依赖。
 - ⬜ 其余阶段按本表推进。
 
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
