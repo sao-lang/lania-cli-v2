@@ -19,6 +19,6 @@ lania-package-config = { path = "../../../foundation/package-config/rust/lania-p
 runex-home = { path = "../../../foundation/runex-home/rust/runex-home" }
 tokio.workspace = true
 lania-command = { path = "../../../../packages/foundation/command/rust/lania-command" }
-lania-host = { path = "../../../../rust/crates/lania-host" }
+lania-host = { path = "../../../../packages/distribution/cli/rust/lania-host" }
 runex = { path = "../../../../packages/products/runex/rust/runex" }
 serde_json.workspace = true

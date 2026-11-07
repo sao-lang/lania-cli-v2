@@ -11,7 +11,7 @@ authors.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 lania-command = { path = "../../../../packages/foundation/command/rust/lania-command" }
-lania-host = { path = "../../../../rust/crates/lania-host" }
+lania-host = { path = "../../../../packages/distribution/cli/rust/lania-host" }
 lania-logger = { path = "../../../../packages/foundation/capabilities/rust/lania-logger" }
 lania-node-bridge = { path = "../../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
 lania-presentation = { path = "../../../../packages/foundation/capabilities/rust/lania-presentation" }

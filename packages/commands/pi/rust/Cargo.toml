@@ -17,5 +17,5 @@ serde_json.workspace = true
 lania-agent = { path = "../../../../packages/products/agent/rust/lania-agent" }
 lania-agent-core = { path = "../../../../packages/products/agent/rust/lania-agent-core" }
 lania-command = { path = "../../../../packages/foundation/command/rust/lania-command" }
-lania-host = { path = "../../../../rust/crates/lania-host" }
+lania-host = { path = "../../../../packages/distribution/cli/rust/lania-host" }
 lania-node-bridge = { path = "../../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }

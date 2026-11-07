@@ -14,7 +14,7 @@ authors.workspace = true
 # 本 crate 不参与任何产物：不发布、不被任何业务 crate 依赖。
 [dependencies]
 lania-command = { path = "../../../command/rust/lania-command" }
-lania-host = { path = "../../../../../rust/crates/lania-host" }
+lania-host = { path = "../../../../../packages/distribution/cli/rust/lania-host" }
 lania-plugins-command-add = { path = "../../../../../packages/commands/add/rust" }
 lania-plugins-command-build = { path = "../../../../../packages/commands/build/rust" }
 lania-plugins-command-create = { path = "../../../../../packages/commands/create/rust" }
@@ -23,7 +23,7 @@ lania-plugins-command-env = { path = "../../../../../packages/commands/env/rust"
 lania-plugins-command-generate = { path = "../../../../../packages/commands/generate/rust" }
 lania-plugins-command-git = { path = "../../../../../packages/commands/git/rust" }
 lania-plugins-command-lint = { path = "../../../../../packages/commands/lint/rust" }
-lania-plugins-command-locale = { path = "../../../../../rust/crates/lania-plugins-command-locale" }
+lania-plugins-command-locale = { path = "../../../../../packages/distribution/cli/rust/lania-plugins-command-locale" }
 lania-plugins-command-pi = { path = "../../../../../packages/commands/pi/rust" }
 lania-plugins-command-release = { path = "../../../../../packages/commands/release/rust" }
 lania-plugins-command-tools = { path = "../../../../../packages/commands/tools/rust" }

@@ -1,0 +1,34 @@
+[package]
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../../rust"
+name = "lania-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+ignore.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+lania-bridge-host = { path = "../../../../../packages/products/bridge-hub/rust/lania-bridge-host" }
+lania-host-core = { path = "../../../../../packages/foundation/host-core/rust/lania-host-core" }
+lania-command = { path = "../../../../../packages/foundation/command/rust/lania-command" }
+lania-config = { path = "../../../../../packages/foundation/capabilities/rust/lania-config" }
+lania-hooks = { path = "../../../../../packages/foundation/capabilities/rust/lania-hooks" }
+lania-exec = { path = "../../../../../packages/foundation/capabilities/rust/lania-exec" }
+lania-fs = { path = "../../../../../packages/foundation/capabilities/rust/lania-fs" }
+lania-git = { path = "../../../../../packages/foundation/capabilities/rust/lania-git" }
+lania-logger = { path = "../../../../../packages/foundation/capabilities/rust/lania-logger" }
+lania-pm = { path = "../../../../../packages/foundation/capabilities/rust/lania-pm" }
+lania-progress = { path = "../../../../../packages/foundation/capabilities/rust/lania-progress" }
+lania-prompt = { path = "../../../../../packages/foundation/capabilities/rust/lania-prompt" }
+lania-runtime = { path = "../../../../../packages/foundation/capabilities/rust/lania-runtime" }
+lania-task = { path = "../../../../../packages/foundation/capabilities/rust/lania-task" }
+lania-workflows = { path = "../../../../../packages/foundation/capabilities/rust/lania-workflows" }
+lania-preferences = { path = "../../../../../packages/foundation/capabilities/rust/lania-preferences" }
