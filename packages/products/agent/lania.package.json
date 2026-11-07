@@ -1,0 +1,41 @@
+{
+  "name": "agent",
+  "kind": "product",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "describe": "describes/agent.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust/lania-agent",
+      "lib": "lania-agent",
+      "features": [],
+      "dependencies": ["lania-agent-core"],
+      "api": {
+        "factory": "lania_agent::AgentOptions",
+        "spec": "lania_agent::AgentOptions",
+        "surface": [
+          "AgentOptions",
+          "RunOutcome",
+          "AgentEvent",
+          "Usage",
+          "TurnReport",
+          "UiSink",
+          "NoticeLevel",
+          "is_interactive",
+          "new_session_id"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust/lania-agent-core", "rust/lania-agent"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/agent"
+  },
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
+  }
+}

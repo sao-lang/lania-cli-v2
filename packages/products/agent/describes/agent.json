@@ -1,0 +1,12 @@
+{
+  "name": "agent",
+  "kind": "product",
+  "about": "编码 agent 主包：pi 引擎的 Rust 内核（lania-agent-core）+ 运行时封装（lania-agent）",
+  "capabilities": [
+    "会话与事件流（AgentSessionClient / AgentEvent / Usage）",
+    "配置与工具（AgentConfig / CustomTool / GuardRuleSpec / SubagentConfig）",
+    "提示词与项目上下文（build_system_prompt / ProjectContext / SkillRef）",
+    "TS 侧 pi 引擎（@lania-cli-v2/agent）"
+  ],
+  "consumers": ["lan pi（packages/commands/pi）"]
+}
