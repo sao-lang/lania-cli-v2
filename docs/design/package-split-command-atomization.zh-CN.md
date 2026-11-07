@@ -1785,6 +1785,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 - ✅ 阶段 5b：10 个命令 crate（dev/build/lint/create/add/git/release/generate/template/pi）迁入 `packages/commands/<cmd>/rust/`。`cargo check --workspace` 全绿，conformance 真实命令树覆盖通过。rust/crates 仅余总包三件套（lania-cli/lania-host/locale）待 5c。
 - ✅ 阶段 5d：template 并入 create 二级命令（handler 零改动迁移至 `create/src/template.rs`；BUILTIN 13→12；`lan template` golden 需按 §7 重录为 `lan create template`）。
 - ✅ 阶段 5c：总包 Rust 三件套（lania-cli / lania-host facade / locale=config 命令）迁入 `packages/distribution/cli/rust/`；顶层 `rust/crates/` 清空删除；`ts/` 已于阶段 4a 删除。Cargo workspace 根暂留 `rust/`（workspace 指针模式），根 Cargo.toml 上移 + glob members 随阶段 6 收口。
+- ✅ 阶段 5a：12 个命令子包双形态代码完成。冻结导出面（COMMAND_NAME/factory/spec + frozen_export_surface 守卫测试 39 项）、`lan-<cmd>` 独立二进制 ×12（runex-home 激活 + B11 Rust bridge 短路 + `--describe` + EmptyPlugin/factory 装配 + py/go/dart best-effort 登记 + run_single_command）、lania.package.json ×12（order 唯一）、npm cmd-\* ×12 + 平台包 ×36、describes ×12 全部由 bin `--describe` 真实生成；check-package-manifests 17 包 OK。
 - ⬜ 其余阶段按本表推进。
 
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
