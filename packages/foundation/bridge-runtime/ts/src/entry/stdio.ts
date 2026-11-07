@@ -20,6 +20,7 @@
 import readline from 'node:readline';
 
 import { createHandshakeResponse, handleExchange, readyEvent } from './index.js';
+import { runHubEndpoint } from './hub-stdio.js';
 import { handleHostResponse, installHostRpcTransport } from '../core/host-rpc.js';
 import type { BridgeRequest, HandshakeRequest } from '../protocol/request.js';
 
@@ -33,6 +34,12 @@ type OutgoingEnvelope =
   | { type: 'event'; requestId: string; payload: unknown }
   | { type: 'response'; payload: unknown }
   | { type: 'host_request'; payload: unknown };
+
+// Hub endpoint 模式（决策 #12）：帧层复用 bridge-protocol，1:1 模式保持默认。
+if (process.env.LANIA_BRIDGE_MODE === 'hub') {
+  await runHubEndpoint();
+  process.exit(0);
+}
 
 const rl = readline.createInterface({
   input: process.stdin,
