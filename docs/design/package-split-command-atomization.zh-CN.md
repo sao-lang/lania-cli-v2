@@ -1783,6 +1783,7 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 - ✅ 阶段 4b：12 个切片物理成包 `packages/foundation/bridge-slices/<name>/ts/`（npm `@lania-cli-v2/bridge-slice-*`，含 agent 适配切片）。核侧完成三处依赖倒置：① diag/diagnostics 入核（`core/diag.ts`）；② 动态命令共享类型入核（`core/dynamic-types.ts`）；③ `tools.bridge`/scaffold 的本地插件直调改为核侧本地分发注册表（`core/local-dispatch.ts`，loadSlices 装配时按方法前缀注册）。`SLICE_LOADERS` 改按包名动态 import（B.2 形态）；pack.mjs payload 组装为 `node_modules/@lania-cli-v2/{bridge-runtime,bridge-slice-*,templates,agent}`，总包 `["*"]` 装配顺序与迁移前 `builtinPlugins` 逐项一致（已 smoke 验证 12/12、rejected=0）。测试基线：runtime 25/26 + 各切片全绿（余量失败为迁移前已存在的环境问题：Windows `spawnSync npm ENOENT` ×4、握手方法清单漂移 ×1）。
 - ✅ 主包 Rust 侧：`lania-agent` / `lania-agent-core` 迁入 `packages/products/agent/rust/`（runex、bridge-hub 此前已迁入）。`cargo check --workspace` 全绿。
 - ✅ 阶段 5b：10 个命令 crate（dev/build/lint/create/add/git/release/generate/template/pi）迁入 `packages/commands/<cmd>/rust/`。`cargo check --workspace` 全绿，conformance 真实命令树覆盖通过。rust/crates 仅余总包三件套（lania-cli/lania-host/locale）待 5c。
+- ✅ 阶段 5d：template 并入 create 二级命令（handler 零改动迁移至 `create/src/template.rs`；BUILTIN 13→12；`lan template` golden 需按 §7 重录为 `lan create template`）。
 - ⬜ 其余阶段按本表推进。
 
 **下一阶段施工计划（文档先行：先抽公共，再逐命令拆分）**：
