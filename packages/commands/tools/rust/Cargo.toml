@@ -1,0 +1,19 @@
+[package]
+# 包位于 workspace 根目录之外，显式指向 rust/
+workspace = "../../../../rust"
+name = "lania-plugins-command-tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+lania-command = { path = "../../../../packages/foundation/command/rust/lania-command" }
+lania-exec = { path = "../../../../packages/foundation/capabilities/rust/lania-exec" }
+lania-host = { path = "../../../../rust/crates/lania-host" }
+lania-node-bridge = { path = "../../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
+lania-runtime = { path = "../../../../packages/foundation/capabilities/rust/lania-runtime" }
+serde_json.workspace = true
+regex.workspace = true
