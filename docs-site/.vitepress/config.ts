@@ -1,8 +1,8 @@
-import { defineConfig } from 'vitepress'
+import { defineConfig } from 'vitepress';
 
 // GitHub Pages 部署在 https://<owner>.github.io/<repo>/ 子路径下，构建时通过 DOCS_BASE 指定。
-const rawBase = process.env.DOCS_BASE?.trim() || '/'
-const base = rawBase === '/' ? '/' : `/${rawBase.replace(/^\/+|\/+$/g, '')}/`
+const rawBase = process.env.DOCS_BASE?.trim() || '/';
+const base = rawBase === '/' ? '/' : `/${rawBase.replace(/^\/+|\/+$/g, '')}/`;
 
 export default defineConfig({
   base,
@@ -21,16 +21,16 @@ export default defineConfig({
       'meta',
       {
         property: 'og:description',
-        content: '从命令到架构，系统学习 Lania CLI v2 的双运行时设计。'
-      }
-    ]
+        content: '从命令到架构，系统学习 Lania CLI v2 的双运行时设计。',
+      },
+    ],
   ],
   markdown: {
     lineNumbers: true,
     theme: {
       light: 'github-light',
-      dark: 'github-dark'
-    }
+      dark: 'github-dark',
+    },
   },
   themeConfig: {
     logo: '/logo.svg',
@@ -40,7 +40,7 @@ export default defineConfig({
       { text: '命令', link: '/reference/cli', activeMatch: '/reference/' },
       { text: '架构', link: '/architecture/overview', activeMatch: '/architecture/' },
       { text: '实战', link: '/cookbook/create-project', activeMatch: '/cookbook/' },
-      { text: '贡献', link: '/contributing/development', activeMatch: '/contributing/' }
+      { text: '贡献', link: '/contributing/development', activeMatch: '/contributing/' },
     ],
     sidebar: {
       '/guide/': [
@@ -51,8 +51,8 @@ export default defineConfig({
             { text: '命令模型与加载原理', link: '/guide/command-model' },
             { text: '快速上手', link: '/guide/getting-started' },
             { text: '安装与运行原理', link: '/guide/installation' },
-            { text: '创建第一个项目', link: '/guide/first-project' }
-          ]
+            { text: '创建第一个项目', link: '/guide/first-project' },
+          ],
         },
         {
           text: '核心功能',
@@ -62,8 +62,8 @@ export default defineConfig({
             { text: '语言环境管理 env', link: '/guide/env' },
             { text: '多运行时模板与脚手架', link: '/guide/scaffolding' },
             { text: '发布与同步', link: '/guide/release' },
-            { text: '产品 CLI', link: '/guide/product-cli' }
-          ]
+            { text: '产品 CLI', link: '/guide/product-cli' },
+          ],
         },
         {
           text: '进阶',
@@ -73,9 +73,9 @@ export default defineConfig({
             { text: '开发运行时命令', link: '/guide/runtime-commands' },
             { text: 'ctx.tools 宿主能力', link: '/guide/host-tools' },
             { text: '输出、语言与进度', link: '/guide/output-and-locale' },
-            { text: '常见问题', link: '/guide/troubleshooting' }
-          ]
-        }
+            { text: '常见问题', link: '/guide/troubleshooting' },
+          ],
+        },
       ],
       '/reference/': [
         {
@@ -90,9 +90,9 @@ export default defineConfig({
             { text: '环境变量', link: '/reference/environment' },
             { text: '输出与状态文件', link: '/reference/output-and-state' },
             { text: '模板参考', link: '/reference/templates' },
-            { text: 'Schema 与协议', link: '/reference/schemas' }
-          ]
-        }
+            { text: 'Schema 与协议', link: '/reference/schemas' },
+          ],
+        },
       ],
       '/architecture/': [
         {
@@ -102,18 +102,18 @@ export default defineConfig({
             { text: 'Rust 宿主运行时', link: '/architecture/rust-host' },
             { text: 'Node Bridge', link: '/architecture/node-bridge' },
             { text: 'Rust ↔ Node 通信协议', link: '/architecture/bridge-protocol' },
-            { text: '插件与 Hook 系统', link: '/architecture/plugin-system' }
-          ]
-        }
+            { text: '插件与 Hook 系统', link: '/architecture/plugin-system' },
+          ],
+        },
       ],
       '/cookbook/': [
         {
           text: '实战',
           items: [
             { text: '创建项目', link: '/cookbook/create-project' },
-            { text: '打包并发布产品 CLI', link: '/cookbook/product-publish' }
-          ]
-        }
+            { text: '打包并发布产品 CLI', link: '/cookbook/product-publish' },
+          ],
+        },
       ],
       '/contributing/': [
         {
@@ -121,10 +121,10 @@ export default defineConfig({
           items: [
             { text: '本地开发', link: '/contributing/development' },
             { text: '测试与验收', link: '/contributing/testing' },
-            { text: '文档站维护', link: '/contributing/docs' }
-          ]
-        }
-      ]
+            { text: '文档站维护', link: '/contributing/docs' },
+          ],
+        },
+      ],
     },
     search: {
       provider: 'local',
@@ -132,7 +132,7 @@ export default defineConfig({
         translations: {
           button: {
             buttonText: '搜索文档',
-            buttonAriaLabel: '搜索文档'
+            buttonAriaLabel: '搜索文档',
           },
           modal: {
             noResultsText: '没有找到相关内容',
@@ -140,26 +140,26 @@ export default defineConfig({
             footer: {
               selectText: '选择',
               navigateText: '切换',
-              closeText: '关闭'
-            }
-          }
-        }
-      }
+              closeText: '关闭',
+            },
+          },
+        },
+      },
     },
     outline: {
       level: [2, 3],
-      label: '本页大纲'
+      label: '本页大纲',
     },
     docFooter: {
       prev: '上一篇',
-      next: '下一篇'
+      next: '下一篇',
     },
     lastUpdated: {
       text: '最后更新于',
       formatOptions: {
         dateStyle: 'short',
-        timeStyle: 'short'
-      }
+        timeStyle: 'short',
+      },
     },
     darkModeSwitchLabel: '外观',
     lightModeSwitchTitle: '切换到浅色模式',
@@ -169,7 +169,7 @@ export default defineConfig({
     langMenuLabel: '切换语言',
     footer: {
       message: '基于 MIT License 发布 · 文档由 VitePress 构建',
-      copyright: 'Copyright © Lania CLI Team'
-    }
-  }
-})
+      copyright: 'Copyright © Lania CLI Team',
+    },
+  },
+});

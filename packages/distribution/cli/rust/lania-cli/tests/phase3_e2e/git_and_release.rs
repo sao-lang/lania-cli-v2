@@ -213,7 +213,17 @@ fn lan_git_requires_repo_zh_e2e() {
 "#,
     );
 
-    let output = run_cli(&root, &["git", "status"], &[("HOME", home.as_str())]);
+    // temp_dir 可能位于某个 git 仓库工作区内（本机开发时 TMP 常指向 target/tmp），
+    // rev-parse 会命中外层仓库。用指向不存在路径的 GIT_DIR 强制“非仓库”场景，
+    // 覆盖任何目录发现逻辑，且与本机/CI 的临时目录位置无关。
+    let output = run_cli(
+        &root,
+        &["git", "status"],
+        &[
+            ("HOME", home.as_str()),
+            ("GIT_DIR", root.join("missing.git").to_str().expect("git dir path")),
+        ],
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 

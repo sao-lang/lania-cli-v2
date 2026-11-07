@@ -10,6 +10,8 @@ import {
   OFFICIAL_DARWIN_ARM64_PACKAGE_NAME,
   packageRoot,
   repoRoot,
+  resolveNpmBin,
+  resolveNpmSpawnShell,
 } from './constants.js';
 import { copyDirectory, readJsonFile, stageRuntimePackage } from './fs.js';
 import type {
@@ -57,7 +59,8 @@ export async function stageNodeBridgePayload(targetDir: string): Promise<void> {
 export function runNpmPack(outputRoot: string): { filename: string } {
   // `npm pack --json` 返回的是“已生成 tarball 列表”，这里统一只取第一项。
   // 产品包会包含 node-bridge/node_modules，JSON 清单可能超过默认 1MB buffer。
-  const result = spawnSync('npm', ['pack', '--json', '--ignore-scripts'], {
+  const result = spawnSync(resolveNpmBin('npm'), ['pack', '--json', '--ignore-scripts'], {
+    shell: resolveNpmSpawnShell(),
     cwd: outputRoot,
     encoding: 'utf8',
     env: process.env,
@@ -98,8 +101,15 @@ export async function stageOfficialCliBundle(
   // 先暂存“官方 CLI 主包”，它本身不携带平台二进制，只负责 wrapper 和 node-bridge runtime。
   const cliPackageRoot = join(bundleRoot, 'cli-package');
   await mkdir(join(cliPackageRoot, 'bin'), { recursive: true });
-  await copyFile(join(repoRoot, 'npm/cli/bin/lan.mjs'), join(cliPackageRoot, 'bin', 'lan.mjs'));
-  await copyFile(join(repoRoot, 'npm/cli/package.json'), join(cliPackageRoot, 'package.json'));
+  // 阶段 6a 后总包 `@lania-cli-v2/cli` 移除 bin.lan，唯一 `lan` 入口由 core 提供。
+  await copyFile(
+    join(repoRoot, 'packages/distribution/core/npm/core/bin/lan.mjs'),
+    join(cliPackageRoot, 'bin', 'lan.mjs'),
+  );
+  await copyFile(
+    join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'),
+    join(cliPackageRoot, 'package.json'),
+  );
   await stageNodeBridgePayload(join(cliPackageRoot, 'lib', 'node-bridge'));
   const cliTarball = runNpmPack(cliPackageRoot);
 
@@ -363,8 +373,11 @@ export async function resolvePlatformBinarySource(
 }
 
 async function discoverOfficialPlatformPackages(): Promise<OfficialPlatformPackageDescriptor[]> {
-  // 根据 npm/cli/package.json 的 optionalDependencies 反推“官方支持的平台矩阵”。
-  const cliPackage = await readJsonFile(join(repoRoot, 'npm/cli/package.json'));
+  // 根据总包 package.json 的 optionalDependencies 反推“官方支持的平台矩阵”。
+  // （阶段 6a-1 后顶层 npm/ 迁入 packages/distribution/cli/npm/。）
+  const cliPackage = await readJsonFile(
+    join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'),
+  );
   const optionalDependencies = asRecord(cliPackage.optionalDependencies);
   const result: OfficialPlatformPackageDescriptor[] = [];
 
@@ -373,7 +386,7 @@ async function discoverOfficialPlatformPackages(): Promise<OfficialPlatformPacka
       continue;
     }
     const packageDirName = packageName.replace('@lania-cli-v2/', '');
-    const packageRootDir = join(repoRoot, 'npm', packageDirName);
+    const packageRootDir = join(repoRoot, 'packages/distribution/cli/npm', packageDirName);
     const packageExists = await fileExists(join(packageRootDir, 'package.json'));
     const packageJson = packageExists
       ? await readJsonFile(join(packageRootDir, 'package.json'))

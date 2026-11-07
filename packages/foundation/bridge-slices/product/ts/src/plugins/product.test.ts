@@ -39,7 +39,7 @@ async function readNodeBridgeVersion(): Promise<string> {
 /** 读取官方 CLI 包版本（发布 tarball 名里带的就是它）。 */
 async function readCliPackageVersion(): Promise<string> {
   const pkg = JSON.parse(
-    await readFile(path.join(repoRoot, 'npm', 'cli', 'package.json'), 'utf8'),
+    await readFile(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'), 'utf8'),
   ) as { version?: string };
   assert.equal(typeof pkg.version, 'string', 'npm/cli package.json must declare a version');
   return pkg.version!;
@@ -554,11 +554,17 @@ test('product.publish creates a publish-ready npm package layout from packed out
   const restoreNpm = await installFakeNpm(cwd);
   t.after(restoreNpm);
   const cliPackageJson = JSON.parse(
-    await readFile(path.join(repoRoot, 'npm', 'cli', 'package.json'), 'utf8'),
+    await readFile(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'), 'utf8'),
   ) as { optionalDependencies?: Record<string, string> };
   const stagingBinaries = Object.keys(cliPackageJson.optionalDependencies ?? {}).map(
     (packageName) =>
-      path.join(repoRoot, 'npm', packageName.replace('@lania-cli-v2/', ''), 'bin', 'lania-cli'),
+      path.join(
+        repoRoot,
+        'packages/distribution/cli/npm',
+        packageName.replace('@lania-cli-v2/', ''),
+        'bin',
+        'lania-cli',
+      ),
   );
   const originalStagingBinaries = new Map<string, Buffer>();
   for (const stagingBinary of new Set(stagingBinaries)) {

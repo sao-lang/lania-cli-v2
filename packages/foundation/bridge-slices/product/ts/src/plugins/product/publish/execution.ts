@@ -1,3 +1,4 @@
+import { resolveNpmBin, resolveNpmSpawnShell } from '../constants.js';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -207,7 +208,8 @@ function runNpmPublishStep(
   if (options.otp && !args.includes('--otp')) {
     args.push('--otp', options.otp);
   }
-  const result = spawnSync(options.npmBin ?? step.command.program, args, {
+  const result = spawnSync(resolveNpmBin(options.npmBin ?? step.command.program), args, {
+    shell: resolveNpmSpawnShell(),
     cwd: options.cwd,
     encoding: 'utf8',
     env: process.env,
@@ -311,11 +313,16 @@ function runPublishPreflight(
   }
 
   const registry = manifest.steps[0]?.publishConfig.registry ?? 'https://registry.npmjs.org/';
-  const whoami = spawnSync(options.npmBin ?? 'npm', ['whoami', '--registry', registry], {
-    cwd: options.cwd,
-    encoding: 'utf8',
-    env: process.env,
-  });
+  const whoami = spawnSync(
+    resolveNpmBin(options.npmBin ?? 'npm'),
+    ['whoami', '--registry', registry],
+    {
+      shell: resolveNpmSpawnShell(),
+      cwd: options.cwd,
+      encoding: 'utf8',
+      env: process.env,
+    },
+  );
   if (whoami.status !== 0) {
     throw new Error(
       `Publish preflight npm whoami failed for ${registry}: ${
@@ -334,7 +341,7 @@ function runPublishPreflight(
       continue;
     }
     const view = spawnSync(
-      options.npmBin ?? 'npm',
+      resolveNpmBin(options.npmBin ?? 'npm'),
       [
         'view',
         `${step.packageName}@${pkg.version}`,
@@ -346,6 +353,7 @@ function runPublishPreflight(
         cwd: options.cwd,
         encoding: 'utf8',
         env: process.env,
+        shell: resolveNpmSpawnShell(),
       },
     );
     if (view.status === 0 && view.stdout.trim().length > 0) {
@@ -419,7 +427,8 @@ function executeNpmRollbackPlan(
   // 真正执行 rollback 时仍然是 best-effort；
   // 即便失败，也会把计划和失败原因保留下来，供用户人工处理。
   for (const rollback of rollbackPlan.commands) {
-    const result = spawnSync(options.npmBin ?? 'npm', rollback.command, {
+    const result = spawnSync(resolveNpmBin(options.npmBin ?? 'npm'), rollback.command, {
+      shell: resolveNpmSpawnShell(),
       cwd: options.cwd,
       encoding: 'utf8',
       env: process.env,

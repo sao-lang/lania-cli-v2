@@ -55,8 +55,9 @@ test('handshake exposes the current public method and event contract', async () 
     'agent.session.create',
     'agent.prompt',
     'agent.interrupt',
-    'agent.session.dispose',
+    'agent.state',
     'agent.models.list',
+    'agent.session.dispose',
   ]);
 
   assert.deepEqual(response.events, [
@@ -77,10 +78,15 @@ test('handshake exposes the current public method and event contract', async () 
     'event.lint_result',
     'event.lint_summary',
     'event.watch_change',
+    'event.agent_start',
     'event.agent_text_delta',
+    'event.agent_thinking_delta',
     'event.agent_tool_start',
+    'event.agent_tool_update',
     'event.agent_tool_end',
+    'event.agent_turn_end',
     'event.agent_end',
+    'event.agent_error',
     'event.shutdown',
     'event.heartbeat',
     'event.diag',

@@ -11,7 +11,7 @@
 //! - “发给 bridge 的参数是什么”看 `request.rs`
 //! - “watch 为什么会重启”看 `watch.rs`
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use lania_host::{
     capability::CapabilityName,
@@ -30,7 +30,8 @@ use crate::DevCommandPlugin;
 
 pub(crate) struct DevCommandHandler;
 pub(crate) struct ProductDevCommandHandler;
-pub(crate) struct ProductRootCommandHandler;
+// 复用 lania-host 的共享 root handler（spec/handler 只写一份）。
+pub(crate) use lania_host::ProductRootCommandHandler;
 
 /// 非 web runtime 的 adapter 会在 result 里带 `success` 字段。
 /// 缺失该字段视为成功（保持 web 既有行为）。
@@ -77,21 +78,6 @@ impl CommandHandler for ProductDevCommandHandler {
             return run_product_dev_watch(ctx, options).await;
         }
         run_product_dev_once(ctx, options)
-    }
-}
-
-#[async_trait(?Send)]
-impl CommandHandler for ProductRootCommandHandler {
-    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
-        // `lan product` 根命令只是分组；不带子命令时直接提示正确用法。
-        bail!(
-            "{}",
-            if ctx.locale() == "zh" {
-                "缺少 product 子命令，请使用 `lan product <dev|build|pack|publish|inspect|doctor>`"
-            } else {
-                "missing product subcommand, try `lan product <dev|build|pack|publish|inspect|doctor>`"
-            }
-        );
     }
 }
 

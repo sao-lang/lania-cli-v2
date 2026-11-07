@@ -534,9 +534,10 @@ fn bridge_package_dir_unlocked() -> Result<PathBuf> {
 
     // 本 crate 已整体并入 packages/products/bridge-hub/adaptors/ts/（§3.2 / §5.1 A.1），
     // 从 crate 根回到仓库根需要 6 层：ts → adaptors → bridge-hub → products → packages → root。
+    // 开发态 payload 即 bridge-runtime 包（阶段 4a 后 node-bridge 拆为核 + 切片）。
     let dev_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../../../")
-        .join("ts/packages/node-bridge");
+        .join("packages/foundation/bridge-runtime/ts");
     if dev_dir.exists() {
         return Ok(dev_dir);
     }
@@ -569,6 +570,9 @@ pub(super) fn bridge_package_dir_for_test() -> Result<PathBuf> {
 pub(super) fn installed_bridge_package_dir_candidates(current_exe: &Path) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Some(bin_dir) = current_exe.parent() {
+        // 阶段 7a 后 payload 统一组装在 lib/bridge（核 + 切片）；
+        // lib/node-bridge 是旧布局，保留兜底兼容已安装的旧版本。
+        candidates.push(bin_dir.join("../lib/bridge"));
         candidates.push(bin_dir.join("../lib/node-bridge"));
         candidates.push(bin_dir.join("../node-bridge"));
         candidates.push(bin_dir.join("../Resources/node-bridge"));

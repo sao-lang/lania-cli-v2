@@ -62,6 +62,8 @@ pub(crate) fn register_build_commands(ctx: &mut PluginSetupContext<'_>) -> Resul
         handlers,
     )?;
     // 所有 product 相关命令统一挂到 `lan product ...` 下。
+    // 独立二进制形态（lan-build）没有 dev 包预先注册 root，缺失时在此补齐。
+    lania_host::ensure_product_root(ctx)?;
     ctx.commands
         .mount_subcommand("product", BuildCommandPlugin::product_build_spec())?;
     ctx.commands

@@ -6,6 +6,7 @@ pub mod execution;
 pub mod guard;
 // Hook 运行时已拆分到独立的 `lania-hooks` crate（避免与 host/workflows 等形成循环依赖）。
 pub mod plugin;
+pub mod product_root;
 pub mod registry;
 pub mod runtime;
 
@@ -40,6 +41,9 @@ pub use runtime::{Host, HostRuntime};
 
 // 命令二进制的统一桥接装配入口（消除各 bin 里的重复块）。
 pub use bridge_setup::{configure_command_bridges, maybe_run_rust_bridge};
+pub use product_root::{
+    ensure_product_root, product_root_spec, ProductRootCommandHandler, PRODUCT_ROOT_HANDLER_ID,
+};
 
 // facade：host-core 的桥无关接缝由宿主统一重新导出（§5.1 A.5(6) 去环过渡）。
 pub use lania_host_core::{

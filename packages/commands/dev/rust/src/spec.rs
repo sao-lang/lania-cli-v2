@@ -12,7 +12,7 @@
 
 use lania_command::{ArgSpec, CommandSpec, Example, OptionSpec, ValueKind};
 
-use crate::{DevCommandPlugin, HANDLER_ID, PRODUCT_HANDLER_ID, PRODUCT_ROOT_HANDLER_ID};
+use crate::{DevCommandPlugin, HANDLER_ID, PRODUCT_HANDLER_ID};
 
 // `dev` 与 `product dev` 的命令规格构造。
 //
@@ -28,23 +28,9 @@ use crate::{DevCommandPlugin, HANDLER_ID, PRODUCT_HANDLER_ID, PRODUCT_ROOT_HANDL
 
 impl DevCommandPlugin {
     pub fn product_root_spec() -> CommandSpec {
-        // `product` 根命令：用来分组 product 生命周期命令。
-        // 它本身不可执行；缺少子命令时由 `handlers::ProductRootCommandHandler` 给出提示。
-        CommandSpec::new(
-            "product",
-            "Product-oriented CLI workflows and distribution commands",
-            PRODUCT_ROOT_HANDLER_ID,
-        )
-        .with_examples(vec![
-            Example {
-                command: "lan product dev hello --path ./products/acme-cli".into(),
-                description: "Run a local product command in development mode".into(),
-            },
-            Example {
-                command: "lan product inspect --path ./products/acme-cli --compat".into(),
-                description: "Inspect product compatibility and local distribution state".into(),
-            },
-        ])
+        // root 的 spec/handler 是 dev/build 共同消费的共享定义（lania-host），
+        // 这里只做转发，避免两份实现漂移。
+        lania_host::product_root_spec()
     }
 
     pub fn spec() -> CommandSpec {

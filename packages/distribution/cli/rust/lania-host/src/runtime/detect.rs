@@ -260,8 +260,10 @@ mod tests {
     /// 不引入 TS 解析器：这段常量是纯字面量数组，按 `{ file: '…', runtime: '…' }`
     /// 逐条扫描足够稳，而它换来的是「两边漂移立刻红灯」。
     fn ts_detection_priority() -> Vec<(String, String)> {
+        // toolchain 切片阶段 4b 迁入 bridge-slices；lania-host 位于
+        // packages/distribution/cli/rust/lania-host，上 3 层到 cli，再进 packages。
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../ts/packages/node-bridge/src/plugins/toolchain.ts");
+            .join("../../../../foundation/bridge-slices/toolchain/ts/src/plugins/toolchain.ts");
         let source = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
         let start = source

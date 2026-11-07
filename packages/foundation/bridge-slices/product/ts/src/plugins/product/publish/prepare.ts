@@ -70,7 +70,9 @@ export async function preparePublishArtifacts(
   const access = resolvePublishAccess(params);
 
   // npm/cli 的版本会写入发布包依赖，确保发布产物与当前仓库内 CLI 版本对齐。
-  const cliPackage = await readJsonFile(join(repoRoot, 'npm/cli/package.json'));
+  const cliPackage = await readJsonFile(
+    join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'),
+  );
 
   // clean=true 时先清空输出目录，再写入全量新产物，避免残留文件污染发布包。
   if (options.clean) {

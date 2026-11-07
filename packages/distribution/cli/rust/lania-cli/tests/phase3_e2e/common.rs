@@ -1,4 +1,4 @@
-﻿//! phase3 e2e 共享夹具与文件系统辅助。
+//! phase3 e2e 共享夹具与文件系统辅助。
 //!
 //! 保持这些辅助函数集中，便于各子模块共享同一套 CLI/Node bridge 搭建逻辑。
 use super::*;
@@ -42,17 +42,42 @@ fn default_home_dir() -> PathBuf {
     home
 }
 
+/// 返回应执行的二进制与转发 argv。
+///
+/// 总包静态注册的命令（阶段 9 后仅 config）与全局 flag 直接走总包、argv 原样；
+/// 其余命令按 launcher 语义调度到子包二进制 `lan-<cmd>[.exe]`，并剥掉命令名
+/// （§5.3 C.4：argv 契约 = 剥掉命令名后转发）。
+pub(crate) fn resolve_command_argv<'a>(args: &'a [&'a str]) -> (PathBuf, &'a [&'a str]) {
+    let cli = PathBuf::from(env!("CARGO_BIN_EXE_lania-cli"));
+    let Some(command) = args.first() else {
+        return (cli, args);
+    };
+    if *command == "config" || command.starts_with('-') {
+        return (cli, args);
+    }
+    let exe_name = if cfg!(windows) {
+        format!("lan-{command}.exe")
+    } else {
+        format!("lan-{command}")
+    };
+    let candidate = cli
+        .parent()
+        .expect("cli binary should have a parent dir")
+        .join(exe_name);
+    if candidate.exists() {
+        (candidate, &args[1..])
+    } else {
+        (cli, args)
+    }
+}
+
 pub(crate) fn run_cli(
     cwd: &Path,
     args: &[&str],
     extra_env: &[(&str, &str)],
 ) -> std::process::Output {
-    run_program(
-        Path::new(env!("CARGO_BIN_EXE_lania-cli")),
-        cwd,
-        args,
-        extra_env,
-    )
+    let (binary, forwarded) = resolve_command_argv(args);
+    run_program(&binary, cwd, forwarded, extra_env)
 }
 
 pub(crate) fn run_cli_interactive(
@@ -61,13 +86,8 @@ pub(crate) fn run_cli_interactive(
     answers: &[&str],
     extra_env: &[(&str, &str)],
 ) -> std::process::Output {
-    run_program_interactive(
-        Path::new(env!("CARGO_BIN_EXE_lania-cli")),
-        cwd,
-        args,
-        answers,
-        extra_env,
-    )
+    let (binary, forwarded) = resolve_command_argv(args);
+    run_program_interactive(&binary, cwd, forwarded, answers, extra_env)
 }
 
 pub(crate) fn run_program(
@@ -151,8 +171,15 @@ pub(crate) fn parse_stdout_json(output: &std::process::Output) -> serde_json::Va
 }
 
 pub(crate) fn run_command(cwd: &Path, program: &str, args: &[&str]) {
+    // 临时仓库必须与开发机的全局 git 配置隔离：core.hooksPath（husky）会让
+    // `git commit` 在测试里挂死等输入；gpgsign/autocrlf 同理会造成假失败。
+    let git_guard: &[&str] = if program == "git" {
+        &["-c", "core.hooksPath=", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false"]
+    } else {
+        &[]
+    };
     let status = Command::new(program)
-        .args(args)
+        .args(git_guard.iter().chain(args.iter()))
         .current_dir(cwd)
         .status()
         .expect("command should run");
@@ -168,81 +195,6 @@ pub(crate) fn write_fake_package(root: &Path, name: &str, main_js: &str) {
     write_file(package_root.join("index.js"), main_js);
 }
 
-pub(crate) fn write_contract_fixture(root: &Path, targets: &[&str]) {
-    let targets_yaml = targets
-        .iter()
-        .map(|target| format!("      - {target}\n"))
-        .collect::<String>();
-    write_file(
-        root.join("lania.contract.yaml"),
-        &format!(
-            "version: 1\nentries:\n  - name: user-service\n    source:\n      kind: proto\n      inputs:\n        - schemas/proto/user.proto\n    targets:\n{targets_yaml}"
-        ),
-    );
-    write_file(
-        root.join("schemas/proto/user.proto"),
-        "message User {\n  string id = 1;\n}\n\nservice UserService {\n  rpc GetUser (User) returns (User);\n}\n",
-    );
-}
-
-pub(crate) fn write_module_fixture(root: &Path, targets: &[&str], inject: bool) {
-    let targets_yaml = targets
-        .iter()
-        .map(|target| format!("  - kind: {target}\n"))
-        .collect::<String>();
-    write_file(
-        root.join("lania.module.yaml"),
-        &format!(
-            "version: 1\nframework:\n  name: lania-g\n  language: go\n  main: main.go\ninputs:\n  - name: user\n    source: protobuf\n    path: schemas/proto\n    include:\n      - \"**/*.proto\"\ntargets:\n{targets_yaml}output:\n  root: generated/lania\n  moduleDir: generated/lania/modules\n  adapterDir: generated/lania/adapters\n  contractDir: generated/lania/contracts\n  manifest: .lania/module-gen.lock.json\ninject:\n  enabled: {}\n  targetMain: main.go\n  marker:\n    start: \"lania:modules:start\"\n    end: \"lania:modules:end\"\n",
-            if inject { "true" } else { "false" }
-        ),
-    );
-    write_file(
-        root.join("schemas/proto/user.proto"),
-        "message User {\n  string id = 1;\n}\n\nservice UserService {\n  rpc GetUser (User) returns (User);\n}\n",
-    );
-    if inject {
-        write_file(
-            root.join("main.go"),
-            "package main\n\nfunc main() {\n    // lania:modules:start\n    // lania:modules:end\n}\n",
-        );
-    }
-}
-
-pub(crate) fn write_graphql_module_fixture(root: &Path, targets: &[&str]) {
-    let targets_yaml = targets
-        .iter()
-        .map(|target| format!("  - kind: {target}\n"))
-        .collect::<String>();
-    write_file(
-        root.join("lania.module.yaml"),
-        &format!(
-            "version: 1\nframework:\n  name: lania-g\ninputs:\n  - name: gateway\n    source: graphql\n    path: schemas/graphql\n    include:\n      - \"**/*.graphql\"\ntargets:\n{targets_yaml}inject:\n  enabled: false\n",
-        ),
-    );
-    write_file(
-        root.join("schemas/graphql/schema.graphql"),
-        "type User {\n  id: ID!\n}\n\ntype Query {\n  user(id: ID!): User\n}\n\ntype Subscription {\n  userUpdated: User\n}\n",
-    );
-}
-
-pub(crate) fn write_json_module_fixture(root: &Path, targets: &[&str]) {
-    let targets_yaml = targets
-        .iter()
-        .map(|target| format!("  - kind: {target}\n"))
-        .collect::<String>();
-    write_file(
-        root.join("lania.module.yaml"),
-        &format!(
-            "version: 1\nframework:\n  name: lania-g\ninputs:\n  - name: account\n    source: json\n    path: schemas/json\ntargets:\n{targets_yaml}overrides:\n  operations:\n    GetAccount:\n      service: AccountService\n      input: GetAccountRequest\n      output: Account\n      kind: query\n      http:\n        method: GET\n        path: /accounts/:id\n      grpc:\n        service: AccountService\n        method: GetAccount\ninject:\n  enabled: false\n",
-        ),
-    );
-    write_file(
-        root.join("schemas/json/account.json"),
-        "{\n  \"title\": \"Account\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"id\": { \"type\": \"string\" },\n    \"enabled\": { \"type\": \"boolean\" }\n  }\n}\n",
-    );
-}
-
 pub(crate) fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
@@ -251,11 +203,15 @@ pub(crate) fn repo_root() -> PathBuf {
 }
 
 pub(crate) fn node_bridge_package_dir() -> PathBuf {
-    repo_root().join("ts/packages/node-bridge")
+    repo_root().join("packages/foundation/bridge-runtime/ts")
 }
 
 pub(crate) fn templates_package_dir() -> PathBuf {
-    repo_root().join("ts/packages/templates")
+    repo_root().join("packages/foundation/templates")
+}
+
+pub(crate) fn agent_package_dir() -> PathBuf {
+    repo_root().join("packages/products/agent/ts/agent")
 }
 
 pub(crate) fn ensure_node_bridge_dist() {
@@ -268,22 +224,16 @@ pub(crate) fn ensure_node_bridge_dist() {
         }
 
         // Try to build on demand for a smoother local dev experience.
-        // This makes tests less sensitive to whether someone remembered to run the TS build.
-        let ts_root = repo_root().join("ts");
         let output = Command::new("pnpm")
-            .current_dir(&ts_root)
+            .current_dir(repo_root())
             .args(["-r", "build"])
             .output()
             .map_err(|error| {
-                format!(
-                    "missing built TS workspace assets and failed to spawn pnpm in {}: {error}",
-                    ts_root.display()
-                )
+                format!("missing built TS workspace assets and failed to spawn pnpm: {error}")
             })?;
         if !output.status.success() {
             return Err(format!(
-                "missing built TS workspace assets; attempted `pnpm -r build` in {}, but it failed:\nstdout:\n{}\nstderr:\n{}",
-                ts_root.display(),
+                "missing built TS workspace assets; attempted `pnpm -r build`, but it failed://nstdout://n{}//nstderr://n{}",
                 String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr),
             ));
@@ -293,8 +243,7 @@ pub(crate) fn ensure_node_bridge_dist() {
             Ok(())
         } else {
             Err(format!(
-                "missing built TS workspace assets after `pnpm -r build` in {}: expected {}, {}",
-                ts_root.display(),
+                "missing built TS workspace assets after `pnpm -r build`: expected {}, {}",
                 bridge_dist.display(),
                 templates_dist.display(),
             ))
@@ -324,12 +273,55 @@ pub(crate) fn copy_dir_recursive(src: &Path, dst: &Path) {
             #[cfg(unix)]
             unix_fs::symlink(&link_target, &target_path).expect("symlink copied");
         } else {
-            if let Some(parent) = target_path.parent() {
-                fs::create_dir_all(parent).expect("parent dir created");
-            }
             fs::copy(&source_path, &target_path).expect("file copied");
         }
     }
+}
+
+/// 复刻 `scripts/pack.mjs` 的 payload 组装（§6.2）：核 + 全部切片 + templates +
+/// agent，运行时依赖直接从仓库根 node_modules 复制（测试里不跑 npm install）。
+pub(crate) fn stage_installed_bridge_package(root: &Path) -> PathBuf {
+    ensure_node_bridge_dist();
+    let target = root.join("lib/bridge");
+    let node_modules = target.join("node_modules");
+    fs::create_dir_all(&node_modules).expect("bridge dir created");
+
+    let stage_package = |source_pkg: &Path, npm_name: &str| {
+        let dest = node_modules.join(npm_name);
+        fs::create_dir_all(&dest).expect("payload package dir created");
+        fs::copy(source_pkg.join("package.json"), dest.join("package.json"))
+            .expect("package.json copied");
+        copy_dir_recursive(&source_pkg.join("dist"), &dest.join("dist"));
+    };
+    stage_package(&node_bridge_package_dir(), "@lania-cli-v2/bridge-runtime");
+    let slices_root = repo_root().join("packages/foundation/bridge-slices");
+    for entry in fs::read_dir(&slices_root).expect("slices dir readable") {
+        let slice_dir = entry.expect("slice entry readable").path().join("ts");
+        let name = slice_dir
+            .parent()
+            .expect("slice dir has a parent")
+            .file_name()
+            .expect("slice name")
+            .to_string_lossy()
+            .into_owned();
+        stage_package(&slice_dir, &format!("@lania-cli-v2/bridge-slice-{name}"));
+    }
+    stage_package(&templates_package_dir(), "@lania-cli-v2/templates");
+    stage_package(&agent_package_dir(), "@lania-cli-v2/agent");
+
+    for dep in [
+        "ejs",
+        "tsx",
+        "yaml",
+        "@earendil-works/pi-agent-core",
+        "@earendil-works/pi-ai",
+    ] {
+        let source = repo_root().join("node_modules").join(dep);
+        if source.exists() {
+            copy_dir_recursive(&source, &node_modules.join(dep));
+        }
+    }
+    target
 }
 
 pub(crate) fn remove_path_if_exists(path: &Path) {
@@ -344,30 +336,4 @@ pub(crate) fn remove_path_if_exists(path: &Path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => panic!("failed to inspect {}: {error}", path.display()),
     }
-}
-
-pub(crate) fn stage_installed_bridge_package(root: &Path) -> PathBuf {
-    ensure_node_bridge_dist();
-    let source = node_bridge_package_dir();
-    let templates = templates_package_dir();
-    let target = root.join("lib/node-bridge");
-    let node_modules_target = target.join("node_modules");
-    let templates_target = target.join("node_modules/@lania-cli/templates");
-    fs::create_dir_all(&target).expect("bridge dir created");
-    fs::copy(source.join("package.json"), target.join("package.json")).expect("package copied");
-    copy_dir_recursive(&source.join("dist"), &target.join("dist"));
-    copy_dir_recursive(&source.join("node_modules"), &node_modules_target);
-    remove_path_if_exists(&templates_target);
-    fs::create_dir_all(&templates_target).expect("templates dir created");
-    fs::copy(
-        templates.join("package.json"),
-        templates_target.join("package.json"),
-    )
-    .expect("templates package copied");
-    copy_dir_recursive(&templates.join("dist"), &templates_target.join("dist"));
-    copy_dir_recursive(
-        &templates.join("src/templates"),
-        &templates_target.join("src/templates"),
-    );
-    target
 }

@@ -7,14 +7,14 @@ fn lan_help_command_e2e() {
     let root = temp_dir("help");
     let home = isolated_home(&root);
 
-    let output = run_cli(&root, &["help", "build"], &[("HOME", home.as_str())]);
+    // 拆分后 `lan build` 由子包二进制提供（launcher 按 known-commands 调度），
+    // `--help` 经 run_cli 路由到 `lan-build --help`，输出同一份 spec。
+    let output = run_cli(&root, &["build", "--help"], &[("HOME", home.as_str())]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(output.status.code(), Some(0));
     assert!(stdout.contains("Run the project build workflow"));
-    assert!(stdout.contains("Aliases: b"));
-    assert!(stdout.contains("Examples:"));
-    assert!(stdout.contains("lan build --watch --mode development"));
+    assert!(stdout.contains("Usage: build"));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -28,16 +28,22 @@ fn lan_without_args_shows_help_e2e() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
+    // 总包只静态注册 config（阶段 9）：裸 `lan` 的 help 列出 config，
+    // 其余命令由 launcher 聚合 help（smoke-core-dispatch 覆盖）。
     assert_eq!(output.status.code(), Some(0));
     assert!(stdout.contains("Lania CLI v2"));
     assert!(stdout.contains("Commands:"));
-    assert!(stdout.contains("dev"));
-    assert!(stdout.contains("build"));
-    assert!(stdout.contains("lint"));
+    assert!(stdout.contains("config"));
     assert!(stdout.contains("Options:"));
     assert!(stdout.contains("Print help"));
     assert!(!stdout.contains("\"capabilities\""));
     assert!(stderr.trim().is_empty());
+
+    // 子包形态的 help 由各自二进制输出同一份 spec。
+    let build = run_cli(&root, &["build", "--help"], &[("HOME", home.as_str())]);
+    let build_stdout = String::from_utf8_lossy(&build.stdout);
+    assert_eq!(build.status.code(), Some(0));
+    assert!(build_stdout.contains("Run the project build workflow"));
 
     let _ = fs::remove_dir_all(root);
 }

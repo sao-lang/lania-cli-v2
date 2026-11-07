@@ -92,7 +92,8 @@ function buildKnownCommands() {
 
   return {
     protocol: 1,
-    coreVersion: readJson(path.join(repoRoot, 'packages/distribution/core/npm/core/package.json')).version,
+    coreVersion: readJson(path.join(repoRoot, 'packages/distribution/core/npm/core/package.json'))
+      .version,
     commands,
   };
 }
@@ -106,7 +107,9 @@ function main() {
     // 那不是漂移。真正的漂移是内容不同（命令增删/字段变化）。
     const current = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : '';
     if (isSemanticDrift(current, known)) {
-      console.error('known-commands.json 与包清单不一致，请运行 node scripts/gen-known-commands.mjs');
+      console.error(
+        'known-commands.json 与包清单不一致，请运行 node scripts/gen-known-commands.mjs',
+      );
       process.exit(1);
     }
     console.log(`known-commands.json: OK（${known.commands.length} 条命令）`);

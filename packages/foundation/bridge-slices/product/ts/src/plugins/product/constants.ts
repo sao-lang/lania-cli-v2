@@ -37,3 +37,24 @@ export const COMPAT_REPORT_VERSION = 1;
 
 // For publish flows we need a stable default platform package to fall back to (useful in dev).
 export const OFFICIAL_DARWIN_ARM64_PACKAGE_NAME = '@lania-cli-v2/cli-darwin-arm64';
+
+/**
+ * Windows 上 `spawnSync('npm')` 不带 shell 时解析不到 `npm.cmd`（ENOENT），
+ * 这里统一把裸 `npm` 解析成平台对应的可执行名；显式配置的 `npmBin` 或
+ * 非 npm 程序原样返回。
+ */
+export function resolveNpmBin(requested?: string | null): string {
+  const program = requested ?? 'npm';
+  if (process.platform !== 'win32') {
+    return program;
+  }
+  return program === 'npm' ? 'npm.cmd' : program;
+}
+
+/**
+ * Windows 解析 `npm.cmd` 时必须带 shell（Node ≥20.12 对 .cmd/.bat 强制此约束，
+ * 否则 spawnSync 报 EINVAL）。npm 的子命令与参数均为受控字面量，无注入面。
+ */
+export function resolveNpmSpawnShell(): boolean {
+  return process.platform === 'win32';
+}
