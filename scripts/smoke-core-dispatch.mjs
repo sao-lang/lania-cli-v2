@@ -84,13 +84,24 @@ try {
 }
 if (spec.name !== 'env') fail(`spec.name 期望 env，实际 ${spec.name}`);
 
-// 4) lan --help → env 在已安装列表
+// 4) lan --help → 只列已安装命令（未安装的不出现在命令信息中，阶段 9）
 const help = run(['--help']);
 if (help.status !== 0) fail('lan --help 失败');
 if (!help.stdout.includes('env')) fail('lan --help 未列出 env');
-if (!help.stdout.includes('npm i @lania-cli-v2/cmd-dev')) {
-  fail('lan --help 未给出未安装命令的安装提示');
+if (help.stdout.includes('npm i @lania-cli-v2/cmd-')) {
+  fail('lan --help 不应再直接列出未安装命令的安装提示');
 }
+if (!help.stdout.includes('lan package list')) {
+  fail('lan --help 未指向 lan package list');
+}
+
+// 4b) lan package list → 子包清单与安装状态
+const pkgList = run(['package', 'list']);
+if (pkgList.status !== 0) fail('lan package list 失败');
+if (!pkgList.stdout.includes('@lania-cli-v2/cmd-env')) {
+  fail('lan package list 未列出 cmd-env');
+}
+if (!pkgList.stdout.includes('已安装')) fail('lan package list 未标注安装状态');
 
 // 5) 未安装命令 → 127 + 安装提示
 const missing = run(['definitely-not-installed']);
@@ -102,4 +113,13 @@ if (!missingText.includes('未知命令') && !missingText.includes('@lania-cli-v
   fail('未安装命令缺少「未知命令」或 runtime 安装提示');
 }
 
-console.log('[smoke:core-dispatch] ✓ 调度模式 smoke 通过（core + cmd-env）');
+// 6) lan config packages → 跨包配置视图
+const configPackages = run(['config', 'packages']);
+if (configPackages.status !== 0) fail('lan config packages 失败');
+if (!configPackages.stdout.includes('env')) fail('lan config packages 未列出 env');
+
+// 7) lan config apply → 一键覆盖（无声明键时给出说明而非静默失败）
+const configApply = run(['config', 'apply']);
+if (configApply.status !== 0) fail('lan config apply 失败');
+
+console.log('[smoke:core-dispatch] ✓ 调度模式 smoke 通过（core + cmd-env + 子包管理面）');

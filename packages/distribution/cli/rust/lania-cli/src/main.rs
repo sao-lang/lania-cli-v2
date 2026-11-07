@@ -13,20 +13,9 @@ use std::{env, sync::Arc};
 
 use anyhow::Result;
 use clap::error::ErrorKind as ClapErrorKind;
-use lania_plugins_command_pi::PiCommandPlugin;
 use lania_host::{plugin::EmptyPlugin, ExecutionError, Host, HostRuntime, EXIT_RUNTIME_ERROR};
 use lania_logger::{AutoStyledLogRenderer, CliMessageLevel, LogRenderer, StderrLogSink};
-use lania_plugins_command_add::AddCommandPlugin;
-use lania_plugins_command_build::BuildCommandPlugin;
-use lania_plugins_command_create::CreateCommandPlugin;
-use lania_plugins_command_dev::DevCommandPlugin;
-use lania_plugins_command_env::EnvCommandPlugin;
-use lania_plugins_command_generate::GenerateCommandPlugin;
-use lania_plugins_command_git::GitCommandPlugin;
-use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
-use lania_plugins_command_release::ReleaseCommandPlugin;
-use lania_plugins_command_tools::ToolsCommandPlugin;
 use lania_progress::TerminalProgressMode;
 
 use lania_cli_kit::{
@@ -55,17 +44,9 @@ async fn main() -> Result<()> {
     // - CLI 命令树的展示顺序
     // - setup 阶段的 hooks/capabilities/handlers 的注册时机
     host.register_plugin(Box::new(EmptyPlugin))?;
-    host.register_plugin(Box::new(DevCommandPlugin))?;
-    host.register_plugin(Box::new(BuildCommandPlugin))?;
-    host.register_plugin(Box::new(LintCommandPlugin))?;
-    host.register_plugin(Box::new(CreateCommandPlugin))?;
-    host.register_plugin(Box::new(AddCommandPlugin))?;
-    host.register_plugin(Box::new(GenerateCommandPlugin))?;
-    host.register_plugin(Box::new(ReleaseCommandPlugin))?;
-    host.register_plugin(Box::new(GitCommandPlugin))?;
-    host.register_plugin(Box::new(ToolsCommandPlugin))?;
-    host.register_plugin(Box::new(EnvCommandPlugin))?;
-    host.register_plugin(Box::new(PiCommandPlugin))?;
+    // 总包只保留 `config`（管理面：全局偏好 / 项目配置 / 跨包配置）。
+    // 其余 11 条命令的能力**完全由命令子包提供**——总包不再静态链接它们，
+    // 未安装对应子包时该命令不可用（由 launcher 按安装状态调度）。
     host.register_plugin(Box::new(ConfigCommandPlugin))?;
     host.initialize().await?;
     let cwd = env::current_dir()?.display().to_string();

@@ -13,6 +13,18 @@
     "@lania-cli-v2/cli-win32-x64": "0.0.3"
   },
   "dependencies": {
-    "@lania-cli-v2/core": "0.0.3"
+    "@lania-cli-v2/core": "0.0.3",
+    "@lania-cli-v2/cmd-dev": "0.0.3",
+    "@lania-cli-v2/cmd-build": "0.0.3",
+    "@lania-cli-v2/cmd-lint": "0.0.3",
+    "@lania-cli-v2/cmd-create": "0.0.3",
+    "@lania-cli-v2/cmd-add": "0.0.3",
+    "@lania-cli-v2/cmd-generate": "0.0.3",
+    "@lania-cli-v2/cmd-release": "0.0.3",
+    "@lania-cli-v2/cmd-git": "0.0.3",
+    "@lania-cli-v2/cmd-tools": "0.0.3",
+    "@lania-cli-v2/cmd-env": "0.0.3",
+    "@lania-cli-v2/cmd-pi": "0.0.3",
+    "@lania-cli-v2/cmd-config": "0.0.3"
   }
 }

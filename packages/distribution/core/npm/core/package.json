@@ -16,6 +16,15 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@lania-cli-v2/cmd-env": "workspace:*"
+    "@lania-cli-v2/cmd-env": "workspace:*",
+    "@lania-cli-v2/cli": "workspace:*"
+  },
+  "peerDependencies": {
+    "@lania-cli-v2/cli": "0.0.3"
+  },
+  "peerDependenciesMeta": {
+    "@lania-cli-v2/cli": {
+      "optional": true
+    }
   }
 }

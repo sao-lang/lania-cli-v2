@@ -18,8 +18,8 @@
     "crates": ["rust/lania-cli"]
   },
   "payload": {
-    "slices": ["*"],
-    "nodeBridge": true
+    "slices": [],
+    "nodeBridge": false
   },
   "npm": {
     "name": "@lania-cli-v2/cli",
@@ -28,5 +28,6 @@
       "@lania-cli-v2/cli-linux-x64",
       "@lania-cli-v2/cli-win32-x64"
     ]
-  }
+  },
+  "role": "manager"
 }

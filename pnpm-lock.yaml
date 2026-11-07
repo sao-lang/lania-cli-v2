@@ -280,6 +280,42 @@ importers:
 
   packages/distribution/cli/npm/cli:
     dependencies:
+      '@lania-cli-v2/cmd-add':
+        specifier: 0.0.3
+        version: link:../../../../commands/add/npm/cmd-add
+      '@lania-cli-v2/cmd-build':
+        specifier: 0.0.3
+        version: link:../../../../commands/build/npm/cmd-build
+      '@lania-cli-v2/cmd-config':
+        specifier: 0.0.3
+        version: link:../../../../commands/config/npm/cmd-config
+      '@lania-cli-v2/cmd-create':
+        specifier: 0.0.3
+        version: link:../../../../commands/create/npm/cmd-create
+      '@lania-cli-v2/cmd-dev':
+        specifier: 0.0.3
+        version: link:../../../../commands/dev/npm/cmd-dev
+      '@lania-cli-v2/cmd-env':
+        specifier: 0.0.3
+        version: link:../../../../commands/env/npm/cmd-env
+      '@lania-cli-v2/cmd-generate':
+        specifier: 0.0.3
+        version: link:../../../../commands/generate/npm/cmd-generate
+      '@lania-cli-v2/cmd-git':
+        specifier: 0.0.3
+        version: link:../../../../commands/git/npm/cmd-git
+      '@lania-cli-v2/cmd-lint':
+        specifier: 0.0.3
+        version: link:../../../../commands/lint/npm/cmd-lint
+      '@lania-cli-v2/cmd-pi':
+        specifier: 0.0.3
+        version: link:../../../../commands/pi/npm/cmd-pi
+      '@lania-cli-v2/cmd-release':
+        specifier: 0.0.3
+        version: link:../../../../commands/release/npm/cmd-release
+      '@lania-cli-v2/cmd-tools':
+        specifier: 0.0.3
+        version: link:../../../../commands/tools/npm/cmd-tools
       '@lania-cli-v2/core':
         specifier: 0.0.3
         version: link:../../../core/npm/core
@@ -302,6 +338,9 @@ importers:
 
   packages/distribution/core/npm/core:
     devDependencies:
+      '@lania-cli-v2/cli':
+        specifier: workspace:*
+        version: link:../../../cli/npm/cli
       '@lania-cli-v2/cmd-env':
         specifier: workspace:*
         version: link:../../../../commands/env/npm/cmd-env

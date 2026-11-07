@@ -23,8 +23,8 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const corePackageDir = path.resolve(scriptDir, '..');
-// 开发模式下的仓库根（core 包在 packages/distribution/core/npm/core 下）。
-const fallbackRepoRoot = path.resolve(corePackageDir, '..', '..', '..', '..');
+// 开发模式下的仓库根（core 包在 packages/distribution/core/npm/core 下，需上溯 5 级）。
+const fallbackRepoRoot = path.resolve(corePackageDir, '..', '..', '..', '..', '..');
 const argv = process.argv.slice(2);
 
 /** 当前平台对应的二进制包后缀（与总包 cli-<platform> 一致）。 */
@@ -58,9 +58,42 @@ function resolveBinaryFromPlatformPackage(packageName, base, req = require) {
   }
 }
 
-/** 从某个包目录构造 require（用于解析它的 optionalDependencies）。 */
+/**
+ * 从某个包目录构造 require（用于解析它的 optionalDependencies）。
+ */
 function requireFrom(packageDir) {
   return createRequire(path.join(packageDir, 'package.json'));
+}
+
+/**
+ * 在候选目录里查找某个 npm 包（逐个尝试）。
+ *
+ * pnpm 的严格 node_modules 布局下，包只能被「声明了它」的包解析到：
+ * - `core` 直接依赖的 `cmd-*`（原子安装形态）；
+ * - `cli`（总包）依赖的 `cmd-*`（总包安装形态）。
+ * 因此候选目录必须覆盖这两种来源。
+ */
+function resolvePackageIn(candidates, packageName) {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      return path.dirname(requireFrom(candidate).resolve(`${packageName}/package.json`));
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/** 候选解析目录：core 自身 + 已安装的总包。 */
+function packageResolutionRoots() {
+  const roots = [corePackageDir];
+  try {
+    roots.push(path.dirname(require.resolve('@lania-cli-v2/cli/package.json')));
+  } catch {
+    // 总包未安装：只有 core 自身这一处来源。
+  }
+  return roots;
 }
 
 /** Unix 上补可执行位（沿用旧 lan.mjs 的 ensureExecutable）。 */
@@ -102,51 +135,40 @@ function execDirect(binary, env, args) {
 function resolveSourceBinary() {
   const name = binaryFileName('lania-cli');
   const candidates = [
-    path.join(fallbackRepoRoot, 'rust', 'target', 'debug', name),
-    path.join(fallbackRepoRoot, 'rust', 'target', 'release', name),
+    path.join(fallbackRepoRoot, 'target', 'debug', name),
+    path.join(fallbackRepoRoot, 'target', 'release', name),
   ];
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
 /**
- * 总包模式探测：已安装的 `@lania-cli-v2/cli` + 其平台包。
- * 这不是动态发现：用已知包名 `require.resolve` 探测，与旧 lan.mjs 同构。
+ * 旧单体二进制的探测（仅用于 `LANIA_MONOLITH_BINARY` 未显式指定时的开发态回退）。
+ *
+ * 总包已不再静态链接全部命令，正常路径一律走调度模式；这里保留是为了
+ * 开发者在仓库内直接跑 `cargo build` 出来的单体二进制做对照调试。
  */
 function resolveMonolithBinary() {
   if (process.env.LANIA_MONOLITH_BINARY) return process.env.LANIA_MONOLITH_BINARY;
-  const suffix = platformSuffix();
-  if (!suffix) return null;
-  // 平台包是总包自己的 optionalDependencies：从总包目录解析。
-  let cliDir = null;
-  try {
-    cliDir = path.dirname(require.resolve('@lania-cli-v2/cli/package.json'));
-  } catch {
-    cliDir = null;
-  }
-  if (cliDir) {
-    const binary = resolveBinaryFromPlatformPackage(
-      `@lania-cli-v2/cli-${suffix}`,
-      'lania-cli',
-      requireFrom(cliDir),
-    );
-    if (binary) return binary;
-  }
   return resolveSourceBinary();
 }
 
-/** 总包模式注入的环境变量（与旧 lan.mjs 逐行等价）。 */
+/**
+ * 总包模式注入的环境变量（与旧 lan.mjs 逐行等价）。
+ *
+ * 注：总包已不再自带 bridge payload（切片由各命令子包自备），
+ * 故 NODE_BRIDGE_DIR 只在显式指定时透传；否则由调度模式按子包注入。
+ */
 function monolithEnv(cliDir) {
   const sourceMode = !cliDir;
-  return {
-    LANIA_NODE_BRIDGE_DIR:
-      process.env.LANIA_NODE_BRIDGE_DIR ??
-      (sourceMode
-        ? path.join(fallbackRepoRoot, 'packages', 'foundation', 'bridge-runtime', 'ts')
-        : path.join(cliDir, 'lib', 'node-bridge')),
+  const env = {
     LANIA_PRODUCT_ROOT: process.env.LANIA_PRODUCT_ROOT ?? process.cwd(),
     LANIA_RUNTIME_MODE:
       process.env.LANIA_RUNTIME_MODE ?? (sourceMode ? 'development' : 'installed'),
   };
+  if (process.env.LANIA_NODE_BRIDGE_DIR) {
+    env.LANIA_NODE_BRIDGE_DIR = process.env.LANIA_NODE_BRIDGE_DIR;
+  }
+  return env;
 }
 
 // ── 2) 调度模式 ──────────────────────────────────────────────────────
@@ -161,18 +183,24 @@ function loadKnownCommands() {
   }
 }
 
-/** 已安装的命令包目录（未安装返回 null）。 */
+/**
+ * 已安装的命令包目录（未安装返回 null）。
+ *
+ * 解析上下文有两处：
+ * 1. core 包自身（用户直接装 `core` + 若干 `cmd-*` 的「原子安装」形态）；
+ * 2. 总包 `@lania-cli-v2/cli` 目录（用户装总包形态——子包是**总包**的依赖，
+ *    不是 core 的依赖，故必须从总包目录解析）。
+ */
 function resolveCommandPackageDir(packageName) {
-  try {
-    return path.dirname(require.resolve(`${packageName}/package.json`));
-  } catch {
-    return null;
-  }
+  return resolvePackageIn(packageResolutionRoots(), packageName);
 }
 
 /**
  * 命令包的平台二进制（cmd-<cmd>-<platform>）。
  * 平台包是命令包自己的 optionalDependencies，因此从命令包目录解析。
+ *
+ * 开发态回退：仓库内 `cargo build` 产出的二进制在 `target/debug/`，
+ * 未经 pack 流程 staging 时平台包里没有二进制，此时直接用本地构建产物。
  */
 function resolveCommandBinary(entry, cmdDir) {
   const suffix = platformSuffix();
@@ -180,7 +208,11 @@ function resolveCommandBinary(entry, cmdDir) {
   const platformPackage = `@lania-cli-v2/cmd-${entry.command}-${suffix}`;
   const listed = Array.isArray(entry.platformPackages) ? entry.platformPackages : [];
   if (listed.length > 0 && !listed.includes(platformPackage)) return null;
-  return resolveBinaryFromPlatformPackage(platformPackage, entry.bin, requireFrom(cmdDir));
+  const staged = resolveBinaryFromPlatformPackage(platformPackage, entry.bin, requireFrom(cmdDir));
+  if (staged) return staged;
+  // 开发态回退：仓库内本地构建产物。
+  const local = path.join(fallbackRepoRoot, 'target', 'debug', binaryFileName(entry.bin));
+  return fs.existsSync(local) ? local : null;
 }
 
 /**
@@ -778,24 +810,30 @@ function packageCommand(known, args) {
 
 function main() {
   const suffix = platformSuffix();
-  const monolith = resolveMonolithBinary();
-  if (monolith) {
-    let cliDir = null;
-    try {
-      cliDir = path.dirname(require.resolve('@lania-cli-v2/cli/package.json'));
-    } catch {
-      cliDir = null;
-    }
-    execDirect(monolith, monolithEnv(cliDir), argv);
-    return;
-  }
-
   if (!suffix) {
     console.error(
       `Unsupported platform: ${process.platform} ${process.arch}. ` +
         'Supported packaged platforms: darwin arm64, linux x64, win32 x64.',
     );
     process.exit(1);
+  }
+
+  // 总包（@lania-cli-v2/cli）不再是「静态链接全部命令的单体」：
+  // 它是**管理面** —— 提供 `lan package`（子包增删改查）与 `lan config`
+  // （全局/项目/跨子包配置），命令能力完全由各命令子包提供。
+  // 因此 launcher **总是走调度模式**：命令是否可用只取决于对应子包是否安装。
+  //
+  // 兼容：`LANIA_MONOLITH_BINARY` 仍可显式指向旧单体二进制（开发调试用）。
+  const explicitMonolith = process.env.LANIA_MONOLITH_BINARY;
+  if (explicitMonolith && fs.existsSync(explicitMonolith)) {
+    let cliDir = null;
+    try {
+      cliDir = path.dirname(require.resolve('@lania-cli-v2/cli/package.json'));
+    } catch {
+      cliDir = null;
+    }
+    execDirect(explicitMonolith, monolithEnv(cliDir), argv);
+    return;
   }
 
   dispatch(loadKnownCommands());
