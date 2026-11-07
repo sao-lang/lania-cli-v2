@@ -35,13 +35,19 @@
   },
   "npm": {
     "name": "@lania-cli-v2/runex",
-    "bin": { "runex": "npm/runex/bin/runex.mjs" },
+    "bin": {
+      "runex": "npm/runex/bin/runex.mjs"
+    },
     "platformPackages": [
       "@lania-cli-v2/runex-darwin-arm64",
       "@lania-cli-v2/runex-linux-x64",
       "@lania-cli-v2/runex-win32-x64"
     ]
   },
-  "payload": { "slices": [], "nodeBridge": false },
-  "shimHost": "runex-binary"
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
+  },
+  "shimHost": "runex-binary",
+  "description": "自管多运行时管理器：install/use/which/remove 18 种语言工具链（独立 CLI 双形态）"
 }

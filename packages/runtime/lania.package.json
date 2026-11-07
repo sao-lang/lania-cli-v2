@@ -47,5 +47,6 @@
       "@lania-cli-v2/runtime-linux-x64",
       "@lania-cli-v2/runtime-win32-x64"
     ]
-  }
+  },
+  "description": "runtime 设施包：项目级动态命令与脚手架封装命令的执行宿主（lan-runtime）"
 }

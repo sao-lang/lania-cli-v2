@@ -30,5 +30,6 @@
   },
   "dependencies": {
     "ejs": "^5.0.1"
-  }
+  },
+  "description": "脚手架资产包：10 个内置项目模板、add 模板与 EJS 渲染运行时"
 }

@@ -71,5 +71,6 @@
         "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
       }
     ]
-  }
+  },
+  "description": "tools 命令子包：命令发现、按类型运行文件与本地文件查看"
 }

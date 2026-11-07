@@ -29,5 +29,6 @@
       "@lania-cli-v2/cli-win32-x64"
     ]
   },
-  "role": "manager"
+  "role": "manager",
+  "description": "Lania CLI 总包：聚合全部命令子包与全量 bridge 切片的发布单元（不再静态链接命令，lan 入口由 core 提供）"
 }

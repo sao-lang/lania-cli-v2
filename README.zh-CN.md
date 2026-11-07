@@ -980,22 +980,37 @@ lan config apply --package env --set locale=zh --set output.mode=human
 Bridge 目录查找顺序如下：
 
 1. `LANIA_NODE_BRIDGE_DIR`
-2. `<current-exe>/../lib/node-bridge`
-3. `<current-exe>/../node-bridge`
-4. `<current-exe>/../Resources/node-bridge`
-5. 开发态工作区 `ts/packages/node-bridge`
+2. `<current-exe>/../lib/bridge`（阶段 7a 后 payload 统一组装为「核 + 切片」）
+3. `<current-exe>/../lib/node-bridge`（旧布局，兼容已安装的旧版本）
+4. `<current-exe>/../node-bridge`
+5. 开发态工作区 `packages/foundation/bridge-runtime/ts`
 
-## 仓库结构
+## 仓库结构（按包拆分）
 
-```text
-lania-cli-v2/
-  README.md
-  README.zh-CN.md
-  docs/
-  npm/
-  rust/
-  ts/
-```
+全部能力按 `packages/` 布局拆分，每包自带 `lania.package.json`（单一事实源，
+`description` 字段说明该包职责）、`rust/`（Rust crate）、`npm/`（可安装的 npm 包）、
+`describes/`（命令规格快照）。各包职责一览：
+
+| 包                                                                              | 类别            | 职责                                                                                  |
+| ------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
+| `packages/commands/{add,build,config,create,dev,env,git,lint,pi,release,tools}` | command         | 11 个命令子包，每包自带 `config` 二级命令与包级 `configSchema`；`config` 为总包管理面 |
+| `packages/distribution/cli`                                                     | distribution    | 总包：聚合全部命令子包与全量 bridge 切片（不再静态链接命令）                          |
+| `packages/distribution/core`                                                    | distribution    | 核心调度器：唯一 `lan` 入口，按 `known-commands.json` 静态表调度子包二进制            |
+| `packages/foundation/cli-kit`                                                   | foundation      | 输出渲染与单命令执行支点（envelope/本地化/人类可读渲染 + 模板文案目录）               |
+| `packages/foundation/host-core`                                                 | foundation      | 宿主层共享接缝（`BridgeProvider` 抽象、product root 等内建定义）                      |
+| `packages/foundation/package-config`                                            | foundation      | 包级偏好引擎 `lania-package-config` 与共享 config 二级命令实现 `lania-command-config` |
+| `packages/foundation/runex-home`                                                | foundation      | runex 自管运行时的极小 PATH 前置（`RunexHome` / `ShimHost`）                          |
+| `packages/foundation/bridge-runtime`                                            | foundation      | Bridge 运行时核：stdio 协议、插件注册表与切片动态装配                                 |
+| `packages/foundation/bridge-slices/*`                                           | foundation      | 12 个 TS bridge 切片（compiler/lint/template/product/toolchain/…）                    |
+| `packages/foundation/templates`                                                 | foundation      | 脚手架资产：10 个内置项目模板、add 模板与 EJS 渲染运行时                              |
+| `packages/foundation/lania`                                                     | foundation      | 作者侧 DSL：`lan.config.*` 类型化配置与 schema 工具                                   |
+| `packages/foundation/command`                                                   | foundation      | 命令规格/解析/本地化基建（`lania-command`）                                           |
+| `packages/foundation/capabilities/*`                                            | foundation      | 16 个宿主能力 leaf crate（git/exec/fs/logger/workflows/…）                            |
+| `packages/products/agent`                                                       | product         | 编码 agent：pi 引擎（Rust lib API + npm TS 引擎双形态）                               |
+| `packages/products/bridge-hub`                                                  | product         | 语言中立消息总线：BusFrame 协议、进程内 Hub 与 5 语言端点 adaptor                     |
+| `packages/products/runex`                                                       | product         | 自管多运行时管理器（独立 CLI 双形态，`runex` bin）                                    |
+| `packages/runtime`                                                              | command-runtime | runtime 设施：项目级动态命令与脚手架封装命令的执行宿主（`lan-runtime`）               |
+| `packages/schemas`                                                              | —               | `lania.package.json` 的 JSON Schema                                                   |
 
 更详细的目录说明见 [目录结构参考](./docs/references/ai/directory-structure.md)。
 
@@ -1009,9 +1024,9 @@ lania-cli-v2/
 ## 当前建议的验证命令
 
 ```bash
-cd rust
-cargo test -p lania-cli
-cargo test -p lania-workflows
-cargo run -p lania-cli -- help
-cargo run -p lania-cli -- template
+# Rust workspace 根在仓库根（Cargo.toml 在根目录）
+cargo test --workspace
+cargo check --workspace --all-targets
+pnpm known:check && pnpm packages:check && pnpm bridge:check
+node scripts/smoke-core-dispatch.mjs
 ```

@@ -25,5 +25,6 @@
     "@lania-cli-v2/cmd-env": "0.0.3",
     "@lania-cli-v2/cmd-pi": "0.0.3",
     "@lania-cli-v2/cmd-config": "0.0.3"
-  }
+  },
+  "description": "Lania CLI 总包：聚合全部命令子包与全量 bridge 切片（lan 入口由 @lania-cli-v2/core 提供）"
 }

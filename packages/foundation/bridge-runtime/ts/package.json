@@ -49,5 +49,6 @@
     "tsx": "^4.19.0",
     "yaml": "^2.8.1",
     "@lania-cli-v2/bridge-protocol": "workspace:*"
-  }
+  },
+  "description": "Bridge 运行时核：stdio 协议、插件注册表与切片动态装配（1:1 / hub 双模式，帧层与 bridge-protocol 生成物共用）"
 }

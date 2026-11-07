@@ -37,5 +37,6 @@
   "payload": {
     "slices": [],
     "nodeBridge": false
-  }
+  },
+  "description": "编码 agent 产品包：pi 引擎（Rust lib API + npm TS 引擎双形态），供 lan pi 消费"
 }

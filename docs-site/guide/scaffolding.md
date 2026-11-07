@@ -155,7 +155,7 @@ lan add --template tsconfig --target .
 模板资产位于：
 
 ```text
-ts/packages/templates/
+packages/foundation/templates/src/templates/
   src/
     add-templates/assets/
     templates/

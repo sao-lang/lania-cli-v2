@@ -184,6 +184,10 @@
     },
     "scripts": {
       "type": "object"
+    },
+    "description": {
+      "type": "string",
+      "description": "该包的一句话职责说明（人读）；构建脚本不消费此字段"
     }
   },
   "allOf": [

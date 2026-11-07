@@ -27,6 +27,10 @@
   "rust": {
     "crates": ["rust/lania-host-core"]
   },
-  "payload": { "slices": [], "nodeBridge": false },
-  "shimHost": "lan"
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
+  },
+  "shimHost": "lan",
+  "description": "宿主层共享接缝：BridgeProvider/ConfigSource 抽象与 product root 等内建命令定义"
 }

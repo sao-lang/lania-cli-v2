@@ -45,5 +45,6 @@
   "payload": {
     "slices": [],
     "nodeBridge": false
-  }
+  },
+  "description": "config 命令子包（总包管理面）：全局偏好、项目 lan.config.* 与跨包配置统一管理"
 }

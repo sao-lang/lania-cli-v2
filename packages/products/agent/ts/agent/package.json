@@ -27,5 +27,6 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.4.0",
     "@earendil-works/pi-ai": "1.4.0"
-  }
+  },
+  "description": "编码 agent（pi 引擎）TS 引擎侧：会话、工具门禁与流式渲染，供 lan pi 经 bridge 消费"
 }

@@ -41,7 +41,7 @@
 ### 模板目录
 
 ```text
-ts/packages/templates/
+packages/foundation/templates/src/templates/
   src/
     templates/
       spa-react/

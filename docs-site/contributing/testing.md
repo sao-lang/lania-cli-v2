@@ -33,7 +33,7 @@ cargo test --manifest-path rust/Cargo.toml -p lania-exec
 pnpm -C ts --filter @lania-cli/templates test
 
 # 单个 Node 测试
-cd ts/packages/node-bridge
+cd packages/foundation/bridge-runtime/ts
 node --import tsx --test --test-name-pattern "product.publish" src/plugins/product.test.ts
 ```
 

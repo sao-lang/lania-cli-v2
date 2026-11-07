@@ -26,7 +26,13 @@
       }
     }
   },
-  "rust": { "crates": ["rust/lania-cli-kit"] },
-  "payload": { "slices": [], "nodeBridge": false },
-  "shimHost": "lan"
+  "rust": {
+    "crates": ["rust/lania-cli-kit"]
+  },
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
+  },
+  "shimHost": "lan",
+  "description": "CLI 输出渲染与单命令执行支点：envelope/本地化/人类可读渲染共享实现，含内置模板文案目录（template_catalog）"
 }

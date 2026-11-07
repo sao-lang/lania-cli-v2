@@ -30,7 +30,7 @@ Rust  ── host_response(JSON) ▶ Node Bridge
 
 ## 入口
 
-`ts/packages/node-bridge/src/index.ts` 负责：
+Bridge 运行时核 `packages/foundation/bridge-runtime/ts/src/index.ts` 负责：
 
 - 读取 STDIO 请求。
 - 根据 method 找到插件。

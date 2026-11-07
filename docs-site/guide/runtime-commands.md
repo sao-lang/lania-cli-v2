@@ -579,7 +579,7 @@ host.register_plugin(Box::new(FooCommandPlugin))?;
 
 如果能力属于 JavaScript 生态（例如新的编译器适配器、代码扫描器），应该加在 Node Bridge，而不是动态命令：
 
-1. 在 `ts/packages/node-bridge/src/plugins/` 新建插件，导出 `name`、`methods`、`handle()`。
+1. 在 `packages/foundation/bridge-slices/<slice>/ts/src/plugins/` 新建切片插件，导出 `name`、`methods`、`handle()`。
 2. 在 `plugin-registry.ts` 注册。
 3. 在 `protocol-catalog.ts` / `contract.test.ts` 更新方法清单。
 4. 如果 Rust 需要调用，在 `lania-node-bridge` 增加 request 构造器。

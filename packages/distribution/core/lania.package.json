@@ -12,5 +12,6 @@
     "bin": {
       "lan": "npm/core/bin/lan.mjs"
     }
-  }
+  },
+  "description": "核心调度器包：唯一 lan 入口，按构建期静态表 known-commands.json 调度子包二进制"
 }

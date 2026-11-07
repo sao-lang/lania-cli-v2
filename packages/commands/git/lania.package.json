@@ -71,5 +71,6 @@
         "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
       }
     ]
-  }
+  },
+  "description": "git 命令子包：把常用 git 读写操作收敛为一个命令族（零 TS payload）"
 }

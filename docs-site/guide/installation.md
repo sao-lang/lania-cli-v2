@@ -45,7 +45,7 @@ Rust 宿主按以下顺序查找 Node Bridge：
 2. `<current-exe>/../lib/node-bridge`
 3. `<current-exe>/../node-bridge`
 4. `<current-exe>/../Resources/node-bridge`
-5. 开发态工作区 `ts/packages/node-bridge`
+5. 开发态工作区 `packages/foundation/bridge-runtime/ts`
 
 因此在开发态直接运行 debug 二进制时，只要工作区结构完整，通常不需要额外设置环境变量。
 

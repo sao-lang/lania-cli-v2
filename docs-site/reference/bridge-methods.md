@@ -787,15 +787,15 @@ commitlint.run
 
 ## 源码位置
 
-| 领域          | 文件                                                             |
-| ------------- | ---------------------------------------------------------------- |
-| Rust 请求构造 | `rust/crates/lania-node-bridge/src/client/transport/requests.rs` |
-| 协议模型      | `rust/crates/lania-node-bridge/src/protocol.rs`                  |
-| Node 分发     | `ts/packages/node-bridge/src/entry/index.ts`                     |
-| 插件注册      | `ts/packages/node-bridge/src/core/plugin-registry.ts`            |
-| 内建方法      | `ts/packages/node-bridge/src/entry/builtin-handlers.ts`          |
-| 动态命令      | `ts/packages/node-bridge/src/plugins/dynamic-commands/**`        |
-| 产品命令      | `ts/packages/node-bridge/src/plugins/product/**`                 |
+| 领域          | 文件                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------- |
+| Rust 请求构造 | `rust/crates/lania-node-bridge/src/client/transport/requests.rs`                        |
+| 协议模型      | `rust/crates/lania-node-bridge/src/protocol.rs`                                         |
+| Node 分发     | `packages/foundation/bridge-runtime/ts/src/entry/index.ts`                              |
+| 插件注册      | `packages/foundation/bridge-runtime/ts/src/core/plugin-registry.ts`                     |
+| 内建方法      | `packages/foundation/bridge-runtime/ts/src/entry/builtin-handlers.ts`                   |
+| 动态命令      | `packages/foundation/bridge-slices/dynamic-commands/ts/src/plugins/dynamic-commands/**` |
+| 产品命令      | `packages/foundation/bridge-slices/product/ts/src/plugins/product/**`                   |
 
 ## 下一步
 

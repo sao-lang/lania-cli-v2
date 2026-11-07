@@ -29,7 +29,7 @@ Rust 按以下顺序查找 Bridge：
 2. `<current-exe>/../lib/node-bridge`
 3. `<current-exe>/../node-bridge`
 4. `<current-exe>/../Resources/node-bridge`
-5. 开发态 `ts/packages/node-bridge`
+5. 开发态 `packages/foundation/bridge-runtime/ts`
 
 ### 启动模式
 

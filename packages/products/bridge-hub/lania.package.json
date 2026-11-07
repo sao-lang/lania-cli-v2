@@ -58,9 +58,15 @@
   },
   "npm": {
     "name": "@lania-cli-v2/bridge-hub",
-    "bin": { "lan-hub": "npm/bridge-hub/bin/lan-hub.mjs" },
+    "bin": {
+      "lan-hub": "npm/bridge-hub/bin/lan-hub.mjs"
+    },
     "platformPackages": []
   },
-  "payload": { "slices": [], "nodeBridge": false },
-  "shimHost": "lan"
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
+  },
+  "shimHost": "lan",
+  "description": "语言中立消息总线：BusFrame 帧协议、进程内 Hub 与 5 语言端点 adaptor（可选独立调试 bin lan-hub）"
 }

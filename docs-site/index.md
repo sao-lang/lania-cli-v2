@@ -67,8 +67,8 @@ Lania CLI 不是一组零散脚本，而是一个分层的 CLI 宿主：
 
 1. **安装层 `npm/`**：向用户暴露 `lan`，选择平台二进制并注入 Node Bridge 载荷路径。
 2. **宿主层 `rust/`**：决定有哪些命令、如何解析参数、如何编排工作流和输出结果。
-3. **Bridge 层 `ts/packages/node-bridge`**：加载配置与插件，承接编译器、Lint、模板与动态命令。
-4. **资产层 `ts/packages/templates`**：提供项目模板、add 模板、模板问题和渲染运行时。
+3. **Bridge 层 `packages/foundation/bridge-runtime` + `bridge-slices/*`**：加载配置与插件，承接编译器、Lint、模板与动态命令。
+4. **资产层 `packages/foundation/templates`**：提供项目模板、add 模板、模板问题和渲染运行时。
 
 > Rust 决定命令如何被执行，Node 决定 JavaScript 能力如何被加载与调用，npm 决定 CLI 如何被安装与启动。
 

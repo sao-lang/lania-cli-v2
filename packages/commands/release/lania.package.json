@@ -71,5 +71,6 @@
         "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
       }
     ]
-  }
+  },
+  "description": "release 命令子包：发布规划、执行、恢复与状态查询（零 TS payload）"
 }

@@ -31,15 +31,21 @@
 
 ## Architecture
 
-- `rust/`: host runtime, command parsing, workflows, prompt, progress, logging, exec, git, filesystem, task services
-- `ts/`: Node Bridge, plugin registry, config loaders, template runtime, JS tooling integration
-- `npm/`: installable wrapper that resolves the platform binary and injects the bridge payload path
+Everything is split into self-contained packages under `packages/`; each ships a
+`lania.package.json` (single source of truth whose `description` field states its role):
+
+- `packages/commands/*` (11): one installable subpackage per built-in command, each with its own `config` subcommand and `configSchema`; `config` itself is the management plane
+- `packages/distribution/core`: the scheduler — the single `lan` entry that dispatches to per-command binaries via the static `known-commands.json`
+- `packages/distribution/cli`: the umbrella package aggregating all command subpackages and the full bridge slices
+- `packages/foundation/*`: shared building blocks — `bridge-runtime` (stdio core + slice assembly), `bridge-slices/*` (12 TS slices), `templates` (10 project templates + EJS), `cli-kit` (output rendering), `host-core` (host seams), `package-config` (per-package config engine), `command` (spec/parsing/localization), `capabilities/*` (16 leaf crates)
+- `packages/products/*`: standalone products — `runex` (self-managed runtime manager), `bridge-hub` (language-neutral message bus with 5 language adaptors), `agent` (coding agent engine)
+- `packages/runtime`: the runtime facility executing project-level dynamic commands (`lan-runtime`)
 
 In practice:
 
-- Rust decides what command exists and how it is executed.
-- Node decides how JS-native capabilities are loaded and invoked.
-- The npm wrapper is responsible for installation-time ergonomics.
+- Rust decides what command exists and how it is executed; the launcher dispatches to installed subpackage binaries.
+- Node loads JS-native capabilities through bridge slices assembled per package payload.
+- Each subpackage is independently installable (`npm i @lania-cli-v2/cmd-<cmd>`).
 
 ## Command Categories
 
@@ -290,7 +296,7 @@ The CLI is distributed as a Rust binary plus a colocated Node Bridge payload.
 Bridge lookup order:
 
 1. `LANIA_NODE_BRIDGE_DIR`
-2. `<current-exe>/../lib/node-bridge`
-3. `<current-exe>/../node-bridge`
-4. `<current-exe>/../Resources/node-bridge`
-5. workspace development path `ts/packages/node-bridge`
+2. `<current-exe>/../lib/bridge` (since phase 7a the payload is assembled as core + slices)
+3. `<current-exe>/../lib/node-bridge` (legacy layout, kept for already-installed versions)
+4. `<current-exe>/../node-bridge`
+5. workspace development path `packages/foundation/bridge-runtime/ts`

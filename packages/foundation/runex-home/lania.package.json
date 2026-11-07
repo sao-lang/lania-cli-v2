@@ -24,5 +24,6 @@
     "slices": [],
     "nodeBridge": false
   },
-  "shimHost": "runex-binary"
+  "shimHost": "runex-binary",
+  "description": "runex 自管运行时的极小 PATH 前置 crate（RunexHome / ShimHost）"
 }

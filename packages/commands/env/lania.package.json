@@ -80,5 +80,6 @@
     ]
   },
   "hostDependencies": [],
-  "shimHost": "command-binary"
+  "shimHost": "command-binary",
+  "description": "env 命令子包：18 种语言运行时的自管安装与切换（零 TS payload）"
 }
