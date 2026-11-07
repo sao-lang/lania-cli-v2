@@ -31,7 +31,7 @@
     "bootstrap": "pnpm install --no-frozen-lockfile && cargo fetch --manifest-path rust/Cargo.toml",
     "bootstrap:ci": "pnpm install --frozen-lockfile && cargo fetch --manifest-path rust/Cargo.toml",
     "check": "pnpm bridge:check && pnpm packages:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm pack",
-    "packages:check": "node ./scripts/check-package-manifests.mjs",
+    "packages:check": "node ./scripts/check-package-manifests.mjs && pnpm known:check",
     "bridge:gen": "node ./packages/products/bridge-hub/protocol/gen.mjs",
     "bridge:check": "node ./scripts/check-bridge-protocol.mjs",
     "bridge:selftest": "node ./scripts/check-bridge-protocol.mjs --self-test",
@@ -76,7 +76,11 @@
     "publish:npm": "node ./packages/distribution/cli/npm/cli/bin/lan.mjs product publish --execute --yes",
     "publish:auth": "node ./scripts/configure-npm-auth.mjs",
     "publish:verdaccio": "node ./scripts/verdaccio-smoke.mjs",
-    "alias": "alias lan='cargo run --manifest-path /Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/rust/Cargo.toml -p lania-cli --'"
+    "alias": "alias lan='cargo run --manifest-path /Users/bytedance/Desktop/files/self/lania-zip/lania-cli-v2/rust/Cargo.toml -p lania-cli --'",
+    "known:commands": "node ./scripts/gen-known-commands.mjs",
+    "known:compat": "node ./scripts/gen-compat.mjs",
+    "known:matrix": "node ./scripts/gen-artifact-matrix.mjs",
+    "known:check": "node ./scripts/gen-known-commands.mjs --check && node ./scripts/gen-compat.mjs --check && node ./scripts/gen-artifact-matrix.mjs --check"
   },
   "config": {
     "commitizen": {

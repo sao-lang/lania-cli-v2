@@ -1,0 +1,91 @@
+{
+  "protocol": 1,
+  "coreVersion": "0.0.3",
+  "relations": [
+    {
+      "from": "@lania-cli-v2/cli",
+      "to": "@lania-cli-v2/core",
+      "constraint": "^0.0.x",
+      "reason": "总包通过 core 提供唯一 lan 入口"
+    }
+  ],
+  "commands": [
+    {
+      "command": "add",
+      "package": "@lania-cli-v2/cmd-add",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "build",
+      "package": "@lania-cli-v2/cmd-build",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "config",
+      "package": "@lania-cli-v2/cmd-config",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "create",
+      "package": "@lania-cli-v2/cmd-create",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "dev",
+      "package": "@lania-cli-v2/cmd-dev",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "env",
+      "package": "@lania-cli-v2/cmd-env",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "generate",
+      "package": "@lania-cli-v2/cmd-generate",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "git",
+      "package": "@lania-cli-v2/cmd-git",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "lint",
+      "package": "@lania-cli-v2/cmd-lint",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "pi",
+      "package": "@lania-cli-v2/cmd-pi",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "release",
+      "package": "@lania-cli-v2/cmd-release",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "tools",
+      "package": "@lania-cli-v2/cmd-tools",
+      "protocol": 1,
+      "versionFamily": "lan"
+    }
+  ],
+  "families": ["bridge-hub", "lan", "runex"],
+  "notes": [
+    "lan 族 ↔ runex/agent/bridge-hub 无版本锁，仅 API 协议约束（冻结导出面）。",
+    "命令包缺失时由 launcher 给出安装提示；已安装但协议版本更高时拒绝执行。"
+  ]
+}
