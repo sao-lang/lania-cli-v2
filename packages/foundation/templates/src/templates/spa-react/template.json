@@ -2,7 +2,7 @@
   "name": "spa-react",
   "schemaVersion": 1,
   "renderEngine": "rust_declarative",
-  "legacyTemplateDir": "packages/templates/spa-react",
+  "legacyTemplateDir": "packages/foundation/templates/src/templates/spa-react",
   "ownership": "rust_preferred_node_fallback",
   "useCases": ["create", "add"],
   "migrationLayer": "rust_builtin_template"

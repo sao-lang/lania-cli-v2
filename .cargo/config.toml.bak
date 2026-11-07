@@ -1,0 +1,22 @@
+# 本机专属配置（不进版本库；见 .git/info/exclude）。
+#
+# workspace 根已上移到仓库根（拆分文档 §6.3），cargo 不再读取 rust/.cargo/config.toml，
+# 故把本机 linker / 工具链设置迁到仓库根 .cargo/config.toml。
+#
+# 本机无 MSVC VC 工具集/Windows SDK，也无独立 MinGW 安装。
+# 统一使用 stable-x86_64-pc-windows-gnu toolchain（rustup 已为仓库根设置 override），
+# 并复用 rustup 自带的自包含 MinGW 工具链作为 linker。
+# 如在其他机器上使用 MSVC，删除本文件或改用 msvc toolchain 即可。
+[target.x86_64-pc-windows-gnu]
+linker = "C:\\Users\\30895\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\lib\\rustlib\\x86_64-pc-windows-gnu\\bin\\self-contained\\x86_64-w64-mingw32-gcc.exe"
+
+[env]
+# rustc 创建 import lib 时会按进程 PATH 查找 dlltool/ld，
+# 而 rustup 自带的 self-contained MinGW 目录不在 PATH 中，故注入构建进程环境。
+# 注意：cargo 的 [env] 不做 ${VAR} 展开，且 force 会整体替换 PATH，
+# 故这里用 `;` 追加到系统 PATH 之后无法实现——改为把 self-contained 里的
+# 工具以绝对路径直接给 CC/AR/linker，PATH 本身保持系统原值。
+CC = "C:\\Users\\30895\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\lib\\rustlib\\x86_64-pc-windows-gnu\\bin\\self-contained\\x86_64-w64-mingw32-gcc.exe"
+AR = "C:\\Users\\30895\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\lib\\rustlib\\x86_64-pc-windows-gnu\\bin\\self-contained\\ar.exe"
+# dlltool/ld 供 rustc 创建 import lib 时调用，同样用绝对路径前缀。
+DLLTOOL = "C:\\Users\\30895\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\lib\\rustlib\\x86_64-pc-windows-gnu\\bin\\self-contained\\dlltool.exe"

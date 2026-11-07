@@ -188,6 +188,23 @@
         "@lania-cli-v2/cmd-pi-win32-x64"
       ],
       "protocol": 1
+    },
+    {
+      "command": "config",
+      "package": "@lania-cli-v2/cmd-config",
+      "bin": "lan-config",
+      "npmBin": "lan-config.mjs",
+      "order": 13,
+      "describe": "describes/config.json",
+      "about": "Manage global CLI preferences",
+      "needsNodeBridge": false,
+      "slices": [],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-config-darwin-arm64",
+        "@lania-cli-v2/cmd-config-linux-x64",
+        "@lania-cli-v2/cmd-config-win32-x64"
+      ],
+      "protocol": 1
     }
   ]
 }

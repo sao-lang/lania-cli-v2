@@ -2,7 +2,7 @@
   "name": "toolkit",
   "schemaVersion": 1,
   "renderEngine": "node_bridge",
-  "legacyTemplateDir": "packages/templates/toolkit",
+  "legacyTemplateDir": "packages/foundation/templates/src/templates/toolkit",
   "ownership": "node_only",
   "useCases": ["create", "add"],
   "migrationLayer": "runtime_template"

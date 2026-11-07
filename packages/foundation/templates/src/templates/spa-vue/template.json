@@ -2,7 +2,7 @@
   "name": "spa-vue",
   "schemaVersion": 1,
   "renderEngine": "rust_declarative",
-  "legacyTemplateDir": "packages/templates/spa-vue",
+  "legacyTemplateDir": "packages/foundation/templates/src/templates/spa-vue",
   "ownership": "rust_preferred_node_fallback",
   "useCases": ["create", "add"],
   "migrationLayer": "rust_builtin_template"

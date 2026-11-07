@@ -23,6 +23,7 @@ use lania_host::{
     },
 };
 use lania_logger::LogLevel;
+use lania_package_config::{get_value, load_package_config, package_config_path, save_package_config, set_value};
 use lania_preferences::{
     load_preferences, normalize_locale, normalize_output_mode, save_preferences, UserPreferences,
 };
@@ -37,6 +38,10 @@ pub const SET_HANDLER_ID: &str = "command.config.set";
 pub const INIT_HANDLER_ID: &str = "command.config.init";
 pub const DOCTOR_HANDLER_ID: &str = "command.config.doctor";
 pub const SYNC_HANDLER_ID: &str = "command.config.sync";
+/// 子包配置管理（`lan config packages ...`）：跨包视角查看/编辑各命令子包的包级偏好。
+pub const PACKAGES_HANDLER_ID: &str = "command.config.packages";
+/// 一键覆盖（`lan config apply ...`）：把全局配置下发到全部已安装命令子包。
+pub const APPLY_HANDLER_ID: &str = "command.config.apply";
 
 #[derive(Debug, Default)]
 pub struct ConfigCommandPlugin;
@@ -58,6 +63,8 @@ struct ConfigSetHandler;
 struct ConfigInitHandler;
 struct ConfigDoctorHandler;
 struct ConfigSyncHandler;
+struct ConfigPackagesHandler;
+struct ConfigApplyHandler;
 
 impl ConfigCommandPlugin {
     pub fn spec() -> CommandSpec {
@@ -114,14 +121,24 @@ impl ConfigCommandPlugin {
     }
 
     fn get_spec() -> CommandSpec {
-        CommandSpec::new("get", "Read global CLI configuration", GET_HANDLER_ID).with_args(vec![
-            ArgSpec {
-                name: "key".into(),
-                required: false,
-                multiple: false,
-                help: "Config key: locale | log.timestamps | output.mode".into(),
-            },
-        ])
+        CommandSpec::new("get", "Read global CLI configuration", GET_HANDLER_ID)
+            .with_args(vec![
+                ArgSpec {
+                    name: "key".into(),
+                    required: false,
+                    multiple: false,
+                    help: "Config key: locale | log.timestamps | output.mode".into(),
+                },
+            ])
+            .with_options(vec![OptionSpec {
+                long: "package".into(),
+                short: Some('p'),
+                help: "Read a command subpackage's own preferences (~/.lania/config/<pkg>.json)".into(),
+                value_kind: ValueKind::String,
+                default_value: None,
+                choices: vec![],
+                negatable: false,
+            }])
     }
 
     fn set_spec() -> CommandSpec {
@@ -146,6 +163,15 @@ impl ConfigCommandPlugin {
                 help: "Config value (lists accept comma-separated values or JSON)".into(),
             },
         ])
+        .with_options(vec![OptionSpec {
+            long: "package".into(),
+            short: Some('p'),
+            help: "Write a command subpackage's own preferences (~/.lania/config/<pkg>.json)".into(),
+            value_kind: ValueKind::String,
+            default_value: None,
+            choices: vec![],
+            negatable: false,
+        }])
     }
 
     fn init_spec() -> CommandSpec {
@@ -219,6 +245,27 @@ impl ConfigCommandPlugin {
                     )
                 )
             })
+    }
+
+    /// 读取长选项（`--package <pkg>`），缺省返回 None。
+    fn read_option(context: &CommandContext, name: &str) -> Option<String> {
+        context
+            .argv
+            .options
+            .get(name)
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+    }
+
+    /// 子包配置读写的公共前置：校验包名合法（引擎内的路径穿越防护）。
+    fn package_scope(context: &CommandContext) -> Result<String> {
+        let pkg = Self::read_option(context, "package").ok_or_else(|| {
+            anyhow!("missing required option: --package <pkg>")
+        })?;
+        lania_package_config::validate_package_name(&pkg)?;
+        Ok(pkg)
     }
 
     fn normalize_key(key: &str) -> Option<&'static str> {
@@ -357,6 +404,33 @@ impl CommandHandler for ConfigRootHandler {
 #[async_trait(?Send)]
 impl CommandHandler for ConfigGetHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        // `--package <pkg>`：读该命令子包自己的包级偏好（~/.lania/config/<pkg>.json）。
+        if ConfigCommandPlugin::read_option(ctx.command(), "package").is_some() {
+            let pkg = ConfigCommandPlugin::package_scope(ctx.command())?;
+            let config = load_package_config(&pkg)?;
+            let path = package_config_path(&pkg)?;
+            let raw_key = ctx
+                .command()
+                .argv
+                .args
+                .get("key")
+                .and_then(|value| value.as_str());
+            let value = match raw_key {
+                Some(key) => get_value(&config, key).cloned(),
+                None => None,
+            };
+            let output = json!({
+                "kind": "config_get",
+                "scope": "package",
+                "package": pkg,
+                "path": path.map(|p| p.display().to_string()),
+                "key": raw_key,
+                "value": value,
+                "config": config,
+            });
+            return Ok(ctx.complete_template_info(output, 0));
+        }
+
         let prefs = load_preferences();
         let output = if let Some(raw_key) = ctx
             .command()
@@ -380,6 +454,27 @@ impl CommandHandler for ConfigSetHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         let key = ConfigCommandPlugin::read_arg(ctx.command(), ctx.locale(), "key")?;
         let value = ConfigCommandPlugin::read_arg(ctx.command(), ctx.locale(), "value")?;
+
+        // `--package <pkg>`：写该命令子包自己的包级偏好（~/.lania/config/<pkg>.json）。
+        // 包级偏好与全局偏好、项目配置三者互不覆盖，作用域由参数显式指定。
+        if ConfigCommandPlugin::read_option(ctx.command(), "package").is_some() {
+            let pkg = ConfigCommandPlugin::package_scope(ctx.command())?;
+            let mut config = load_package_config(&pkg)?;
+            let parsed = project_config::parse_value(&key, &value);
+            set_value(&mut config, &key, parsed.clone())
+                .map_err(|error| anyhow!("{error}"))?;
+            save_package_config(&pkg, &config)?;
+            let path = package_config_path(&pkg)?;
+            let output = json!({
+                "kind": "config_set",
+                "scope": "package",
+                "package": pkg,
+                "path": path.map(|p| p.display().to_string()),
+                "key": key,
+                "value": parsed,
+            });
+            return Ok(ctx.complete_template_info(output, 0));
+        }
 
         // 先看是不是全局键（只有 3 个）；否则按项目配置路径处理。
         let Some(normalized_key) = ConfigCommandPlugin::normalize_key(&key) else {

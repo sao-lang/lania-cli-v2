@@ -928,7 +928,7 @@ runex ──▶ runex-core ──▶ 第三方 crate
 ## 17. 容器内验收记录（2026-11-06）
 
 第三批落地后在 `rust:latest` Linux 容器里做了一轮全量验收，脚本见
-`rust/scripts/verify-runtimes.sh`（分层）与 `rust/scripts/verify-runtimes-docker.sh`（宿主入口）。
+`scripts/verify-runtimes.sh`（分层）与 `scripts/verify-runtimes-docker.sh`（宿主入口）。
 每个运行时使用独立 `RUNEX_HOME`，不触碰宿主机 `~/.runex`。
 
 ### 17.1 通过项

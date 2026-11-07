@@ -17,5 +17,21 @@
     "@lania-cli-v2/cmd-env-darwin-arm64": "workspace:*",
     "@lania-cli-v2/cmd-env-linux-x64": "workspace:*",
     "@lania-cli-v2/cmd-env-win32-x64": "workspace:*"
+  },
+  "configSchema": {
+    "scope": "package",
+    "path": "~/.lania/config/env.json",
+    "keys": [
+      {
+        "key": "shim.host",
+        "kind": "enum",
+        "choices": [
+          "lan",
+          "runex"
+        ],
+        "default": "lan",
+        "description": "shims 调用的管理命令：lan（默认，`lan env which`）或 runex（`runex which`）；见拆分文档 §6.6"
+      }
+    ]
   }
 }

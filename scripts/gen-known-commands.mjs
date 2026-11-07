@@ -42,9 +42,7 @@ function buildKnownCommands() {
   const packagesDir = path.join(repoRoot, 'packages');
   const manifests = collectManifests(packagesDir)
     .map((file) => ({ file, manifest: readJson(file) }))
-    .filter(({ manifest }) => manifest.kind === 'command')
-    // 决策 #11：`config` 留总包（crate 在 distribution/ 下），不在调度表内。
-    .filter(({ manifest }) => !String(manifest.api?.rust?.cratePath ?? '').includes('distribution'));
+    .filter(({ manifest }) => manifest.kind === 'command');
 
   const commands = manifests
     .map(({ file, manifest }) => {

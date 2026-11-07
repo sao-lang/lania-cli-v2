@@ -183,32 +183,40 @@ function resolveCommandBinary(entry, cmdDir) {
   return resolveBinaryFromPlatformPackage(platformPackage, entry.bin, requireFrom(cmdDir));
 }
 
-/** 调度模式的帮助聚合：已安装命令 + 未安装命令的安装提示。 */
+/**
+ * 调度模式的帮助聚合。
+ *
+ * 契约（用户期望 §3）：**只有已安装命令子包才出现在命令清单里**；
+ * 未安装的命令不出现在命令信息中，仅在末尾给一行「可按需安装」提示，
+ * 具体清单由 `lan package list` 查询。
+ */
 function printAggregatedHelp(known) {
+  const states = loadPackageStates();
   const installed = [];
-  const missing = [];
+  let missingCount = 0;
   for (const entry of known.commands) {
-    if (resolveCommandPackageDir(entry.package)) installed.push(entry);
-    else missing.push(entry);
+    const present = resolveCommandPackageDir(entry.package) !== null;
+    // 未安装或已禁用的命令都不出现在命令清单里。
+    if (present && !isPackageDisabled(entry.command, states)) installed.push(entry);
+    else missingCount += 1;
   }
   console.log('Lania CLI v2 — 可用命令');
   console.log('');
   if (installed.length > 0) {
-    console.log('已安装：');
     for (const entry of installed) {
       console.log(`  ${entry.command.padEnd(10)} ${entry.about ?? ''}`.trimEnd());
     }
     console.log('');
-  }
-  if (missing.length > 0) {
-    console.log('未安装（可按需安装）：');
-    for (const entry of missing) {
-      console.log(`  ${entry.command.padEnd(10)} npm i ${entry.package}`);
-    }
+  } else {
+    console.log('  （尚未安装任何命令子包）');
     console.log('');
   }
   console.log('用法：lan <命令> [参数]');
   console.log('查看单个命令帮助：lan <命令> --help');
+  console.log('管理命令子包：lan package list');
+  if (missingCount > 0) {
+    console.log(`另有 ${missingCount} 个命令子包未安装，运行 lan package list 查看并按需安装。`);
+  }
 }
 
 function printVersion(known) {
@@ -312,11 +320,38 @@ function dispatch(known) {
   }
 
   const command = argv[0];
+
+  // `package` 是 launcher 内建的子包管理命令（不来自任何子包）。
+  if (command === 'package') {
+    packageCommand(known, argv.slice(1));
+    return;
+  }
+
+  // `config packages` / `config apply` 是 launcher 内建的跨包配置管理命令。
+  // 其余 `config` 子命令（get/set/init/doctor/sync）由 config 子包提供。
+  if (command === 'config') {
+    const subcommand = argv[1];
+    if (subcommand === 'packages') {
+      configPackagesCommand(known, argv.slice(2));
+      return;
+    }
+    if (subcommand === 'apply') {
+      configApplyCommand(known, argv.slice(2));
+      return;
+    }
+  }
+
   const entry = known.commands.find((item) => item.command === command);
   if (!entry) {
     // Phase 1 未命中 → Phase 2 动态回退（§5.6 F.2）：项目级动态命令由 runtime 设施承载。
     dispatchDynamic(command, argv.slice(1));
     return;
+  }
+
+  // 被显式禁用的子包：不执行（等同于未安装）。
+  if (isPackageDisabled(command, loadPackageStates())) {
+    console.error(`命令 "${command}" 已被禁用（lan package enable ${command} 可重新启用）。`);
+    process.exit(127);
   }
 
   const cmdDir = resolveCommandPackageDir(entry.package);
@@ -360,6 +395,383 @@ function dispatch(known) {
 
   // argv 契约：剥掉命令名后转发（§5.3 C.4）。
   execDirect(binary, env, argv.slice(1));
+}
+
+// ── 3) 命令子包管理（lan package）────────────────────────────────────
+//
+// 总包的角色是「管理命令子包」：命令能力全部由子包提供，
+// 未安装子包的命令不可用。本命令提供子包的增删改查：
+//   lan package list                列出全部子包及安装状态
+//   lan package install <cmd>       安装子包
+//   lan package uninstall <cmd>     卸载子包
+//   lan package update <cmd>        更新子包
+//   lan package enable/disable <cmd> 启用/禁用（写配置，不动 node_modules）
+//
+// 子包清单来自构建期静态表 known-commands.json（不扫描目录）。
+
+/** 子包的启用/禁用状态文件（与 lania-package-config 的 per-pkg 存储一致）。 */
+function packageStatePath() {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  if (!home) return null;
+  return path.join(home, '.lania', 'packages.json');
+}
+
+function loadPackageStates() {
+  const file = packageStatePath();
+  if (!file) return {};
+  try {
+    const raw = fs.readFileSync(file, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePackageStates(states) {
+  const file = packageStatePath();
+  if (!file) return;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(states, null, 2)}\n`, 'utf8');
+}
+
+/** 子包是否被显式禁用。 */
+function isPackageDisabled(command, states) {
+  return states[command]?.disabled === true;
+}
+
+/** 在当前工作目录（或全局）执行 npm。 */
+function runNpm(args, cwd) {
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const result = spawnSync(npm, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env: { ...process.env, npm_config_yes: 'true' },
+  });
+  return result.status ?? 1;
+}
+
+/** 找到命令子包条目；未找到时给出可安装清单提示并退出。 */
+function requireCommandEntry(known, command) {
+  const entry = known.commands.find((item) => item.command === command);
+  if (!entry) {
+    console.error(`未知命令子包 "${command}"。`);
+    const names = known.commands.map((item) => item.command).join(', ');
+    console.error(`可用子包：${names}`);
+    process.exit(1);
+  }
+  return entry;
+}
+
+function printPackageList(known) {
+  const states = loadPackageStates();
+  const rows = known.commands.map((entry) => {
+    const installed = resolveCommandPackageDir(entry.package) !== null;
+    const disabled = isPackageDisabled(entry.command, states);
+    let status;
+    if (!installed) status = '未安装';
+    else if (disabled) status = '已禁用';
+    else status = '已安装';
+    return { command: entry.command, package: entry.package, status, about: entry.about ?? '' };
+  });
+  console.log('命令子包：');
+  console.log('');
+  for (const row of rows) {
+    console.log(`  ${row.command.padEnd(10)} ${row.status.padEnd(8)} ${row.package}`);
+    if (row.about) console.log(`  ${' '.repeat(10)} ${row.about}`);
+  }
+  console.log('');
+  const installedCount = rows.filter((row) => row.status === '已安装').length;
+  console.log(`共 ${rows.length} 个子包，已启用 ${installedCount} 个。`);
+}
+
+// ── 4) 配置管理（lan config packages / apply）─────────────────────────
+//
+// 总包视角的配置管理：跨包查看各命令子包的包级偏好，并把全局配置
+// 一键覆盖下发到全部已安装子包。子包偏好存放在
+// `~/.lania/config/<pkg>.json`（与 Rust 侧 lania-package-config 引擎同路径）。
+
+/** 子包偏好文件路径（与 Rust 侧 lania-package-config 引擎一致）。 */
+function packageConfigPath(pkg) {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  if (!home) return null;
+  return path.join(home, '.lania', 'config', `${pkg}.json`);
+}
+
+function loadPackageConfig(pkg) {
+  const file = packageConfigPath(pkg);
+  if (!file) return {};
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePackageConfig(pkg, config) {
+  const file = packageConfigPath(pkg);
+  if (!file) throw new Error('无法确定 HOME 目录，子包偏好未写入');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  return file;
+}
+
+/** 点分 key 读写（与 Rust 侧 set_value / get_value 同语义）。 */
+function setDottedValue(target, dottedKey, value) {
+  const segments = dottedKey.split('.');
+  if (segments.some((segment) => segment.trim() === '')) {
+    throw new Error(`invalid config key \`${dottedKey}\``);
+  }
+  let current = target;
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (index + 1 === segments.length) {
+      current[segment] = value;
+      return;
+    }
+    if (typeof current[segment] !== 'object' || current[segment] === null) {
+      current[segment] = {};
+    }
+    current = current[segment];
+  }
+}
+
+/**
+ * 全局配置 → 子包偏好的覆盖映射。
+ *
+ * 只覆盖「子包确实声明了该键」的情况：子包的键集合由各自 manifest 的
+ * `configSchema.keys[].key` 给出。这里从子包清单读取该声明，
+ * 避免把全局键无差别灌进每个子包（那会污染子包的配置语义）。
+ */
+function globalOverridesFor(pkg, globalConfig, schemaKeys) {
+  const overrides = {};
+  for (const key of schemaKeys) {
+    const value = globalConfig[key];
+    if (value !== undefined) overrides[key] = value;
+  }
+  return overrides;
+}
+
+/**
+ * 从命令包读取 configSchema 的键列表。
+ *
+ * `configSchema` 声明在包的 `lania.package.json`（仓库内的清单）里，
+ * 发布后的 npm 包不一定带它，故先找 npm 包自身的 manifest，
+ * 再向上找同级的 `lania.package.json`；两者都没有则返回空数组
+ * （此时 apply 会跳过该子包，不做无差别覆盖）。
+ */
+function readPackageConfigSchema(cmdDir) {
+  const candidates = [
+    path.join(cmdDir, 'package.json'),
+    path.join(path.dirname(cmdDir), '..', 'lania.package.json'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+      const schema = manifest.configSchema ?? manifest.lania?.configSchema;
+      if (!schema) continue;
+      const keys = Array.isArray(schema.keys) ? schema.keys : [];
+      return keys.map((entry) => (typeof entry === 'string' ? entry : entry?.key)).filter(Boolean);
+    } catch {
+      continue;
+    }
+  }
+  return [];
+}
+
+function configPackagesCommand(known, args) {
+  const states = loadPackageStates();
+  const rows = [];
+  for (const entry of known.commands) {
+    const cmdDir = resolveCommandPackageDir(entry.package);
+    if (!cmdDir) continue;
+    if (isPackageDisabled(entry.command, states)) continue;
+    const config = loadPackageConfig(entry.command);
+    const file = packageConfigPath(entry.command);
+    rows.push({
+      command: entry.command,
+      package: entry.package,
+      path: file,
+      keys: Object.keys(config),
+      config,
+    });
+  }
+  console.log('命令子包配置：');
+  console.log('');
+  if (rows.length === 0) {
+    console.log('  （没有已安装的命令子包）');
+    return;
+  }
+  for (const row of rows) {
+    const keyText = row.keys.length > 0 ? row.keys.join(', ') : '（未配置）';
+    console.log(`  ${row.command.padEnd(10)} ${keyText}`);
+    console.log(`  ${' '.repeat(10)} ${row.path}`);
+  }
+  console.log('');
+  console.log(`共 ${rows.length} 个子包有配置存储。`);
+  console.log('读取：lan config get <key> --package <pkg>');
+  console.log('写入：lan config set <key> <value> --package <pkg>');
+}
+
+/**
+ * 一键覆盖：把全局配置下发到全部已安装命令子包。
+ *
+ * 只覆盖子包 manifest 声明过的键；未声明的键不动。
+ */
+function configApplyCommand(known, args) {
+  const states = loadPackageStates();
+  const globalConfig = loadGlobalPreferences();
+  const globalKeys = Object.keys(globalConfig);
+  if (globalKeys.length === 0) {
+    console.log('全局配置为空，无需覆盖。');
+    return;
+  }
+  const applied = [];
+  const skipped = [];
+  for (const entry of known.commands) {
+    const cmdDir = resolveCommandPackageDir(entry.package);
+    if (!cmdDir) continue;
+    if (isPackageDisabled(entry.command, states)) continue;
+    const schemaKeys = readPackageConfigSchema(cmdDir);
+    const overrides = globalOverridesFor(entry.command, globalConfig, schemaKeys);
+    if (Object.keys(overrides).length === 0) {
+      skipped.push(entry.command);
+      continue;
+    }
+    const config = loadPackageConfig(entry.command);
+    for (const [key, value] of Object.entries(overrides)) {
+      setDottedValue(config, key, value);
+    }
+    savePackageConfig(entry.command, config);
+    applied.push({ command: entry.command, keys: Object.keys(overrides) });
+  }
+  for (const item of applied) {
+    console.log(`  ${item.command.padEnd(10)} 已覆盖：${item.keys.join(', ')}`);
+  }
+  if (applied.length === 0) {
+    console.log('没有子包声明可覆盖的配置键（全局键：' + globalKeys.join(', ') + '）。');
+  } else {
+    console.log('');
+    console.log(`已覆盖 ${applied.length} 个子包。`);
+  }
+  if (skipped.length > 0) {
+    console.log(`跳过 ${skipped.length} 个未声明相关配置键的子包：${skipped.join(', ')}`);
+  }
+}
+
+/** 全局用户偏好（~/.lania/preferences.json）。 */
+function loadGlobalPreferences() {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  if (!home) return {};
+  try {
+    const parsed = JSON.parse(
+      fs.readFileSync(path.join(home, '.lania', 'preferences.json'), 'utf8'),
+    );
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function packageCommand(known, args) {
+  const [subcommand, ...rest] = args;
+
+  if (!subcommand || ['--help', '-h', 'help'].includes(subcommand)) {
+    console.log('lan package — 管理命令子包');
+    console.log('');
+    console.log('用法：');
+    console.log('  lan package list                 列出全部子包及安装状态');
+    console.log('  lan package install <cmd>        安装子包');
+    console.log('  lan package uninstall <cmd>      卸载子包');
+    console.log('  lan package update <cmd>         更新子包');
+    console.log('  lan package enable <cmd>         启用子包');
+    console.log('  lan package disable <cmd>        禁用子包（不卸载）');
+    return;
+  }
+
+  switch (subcommand) {
+    case 'list':
+    case 'ls':
+      printPackageList(known);
+      return;
+
+    case 'install':
+    case 'add': {
+      const command = rest.find((item) => !item.startsWith('-'));
+      if (!command) {
+        console.error('用法：lan package install <cmd>');
+        process.exit(1);
+      }
+      const entry = requireCommandEntry(known, command);
+      console.log(`[lan package] 安装 ${entry.package} …`);
+      const code = runNpm(['install', entry.package]);
+      if (code !== 0) process.exit(code);
+      // 安装即视为启用：清掉 disabled 标记。
+      const states = loadPackageStates();
+      if (states[command]) {
+        delete states[command].disabled;
+        savePackageStates(states);
+      }
+      console.log(`[lan package] ${entry.package} 安装完成。`);
+      return;
+    }
+
+    case 'uninstall':
+    case 'remove':
+    case 'rm': {
+      const command = rest.find((item) => !item.startsWith('-'));
+      if (!command) {
+        console.error('用法：lan package uninstall <cmd>');
+        process.exit(1);
+      }
+      const entry = requireCommandEntry(known, command);
+      console.log(`[lan package] 卸载 ${entry.package} …`);
+      const code = runNpm(['uninstall', entry.package]);
+      if (code !== 0) process.exit(code);
+      const states = loadPackageStates();
+      delete states[command];
+      savePackageStates(states);
+      console.log(`[lan package] ${entry.package} 已卸载。`);
+      return;
+    }
+
+    case 'update':
+    case 'upgrade': {
+      const command = rest.find((item) => !item.startsWith('-'));
+      if (!command) {
+        console.error('用法：lan package update <cmd>');
+        process.exit(1);
+      }
+      const entry = requireCommandEntry(known, command);
+      console.log(`[lan package] 更新 ${entry.package} …`);
+      const code = runNpm(['update', entry.package]);
+      if (code !== 0) process.exit(code);
+      console.log(`[lan package] ${entry.package} 已更新。`);
+      return;
+    }
+
+    case 'enable':
+    case 'disable': {
+      const command = rest.find((item) => !item.startsWith('-'));
+      if (!command) {
+        console.error(`用法：lan package ${subcommand} <cmd>`);
+        process.exit(1);
+      }
+      requireCommandEntry(known, command);
+      const states = loadPackageStates();
+      states[command] = { ...(states[command] ?? {}), disabled: subcommand === 'disable' };
+      savePackageStates(states);
+      console.log(`[lan package] ${command} 已${subcommand === 'disable' ? '禁用' : '启用'}。`);
+      return;
+    }
+
+    default:
+      console.error(`未知子命令 "lan package ${subcommand}"。`);
+      console.error('用法：lan package list | install | uninstall | update | enable | disable');
+      process.exit(1);
+  }
 }
 
 // ── 主入口 ────────────────────────────────────────────────────────────

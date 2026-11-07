@@ -1,11 +1,5 @@
-module.exports = {
-    extends: [
-        'stylelint-config-standard',
-        'stylelint-config-prettier',
-    ],
-    rules: {
-        indentation: 4,
-        'string-quotes': 'single',
-        'color-hex-case': 'lower',
-    },
+/** @type {import('stylelint').Config} */
+export default {
+    extends: ['stylelint-config-standard'],
+    rules: {},
 };

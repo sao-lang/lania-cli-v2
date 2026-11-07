@@ -29,7 +29,6 @@ coverage/
 *.tsbuildinfo
 
 # Rust
-rust/target/
 target/
 
 # Staged npm payloads / release artifacts

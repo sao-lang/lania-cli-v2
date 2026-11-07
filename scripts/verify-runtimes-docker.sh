@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # 宿主机入口：用 Docker 里的完整 Rust 工具链验证自管运行时。
 #
-#   ./rust/scripts/verify-runtimes-docker.sh                    # 全量 L0-L5
-#   VERIFY_INSTALL=0 ./rust/scripts/verify-runtimes-docker.sh   # 只列版本，不真实下载
-#   VERIFY_ONLINE=0 ./rust/scripts/verify-runtimes-docker.sh    # 只跑离线单测与 CLI/TUI/API
-#   VERIFY_LANGS="gleam d" ./rust/scripts/verify-runtimes-docker.sh  # 只验证指定运行时
+#   ./scripts/verify-runtimes-docker.sh                    # 全量 L0-L5
+#   VERIFY_INSTALL=0 ./scripts/verify-runtimes-docker.sh   # 只列版本，不真实下载
+#   VERIFY_ONLINE=0 ./scripts/verify-runtimes-docker.sh    # 只跑离线单测与 CLI/TUI/API
+#   VERIFY_LANGS="gleam d" ./scripts/verify-runtimes-docker.sh  # 只验证指定运行时
 #
 # 需要先手动启动 Docker Desktop（不要从受沙箱限制的终端里启动它）。
 set -euo pipefail
@@ -67,7 +67,7 @@ MSYS_NO_PATHCONV=1 docker run --rm "${TTY[@]}" \
   --add-host=host.docker.internal:host-gateway \
   -v "$HOST_ROOT:/workspace" \
   -v "$CACHE_VOL:/usr/local/cargo/registry" \
-  -v "$TARGET_VOL:/workspace/rust/target" \
+  -v "$TARGET_VOL:/workspace/target" \
   -w /workspace \
   "${PROXY_ARGS[@]}" \
   "${NO_PROXY_ARGS[@]}" \
@@ -79,4 +79,4 @@ MSYS_NO_PATHCONV=1 docker run --rm "${TTY[@]}" \
   -e "RUNEX_HTTP_TIMEOUT_SECS=${RUNEX_HTTP_TIMEOUT_SECS:-180}" \
   -e "RUNEX_DOWNLOAD_TIMEOUT_SECS=${RUNEX_DOWNLOAD_TIMEOUT_SECS:-900}" \
   "$IMAGE" \
-  bash /workspace/rust/scripts/verify-runtimes.sh
+  bash /workspace/scripts/verify-runtimes.sh
