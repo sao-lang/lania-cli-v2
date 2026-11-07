@@ -22,7 +22,6 @@ use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_plugins_command_pi::PiCommandPlugin;
 use lania_plugins_command_release::ReleaseCommandPlugin;
-use lania_plugins_command_template::TemplateCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
 
 /// Rebuild the same built-in command tree that `lania-cli` registers before
@@ -56,7 +55,6 @@ fn builtin_command_specs() -> Vec<CommandSpec> {
     setup!(GenerateCommandPlugin);
     setup!(ReleaseCommandPlugin);
     setup!(GitCommandPlugin);
-    setup!(TemplateCommandPlugin);
     setup!(ToolsCommandPlugin);
     setup!(EnvCommandPlugin);
     setup!(PiCommandPlugin);

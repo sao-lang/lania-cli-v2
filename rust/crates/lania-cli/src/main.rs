@@ -26,7 +26,6 @@ use lania_plugins_command_git::GitCommandPlugin;
 use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_plugins_command_release::ReleaseCommandPlugin;
-use lania_plugins_command_template::TemplateCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
 use lania_progress::TerminalProgressMode;
 
@@ -64,7 +63,6 @@ async fn main() -> Result<()> {
     host.register_plugin(Box::new(GenerateCommandPlugin))?;
     host.register_plugin(Box::new(ReleaseCommandPlugin))?;
     host.register_plugin(Box::new(GitCommandPlugin))?;
-    host.register_plugin(Box::new(TemplateCommandPlugin))?;
     host.register_plugin(Box::new(ToolsCommandPlugin))?;
     host.register_plugin(Box::new(EnvCommandPlugin))?;
     host.register_plugin(Box::new(PiCommandPlugin))?;

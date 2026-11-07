@@ -33,6 +33,5 @@ lania-plugins-command-git = { path = "../../../packages/commands/git/rust" }
 lania-plugins-command-lint = { path = "../../../packages/commands/lint/rust" }
 lania-plugins-command-locale = { path = "../lania-plugins-command-locale" }
 lania-plugins-command-release = { path = "../../../packages/commands/release/rust" }
-lania-plugins-command-template = { path = "../../../packages/commands/template/rust" }
 lania-plugins-command-tools = { path = "../../../packages/commands/tools/rust" }
 lania-preferences = { path = "../../../packages/foundation/capabilities/rust/lania-preferences" }

@@ -1,18 +1,15 @@
-//! 将 `template` 命令注册到宿主，并把 CLI 输入映射到对应 workflow 或 bridge 调用。
+//! `template` 能力并入 `create` 作为二级命令（拆分文档 §3.3 注 5 / 评审决定）。
 //!
-//! 主要导出：spec、TemplateCommandPlugin、HANDLER_ID、INFO_HANDLER_ID。
-//! 关键点：
-//! - 包含异步/超时/取消等控制流
-//! - 包含序列化/反序列化与 JSON 结构约定
+//! 本模块承载原 `lania-plugins-command-template` 的 spec 与 handler：
+//! handler 代码零改动，仅注册点从独立 crate 迁到 create 内部。
+
 use std::io::{stderr, stdin, IsTerminal, Write};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use lania_command::{ArgSpec, CommandContext, CommandSpec, Example};
 use lania_host::{
-    capability::CapabilityName,
     execution::{CommandExecution, CommandExecutionContext, CommandHandler, ExecutionError},
-    plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
     EXIT_RUNTIME_ERROR, EXIT_SUCCESS,
 };
 use lania_node_bridge::TemplateBridgeCapability;
@@ -20,13 +17,14 @@ use lania_prompt::{
     PromptFallbackStrategy, PromptFlow, PromptRunOptions, PromptStep, PromptStepKind,
 };
 
-pub const HANDLER_ID: &str = "command.template";
+pub const TEMPLATE_HANDLER_ID: &str = "command.template";
+
 #[derive(Debug, Default)]
-pub struct TemplateCommandPlugin;
+pub struct TemplateCommandSpec;
 
-struct TemplateCommandHandler;
+pub struct TemplateCommandHandler;
 
-impl TemplateCommandPlugin {
+impl TemplateCommandSpec {
     fn is_zh_locale(locale: &str) -> bool {
         locale == "zh"
     }
@@ -43,7 +41,7 @@ impl TemplateCommandPlugin {
         let mut spec = CommandSpec::new(
             "template",
             "List templates or inspect a template detail",
-            HANDLER_ID,
+            TEMPLATE_HANDLER_ID,
         );
         spec.args = vec![ArgSpec {
             name: "name".into(),
@@ -78,7 +76,7 @@ impl TemplateCommandPlugin {
         ctx: &CommandExecutionContext<'_>,
         template_name: Option<&str>,
     ) -> bool {
-        template_name.is_none() && ctx.command().handler_id == HANDLER_ID && stdin().is_terminal()
+        template_name.is_none() && ctx.command().handler_id == TEMPLATE_HANDLER_ID && stdin().is_terminal()
     }
 
     fn template_choice_label(metadata: &serde_json::Value, _locale: &str) -> String {
@@ -282,34 +280,10 @@ impl TemplateCommandPlugin {
     }
 }
 
-impl Plugin for TemplateCommandPlugin {
-    fn meta(&self) -> PluginMeta {
-        PluginMeta {
-            name: "command-template".into(),
-            version: "0.1.0".into(),
-            kind: PluginKind::Rust,
-            requires: vec![CapabilityName::NodeBridge, CapabilityName::Prompt],
-            before: vec![],
-            after: vec![],
-        }
-    }
-
-    fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
-        register_builtin_command::<TemplateCommandHandler, _>(
-            ctx,
-            "command-template",
-            "template",
-            Self::spec(),
-            &[HANDLER_ID],
-            || TemplateCommandHandler,
-        )
-    }
-}
-
 #[async_trait(?Send)]
 impl CommandHandler for TemplateCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
-        let requested_template_name = TemplateCommandPlugin::resolve_template_name(ctx.command());
+        let requested_template_name = TemplateCommandSpec::resolve_template_name(ctx.command());
         if requested_template_name.as_deref() == Some("info") {
             return Err(ExecutionError {
                 exit_code: EXIT_RUNTIME_ERROR,
@@ -328,7 +302,7 @@ impl CommandHandler for TemplateCommandHandler {
         let result = exchange.response.result.clone().ok_or_else(|| {
             anyhow!(
                 "{}",
-                TemplateCommandPlugin::localized(
+                TemplateCommandSpec::localized(
                     ctx.locale(),
                     "template.list returned no payload",
                     "template.list 未返回有效结果",
@@ -338,12 +312,12 @@ impl CommandHandler for TemplateCommandHandler {
 
         let templates = result["templates"].clone();
         let metadata = result["metadata"].as_array().cloned().unwrap_or_default();
-        let interactive_info = TemplateCommandPlugin::is_interactive_template_info(
+        let interactive_info = TemplateCommandSpec::is_interactive_template_info(
             ctx,
             requested_template_name.as_deref(),
         );
         let template_name = if interactive_info {
-            TemplateCommandPlugin::pick_template_interactively(ctx, &metadata)?
+            TemplateCommandSpec::pick_template_interactively(ctx, &metadata)?
                 .or(requested_template_name)
         } else {
             requested_template_name
@@ -357,7 +331,7 @@ impl CommandHandler for TemplateCommandHandler {
                 .ok_or_else(|| {
                     anyhow!(
                         "{}",
-                        if TemplateCommandPlugin::is_zh_locale(ctx.locale()) {
+                        if TemplateCommandSpec::is_zh_locale(ctx.locale()) {
                             format!("未知模板：{name}")
                         } else {
                             format!("unknown template: {name}")
@@ -365,7 +339,7 @@ impl CommandHandler for TemplateCommandHandler {
                     )
                 })?;
             if interactive_info {
-                TemplateCommandPlugin::maybe_print_interactive_detail(ctx, &detail)?;
+                TemplateCommandSpec::maybe_print_interactive_detail(ctx, &detail)?;
             }
             serde_json::json!({
                 "template": name,
@@ -392,24 +366,24 @@ impl CommandHandler for TemplateCommandHandler {
 
 #[cfg(test)]
 mod tests {
-    use super::TemplateCommandPlugin;
+    use super::{TemplateCommandSpec, TEMPLATE_HANDLER_ID};
 
     // ── is_zh_locale / localized ─────────────────────────────
 
     #[test]
     fn is_zh_locale_returns_true_for_zh() {
-        assert!(TemplateCommandPlugin::is_zh_locale("zh"));
+        assert!(TemplateCommandSpec::is_zh_locale("zh"));
     }
 
     #[test]
     fn is_zh_locale_returns_false_for_en() {
-        assert!(!TemplateCommandPlugin::is_zh_locale("en"));
+        assert!(!TemplateCommandSpec::is_zh_locale("en"));
     }
 
     #[test]
     fn localized_returns_zh_when_locale_is_zh() {
         assert_eq!(
-            TemplateCommandPlugin::localized("zh", "hello", "你好"),
+            TemplateCommandSpec::localized("zh", "hello", "你好"),
             "你好"
         );
     }
@@ -419,15 +393,15 @@ mod tests {
     #[test]
     fn localized_label_returns_english_by_default() {
         assert_eq!(
-            TemplateCommandPlugin::localized_label("template", "en"),
+            TemplateCommandSpec::localized_label("template", "en"),
             "Template"
         );
         assert_eq!(
-            TemplateCommandPlugin::localized_label("summary", "en"),
+            TemplateCommandSpec::localized_label("summary", "en"),
             "Summary"
         );
         assert_eq!(
-            TemplateCommandPlugin::localized_label("highlights", "en"),
+            TemplateCommandSpec::localized_label("highlights", "en"),
             "Highlights"
         );
     }
@@ -435,15 +409,15 @@ mod tests {
     #[test]
     fn localized_label_returns_chinese_when_locale_is_zh() {
         assert_eq!(
-            TemplateCommandPlugin::localized_label("template", "zh"),
+            TemplateCommandSpec::localized_label("template", "zh"),
             "模板"
         );
         assert_eq!(
-            TemplateCommandPlugin::localized_label("summary", "zh"),
+            TemplateCommandSpec::localized_label("summary", "zh"),
             "简介"
         );
         assert_eq!(
-            TemplateCommandPlugin::localized_label("highlights", "zh"),
+            TemplateCommandSpec::localized_label("highlights", "zh"),
             "关键特征"
         );
     }
@@ -452,25 +426,25 @@ mod tests {
 
     #[test]
     fn template_summary_returns_english_for_spa_react() {
-        let summary = TemplateCommandPlugin::template_summary("spa-react", "en");
+        let summary = TemplateCommandSpec::template_summary("spa-react", "en");
         assert!(summary.contains("React"));
     }
 
     #[test]
     fn template_summary_returns_chinese_for_spa_react() {
-        let summary = TemplateCommandPlugin::template_summary("spa-react", "zh");
+        let summary = TemplateCommandSpec::template_summary("spa-react", "zh");
         assert!(summary.contains("React"));
     }
 
     #[test]
     fn template_summary_returns_chinese_for_toolkit_monorepo() {
-        let summary = TemplateCommandPlugin::template_summary("toolkit-monorepo", "zh");
+        let summary = TemplateCommandSpec::template_summary("toolkit-monorepo", "zh");
         assert!(summary.contains("monorepo"));
     }
 
     #[test]
     fn template_summary_falls_back_to_name_for_unknown() {
-        let summary = TemplateCommandPlugin::template_summary("custom", "en");
+        let summary = TemplateCommandSpec::template_summary("custom", "en");
         assert_eq!(summary, "custom");
     }
 
@@ -478,21 +452,21 @@ mod tests {
 
     #[test]
     fn template_highlights_returns_four_items_for_spa_react() {
-        let highlights = TemplateCommandPlugin::template_highlights("spa-react", "en");
+        let highlights = TemplateCommandSpec::template_highlights("spa-react", "en");
         assert_eq!(highlights.len(), 4);
         assert!(highlights[0].contains("React"));
     }
 
     #[test]
     fn template_highlights_returns_chinese_for_zh_locale() {
-        let highlights = TemplateCommandPlugin::template_highlights("spa-react", "zh");
+        let highlights = TemplateCommandSpec::template_highlights("spa-react", "zh");
         assert_eq!(highlights.len(), 4);
         assert!(highlights[0].contains("React"));
     }
 
     #[test]
     fn template_highlights_returns_empty_for_unknown() {
-        let highlights = TemplateCommandPlugin::template_highlights("unknown", "en");
+        let highlights = TemplateCommandSpec::template_highlights("unknown", "en");
         assert!(highlights.is_empty());
     }
 
@@ -504,7 +478,7 @@ mod tests {
             "name": "spa-react",
             "summary": "React SPA"
         });
-        let rendered = TemplateCommandPlugin::render_template_detail(&detail, "en");
+        let rendered = TemplateCommandSpec::render_template_detail(&detail, "en");
         assert!(rendered.contains("spa-react"));
         assert!(rendered.contains("Summary"));
         assert!(rendered.contains("React"));
@@ -515,7 +489,7 @@ mod tests {
         let detail = serde_json::json!({
             "name": "toolkit",
         });
-        let rendered = TemplateCommandPlugin::render_template_detail(&detail, "zh");
+        let rendered = TemplateCommandSpec::render_template_detail(&detail, "zh");
         assert!(rendered.contains("关键特征"));
         assert!(rendered.contains("工具库"));
     }
@@ -526,7 +500,7 @@ mod tests {
     fn template_choice_label_extracts_name() {
         let meta = serde_json::json!({"name": "spa-react", "version": "1.0"});
         assert_eq!(
-            TemplateCommandPlugin::template_choice_label(&meta, "en"),
+            TemplateCommandSpec::template_choice_label(&meta, "en"),
             "spa-react"
         );
     }
@@ -535,7 +509,7 @@ mod tests {
     fn template_choice_label_falls_back_to_unknown() {
         let meta = serde_json::json!({"version": "1.0"});
         assert_eq!(
-            TemplateCommandPlugin::template_choice_label(&meta, "en"),
+            TemplateCommandSpec::template_choice_label(&meta, "en"),
             "unknown"
         );
     }
@@ -554,7 +528,7 @@ mod tests {
             cwd: "/tmp".into(),
             trace_id: "test".into(),
         };
-        assert_eq!(TemplateCommandPlugin::resolve_template_name(&context), None);
+        assert_eq!(TemplateCommandSpec::resolve_template_name(&context), None);
     }
 
     #[test]
@@ -572,7 +546,7 @@ mod tests {
             trace_id: "test".into(),
         };
         assert_eq!(
-            TemplateCommandPlugin::resolve_template_name(&context),
+            TemplateCommandSpec::resolve_template_name(&context),
             Some("toolkit".into())
         );
     }

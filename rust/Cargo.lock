@@ -929,7 +929,6 @@ dependencies = [
  "lania-plugins-command-locale",
  "lania-plugins-command-pi",
  "lania-plugins-command-release",
- "lania-plugins-command-template",
  "lania-plugins-command-tools",
  "lania-preferences",
  "lania-progress",
@@ -984,7 +983,6 @@ dependencies = [
  "lania-plugins-command-locale",
  "lania-plugins-command-pi",
  "lania-plugins-command-release",
- "lania-plugins-command-template",
  "lania-plugins-command-tools",
 ]
 
@@ -1167,6 +1165,8 @@ dependencies = [
  "lania-command",
  "lania-host",
  "lania-logger",
+ "lania-node-bridge",
+ "lania-prompt",
  "lania-workflows",
  "serde_json",
 ]
@@ -1278,19 +1278,6 @@ dependencies = [
  "lania-command",
  "lania-host",
  "lania-workflows",
- "serde_json",
-]
-
-[[package]]
-name = "lania-plugins-command-template"
-version = "0.0.3"
-dependencies = [
- "anyhow",
- "async-trait",
- "lania-command",
- "lania-host",
- "lania-node-bridge",
- "lania-prompt",
  "serde_json",
 ]
 

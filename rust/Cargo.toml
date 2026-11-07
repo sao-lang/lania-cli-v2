@@ -52,7 +52,6 @@ members = [
   "../packages/commands/git/rust",
   "../packages/commands/release/rust",
   "../packages/commands/generate/rust",
-  "../packages/commands/template/rust",
   "../packages/commands/tools/rust",
   "../packages/commands/env/rust",
 ]

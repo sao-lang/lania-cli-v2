@@ -16,6 +16,10 @@ use lania_logger::{render_ascii_banner, LogLevel};
 use lania_workflows::{declared_template_names, CreateWorkflow, CreateWorkflowInput};
 use std::io::IsTerminal;
 
+pub mod template;
+
+pub use template::{TemplateCommandHandler, TemplateCommandSpec, TEMPLATE_HANDLER_ID};
+
 pub const HANDLER_ID: &str = "command.create";
 
 /// 只有 Node bridge 模板运行时才能渲染的模板；与 Rust 兜底清单合并成 `--template` 候选。
@@ -28,7 +32,9 @@ struct CreateCommandHandler;
 
 impl CreateCommandPlugin {
     pub fn spec() -> CommandSpec {
+        // 评审决定：顶层 `template` 命令并入此处作为二级命令（§3.3 注 5）。
         CommandSpec::new("create", "Create a new project from a template", HANDLER_ID)
+            .with_subcommand(TemplateCommandSpec::spec())
             .with_args(vec![ArgSpec {
                 name: "path".into(),
                 required: false,
@@ -308,6 +314,15 @@ impl Plugin for CreateCommandPlugin {
             Self::spec(),
             &[HANDLER_ID],
             || CreateCommandHandler,
+        )?;
+        // template 二级命令：原独立 crate 的注册点（handler 零改动迁移）。
+        register_builtin_command::<TemplateCommandHandler, _>(
+            ctx,
+            "command-create-template",
+            "template",
+            TemplateCommandSpec::spec(),
+            &[TEMPLATE_HANDLER_ID],
+            || TemplateCommandHandler,
         )
     }
 }

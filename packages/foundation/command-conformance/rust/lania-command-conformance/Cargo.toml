@@ -26,5 +26,4 @@ lania-plugins-command-lint = { path = "../../../../../packages/commands/lint/rus
 lania-plugins-command-locale = { path = "../../../../../rust/crates/lania-plugins-command-locale" }
 lania-plugins-command-pi = { path = "../../../../../packages/commands/pi/rust" }
 lania-plugins-command-release = { path = "../../../../../packages/commands/release/rust" }
-lania-plugins-command-template = { path = "../../../../../packages/commands/template/rust" }
 lania-plugins-command-tools = { path = "../../../../../packages/commands/tools/rust" }
