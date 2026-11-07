@@ -11,7 +11,7 @@
       "describe": "describes/dev.json",
       "about": "Start the project development workflow",
       "needsNodeBridge": true,
-      "slices": ["compiler", "product", "config", "lifecycle"],
+      "slices": ["compiler", "product", "config", "lifecycle", "lint", "toolchain"],
       "platformPackages": [
         "@lania-cli-v2/cmd-dev-darwin-arm64",
         "@lania-cli-v2/cmd-dev-linux-x64",
@@ -28,7 +28,7 @@
       "describe": "describes/build.json",
       "about": "Run the project build workflow",
       "needsNodeBridge": true,
-      "slices": ["compiler", "product", "config", "lifecycle"],
+      "slices": ["compiler", "product", "config", "lifecycle", "lint", "toolchain"],
       "platformPackages": [
         "@lania-cli-v2/cmd-build-darwin-arm64",
         "@lania-cli-v2/cmd-build-linux-x64",

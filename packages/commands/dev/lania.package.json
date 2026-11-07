@@ -10,13 +10,13 @@
     "protocol": 1,
     "rust": {
       "cratePath": "rust",
-      "lib": "lania_plugins_command_dev",
+      "lib": "lania-plugins-command-dev",
       "bin": "lan-dev",
       "features": [],
       "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
       "api": {
-        "factory": "lania_plugins_command_dev::factory",
-        "spec": "lania_plugins_command_dev::spec",
+        "factory": "lania-plugins-command-dev::factory",
+        "spec": "lania-plugins-command-dev::spec",
         "surface": [
           "COMMAND_NAME",
           "HANDLER_ID",
@@ -43,7 +43,7 @@
     ]
   },
   "payload": {
-    "slices": ["compiler", "product", "config", "lifecycle"],
+    "slices": ["compiler", "product", "config", "lifecycle", "lint", "toolchain"],
     "nodeBridge": true
   }
 }

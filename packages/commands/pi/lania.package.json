@@ -10,13 +10,13 @@
     "protocol": 1,
     "rust": {
       "cratePath": "rust",
-      "lib": "lania_plugins_command_pi",
+      "lib": "lania-plugins-command-pi",
       "bin": "lan-pi",
       "features": [],
       "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
       "api": {
-        "factory": "lania_plugins_command_pi::factory",
-        "spec": "lania_plugins_command_pi::spec",
+        "factory": "lania-plugins-command-pi::factory",
+        "spec": "lania-plugins-command-pi::spec",
         "surface": [
           "COMMAND_NAME",
           "HANDLER_ID",

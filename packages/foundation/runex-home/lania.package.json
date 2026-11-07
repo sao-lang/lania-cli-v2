@@ -2,7 +2,7 @@
   "name": "runex-home",
   "kind": "foundation",
   "versionFamily": "runex",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "api": {
     "protocol": 1,
     "rust": {
@@ -20,6 +20,9 @@
   "rust": {
     "crates": ["rust/runex-home"]
   },
-  "payload": { "slices": [], "nodeBridge": false },
+  "payload": {
+    "slices": [],
+    "nodeBridge": false
+  },
   "shimHost": "runex-binary"
 }

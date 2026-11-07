@@ -1,0 +1,32 @@
+{
+  "name": "cli",
+  "kind": "distribution",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "describe": "describes/cli.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust/lania-cli",
+      "lib": "lania-cli",
+      "bin": "lania-cli",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-host", "lania-command"]
+    }
+  },
+  "rust": {
+    "crates": ["rust/lania-cli"]
+  },
+  "payload": {
+    "slices": ["*"],
+    "nodeBridge": true
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cli",
+    "platformPackages": [
+      "@lania-cli-v2/cli-darwin-arm64",
+      "@lania-cli-v2/cli-linux-x64",
+      "@lania-cli-v2/cli-win32-x64"
+    ]
+  }
+}

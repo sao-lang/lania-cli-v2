@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { fetchPlatformBinaries } from './fetch-platform-binaries.mjs';
+import { discoverPackages } from './lib/discover-packages.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -87,143 +88,69 @@ function readRustWorkspaceVersion() {
   return match[1];
 }
 
-function assertVersionSync(expected) {
-  const nodeBridge = readJson(path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'));
-  const templates = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
-  const agentPkg = readJson(path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'));
-  const cli = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
-  const versions = [
-    ['rust workspace', expected],
-    ['@lania-cli-v2/node-bridge', nodeBridge.version],
-    ['@lania-cli-v2/templates', templates.version],
-    ['@lania-cli-v2/agent', agentPkg.version],
-    ['@lania-cli-v2/cli', cli.version],
-  ];
-  for (const descriptor of discoverPlatformPackageDescriptors()) {
-    if (!descriptor.packageExists) {
-      continue;
+/**
+ * 版本族校验（文档 §6.2 / §6.5）：按 `versionFamily` 分组，
+ * 组内 manifest / npm package.json / 平台包 / describes 全等；**组间允许不同**。
+ */
+function assertVersionFamilies(packages) {
+  const families = new Map();
+  for (const entry of packages) {
+    const family = entry.manifest.versionFamily;
+    if (!families.has(family)) families.set(family, []);
+    families.get(family).push(entry);
+  }
+  for (const [family, entries] of families) {
+    const versions = new Set(entries.map((entry) => entry.manifest.version));
+    if (versions.size > 1) {
+      const detail = entries
+        .map((entry) => `${entry.manifest.name}=${entry.manifest.version}`)
+        .join(', ');
+      throw new Error(`版本族 ${family} 内版本不一致：${detail}`);
     }
-    const platformPkg = readJson(path.join(descriptor.packageRoot, 'package.json'));
-    versions.push([descriptor.packageName, platformPkg.version]);
+    const expected = entries[0].manifest.version;
+    for (const entry of entries) {
+      // npm 包自身版本（若该包有 npm 产物）
+      if (entry.manifest.npm?.name) {
+        const npmDir = npmPackageDir(entry);
+        const npmJsonPath = path.join(npmDir, 'package.json');
+        if (fs.existsSync(npmJsonPath)) {
+          const npmVersion = readJson(npmJsonPath).version;
+          if (npmVersion !== expected) {
+            throw new Error(
+              `版本族 ${family} 内 ${entry.manifest.name} 的 npm 包版本 ${npmVersion} 与 manifest ${expected} 不一致`,
+            );
+          }
+        }
+      }
+      // 平台包版本
+      for (const platformPackage of entry.manifest.npm?.platformPackages ?? []) {
+        const platformDir = platformPackageDir(entry, platformPackage);
+        const platformJsonPath = path.join(platformDir, 'package.json');
+        if (fs.existsSync(platformJsonPath)) {
+          const platformVersion = readJson(platformJsonPath).version;
+          if (platformVersion !== expected) {
+            throw new Error(
+              `版本族 ${family} 内平台包 ${platformPackage} 版本 ${platformVersion} 与 ${expected} 不一致`,
+            );
+          }
+        }
+      }
+    }
   }
-  const mismatched = versions.filter(([, v]) => v !== expected);
-  if (mismatched.length > 0) {
-    const detail = mismatched.map(([name, v]) => `${name}=${v}`).join(', ');
-    throw new Error(
-      `Version mismatch. Expected all packages to be ${expected}. Mismatched: ${detail}`,
-    );
-  }
+  return families;
 }
 
-function stageNodeBridgePayload() {
-  const payloadRoot = path.join(repoRoot, 'packages/distribution/cli/npm/cli/lib/node-bridge');
-  rmIfExists(payloadRoot);
-  ensureDir(payloadRoot);
+/** 包内 npm 产物目录（npm/<name 去作用域>）。 */
+function npmPackageDir(entry) {
+  const npmName = entry.manifest.npm?.name;
+  if (!npmName) return null;
+  return path.join(entry.dir, 'npm', npmName.replace('@lania-cli-v2/', ''));
+}
 
-  const bridgeDist = path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/dist');
-  const templatesDist = path.join(repoRoot, 'packages/foundation/templates/dist');
-  const agentDist = path.join(repoRoot, 'packages/products/agent/ts/agent/dist');
-
-  const stdioEntry = path.join(bridgeDist, 'entry', 'stdio.js');
-  const templatesEntry = path.join(templatesDist, 'index.js');
-  const agentEntry = path.join(agentDist, 'index.js');
-  if (!fs.existsSync(stdioEntry)) {
-    throw new Error('Missing node-bridge dist. Run TS build first.');
-  }
-  if (!fs.existsSync(templatesEntry)) {
-    throw new Error('Missing templates dist. Run TS build first.');
-  }
-  if (!fs.existsSync(agentEntry)) {
-    throw new Error('Missing agent dist. Run TS build first.');
-  }
-
-  // Bridge runtime assets.
-  copyFile(
-    path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'),
-    path.join(payloadRoot, 'package.bridge.json'),
-  );
-  copyDir(bridgeDist, path.join(payloadRoot, 'dist'));
-
-  // Install runtime deps into payloadRoot/node_modules so:
-  // - `node --import tsx ...` resolves `tsx` from payloadRoot
-  // - `@lania-cli-v2/templates` can resolve `ejs`
-  // - bridge can resolve `yaml`
-  const nodeBridgePkg = readJson(path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'));
-  const templatesPkg = readJson(path.join(repoRoot, 'packages/foundation/templates/package.json'));
-  const agentPkg = readJson(path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'));
-  const payloadPkg = {
-    name: '@lania-cli-v2/node-bridge-payload',
-    private: true,
-    type: 'module',
-    dependencies: {
-      ejs: templatesPkg.dependencies?.ejs ?? '^5.0.0',
-      tsx: nodeBridgePkg.dependencies?.tsx ?? '^4.0.0',
-      yaml: nodeBridgePkg.dependencies?.yaml ?? '^2.0.0',
-      // agent 插件在 bridge 进程内加载，pi 运行时必须随 payload 一起安装。
-      '@earendil-works/pi-agent-core': agentPkg.dependencies?.['@earendil-works/pi-agent-core'],
-      '@earendil-works/pi-ai': agentPkg.dependencies?.['@earendil-works/pi-ai'],
-    },
-  };
-  writeJson(path.join(payloadRoot, 'package.json'), payloadPkg);
-
-  run('npm', ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
-    cwd: payloadRoot,
-  });
-
-  // bridge-runtime 以正式包身份进入 payload node_modules：
-  // 阶段 4b 后切片通过 `@lania-cli-v2/bridge-runtime/core/*` 等 specifier 引用核。
-  const bridgeRuntimeTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/bridge-runtime');
-  ensureDir(bridgeRuntimeTarget);
-  copyFile(
-    path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'),
-    path.join(bridgeRuntimeTarget, 'package.json'),
-  );
-  copyDir(bridgeDist, path.join(bridgeRuntimeTarget, 'dist'));
-
-  // 12 个切片包按名落位（B.2/B.4：SLICE_LOADERS 按包名动态 import）。
-  // 总包 payload.slices 为 ["*"]，全部落位后装配结果与迁移前逐文件一致（B.3.4）。
-  for (const sliceName of [
-    'config',
-    'dynamic-commands',
-    'lifecycle',
-    'compiler',
-    'product',
-    'lint',
-    'system',
-    'template',
-    'toolchain',
-    'commitizen',
-    'commitlint',
-    'agent',
-  ]) {
-    const sliceSource = path.join(repoRoot, 'packages/foundation/bridge-slices', sliceName, 'ts');
-    const sliceTarget = path.join(payloadRoot, `node_modules/@lania-cli-v2/bridge-slice-${sliceName}`);
-    ensureDir(sliceTarget);
-    copyFile(path.join(sliceSource, 'package.json'), path.join(sliceTarget, 'package.json'));
-    copyDir(path.join(sliceSource, 'dist'), path.join(sliceTarget, 'dist'));
-  }
-
-  // Templates runtime assets placed under node_modules so the bridge can import it by specifier.
-  // Must happen AFTER npm install, otherwise npm install may clean up the manually placed directory.
-  const templatesTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/templates');
-  ensureDir(templatesTarget);
-  copyFile(
-    path.join(repoRoot, 'packages/foundation/templates/package.json'),
-    path.join(templatesTarget, 'package.json'),
-  );
-  copyDir(templatesDist, path.join(templatesTarget, 'dist'));
-
-  // Agent plugin placed next to templates so `import '@lania-cli-v2/agent'` resolves from the bridge.
-  const agentTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/agent');
-  ensureDir(agentTarget);
-  copyFile(
-    path.join(repoRoot, 'packages/products/agent/ts/agent/package.json'),
-    path.join(agentTarget, 'package.json'),
-  );
-  copyDir(agentDist, path.join(agentTarget, 'dist'));
-
-  // Clean up files not needed at runtime.
-  rmIfExists(path.join(payloadRoot, 'package-lock.json'));
+/** 平台包目录（与 npm 产物同级）。 */
+function platformPackageDir(entry, platformPackageName) {
+  const npmDir = npmPackageDir(entry);
+  return path.join(path.dirname(npmDir), platformPackageName.replace('@lania-cli-v2/', ''));
 }
 
 function resolveHostPlatform() {
@@ -238,35 +165,45 @@ function platformToEnvSuffix(platform) {
   return platform.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase();
 }
 
-function discoverPlatformPackageDescriptors() {
-  const cli = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
-  const optionalDependencies = cli.optionalDependencies ?? {};
-  return Object.entries(optionalDependencies)
-    .filter(([packageName]) => packageName.startsWith('@lania-cli-v2/cli-'))
-    .map(([packageName, version]) => {
-      const packageDirName = packageName.replace('@lania-cli-v2/', '');
-      const packageRoot = path.join(repoRoot, 'packages/distribution/cli/npm', packageDirName);
+/**
+ * 平台包描述符（文档 §6.2）：由 manifest 汇总而来。
+ *
+ * 遍历所有带 `api.rust.bin` 的包，取其 npm 平台包列表，
+ * 平台信息（os/cpu）从平台包自身的 package.json 读取（manifest 里存名字）。
+ */
+function discoverPlatformPackageDescriptors(packages) {
+  const descriptors = [];
+  for (const entry of packages) {
+    const bin = entry.manifest.api?.rust?.bin;
+    if (!bin) continue;
+    const platformPackages = entry.manifest.npm?.platformPackages ?? [];
+    if (platformPackages.length === 0) continue;
+    const npmDir = npmPackageDir(entry);
+    for (const platformPackage of platformPackages) {
+      const packageDirName = platformPackage.replace('@lania-cli-v2/', '');
+      const packageRoot = path.join(path.dirname(npmDir), packageDirName);
       const packageJsonPath = path.join(packageRoot, 'package.json');
       const packageExists = fs.existsSync(packageJsonPath);
       const packageJson = packageExists ? readJson(packageJsonPath) : {};
       const os = Array.isArray(packageJson.os) ? packageJson.os[0] : null;
       const cpu = Array.isArray(packageJson.cpu) ? packageJson.cpu[0] : null;
-      return {
-        packageName,
+      descriptors.push({
+        packageName: platformPackage,
         packageRoot,
         packageDirName,
         packageExists,
-        version: packageJson.version ?? version,
+        version: packageJson.version ?? entry.manifest.version,
+        binaryName: bin,
+        owner: entry.manifest.name,
         platform:
           typeof os === 'string' && typeof cpu === 'string'
             ? `${os}-${cpu}`
-            : inferPlatformFromPackageName(packageName),
-      };
-    })
-    .sort((left, right) => left.packageName.localeCompare(right.packageName));
+            : inferPlatformFromPackageName(platformPackage),
+      });
+    }
+  }
+  return descriptors.sort((left, right) => left.packageName.localeCompare(right.packageName));
 }
-
-
 function resolveInjectedPlatformBinaryPath(descriptor) {
   const suffix = platformToEnvSuffix(descriptor.platform);
   const candidates = [
@@ -307,7 +244,8 @@ function stagePlatformBinary(descriptor, releaseBinaryPath, source) {
     };
   }
   // Windows 二进制必须带 `.exe`，否则 npm 安装后 spawn 会 ENOENT。
-  const targetName = descriptor.platform.startsWith('win32') ? 'lania-cli.exe' : 'lania-cli';
+  const binaryBase = descriptor.binaryName ?? 'lania-cli';
+  const targetName = descriptor.platform.startsWith('win32') ? `${binaryBase}.exe` : binaryBase;
   const dst = path.join(descriptor.packageRoot, 'bin', targetName);
   copyFile(releaseBinaryPath, dst, 0o755);
   assertStagedBinaryVersion(descriptor, dst);
@@ -328,7 +266,8 @@ function stagePlatformBinary(descriptor, releaseBinaryPath, source) {
  * 其他平台只做来源标签校验（fetch 阶段已按 `v{version}` 拉取）。
  */
 function assertStagedBinaryVersion(descriptor, binaryPath) {
-  const expected = readRustWorkspaceVersion();
+  // 期望版本取自该包所属版本族的 manifest（文档 §6.5）。
+  const expected = descriptor.version;
   if (descriptor.platform !== resolveHostPlatform()) {
     return;
   }
@@ -351,15 +290,16 @@ function assertStagedBinaryVersion(descriptor, binaryPath) {
   }
 }
 
-function stagePlatformBinaries() {
-  const binaryName = process.platform === 'win32' ? 'lania-cli.exe' : 'lania-cli';
-  const src = path.join(repoRoot, 'rust/target/release', binaryName);
-  if (!fs.existsSync(src)) {
-    throw new Error('Missing Rust release binary. Run cargo build --release first.');
-  }
+function stagePlatformBinaries(packages) {
   const hostPlatform = resolveHostPlatform();
   const results = [];
-  for (const descriptor of discoverPlatformPackageDescriptors()) {
+  for (const descriptor of discoverPlatformPackageDescriptors(packages)) {
+    const binaryBase = descriptor.binaryName ?? 'lania-cli';
+    const releaseBinaryPath = path.join(
+      repoRoot,
+      'rust/target/release',
+      process.platform === 'win32' ? `${binaryBase}.exe` : binaryBase,
+    );
     const injectedBinaryPath = resolveInjectedPlatformBinaryPath(descriptor);
     if (injectedBinaryPath) {
       results.push(stagePlatformBinary(descriptor, injectedBinaryPath, 'environment'));
@@ -377,25 +317,60 @@ function stagePlatformBinaries() {
       });
       continue;
     }
-    results.push(stagePlatformBinary(descriptor, src, 'host_build'));
+    if (!fs.existsSync(releaseBinaryPath)) {
+      throw new Error(
+        `Missing Rust release binary ${releaseBinaryPath}. Run cargo build --release first.`,
+      );
+    }
+    results.push(stagePlatformBinary(descriptor, releaseBinaryPath, 'host_build'));
   }
   return results;
 }
-
 async function main() {
-  const version = readRustWorkspaceVersion();
-  assertVersionSync(version);
+  const packages = discoverPackages();
+  const families = assertVersionFamilies(packages);
+  const lanFamily = families.get('lan');
+  const lanVersion = lanFamily ? lanFamily[0].manifest.version : null;
+  console.log(
+    `[pack] 版本族：${[...families.entries()]
+      .map(([family, entries]) => `${family}=${entries[0].manifest.version}`)
+      .join(', ')}`,
+  );
 
-  console.log(`[pack] building TS workspace`);
-  runPnpm(['-C', 'ts', 'install', '--no-frozen-lockfile'], { cwd: repoRoot });
-  runPnpm(['-C', 'ts', 'build'], { cwd: repoRoot });
+  if (process.argv.includes('--check')) {
+    // 只做枚举与校验（CI 用）：不构建、不组装、不联网。
+    console.log(
+      `- packages: ${packages.length} 个；二进制 crate：${binaryCratesPreview(packages).join(', ')}`,
+    );
+    for (const entry of packages) {
+      const payload = entry.manifest.payload ?? {};
+      console.log(
+        `  ${entry.manifest.kind.padEnd(15)} ${entry.manifest.name.padEnd(12)} ` +
+          `v${entry.manifest.version} ${entry.manifest.api?.rust?.bin ?? '-'} ` +
+          `${payload.nodeBridge ? `slices=[${(payload.slices ?? []).join(',')}]` : '零 payload'}`,
+      );
+    }
+    return;
+  }
 
-  console.log(`[pack] building Rust binary`);
-  run('cargo', ['build', '--release', '-p', 'lania-cli', '--manifest-path', 'rust/Cargo.toml'], {
-    cwd: repoRoot,
-  });
+  console.log('[pack] building TS workspace');
+  runPnpm(['-r', 'build'], { cwd: repoRoot });
 
-  const descriptors = discoverPlatformPackageDescriptors();
+  // 一次 cargo build 覆盖所有产出二进制的包（共享 target/ 缓存，文档 §6.4）。
+  const binaryCrates = [];
+  for (const entry of packages) {
+    const bin = entry.manifest.api?.rust?.bin;
+    const lib = entry.manifest.api?.rust?.lib;
+    if (!bin || !lib) continue;
+    if (!binaryCrates.includes(lib)) binaryCrates.push(lib);
+  }
+  console.log(`[pack] building Rust binaries: ${binaryCrates.join(', ')}`);
+  run(
+    'cargo',
+    ['build', '--release', '--manifest-path', 'rust/Cargo.toml', ...binaryCrates.flatMap((name) => ['-p', name])],
+    { cwd: repoRoot },
+  );
+
   // Optional: download prebuilt platform binaries (GitHub Releases) into staging dir
   // and expose them via LANIA_CLI_PLATFORM_BINARIES_DIR for staging into platform packages.
   await fetchPlatformBinaries().catch((error) => {
@@ -404,20 +379,123 @@ async function main() {
     );
   });
 
-  console.log(`[pack] staging node bridge payload for @lania-cli-v2/cli`);
-  stageNodeBridgePayload();
+  console.log('[pack] staging per-package bridge payloads');
+  const payloadResults = stagePackageBridgePayloads(packages);
 
-  console.log(`[pack] staging platform binary packages`);
-  const platformResults = stagePlatformBinaries();
+  console.log('[pack] staging platform binary packages');
+  const platformResults = stagePlatformBinaries(packages);
 
   console.log('[pack] done');
   console.log(
-    `- npm packages: packages/distribution/cli/npm/cli, ${descriptors.map((entry) => entry.packageDirName).join(', ')}`,
+    `- npm packages: ${packages
+      .filter((entry) => entry.manifest.npm?.name)
+      .map((entry) => path.relative(repoRoot, npmPackageDir(entry)))
+      .join(', ')}`,
   );
-  console.log('- TS packages: packages/foundation/templates, packages/foundation/bridge-runtime/ts');
+  console.log(
+    `- bridge payloads: ${
+      payloadResults.length > 0
+        ? payloadResults.map((entry) => `${entry.packageName}:${entry.slices.join('+')}`).join(', ')
+        : '（无）'
+    }`,
+  );
   console.log(
     `- platform staging: ${platformResults.map((entry) => `${entry.packageName}:${entry.status}`).join(', ')}`,
   );
+  if (lanVersion) console.log(`- lan 版本族版本：${lanVersion}`);
+}
+
+/** 汇总所有产出二进制的 crate（--check 模式用）。 */
+function binaryCratesPreview(packages) {
+  const crates = [];
+  for (const entry of packages) {
+    const bin = entry.manifest.api?.rust?.bin;
+    const lib = entry.manifest.api?.rust?.lib;
+    if (!bin || !lib) continue;
+    if (!crates.includes(lib)) crates.push(lib);
+  }
+  return crates;
+}
+
+/**
+ * 按 manifest 的 `payload` 为每个包组装自己的 `lib/bridge/`（文档 §6.2）。
+ *
+ * - 核（bridge-runtime）始终随包；
+ * - 切片按 `payload.slices` 精确挑选（总包为 ["*"] → 12 个全量）；
+ * - 运行时依赖（ejs/tsx/yaml/pi-*）按需安装，不拖无关依赖。
+ */
+function stagePackageBridgePayloads(packages) {
+  const results = [];
+  const bridgeRuntimeDir = path.join(repoRoot, 'packages/foundation/bridge-runtime/ts');
+  const templatesDir = path.join(repoRoot, 'packages/foundation/templates');
+  const agentDir = path.join(repoRoot, 'packages/products/agent/ts/agent');
+  const allSlices = fs.existsSync(path.join(repoRoot, 'packages/foundation/bridge-slices'))
+    ? fs.readdirSync(path.join(repoRoot, 'packages/foundation/bridge-slices'))
+    : [];
+
+  for (const entry of packages) {
+    const payload = entry.manifest.payload ?? {};
+    if (!payload.nodeBridge) continue;
+    const npmDir = npmPackageDir(entry);
+    if (!npmDir) continue;
+    const slices = Array.isArray(payload.slices) ? payload.slices : [];
+    const selected = slices.includes('*') ? allSlices : slices;
+    const target = path.join(npmDir, 'lib', 'bridge');
+    rmIfExists(target);
+    ensureDir(target);
+
+    // 核：bridge-runtime（包名 @lania-cli-v2/bridge-runtime）
+    const runtimeTarget = path.join(target, 'node_modules/@lania-cli-v2/bridge-runtime');
+    ensureDir(runtimeTarget);
+    copyFile(path.join(bridgeRuntimeDir, 'package.json'), path.join(runtimeTarget, 'package.json'));
+    copyDir(path.join(bridgeRuntimeDir, 'dist'), path.join(runtimeTarget, 'dist'));
+
+    // 切片：按 payload.slices 精确挑选
+    for (const slice of selected) {
+      const sliceSource = path.join(repoRoot, 'packages/foundation/bridge-slices', slice, 'ts');
+      if (!fs.existsSync(sliceSource)) {
+        throw new Error(`未知切片 ${slice}（来自 ${entry.manifest.name} 的 payload.slices）`);
+      }
+      const sliceTarget = path.join(target, `node_modules/@lania-cli-v2/bridge-slice-${slice}`);
+      ensureDir(sliceTarget);
+      copyFile(path.join(sliceSource, 'package.json'), path.join(sliceTarget, 'package.json'));
+      copyDir(path.join(sliceSource, 'dist'), path.join(sliceTarget, 'dist'));
+    }
+
+    // TS 运行时依赖：templates（脚手架资产）与 agent（pi 引擎）
+    const templatesTarget = path.join(target, 'node_modules/@lania-cli-v2/templates');
+    ensureDir(templatesTarget);
+    copyFile(path.join(templatesDir, 'package.json'), path.join(templatesTarget, 'package.json'));
+    copyDir(path.join(templatesDir, 'dist'), path.join(templatesTarget, 'dist'));
+    const agentTarget = path.join(target, 'node_modules/@lania-cli-v2/agent');
+    ensureDir(agentTarget);
+    copyFile(path.join(agentDir, 'package.json'), path.join(agentTarget, 'package.json'));
+    copyDir(path.join(agentDir, 'dist'), path.join(agentTarget, 'dist'));
+
+    // payload 自身的运行时依赖
+    const bridgeRuntimePkg = readJson(path.join(bridgeRuntimeDir, 'package.json'));
+    const templatesPkg = readJson(path.join(templatesDir, 'package.json'));
+    const agentPkg = readJson(path.join(agentDir, 'package.json'));
+    const payloadPkg = {
+      name: '@lania-cli-v2/bridge-payload',
+      private: true,
+      type: 'module',
+      dependencies: {
+        ejs: templatesPkg.dependencies?.ejs ?? '^5.0.0',
+        tsx: bridgeRuntimePkg.dependencies?.tsx ?? '^4.0.0',
+        yaml: bridgeRuntimePkg.dependencies?.yaml ?? '^2.0.0',
+        '@earendil-works/pi-agent-core': agentPkg.dependencies?.['@earendil-works/pi-agent-core'],
+        '@earendil-works/pi-ai': agentPkg.dependencies?.['@earendil-works/pi-ai'],
+      },
+    };
+    writeJson(path.join(target, 'package.json'), payloadPkg);
+    run('npm', ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
+      cwd: target,
+    });
+    rmIfExists(path.join(target, 'package-lock.json'));
+    results.push({ packageName: entry.manifest.npm.name, slices: selected });
+  }
+  return results;
 }
 
 await main();
