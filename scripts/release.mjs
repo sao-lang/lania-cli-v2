@@ -106,11 +106,11 @@ function bumpJsonVersion(filePath, version) {
 }
 
 function bumpRustWorkspaceVersion(version) {
-  const cargoTomlPath = path.join(repoRoot, 'rust/Cargo.toml');
+  const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
   const input = read(cargoTomlPath);
   const marker = '[workspace.package]';
   const idx = input.indexOf(marker);
-  if (idx === -1) throw new Error('rust/Cargo.toml missing [workspace.package]');
+  if (idx === -1) throw new Error('Cargo.toml missing [workspace.package]');
   const before = input.slice(0, idx);
   const after = input.slice(idx);
   const replaced = after.replace(/\nversion\s*=\s*"[^"]+"\n/, `\nversion = "${version}"\n`);
@@ -215,7 +215,7 @@ async function main() {
   log.step(`✓ ${family} 族的 npm 依赖引用`);
   if (family === 'lan') {
     bumpRustWorkspaceVersion(newVersion);
-    log.step('✓ rust/Cargo.toml');
+    log.step('✓ Cargo.toml');
   }
   writeChangelog(newVersion, changelogEntries);
 

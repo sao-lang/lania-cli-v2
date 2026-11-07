@@ -17,12 +17,12 @@ import { join, resolve } from 'node:path';
 const args = process.argv.slice(2);
 const binIndex = args.indexOf('--bin');
 const lanBin = resolve(
-  binIndex >= 0 ? args[binIndex + 1] : 'rust/target/debug/lania-cli.exe',
+  binIndex >= 0 ? args[binIndex + 1] : 'target/debug/lania-cli.exe',
 );
 
 const NOTE = 'lan pi smoke note';
 // 不用 os.tmpdir()：受限环境下系统临时目录可能不可写，统一放在仓库的 target/.tmp 下。
-const root = resolve('rust/target/.tmp');
+const root = resolve('target/.tmp');
 mkdirSync(root, { recursive: true });
 const workspace = mkdtempSync(join(root, 'pi-smoke-'));
 writeFileSync(join(workspace, 'note.txt'), `${NOTE}\n`);

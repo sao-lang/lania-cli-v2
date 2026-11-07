@@ -51,13 +51,13 @@ jobs:
 
       - name: Build lania-cli
         shell: bash
-        run: cargo build --release --locked --manifest-path rust/Cargo.toml -p lania-cli --target ${{ matrix.target }}
+        run: cargo build --release --locked --manifest-path Cargo.toml -p lania-cli --target ${{ matrix.target }}
 
       - name: Normalize binary name
         shell: bash
         run: |
           set -euo pipefail
-          src="rust/target/${{ matrix.target }}/release/lania-cli"
+          src="target/${{ matrix.target }}/release/lania-cli"
           if [ -f "${src}.exe" ]; then src="${src}.exe"; fi
           mkdir -p dist
           # 资产名必须带平台后缀，否则三个 job 会互相覆盖同一个 release asset。

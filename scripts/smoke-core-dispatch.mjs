@@ -49,12 +49,12 @@ function run(args, options = {}) {
 
 // 1) 构建 lan-env（无 C++ 链接组件的环境下退化为复用已有产物）
 console.log('[smoke:core-dispatch] 准备 lan-env 二进制 …');
-const builtBin = path.join(repoRoot, 'rust/target/debug', envBin);
+const builtBin = path.join(repoRoot, 'target/debug', envBin);
 if (!fs.existsSync(builtBin)) {
   // 注意：Windows 上不能用 shell:true —— Git 自带的 `link.exe` 会抢占 MSVC 链接器。
   const build = spawnSync(
     process.platform === 'win32' ? 'cargo.exe' : 'cargo',
-    ['build', '--manifest-path', 'rust/Cargo.toml', '-p', 'lania-plugins-command-env', '--bin', 'lan-env'],
+    ['build', '--manifest-path', 'Cargo.toml', '-p', 'lania-plugins-command-env', '--bin', 'lan-env'],
     { cwd: repoRoot, encoding: 'utf8' },
   );
   if (build.status !== 0) {

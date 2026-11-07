@@ -160,7 +160,7 @@ function checkBoundary() {
 }
 
 function selfTest() {
-  const tmp = join(ROOT, 'rust/target/.tmp/bridge-protocol-self-test');
+  const tmp = join(ROOT, 'target/.tmp/bridge-protocol-self-test');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   const bad = join(tmp, 'endpoint.ts');

@@ -1,8 +1,6 @@
 [package]
-# 包位于 workspace 根目录之外，显式指向 rust/
-workspace = "../../../../../../rust"
 name = "lania-dart-bridge"
-version.workspace = true
+version = "0.0.3"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true

@@ -74,16 +74,16 @@ function copyFile(src, dst, mode) {
 
 
 function readRustWorkspaceVersion() {
-  const cargoToml = fs.readFileSync(path.join(repoRoot, 'rust/Cargo.toml'), 'utf8');
+  const cargoToml = fs.readFileSync(path.join(repoRoot, 'Cargo.toml'), 'utf8');
   const marker = '[workspace.package]';
   const idx = cargoToml.indexOf(marker);
   if (idx === -1) {
-    throw new Error('rust/Cargo.toml missing [workspace.package]');
+    throw new Error('Cargo.toml missing [workspace.package]');
   }
   const tail = cargoToml.slice(idx);
   const match = tail.match(/\nversion\s*=\s*"([^"]+)"/);
   if (!match) {
-    throw new Error('rust/Cargo.toml missing workspace.package version');
+    throw new Error('Cargo.toml missing workspace.package version');
   }
   return match[1];
 }
@@ -297,7 +297,7 @@ function stagePlatformBinaries(packages) {
     const binaryBase = descriptor.binaryName ?? 'lania-cli';
     const releaseBinaryPath = path.join(
       repoRoot,
-      'rust/target/release',
+      'target/release',
       process.platform === 'win32' ? `${binaryBase}.exe` : binaryBase,
     );
     const injectedBinaryPath = resolveInjectedPlatformBinaryPath(descriptor);
@@ -367,7 +367,7 @@ async function main() {
   console.log(`[pack] building Rust binaries: ${binaryCrates.join(', ')}`);
   run(
     'cargo',
-    ['build', '--release', '--manifest-path', 'rust/Cargo.toml', ...binaryCrates.flatMap((name) => ['-p', name])],
+    ['build', '--release', '--manifest-path', 'Cargo.toml', ...binaryCrates.flatMap((name) => ['-p', name])],
     { cwd: repoRoot },
   );
 

@@ -1,0 +1,44 @@
+[workspace]
+members = [
+  # 拆分文档 §6.3：唯一 workspace，成员按 packages/ 下的布局 glob 收口。
+  # - packages/commands/<cmd>/rust                    —— 命令子包（crate 直接在 rust/ 下）
+  # - packages/{foundation,products,distribution}/<pkg>/rust/<crate>
+  # - packages/runtime/rust/<crate>                    —— runtime 设施
+  "packages/commands/*/rust",
+  "packages/foundation/*/rust/*",
+  "packages/products/*/rust/*",
+  "packages/distribution/*/rust/*",
+  "packages/runtime/rust/*",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["Lania CLI Team"]
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time", "process", "io-util", "sync"] }
+tokio-util = "0.7"
+libc = "0.2"
+ignore = "0.4"
+notify = "6"
+serde_yaml = "0.9"
+shell-words = "1"
+regex = "1"
+tree-sitter = "0.20.10"
+tree-sitter-thrift = "0.3.0"
+# 自管运行时管理器：HTTP / 归档解压 / 校验
+flate2 = "1"
+sha2 = "0.10"
+tar = "0.4"
+thiserror = "2"
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+xz2 = "0.1"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+zstd = "0.13"

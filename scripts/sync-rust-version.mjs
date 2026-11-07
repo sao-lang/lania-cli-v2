@@ -9,12 +9,12 @@ function readJson(filePath) {
 }
 
 function syncRustWorkspaceVersion(version) {
-  const cargoTomlPath = path.join(repoRoot, 'rust/Cargo.toml');
+  const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
   const input = fs.readFileSync(cargoTomlPath, 'utf8');
   const marker = '[workspace.package]';
   const idx = input.indexOf(marker);
   if (idx === -1) {
-    throw new Error('rust/Cargo.toml missing [workspace.package]');
+    throw new Error('Cargo.toml missing [workspace.package]');
   }
   const before = input.slice(0, idx);
   const after = input.slice(idx);

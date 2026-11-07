@@ -1,6 +1,4 @@
 [package]
-# 包位于 workspace 根目录之外，显式指向 rust/
-workspace = "../../../../../rust"
 name = "runex"
 # 独立版本节奏：不跟 @lania-cli-v2/* 的版本号走（发布 tag 为 `runex-v*`）。
 version = "0.1.0"

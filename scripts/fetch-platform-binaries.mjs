@@ -16,16 +16,16 @@ function readJson(filePath) {
 }
 
 function readRustWorkspaceVersion() {
-  const cargoToml = fs.readFileSync(path.join(repoRoot, 'rust/Cargo.toml'), 'utf8');
+  const cargoToml = fs.readFileSync(path.join(repoRoot, 'Cargo.toml'), 'utf8');
   const marker = '[workspace.package]';
   const idx = cargoToml.indexOf(marker);
   if (idx === -1) {
-    throw new Error('rust/Cargo.toml missing [workspace.package]');
+    throw new Error('Cargo.toml missing [workspace.package]');
   }
   const tail = cargoToml.slice(idx);
   const match = tail.match(/\nversion\s*=\s*"([^"]+)"/);
   if (!match) {
-    throw new Error('rust/Cargo.toml missing workspace.package version');
+    throw new Error('Cargo.toml missing workspace.package version');
   }
   return match[1];
 }

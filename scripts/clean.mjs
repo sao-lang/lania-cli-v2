@@ -26,7 +26,7 @@ function discoverPlatformPackageDescriptors() {
 
 function collectPathsToRemove() {
   const targets = [
-    'rust/target',
+    'target',
     'packages/distribution/cli/npm/cli/lib/node-bridge',
     'packages/distribution/cli/npm/cli/*.tgz',
     'packages/foundation/bridge-runtime/ts/dist',

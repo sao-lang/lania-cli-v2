@@ -61,13 +61,13 @@ jobs:
 
       - name: Build runex
         shell: bash
-        run: cargo build --release --locked --manifest-path rust/Cargo.toml -p runex --target ${{ matrix.target }}
+        run: cargo build --release --locked --manifest-path Cargo.toml -p runex --target ${{ matrix.target }}
 
       - name: Package binary
         shell: bash
         run: |
           set -euo pipefail
-          src="rust/target/${{ matrix.target }}/release/runex"
+          src="target/${{ matrix.target }}/release/runex"
           if [ -f "${src}.exe" ]; then src="${src}.exe"; fi
           mkdir -p dist
           tag="${{ github.event.inputs.version || github.ref_name }}"
