@@ -1,0 +1,45 @@
+{
+  "name": "generate",
+  "kind": "command",
+  "command": "generate",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 6,
+  "describe": "describes/generate.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania_plugins_command_generate",
+      "bin": "lan-generate",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania_plugins_command_generate::factory",
+        "spec": "lania_plugins_command_generate::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "GenerateCommandPlugin",
+          "GenerateCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-generate",
+    "bin": {
+      "lan-generate": "npm/cmd-generate/bin/lan-generate.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-generate-darwin-arm64",
+      "@lania-cli-v2/cmd-generate-linux-x64",
+      "@lania-cli-v2/cmd-generate-win32-x64"
+    ]
+  }
+}

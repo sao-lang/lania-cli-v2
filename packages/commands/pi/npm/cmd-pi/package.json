@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-pi",
+  "version": "0.0.3",
+  "description": "lan-pi — pi 引擎编码 agent 命令子包",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-pi": "./bin/lan-pi.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-pi-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-pi-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-pi-win32-x64": "0.0.3"
+  }
+}

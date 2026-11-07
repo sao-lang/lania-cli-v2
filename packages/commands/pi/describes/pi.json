@@ -1,0 +1,166 @@
+{
+  "name": "pi",
+  "about": "Run the coding agent (interactive REPL or one-shot)",
+  "alias": "agent",
+  "aliases": [],
+  "args": [
+    {
+      "name": "prompt",
+      "required": false,
+      "multiple": true,
+      "help": "Prompt text; when present the agent runs one-shot"
+    }
+  ],
+  "options": [
+    {
+      "long": "model",
+      "short": "m",
+      "help": "Model id (e.g. claude-sonnet-4-5); defaults to lan.config agent.model",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "provider",
+      "short": null,
+      "help": "Provider id (anthropic/openai/...)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "thinking",
+      "short": null,
+      "help": "Reasoning level",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": ["minimal", "low", "medium", "high", "xhigh", "max"],
+      "negatable": false
+    },
+    {
+      "long": "approval-mode",
+      "short": null,
+      "help": "Tool approval mode: always-ask | write | yolo",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": ["always-ask", "write", "yolo"],
+      "negatable": false
+    },
+    {
+      "long": "print",
+      "short": "p",
+      "help": "One-shot mode: read the prompt from stdin when no positional argument is given",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "continue",
+      "short": "c",
+      "help": "Resume the most recent session",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "resume",
+      "short": null,
+      "help": "Resume the session with this id (see --sessions)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "new",
+      "short": null,
+      "help": "Start a new session even if --continue is configured",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "no-session",
+      "short": null,
+      "help": "Do not persist the conversation to .lan/agent",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "sessions",
+      "short": null,
+      "help": "List sessions in this workspace and exit",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "json",
+      "short": null,
+      "help": "Emit one JSON object per event (machine readable)",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "no-tui",
+      "short": null,
+      "help": "Force the line-based REPL instead of the full-screen TUI",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "snapshot",
+      "short": null,
+      "help": "Render TUI frames to stdout and exit (for CI / no-TTY review)",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "verbose",
+      "short": null,
+      "help": "Show extra diagnostics",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    }
+  ],
+  "examples": [
+    {
+      "command": "lan pi",
+      "description": "Start an interactive session"
+    },
+    {
+      "command": "lan pi \"explain the rust crate layout\"",
+      "description": "One-shot prompt"
+    },
+    {
+      "command": "lan pi -c",
+      "description": "Continue the latest session"
+    },
+    {
+      "command": "lan pi --sessions",
+      "description": "List saved sessions"
+    },
+    {
+      "command": "lan pi --approval-mode yolo \"run the test suite\"",
+      "description": "One-shot without approval prompts"
+    }
+  ],
+  "subcommands": [],
+  "handler_id": "command.pi"
+}

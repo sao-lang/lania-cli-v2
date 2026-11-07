@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-add",
+  "version": "0.0.3",
+  "description": "lan-add — add 命令子包（零 TS payload，Rust 内建生成器）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-add": "./bin/lan-add.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-add-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-add-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-add-win32-x64": "0.0.3"
+  }
+}

@@ -1,0 +1,402 @@
+{
+  "name": "tools",
+  "about": "List commands, run files by type, or view local files",
+  "alias": null,
+  "aliases": [],
+  "args": [],
+  "options": [
+    {
+      "long": "filter",
+      "short": "f",
+      "help": "Filter command names by substring",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "limit",
+      "short": "n",
+      "help": "Limit the number of returned commands",
+      "value_kind": "number",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "shell",
+      "short": null,
+      "help": "Include shell builtins, aliases, and functions",
+      "value_kind": "bool",
+      "default_value": "true",
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "all-matches",
+      "short": "a",
+      "help": "Show every PATH match for duplicate command names",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "names-only",
+      "short": null,
+      "help": "Return only command names instead of detailed entries",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "group-by-source",
+      "short": "g",
+      "help": "Group commands by PATH, shell builtin, alias, or function",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "plain",
+      "short": "p",
+      "help": "Render a plain text list instead of structured command entries",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "unique",
+      "short": "u",
+      "help": "Deduplicate command names while preserving their first match order",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    }
+  ],
+  "examples": [
+    {
+      "command": "lan tools",
+      "description": "List PATH commands plus shell builtins, aliases, and functions"
+    },
+    {
+      "command": "lan tools --filter ts",
+      "description": "List terminal commands whose names contain `ts`"
+    },
+    {
+      "command": "lan tools --all-matches --filter node",
+      "description": "Show all PATH matches for command names containing `node`"
+    },
+    {
+      "command": "lan tools --names-only --no-shell",
+      "description": "Return only PATH command names in a compact list"
+    },
+    {
+      "command": "lan tools --group-by-source",
+      "description": "Group commands by PATH, shell builtin, alias, and function"
+    },
+    {
+      "command": "lan tools --plain --group-by-source",
+      "description": "Render grouped command names as plain text"
+    },
+    {
+      "command": "lan tools --plain --names-only --unique",
+      "description": "Render one unique command name per line"
+    },
+    {
+      "command": "lan tools run ./scripts/demo.ts -- --port 3000",
+      "description": "Detect the file type and execute it with the matching runtime"
+    },
+    {
+      "command": "lan tools view ./src/index.ts",
+      "description": "Show file contents with line numbers or open media with the system app"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "list",
+      "about": "List terminal-resolvable commands",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "filter",
+          "short": "f",
+          "help": "Filter command names by substring",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "limit",
+          "short": "n",
+          "help": "Limit the number of returned commands",
+          "value_kind": "number",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "shell",
+          "short": null,
+          "help": "Include shell builtins, aliases, and functions",
+          "value_kind": "bool",
+          "default_value": "true",
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "all-matches",
+          "short": "a",
+          "help": "Show every PATH match for duplicate command names",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "names-only",
+          "short": null,
+          "help": "Return only command names instead of detailed entries",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "group-by-source",
+          "short": "g",
+          "help": "Group commands by PATH, shell builtin, alias, or function",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "plain",
+          "short": "p",
+          "help": "Render a plain text list instead of structured command entries",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "unique",
+          "short": "u",
+          "help": "Deduplicate command names while preserving their first match order",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.tools.list"
+    },
+    {
+      "name": "run",
+      "about": "Run a code file with a detected runtime",
+      "alias": null,
+      "aliases": [],
+      "args": [
+        {
+          "name": "file",
+          "required": true,
+          "multiple": false,
+          "help": "Path to the code file to execute"
+        },
+        {
+          "name": "args",
+          "required": false,
+          "multiple": true,
+          "help": "Additional arguments passed to the executed file"
+        }
+      ],
+      "options": [],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.tools.run"
+    },
+    {
+      "name": "view",
+      "about": "Show file contents or open media with the system app",
+      "alias": null,
+      "aliases": [],
+      "args": [
+        {
+          "name": "path",
+          "required": true,
+          "multiple": false,
+          "help": "Path to the file to inspect"
+        }
+      ],
+      "options": [
+        {
+          "long": "lines",
+          "short": "n",
+          "help": "Limit the number of displayed text lines",
+          "value_kind": "number",
+          "default_value": "2000",
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "start",
+          "short": "s",
+          "help": "Start viewing from a specific 1-based line number",
+          "value_kind": "number",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "end",
+          "short": "e",
+          "help": "End viewing at a specific 1-based line number",
+          "value_kind": "number",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "tail",
+          "short": "t",
+          "help": "Show the last N lines of a text file",
+          "value_kind": "number",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "head",
+          "short": "H",
+          "help": "Show the first N lines of a text file",
+          "value_kind": "number",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "grep",
+          "short": "g",
+          "help": "Filter visible text or directory entries by substring",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "regex",
+          "short": "r",
+          "help": "Filter visible text or directory entries by regular expression",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "ignore-case",
+          "short": "i",
+          "help": "Enable case-insensitive matching for grep or regex",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "tree",
+          "short": null,
+          "help": "Render directories as a recursive tree",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "max-depth",
+          "short": null,
+          "help": "Limit recursive directory traversal depth",
+          "value_kind": "number",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "sort",
+          "short": null,
+          "help": "Sort directory entries by name, size, or time",
+          "value_kind": "string",
+          "default_value": "name",
+          "choices": ["name", "size", "time", "ext"],
+          "negatable": false
+        },
+        {
+          "long": "reverse",
+          "short": null,
+          "help": "Reverse directory sort order",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "hidden",
+          "short": null,
+          "help": "Include hidden files and directories",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "files-only",
+          "short": null,
+          "help": "Only include file entries when viewing directories",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "dirs-only",
+          "short": null,
+          "help": "Only include directory entries when viewing directories",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "hex-bytes",
+          "short": null,
+          "help": "Limit binary hex preview bytes",
+          "value_kind": "number",
+          "default_value": "256",
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "meta-only",
+          "short": null,
+          "help": "Only show file metadata without opening external viewers",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.tools.view"
+    }
+  ],
+  "handler_id": "command.tools"
+}

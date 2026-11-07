@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-create",
+  "version": "0.0.3",
+  "description": "lan-create — create 命令子包（含 template 二级命令）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-create": "./bin/lan-create.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-create-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-create-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-create-win32-x64": "0.0.3"
+  }
+}

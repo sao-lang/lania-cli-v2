@@ -1,0 +1,15 @@
+{
+  "name": "@lania-cli-v2/cmd-add-linux-x64",
+  "version": "0.0.3",
+  "description": "lan-add binary for linux-x64 (staged at release time)",
+  "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin"
+  ]
+}

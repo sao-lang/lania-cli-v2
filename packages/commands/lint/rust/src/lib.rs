@@ -18,6 +18,9 @@ use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
 use serde_json::Value;
 
 pub const HANDLER_ID: &str = "command.lint";
+
+/// 命令名，必须等于 `spec().name`（§5.4 D.1 冻结导出面 / §10.3 CI 断言）。
+pub const COMMAND_NAME: &str = "lint";
 pub const CHECK_HANDLER_ID: &str = "command.lint.check";
 pub const FIX_HANDLER_ID: &str = "command.lint.fix";
 
@@ -83,6 +86,19 @@ fn has_lint_bridge(kind: RuntimeKind) -> bool {
 
 #[derive(Debug, Default)]
 pub struct LintCommandPlugin;
+
+/// 命令双形态的唯一契约（§5.4 D.1）：总包 `lan` 与独立二进制 `lan-lint`
+/// 都用它装配同一个插件。目标态返回 `Box<dyn lania_command::CommandPlugin>`；
+/// 当前沿用宿主 `Plugin` trait，待类型完全下沉后平移签名。
+pub fn factory() -> Box<dyn lania_host::plugin::Plugin> {
+    Box::new(LintCommandPlugin)
+}
+
+/// 冻结导出面：`spec()` 作为自由函数，供 `--describe`、独立 bin 与
+/// known-commands.json 派生使用；内部委托 `{plugin}::spec()`。
+pub fn spec() -> lania_command::CommandSpec {
+    LintCommandPlugin::spec()
+}
 
 struct LintCommandHandler;
 
@@ -934,5 +950,28 @@ mod tests {
             assert_eq!(request.params["mode"], expected_mode);
             assert_eq!(request.params["fix"], expected_fix);
         }
+    }
+}
+
+
+#[cfg(test)]
+mod frozen_export_surface {
+    //! 冻结导出面守卫（§5.4 D.1 / §10.3 CI 断言）。
+    use super::*;
+
+    #[test]
+    fn command_name_matches_spec() {
+        assert_eq!(spec().name, COMMAND_NAME);
+    }
+
+    #[test]
+    fn handler_id_is_frozen() {
+        assert_eq!(spec().handler_id, "command.lint");
+    }
+
+    #[test]
+    fn factory_builds_the_plugin() {
+        // 只验证可构造与元信息非空，不触发宿主装配。
+        let _plugin = factory();
     }
 }

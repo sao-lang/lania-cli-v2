@@ -1,0 +1,15 @@
+{
+  "name": "@lania-cli-v2/cmd-dev-win32-x64",
+  "version": "0.0.3",
+  "description": "lan-dev binary for win32-x64 (staged at release time)",
+  "license": "MIT",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin"
+  ]
+}

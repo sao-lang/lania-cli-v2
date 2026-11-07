@@ -1,0 +1,75 @@
+{
+  "name": "build",
+  "about": "Run the project build workflow",
+  "alias": null,
+  "aliases": [],
+  "args": [],
+  "options": [
+    {
+      "long": "config",
+      "short": null,
+      "help": "Legacy config path (accepted for compatibility; may be ignored)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "path",
+      "short": null,
+      "help": "Legacy project path (accepted for compatibility)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "watch",
+      "short": "w",
+      "help": "Keep the builder running in watch mode",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "mode",
+      "short": "m",
+      "help": "Forward a named build mode to the underlying compiler",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": ["development", "production"],
+      "negatable": false
+    },
+    {
+      "long": "output-dir",
+      "short": "o",
+      "help": "Override the build output directory",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "runtime",
+      "short": null,
+      "help": "Override runtime (web|python|go|rust|dart)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": ["web", "python", "go", "rust", "dart"],
+      "negatable": false
+    }
+  ],
+  "examples": [
+    {
+      "command": "lan build",
+      "description": "Create a production build"
+    },
+    {
+      "command": "lan build --watch --mode development",
+      "description": "Run the build workflow in watch mode"
+    }
+  ],
+  "subcommands": [],
+  "handler_id": "command.build"
+}

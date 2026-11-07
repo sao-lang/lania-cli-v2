@@ -20,6 +20,9 @@ mod spec;
 use registry::register_build_commands;
 
 pub const HANDLER_ID: &str = "command.build";
+
+/// 命令名，必须等于 `spec().name`（§5.4 D.1 冻结导出面 / §10.3 CI 断言）。
+pub const COMMAND_NAME: &str = "build";
 pub const PRODUCT_HANDLER_ID: &str = "command.build.product";
 pub const PACK_PRODUCT_HANDLER_ID: &str = "command.pack.product";
 pub const PUBLISH_PRODUCT_HANDLER_ID: &str = "command.publish.product";
@@ -28,6 +31,19 @@ pub const DOCTOR_PRODUCT_HANDLER_ID: &str = "command.doctor.product";
 
 #[derive(Debug, Default)]
 pub struct BuildCommandPlugin;
+
+/// 命令双形态的唯一契约（§5.4 D.1）：总包 `lan` 与独立二进制 `lan-build`
+/// 都用它装配同一个插件。目标态返回 `Box<dyn lania_command::CommandPlugin>`；
+/// 当前沿用宿主 `Plugin` trait，待类型完全下沉后平移签名。
+pub fn factory() -> Box<dyn lania_host::plugin::Plugin> {
+    Box::new(BuildCommandPlugin)
+}
+
+/// 冻结导出面：`spec()` 作为自由函数，供 `--describe`、独立 bin 与
+/// known-commands.json 派生使用；内部委托 `{plugin}::spec()`。
+pub fn spec() -> lania_command::CommandSpec {
+    BuildCommandPlugin::spec()
+}
 
 impl Plugin for BuildCommandPlugin {
     fn meta(&self) -> PluginMeta {
@@ -399,5 +415,28 @@ mod tests {
         assert_eq!(request.params["doctor"], true);
         assert_eq!(request.params["compat"], true);
         assert_eq!(request.params["hostVersion"], env!("CARGO_PKG_VERSION"));
+    }
+}
+
+
+#[cfg(test)]
+mod frozen_export_surface {
+    //! 冻结导出面守卫（§5.4 D.1 / §10.3 CI 断言）。
+    use super::*;
+
+    #[test]
+    fn command_name_matches_spec() {
+        assert_eq!(spec().name, COMMAND_NAME);
+    }
+
+    #[test]
+    fn handler_id_is_frozen() {
+        assert_eq!(spec().handler_id, "command.build");
+    }
+
+    #[test]
+    fn factory_builds_the_plugin() {
+        // 只验证可构造与元信息非空，不触发宿主装配。
+        let _plugin = factory();
     }
 }

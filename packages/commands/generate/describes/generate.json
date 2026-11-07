@@ -1,0 +1,28 @@
+{
+  "name": "generate",
+  "about": "Generate project artifacts",
+  "alias": null,
+  "aliases": [],
+  "args": [],
+  "options": [],
+  "examples": [
+    {
+      "command": "lan product generate --name \"Acme CLI\" --binary-name acme",
+      "description": "Scaffold a new CLI product workspace"
+    },
+    {
+      "command": "lan generate api",
+      "description": "Generate contract and transport artifacts from lania.contract.yaml"
+    },
+    {
+      "command": "lan g api --source proto --target grpc,http --dry-run",
+      "description": "Preview protobuf grpc/http generation without writing files"
+    },
+    {
+      "command": "lan generate module",
+      "description": "Generate lania-g module files from lania.module.yaml"
+    }
+  ],
+  "subcommands": [],
+  "handler_id": "command.generate"
+}

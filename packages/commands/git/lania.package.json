@@ -1,0 +1,45 @@
+{
+  "name": "git",
+  "kind": "command",
+  "command": "git",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 8,
+  "describe": "describes/git.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania_plugins_command_git",
+      "bin": "lan-git",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania_plugins_command_git::factory",
+        "spec": "lania_plugins_command_git::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "GitCommandPlugin",
+          "GitCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-git",
+    "bin": {
+      "lan-git": "npm/cmd-git/bin/lan-git.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-git-darwin-arm64",
+      "@lania-cli-v2/cmd-git-linux-x64",
+      "@lania-cli-v2/cmd-git-win32-x64"
+    ]
+  }
+}

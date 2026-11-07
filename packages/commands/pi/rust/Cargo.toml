@@ -11,6 +11,9 @@ description = "`lan pi` command: thin CLI adapter on top of the standalone lania
 # 这一层才是「脚手架」：命令声明、宿主 bridge、审批/门禁接线都在这里。
 # 反向依赖是禁止的：lania-agent 不认识本 crate。
 [dependencies]
+lania-cli-kit = { path = "../../../../packages/foundation/cli-kit/rust/lania-cli-kit" }
+runex-home = { path = "../../../../packages/foundation/runex-home/rust/runex-home" }
+lania-bridge-host = { path = "../../../../packages/products/bridge-hub/rust/lania-bridge-host" }
 anyhow.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
@@ -19,3 +22,10 @@ lania-agent-core = { path = "../../../../packages/products/agent/rust/lania-agen
 lania-command = { path = "../../../../packages/foundation/command/rust/lania-command" }
 lania-host = { path = "../../../../packages/distribution/cli/rust/lania-host" }
 lania-node-bridge = { path = "../../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
+
+
+tokio.workspace = true
+
+[[bin]]
+name = "lan-pi"
+path = "src/bin/lan-pi.rs"

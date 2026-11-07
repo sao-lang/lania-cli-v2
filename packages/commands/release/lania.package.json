@@ -1,0 +1,45 @@
+{
+  "name": "release",
+  "kind": "command",
+  "command": "release",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 7,
+  "describe": "describes/release.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania_plugins_command_release",
+      "bin": "lan-release",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania_plugins_command_release::factory",
+        "spec": "lania_plugins_command_release::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "ReleaseCommandPlugin",
+          "ReleaseCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-release",
+    "bin": {
+      "lan-release": "npm/cmd-release/bin/lan-release.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-release-darwin-arm64",
+      "@lania-cli-v2/cmd-release-linux-x64",
+      "@lania-cli-v2/cmd-release-win32-x64"
+    ]
+  }
+}

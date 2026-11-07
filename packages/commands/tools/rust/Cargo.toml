@@ -8,6 +8,9 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+lania-cli-kit = { path = "../../../../packages/foundation/cli-kit/rust/lania-cli-kit" }
+runex-home = { path = "../../../../packages/foundation/runex-home/rust/runex-home" }
+lania-bridge-host = { path = "../../../../packages/products/bridge-hub/rust/lania-bridge-host" }
 anyhow.workspace = true
 async-trait.workspace = true
 lania-command = { path = "../../../../packages/foundation/command/rust/lania-command" }
@@ -17,3 +20,10 @@ lania-node-bridge = { path = "../../../../packages/products/bridge-hub/adaptors/
 lania-runtime = { path = "../../../../packages/foundation/capabilities/rust/lania-runtime" }
 serde_json.workspace = true
 regex.workspace = true
+
+
+tokio.workspace = true
+
+[[bin]]
+name = "lan-tools"
+path = "src/bin/lan-tools.rs"

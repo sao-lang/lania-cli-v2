@@ -1,0 +1,45 @@
+{
+  "name": "tools",
+  "kind": "command",
+  "command": "tools",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 9,
+  "describe": "describes/tools.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania_plugins_command_tools",
+      "bin": "lan-tools",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania_plugins_command_tools::factory",
+        "spec": "lania_plugins_command_tools::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "ToolsCommandPlugin",
+          "ToolsCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-tools",
+    "bin": {
+      "lan-tools": "npm/cmd-tools/bin/lan-tools.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-tools-darwin-arm64",
+      "@lania-cli-v2/cmd-tools-linux-x64",
+      "@lania-cli-v2/cmd-tools-win32-x64"
+    ]
+  }
+}

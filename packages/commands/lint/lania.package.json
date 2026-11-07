@@ -1,0 +1,45 @@
+{
+  "name": "lint",
+  "kind": "command",
+  "command": "lint",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 3,
+  "describe": "describes/lint.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania_plugins_command_lint",
+      "bin": "lan-lint",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania_plugins_command_lint::factory",
+        "spec": "lania_plugins_command_lint::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "LintCommandPlugin",
+          "LintCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-lint",
+    "bin": {
+      "lan-lint": "npm/cmd-lint/bin/lan-lint.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-lint-darwin-arm64",
+      "@lania-cli-v2/cmd-lint-linux-x64",
+      "@lania-cli-v2/cmd-lint-win32-x64"
+    ]
+  }
+}

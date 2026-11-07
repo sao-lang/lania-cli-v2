@@ -1,0 +1,186 @@
+{
+  "name": "create",
+  "about": "Create a new project from a template",
+  "alias": null,
+  "aliases": [],
+  "args": [
+    {
+      "name": "path",
+      "required": false,
+      "multiple": false,
+      "help": "Project path (use \".\" for current directory)"
+    }
+  ],
+  "options": [
+    {
+      "long": "name",
+      "short": "n",
+      "help": "Project name",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "template",
+      "short": "t",
+      "help": "Template name",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [
+        "toolkit",
+        "toolkit-monorepo",
+        "nestjs",
+        "express",
+        "spa-react",
+        "spa-vue",
+        "go-service",
+        "rust-lib",
+        "python-cli",
+        "dart-cli"
+      ],
+      "negatable": false
+    },
+    {
+      "long": "package-manager",
+      "short": "p",
+      "help": "Package manager",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [
+        "npm",
+        "pnpm",
+        "yarn",
+        "bun",
+        "pip",
+        "uv",
+        "poetry",
+        "go",
+        "cargo",
+        "dart",
+        "pub"
+      ],
+      "negatable": false
+    },
+    {
+      "long": "directory",
+      "short": null,
+      "help": "Legacy alias for project path (create inside the given directory)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "git",
+      "short": "g",
+      "help": "Initialize git repository",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "skip-git",
+      "short": null,
+      "help": "Legacy alias for --no-git",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "skip-install",
+      "short": null,
+      "help": "Skip package manager init/install steps",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "language",
+      "short": null,
+      "help": "Preferred project language (forwarded to template context)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "lint-tools",
+      "short": null,
+      "help": "Comma-separated lint tools forwarded to the template",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "dry-run",
+      "short": "d",
+      "help": "Plan file writes and install commands without executing",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "preview",
+      "short": "P",
+      "help": "Preview rendered template files and imply dry-run",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    }
+  ],
+  "examples": [
+    {
+      "command": "lan create --name demo-app",
+      "description": "Create a default react application"
+    },
+    {
+      "command": "lan create .",
+      "description": "Create a project in current directory"
+    },
+    {
+      "command": "lan create --template toolkit --package-manager pnpm",
+      "description": "Create a toolkit template with pnpm"
+    },
+    {
+      "command": "lan create --template spa-vue --preview",
+      "description": "Preview the rendered template files without writing"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "template",
+      "about": "List templates or inspect a template detail",
+      "alias": null,
+      "aliases": [],
+      "args": [
+        {
+          "name": "name",
+          "required": false,
+          "multiple": false,
+          "help": "Template name"
+        }
+      ],
+      "options": [],
+      "examples": [
+        {
+          "command": "lan template",
+          "description": "Inspect available templates in an interactive selector"
+        },
+        {
+          "command": "lan template toolkit",
+          "description": "Show detail information for a specific template"
+        }
+      ],
+      "subcommands": [],
+      "handler_id": "command.template"
+    }
+  ],
+  "handler_id": "command.create"
+}

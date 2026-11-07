@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-tools",
+  "version": "0.0.3",
+  "description": "lan-tools — tools 命令子包（文件查看器等）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-tools": "./bin/lan-tools.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-tools-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-tools-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-tools-win32-x64": "0.0.3"
+  }
+}

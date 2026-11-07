@@ -1,0 +1,92 @@
+{
+  "name": "add",
+  "about": "Add generated content into an existing workspace",
+  "alias": null,
+  "aliases": [],
+  "args": [
+    {
+      "name": "generator",
+      "required": false,
+      "multiple": false,
+      "help": "Generator name, e.g. `resource` (nestjs/gin/fastapi/axum) or `component`"
+    },
+    {
+      "name": "generator-name",
+      "required": false,
+      "multiple": false,
+      "help": "Base name used to derive class names and file paths"
+    }
+  ],
+  "options": [
+    {
+      "long": "name",
+      "short": "n",
+      "help": "Base name when adding a generated component or module",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "template",
+      "short": "t",
+      "help": "Generator name or a legacy template name (rfc/v3/eslint/...)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "target",
+      "short": "d",
+      "help": "Relative target path or directory",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "filepath",
+      "short": null,
+      "help": "Legacy alias for target path or directory",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "list",
+      "short": "l",
+      "help": "List available generators grouped by framework, then exit",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "force",
+      "short": "f",
+      "help": "Overwrite conflicting files",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    }
+  ],
+  "examples": [
+    {
+      "command": "lan add resource users",
+      "description": "Generate a multi-file NestJS resource (module/controller/service/dto/entity/spec)"
+    },
+    {
+      "command": "lan add component Button --target src/components",
+      "description": "Add a framework-agnostic UI component"
+    },
+    {
+      "command": "lan add --list",
+      "description": "Show generators available for the detected framework"
+    }
+  ],
+  "subcommands": [],
+  "handler_id": "command.add"
+}

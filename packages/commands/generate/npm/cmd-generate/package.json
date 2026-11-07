@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-generate",
+  "version": "0.0.3",
+  "description": "lan-generate — generate 命令子包（TS payload 经 lib/bridge 提供）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-generate": "./bin/lan-generate.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-generate-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-generate-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-generate-win32-x64": "0.0.3"
+  }
+}

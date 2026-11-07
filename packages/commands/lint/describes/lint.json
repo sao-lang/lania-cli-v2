@@ -1,0 +1,154 @@
+{
+  "name": "lint",
+  "about": "Run project lint checks",
+  "alias": null,
+  "aliases": [],
+  "args": [],
+  "options": [
+    {
+      "long": "fix",
+      "short": "f",
+      "help": "Run lint in fix mode",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "linters",
+      "short": null,
+      "help": "Comma-separated linter adaptors to run (eslint,oxlint,prettier,oxfmt,stylelint,textlint,ruff,black,mypy,flake8,golangci-lint,go-vet,clippy,dart-analyze)",
+      "value_kind": "string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "concurrency",
+      "short": "c",
+      "help": "Run lint adaptors with a bounded concurrency level",
+      "value_kind": "number",
+      "default_value": "4",
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "grouped-output",
+      "short": null,
+      "help": "Print lint results grouped by adaptor",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    }
+  ],
+  "examples": [
+    {
+      "command": "lan lint",
+      "description": "Run lint checks"
+    },
+    {
+      "command": "lan lint fix --concurrency 2",
+      "description": "Run lint in fix mode with a custom worker limit"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "check",
+      "about": "Run lint in check mode",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "fix",
+          "short": "f",
+          "help": "Run lint in fix mode",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "linters",
+          "short": null,
+          "help": "Comma-separated linter adaptors to run (eslint,oxlint,prettier,oxfmt,stylelint,textlint,ruff,black,mypy,flake8,golangci-lint,go-vet,clippy,dart-analyze)",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "concurrency",
+          "short": "c",
+          "help": "Run lint adaptors with a bounded concurrency level",
+          "value_kind": "number",
+          "default_value": "4",
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "grouped-output",
+          "short": null,
+          "help": "Print lint results grouped by adaptor",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.lint.check"
+    },
+    {
+      "name": "fix",
+      "about": "Run lint in fix mode",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "fix",
+          "short": "f",
+          "help": "Run lint in fix mode",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "linters",
+          "short": null,
+          "help": "Comma-separated linter adaptors to run (eslint,oxlint,prettier,oxfmt,stylelint,textlint,ruff,black,mypy,flake8,golangci-lint,go-vet,clippy,dart-analyze)",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "concurrency",
+          "short": "c",
+          "help": "Run lint adaptors with a bounded concurrency level",
+          "value_kind": "number",
+          "default_value": "4",
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "grouped-output",
+          "short": null,
+          "help": "Print lint results grouped by adaptor",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.lint.fix"
+    }
+  ],
+  "handler_id": "command.lint"
+}

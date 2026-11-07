@@ -1,0 +1,45 @@
+{
+  "name": "pi",
+  "kind": "command",
+  "command": "pi",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 12,
+  "describe": "describes/pi.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania_plugins_command_pi",
+      "bin": "lan-pi",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania_plugins_command_pi::factory",
+        "spec": "lania_plugins_command_pi::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "PiCommandPlugin",
+          "PiCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-pi",
+    "bin": {
+      "lan-pi": "npm/cmd-pi/bin/lan-pi.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-pi-darwin-arm64",
+      "@lania-cli-v2/cmd-pi-linux-x64",
+      "@lania-cli-v2/cmd-pi-win32-x64"
+    ]
+  }
+}

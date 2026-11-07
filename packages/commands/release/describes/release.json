@@ -1,0 +1,628 @@
+{
+  "name": "release",
+  "about": "Project release orchestration",
+  "alias": null,
+  "aliases": [],
+  "args": [],
+  "options": [
+    {
+      "long": "version",
+      "short": "v",
+      "help": "Release version",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "tag",
+      "short": "t",
+      "help": "Package dist-tag override",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "profile",
+      "short": "P",
+      "help": "Release profile: package, web-app, service, custom",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "env",
+      "short": "e",
+      "help": "Target release environment",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "channel",
+      "short": "C",
+      "help": "Release channel or deploy channel",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "from",
+      "short": "f",
+      "help": "Start release from the given stage",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "to",
+      "short": "T",
+      "help": "Stop release after the given stage",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "skip",
+      "short": "s",
+      "help": "Comma-separated stages to skip",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "state-file",
+      "short": "S",
+      "help": "Release state file path",
+      "value_kind": "optional_string",
+      "default_value": null,
+      "choices": [],
+      "negatable": false
+    },
+    {
+      "long": "publish",
+      "short": "p",
+      "help": "Enable package publish stage",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "changelog",
+      "short": "c",
+      "help": "Enable changelog stage",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "skip-git",
+      "short": null,
+      "help": "Disable finalize git commit/tag/push behavior",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "apply",
+      "short": "a",
+      "help": "Apply release actions instead of plan-only output",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "dry-run",
+      "short": "d",
+      "help": "Force plan-only mode even for run/resume",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    },
+    {
+      "long": "yes",
+      "short": "y",
+      "help": "Confirm release execution without extra prompts",
+      "value_kind": "bool",
+      "default_value": null,
+      "choices": [],
+      "negatable": true
+    }
+  ],
+  "examples": [
+    {
+      "command": "lan release --profile web-app --env prod",
+      "description": "Preview a release plan without executing"
+    },
+    {
+      "command": "lan release run --apply --yes --from verify --to finalize",
+      "description": "Execute the selected release stage range"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "plan",
+      "about": "Generate a release plan and persist release state",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "version",
+          "short": "v",
+          "help": "Release version",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "tag",
+          "short": "t",
+          "help": "Package dist-tag override",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "profile",
+          "short": "P",
+          "help": "Release profile: package, web-app, service, custom",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "env",
+          "short": "e",
+          "help": "Target release environment",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "channel",
+          "short": "C",
+          "help": "Release channel or deploy channel",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "from",
+          "short": "f",
+          "help": "Start release from the given stage",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "to",
+          "short": "T",
+          "help": "Stop release after the given stage",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "skip",
+          "short": "s",
+          "help": "Comma-separated stages to skip",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "state-file",
+          "short": "S",
+          "help": "Release state file path",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "publish",
+          "short": "p",
+          "help": "Enable package publish stage",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "changelog",
+          "short": "c",
+          "help": "Enable changelog stage",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "skip-git",
+          "short": null,
+          "help": "Disable finalize git commit/tag/push behavior",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "apply",
+          "short": "a",
+          "help": "Apply release actions instead of plan-only output",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Force plan-only mode even for run/resume",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "yes",
+          "short": "y",
+          "help": "Confirm release execution without extra prompts",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [
+        {
+          "command": "lan release plan --profile package --version 1.2.3",
+          "description": "Preview package release stages"
+        },
+        {
+          "command": "lan release plan --profile web-app --env prod --skip version",
+          "description": "Preview a web deployment plan"
+        }
+      ],
+      "subcommands": [],
+      "handler_id": "command.release.plan"
+    },
+    {
+      "name": "run",
+      "about": "Execute a release plan with state persistence",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "version",
+          "short": "v",
+          "help": "Release version",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "tag",
+          "short": "t",
+          "help": "Package dist-tag override",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "profile",
+          "short": "P",
+          "help": "Release profile: package, web-app, service, custom",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "env",
+          "short": "e",
+          "help": "Target release environment",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "channel",
+          "short": "C",
+          "help": "Release channel or deploy channel",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "from",
+          "short": "f",
+          "help": "Start release from the given stage",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "to",
+          "short": "T",
+          "help": "Stop release after the given stage",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "skip",
+          "short": "s",
+          "help": "Comma-separated stages to skip",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "state-file",
+          "short": "S",
+          "help": "Release state file path",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "publish",
+          "short": "p",
+          "help": "Enable package publish stage",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "changelog",
+          "short": "c",
+          "help": "Enable changelog stage",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "skip-git",
+          "short": null,
+          "help": "Disable finalize git commit/tag/push behavior",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "apply",
+          "short": "a",
+          "help": "Apply release actions instead of plan-only output",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Force plan-only mode even for run/resume",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "yes",
+          "short": "y",
+          "help": "Confirm release execution without extra prompts",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.release.run"
+    },
+    {
+      "name": "resume",
+      "about": "Resume a previously failed or partial release",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "version",
+          "short": "v",
+          "help": "Release version",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "tag",
+          "short": "t",
+          "help": "Package dist-tag override",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "profile",
+          "short": "P",
+          "help": "Release profile: package, web-app, service, custom",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "env",
+          "short": "e",
+          "help": "Target release environment",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "channel",
+          "short": "C",
+          "help": "Release channel or deploy channel",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "from",
+          "short": "f",
+          "help": "Start release from the given stage",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "to",
+          "short": "T",
+          "help": "Stop release after the given stage",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "skip",
+          "short": "s",
+          "help": "Comma-separated stages to skip",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "state-file",
+          "short": "S",
+          "help": "Release state file path",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "publish",
+          "short": "p",
+          "help": "Enable package publish stage",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "changelog",
+          "short": "c",
+          "help": "Enable changelog stage",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "skip-git",
+          "short": null,
+          "help": "Disable finalize git commit/tag/push behavior",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "apply",
+          "short": "a",
+          "help": "Apply release actions instead of plan-only output",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Force plan-only mode even for run/resume",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        },
+        {
+          "long": "yes",
+          "short": "y",
+          "help": "Confirm release execution without extra prompts",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.release.resume"
+    },
+    {
+      "name": "status",
+      "about": "Inspect the latest persisted release state",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "state-file",
+          "short": "S",
+          "help": "Release state file path",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.release.status"
+    }
+  ],
+  "handler_id": "command.release"
+}

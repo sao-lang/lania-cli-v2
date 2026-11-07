@@ -1137,10 +1137,14 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-workflows",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1149,11 +1153,15 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-logger",
  "lania-node-bridge",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1162,13 +1170,17 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-logger",
  "lania-node-bridge",
  "lania-prompt",
  "lania-workflows",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1177,10 +1189,13 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-node-bridge",
  "notify",
+ "runex-home",
  "serde_json",
  "tokio",
 ]
@@ -1207,12 +1222,16 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-node-bridge",
  "lania-prompt",
  "lania-workflows",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1221,10 +1240,14 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-workflows",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1233,12 +1256,16 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-logger",
  "lania-node-bridge",
  "lania-presentation",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1263,10 +1290,14 @@ dependencies = [
  "async-trait",
  "lania-agent",
  "lania-agent-core",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-node-bridge",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1275,10 +1306,14 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-host",
  "lania-workflows",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1287,13 +1322,17 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
  "lania-command",
  "lania-exec",
  "lania-host",
  "lania-node-bridge",
  "lania-runtime",
  "regex",
+ "runex-home",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

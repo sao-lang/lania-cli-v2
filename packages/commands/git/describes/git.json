@@ -1,0 +1,555 @@
+{
+  "name": "git",
+  "about": "Inspect and sync git state",
+  "alias": "gt",
+  "aliases": [],
+  "args": [],
+  "options": [],
+  "examples": [
+    {
+      "command": "lan git status",
+      "description": "Show working tree status"
+    },
+    {
+      "command": "lan git sync -m \"feat: ship it\"",
+      "description": "Stage, commit, and push current changes"
+    },
+    {
+      "command": "lan git log --limit 5",
+      "description": "Show the last five commits"
+    }
+  ],
+  "subcommands": [
+    {
+      "name": "status",
+      "about": "Show working tree status",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.git.status"
+    },
+    {
+      "name": "log",
+      "about": "Show recent commits",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "limit",
+          "short": "n",
+          "help": "Number of commits to show",
+          "value_kind": "optional_string",
+          "default_value": "10",
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.git.log"
+    },
+    {
+      "name": "diff",
+      "about": "Show working tree or staged diff",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "staged",
+          "short": "s",
+          "help": "Show staged changes only",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "path",
+          "short": "P",
+          "help": "Limit diff to a path",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.git.diff"
+    },
+    {
+      "name": "branch",
+      "about": "Manage branches",
+      "alias": "br",
+      "aliases": [],
+      "args": [],
+      "options": [],
+      "examples": [],
+      "subcommands": [
+        {
+          "name": "list",
+          "about": "List local and remote branches",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [],
+          "examples": [
+            {
+              "command": "lan git branch list",
+              "description": "List local and remote branches"
+            }
+          ],
+          "subcommands": [],
+          "handler_id": "command.git.branch.list"
+        },
+        {
+          "name": "create",
+          "about": "Create a branch",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "branch",
+              "required": true,
+              "multiple": false,
+              "help": "Branch name"
+            }
+          ],
+          "options": [],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.git.branch.create"
+        },
+        {
+          "name": "switch",
+          "about": "Switch to a branch",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "branch",
+              "required": true,
+              "multiple": false,
+              "help": "Branch name"
+            }
+          ],
+          "options": [],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.git.branch.switch"
+        },
+        {
+          "name": "delete",
+          "about": "Delete a branch",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "branch",
+              "required": true,
+              "multiple": false,
+              "help": "Branch name"
+            }
+          ],
+          "options": [
+            {
+              "long": "yes",
+              "short": "y",
+              "help": "Confirm the deletion",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            },
+            {
+              "long": "force",
+              "short": "f",
+              "help": "Delete even if the branch is not merged (-D)",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.git.branch.delete"
+        }
+      ],
+      "handler_id": "command.git.branch.list"
+    },
+    {
+      "name": "tag",
+      "about": "Manage tags",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [],
+      "examples": [],
+      "subcommands": [
+        {
+          "name": "list",
+          "about": "List tags",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.git.tag.list"
+        },
+        {
+          "name": "create",
+          "about": "Create a tag",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "tag",
+              "required": true,
+              "multiple": false,
+              "help": "Tag name"
+            }
+          ],
+          "options": [
+            {
+              "long": "message",
+              "short": "m",
+              "help": "Annotated tag message",
+              "value_kind": "optional_string",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.git.tag.create"
+        },
+        {
+          "name": "delete",
+          "about": "Delete a tag",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "tag",
+              "required": true,
+              "multiple": false,
+              "help": "Tag name"
+            }
+          ],
+          "options": [
+            {
+              "long": "yes",
+              "short": "y",
+              "help": "Confirm the deletion",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.git.tag.delete"
+        }
+      ],
+      "handler_id": "command.git.tag.list"
+    },
+    {
+      "name": "add",
+      "about": "Stage every change in the working tree",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Plan git commands without executing them",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.git.add"
+    },
+    {
+      "name": "restore",
+      "about": "Discard working tree or staged changes",
+      "alias": null,
+      "aliases": [],
+      "args": [
+        {
+          "name": "paths",
+          "required": false,
+          "multiple": true,
+          "help": "Paths to restore (defaults to the whole worktree)"
+        }
+      ],
+      "options": [
+        {
+          "long": "staged",
+          "short": "s",
+          "help": "Unstage instead of discarding working tree changes",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Plan git commands without executing them",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.git.restore"
+    },
+    {
+      "name": "sync",
+      "about": "Stage, commit, and push current changes",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "remote",
+          "short": "r",
+          "help": "Remote name",
+          "value_kind": "string",
+          "default_value": "origin",
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "branch",
+          "short": "b",
+          "help": "Branch name",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "message",
+          "short": "m",
+          "help": "Commit message override",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "amend",
+          "short": "a",
+          "help": "Amend the latest commit",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "force-with-lease",
+          "short": "f",
+          "help": "Force push with lease protection",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Plan git commands without executing them",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "interactive",
+          "short": "i",
+          "help": "Generate commit message via commitizen",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "push",
+          "short": "p",
+          "help": "Push after commit",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [
+        {
+          "command": "lan git sync -m \"chore: update workspace\"",
+          "description": "Stage, commit, and push current changes"
+        },
+        {
+          "command": "lan git sync --no-push -m \"feat: partial sync\"",
+          "description": "Commit locally without pushing"
+        }
+      ],
+      "subcommands": [],
+      "handler_id": "command.git.sync"
+    },
+    {
+      "name": "commit",
+      "about": "Stage and commit changes",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "remote",
+          "short": "r",
+          "help": "Remote name",
+          "value_kind": "string",
+          "default_value": "origin",
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "branch",
+          "short": "b",
+          "help": "Branch name",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "message",
+          "short": "m",
+          "help": "Commit message override",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "amend",
+          "short": "a",
+          "help": "Amend the latest commit",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "force-with-lease",
+          "short": "f",
+          "help": "Force push with lease protection",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Plan git commands without executing them",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "interactive",
+          "short": "i",
+          "help": "Generate commit message via commitizen",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "push",
+          "short": "p",
+          "help": "Push after commit",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": true
+        }
+      ],
+      "examples": [
+        {
+          "command": "lan git commit -m \"chore: save work\" --no-push",
+          "description": "Create a local commit only"
+        }
+      ],
+      "subcommands": [],
+      "handler_id": "command.git.commit"
+    },
+    {
+      "name": "push",
+      "about": "Push current branch to remote",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "remote",
+          "short": "r",
+          "help": "Remote name",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "branch",
+          "short": "b",
+          "help": "Branch name",
+          "value_kind": "optional_string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "force-with-lease",
+          "short": "f",
+          "help": "Force push with lease protection",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        },
+        {
+          "long": "dry-run",
+          "short": "d",
+          "help": "Plan git commands without executing them",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.git.push"
+    }
+  ],
+  "handler_id": "command.git"
+}

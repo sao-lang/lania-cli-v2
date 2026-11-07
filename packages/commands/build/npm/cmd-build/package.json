@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-build",
+  "version": "0.0.3",
+  "description": "lan-build — build 命令子包（TS payload 经 lib/bridge 提供）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-build": "./bin/lan-build.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-build-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-build-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-build-win32-x64": "0.0.3"
+  }
+}

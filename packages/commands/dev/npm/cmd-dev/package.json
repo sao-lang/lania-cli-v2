@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-dev",
+  "version": "0.0.3",
+  "description": "lan-dev — dev server 命令子包（TS payload 经 lib/bridge 提供）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-dev": "./bin/lan-dev.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-dev-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-dev-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-dev-win32-x64": "0.0.3"
+  }
+}

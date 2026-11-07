@@ -1,0 +1,21 @@
+{
+  "name": "@lania-cli-v2/cmd-release",
+  "version": "0.0.3",
+  "description": "lan-release — release 命令子包",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-release": "./bin/lan-release.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-release-darwin-arm64": "0.0.3",
+    "@lania-cli-v2/cmd-release-linux-x64": "0.0.3",
+    "@lania-cli-v2/cmd-release-win32-x64": "0.0.3"
+  }
+}
