@@ -5,6 +5,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { discoverPackages } from './lib/discover-packages.mjs';
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── 工具 ──
@@ -18,29 +20,81 @@ function cancel(msg) { log.error(msg); process.exit(0); }
 
 // ── 包发现 ──
 
+/**
+ * 包发现（文档 §6.2）：由 manifest 派生全部 npm 产物。
+ *
+ * 每个包贡献：主 npm 包（若存在）+ 其平台包；版本族来自 manifest.versionFamily。
+ */
 function discoverAllPackages() {
-  const cliPkg = readJson(path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json'));
-  const platformPkgs = Object.keys(cliPkg.optionalDependencies ?? {})
-    .filter((n) => n.startsWith('@lania-cli-v2/cli-'))
-    .map((n) => ({
-      name: n,
-      packageJsonPath: path.join(
-        repoRoot,
-        'packages/distribution/cli/npm',
-        n.replace('@lania-cli-v2/', ''),
-        'package.json',
-      ),
-    }))
-    .filter((p) => fs.existsSync(p.packageJsonPath));
+  const found = [];
+  for (const entry of discoverPackages()) {
+    const npm = entry.manifest.npm;
+    if (!npm?.name) continue;
+    const npmDir = path.join(entry.dir, 'npm', npm.name.replace('@lania-cli-v2/', ''));
+    const packageJsonPath = path.join(npmDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) continue;
+    found.push({
+      name: npm.name,
+      packageJsonPath,
+      manifestPath: entry.file,
+      family: entry.manifest.versionFamily,
+      version: readJson(packageJsonPath).version,
+      kind: 'main',
+    });
+    for (const platformPackage of npm.platformPackages ?? []) {
+      const platformDir = path.join(
+        path.dirname(npmDir),
+        platformPackage.replace('@lania-cli-v2/', ''),
+      );
+      const platformJsonPath = path.join(platformDir, 'package.json');
+      if (!fs.existsSync(platformJsonPath)) continue;
+      found.push({
+        name: platformPackage,
+        packageJsonPath: platformJsonPath,
+        manifestPath: entry.file,
+        family: entry.manifest.versionFamily,
+        version: readJson(platformJsonPath).version,
+        kind: 'platform',
+      });
+    }
+  }
+  return found;
+}
 
-  const all = [
-    { name: '@lania-cli-v2/cli',             packageJsonPath: path.join(repoRoot, 'packages/distribution/cli/npm/cli/package.json') },
-    { name: '@lania-cli-v2/bridge-runtime',       packageJsonPath: path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json') },
-    { name: '@lania-cli-v2/templates',       packageJsonPath: path.join(repoRoot, 'packages/foundation/templates/package.json') },
-    { name: 'lania',                      packageJsonPath: path.join(repoRoot, 'packages/foundation/lania/package.json') },
-    ...platformPkgs,
-  ];
-  return all.map((p) => ({ ...p, version: readJson(p.packageJsonPath).version }));
+/** bump 同族包的 npm 依赖（§6.2：只 bump 同一版本族）。 */
+function bumpNpmDependencies(family, version) {
+  for (const entry of discoverPackages()) {
+    if (entry.manifest.versionFamily !== family) continue;
+    const npm = entry.manifest.npm;
+    if (!npm?.name) continue;
+    const npmDir = path.join(entry.dir, 'npm', npm.name.replace('@lania-cli-v2/', ''));
+    const packageJsonPath = path.join(npmDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) continue;
+    const pkg = readJson(packageJsonPath);
+    let changed = false;
+    for (const field of ['dependencies', 'optionalDependencies']) {
+      const deps = pkg[field];
+      if (!deps) continue;
+      for (const [key, value] of Object.entries(deps)) {
+        if (!key.startsWith('@lania-cli-v2/')) continue;
+        if (value !== 'workspace:*' && value !== version) {
+          deps[key] = version;
+          changed = true;
+        }
+      }
+    }
+    if (changed) writeJson(packageJsonPath, pkg);
+  }
+}
+
+/** bump 同族 manifest 的版本字段（§6.2：manifest 是事实源）。 */
+function bumpManifestVersions(family, version) {
+  for (const entry of discoverPackages()) {
+    if (entry.manifest.versionFamily !== family) continue;
+    if (entry.manifest.version === version) continue;
+    entry.manifest.version = version;
+    writeJson(entry.file, entry.manifest);
+  }
 }
 
 // ── 文件操作 ──
@@ -100,6 +154,13 @@ async function main() {
   });
   if (isCancel(selected)) cancel('已取消');
 
+  // 1.5 版本族约束：一次只发布一个版本族（§6.5）
+  const families = [...new Set(selected.map((name) => packages.find((p) => p.name === name)?.family))];
+  if (families.length > 1) {
+    cancel(`一次只能发布同一版本族的包，当前选中了 ${families.join(', ')}`);
+  }
+  const family = families[0];
+
   // 2. 选择版本类型
   const currentVersion = readJson(packages.find((p) => p.name === selected[0]).packageJsonPath).version;
   const bumpType = await select({
@@ -138,9 +199,9 @@ async function main() {
   const confirmed = await confirm({ message: '确认发布？', initialValue: false });
   if (isCancel(confirmed) || !confirmed) cancel('已取消');
 
-  // 5. 执行
-  bumpRustWorkspaceVersion(newVersion);
-  log.step('✓ rust/Cargo.toml');
+  // 5. 执行（manifest 驱动，只 bump 同族）
+  bumpManifestVersions(family, newVersion);
+  log.step(`✓ manifest 版本族 ${family}`);
 
   const updated = new Set();
   for (const name of selected) {
@@ -150,8 +211,12 @@ async function main() {
     bumpJsonVersion(pkg.packageJsonPath, newVersion);
     log.step(`✓ ${name}`);
   }
-  bumpCliOptionalDeps(newVersion);
-  log.step('✓ @lania-cli-v2/cli optionalDependencies');
+  bumpNpmDependencies(family, newVersion);
+  log.step(`✓ ${family} 族的 npm 依赖引用`);
+  if (family === 'lan') {
+    bumpRustWorkspaceVersion(newVersion);
+    log.step('✓ rust/Cargo.toml');
+  }
   writeChangelog(newVersion, changelogEntries);
 
   outro(`✅ 版本已更新至 ${newVersion}
