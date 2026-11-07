@@ -170,6 +170,39 @@ function stageNodeBridgePayload() {
     cwd: payloadRoot,
   });
 
+  // bridge-runtime 以正式包身份进入 payload node_modules：
+  // 阶段 4b 后切片通过 `@lania-cli-v2/bridge-runtime/core/*` 等 specifier 引用核。
+  const bridgeRuntimeTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/bridge-runtime');
+  ensureDir(bridgeRuntimeTarget);
+  copyFile(
+    path.join(repoRoot, 'packages/foundation/bridge-runtime/ts/package.json'),
+    path.join(bridgeRuntimeTarget, 'package.json'),
+  );
+  copyDir(bridgeDist, path.join(bridgeRuntimeTarget, 'dist'));
+
+  // 12 个切片包按名落位（B.2/B.4：SLICE_LOADERS 按包名动态 import）。
+  // 总包 payload.slices 为 ["*"]，全部落位后装配结果与迁移前逐文件一致（B.3.4）。
+  for (const sliceName of [
+    'config',
+    'dynamic-commands',
+    'lifecycle',
+    'compiler',
+    'product',
+    'lint',
+    'system',
+    'template',
+    'toolchain',
+    'commitizen',
+    'commitlint',
+    'agent',
+  ]) {
+    const sliceSource = path.join(repoRoot, 'packages/foundation/bridge-slices', sliceName, 'ts');
+    const sliceTarget = path.join(payloadRoot, `node_modules/@lania-cli-v2/bridge-slice-${sliceName}`);
+    ensureDir(sliceTarget);
+    copyFile(path.join(sliceSource, 'package.json'), path.join(sliceTarget, 'package.json'));
+    copyDir(path.join(sliceSource, 'dist'), path.join(sliceTarget, 'dist'));
+  }
+
   // Templates runtime assets placed under node_modules so the bridge can import it by specifier.
   // Must happen AFTER npm install, otherwise npm install may clean up the manually placed directory.
   const templatesTarget = path.join(payloadRoot, 'node_modules/@lania-cli-v2/templates');

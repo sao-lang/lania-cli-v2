@@ -41,7 +41,7 @@ import type {
   ProductContext as DynamicProductContext,
   RuntimeContext as DynamicRuntimeContext,
   ScaffoldPlan,
-} from '../plugins/dynamic-commands/types.js';
+} from './dynamic-types.js';
 
 export type { BridgeTools } from '../schema-tools/bridge.js';
 export type { ConfigTools } from '../schema-tools/config.js';

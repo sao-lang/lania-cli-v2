@@ -6,12 +6,8 @@
  * - 这里把 plan 转成模板渲染结果和依赖安装计划
  * - 但不会直接写文件或安装依赖，真正执行动作留给更外层流程控制
  */
-import { templatePlugin } from '../plugins/template.js';
-import type {
-  ProductContext,
-  RuntimeContext,
-  ScaffoldPlan,
-} from '../plugins/dynamic-commands/types.js';
+import { dispatchLocalBridgeMethod } from '../core/local-dispatch.js';
+import type { ProductContext, RuntimeContext, ScaffoldPlan } from '../core/dynamic-types.js';
 import type { PackageManagerTools } from './pm.js';
 import type { SchemaToolContext } from './types.js';
 
@@ -78,13 +74,19 @@ export function createScaffoldTools(params: CreateScaffoldToolsParams): Scaffold
       const filesByPath = new Map<string, ScaffoldTemplateFile>();
 
       for (const template of templateNames) {
-        const rendered = await templatePlugin.handle('template.render', {
-          cwd: resolveTemplateCwd(params),
-          template,
-          context: buildTemplateContext(params, scaffold, input?.context),
-          options: buildTemplateOptions(scaffold, input?.options),
-        });
-        const result = rendered?.result as
+        // 阶段 4b：template 插件已拆入 bridge-slice-template，经本地分发注册表调用；
+        // 切片未加载时由 dispatchLocalBridgeMethod 返回 null，交由上层报错。
+        const rendered = await dispatchLocalBridgeMethod(
+          'template.render',
+          {
+            cwd: resolveTemplateCwd(params),
+            template,
+            context: buildTemplateContext(params, scaffold, input?.context),
+            options: buildTemplateOptions(scaffold, input?.options),
+          },
+          resolveTemplateCwd(params),
+        );
+        const result = rendered?.response.result as
           | {
               files?: Array<{ path?: string; content?: string }>;
             }
@@ -123,13 +125,17 @@ export function createScaffoldTools(params: CreateScaffoldToolsParams): Scaffold
 
       if (input?.includeTemplateDependencies !== false) {
         for (const template of templateNames) {
-          const handled = await templatePlugin.handle('template.getDependencies', {
-            cwd: resolveTemplateCwd(params),
-            template,
-            context: buildTemplateContext(params, scaffold, input?.context),
-            options: buildTemplateOptions(scaffold, input?.options),
-          });
-          const result = handled?.result as
+          const handled = await dispatchLocalBridgeMethod(
+            'template.getDependencies',
+            {
+              cwd: resolveTemplateCwd(params),
+              template,
+              context: buildTemplateContext(params, scaffold, input?.context),
+              options: buildTemplateOptions(scaffold, input?.options),
+            },
+            resolveTemplateCwd(params),
+          );
+          const result = handled?.response.result as
             | {
                 dependencies?: string[];
                 devDependencies?: string[];

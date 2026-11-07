@@ -10,12 +10,6 @@
 import type { BridgeEvent } from '../protocol/events.js';
 import type { BridgeRequest } from '../protocol/request.js';
 import type { BridgeExchange, BridgeResponse } from '../protocol/response.js';
-import { commitizenPlugin } from '../plugins/commitizen.js';
-import { commitlintPlugin } from '../plugins/commitlint.js';
-import { compilerPlugin } from '../plugins/compiler.js';
-import { configPlugin } from '../plugins/config.js';
-import { lintPlugin } from '../plugins/lint.js';
-import { systemPlugin } from '../plugins/system.js';
 
 export interface BridgeTools {
   request: (
@@ -253,34 +247,4 @@ export function createBridgeTools(options: {
   };
 }
 
-export async function dispatchBuiltinBridge(
-  method: string,
-  params: Record<string, unknown>,
-  cwd: string,
-): Promise<BridgeExchange> {
-  // 这里实现的是 Node 侧内建 bridge 方法分发。
-  // 如果 method 不属于这些本地插件，就说明应由更外层桥接到 host 或直接报 unsupported。
-  const id = `local-${Math.random().toString(16).slice(2)}`;
-  const context = { cwd };
-
-  const handled = method.startsWith('config.')
-    ? await configPlugin.handle(method, params)
-    : method.startsWith('compiler.')
-      ? await compilerPlugin.handle(method, params)
-      : method.startsWith('lint.')
-        ? await lintPlugin.handle(method, params)
-        : method.startsWith('system.')
-          ? await systemPlugin.handle(method, params, context as any)
-          : method.startsWith('commitizen.')
-            ? await commitizenPlugin.handle(method, params, context as any)
-            : method.startsWith('commitlint.')
-              ? await commitlintPlugin.handle(method, params, context as any)
-              : null;
-
-  if (!handled) {
-    throw new Error(`unsupported bridge method in schema tools: ${method}`);
-  }
-
-  const response: BridgeResponse = { id, result: handled.result };
-  return { response, events: handled.events };
-}
+export { dispatchBuiltinBridge } from '../core/local-dispatch.js';

@@ -7,7 +7,16 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./*.js": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./*": {
+      "types": "./dist/*/index.d.ts",
+      "default": "./dist/*/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
   "files": [
@@ -22,11 +31,21 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "@lania-cli-v2/bridge-slice-config": "workspace:*",
+    "@lania-cli-v2/bridge-slice-dynamic-commands": "workspace:*",
+    "@lania-cli-v2/bridge-slice-lifecycle": "workspace:*",
+    "@lania-cli-v2/bridge-slice-compiler": "workspace:*",
+    "@lania-cli-v2/bridge-slice-product": "workspace:*",
+    "@lania-cli-v2/bridge-slice-lint": "workspace:*",
+    "@lania-cli-v2/bridge-slice-system": "workspace:*",
+    "@lania-cli-v2/bridge-slice-template": "workspace:*",
+    "@lania-cli-v2/bridge-slice-toolchain": "workspace:*",
+    "@lania-cli-v2/bridge-slice-commitizen": "workspace:*",
+    "@lania-cli-v2/bridge-slice-commitlint": "workspace:*",
+    "@lania-cli-v2/bridge-slice-agent": "workspace:*"
   },
   "dependencies": {
-    "@lania-cli-v2/agent": "workspace:*",
-    "@lania-cli-v2/templates": "workspace:*",
     "tsx": "^4.19.0",
     "yaml": "^2.8.1"
   }

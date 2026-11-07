@@ -16,8 +16,8 @@
  * - 空字符串 → 零切片（registry 仍可握手，methods 为空，不加载 agent/ejs/templates）。
  * - 非空 → 逗号分隔的切片名列表。
  */
-import type { BridgeEvent } from '../protocol/events.js';
 import type { BridgePlugin } from './bridge-plugin.js';
+import { registerLocalBridgeHandler, type LocalBridgeHandlerResult } from './local-dispatch.js';
 
 export type SliceLoadResult = {
   plugins: BridgePlugin[];
@@ -25,49 +25,41 @@ export type SliceLoadResult = {
 };
 
 /**
- * `@lania-cli-v2/agent` 的边界适配（原 plugin-registry.ts 内联逻辑）：
- * agent 的流式输出全部走 `emit`，返回值里不带事件，因此这里统一转换。
+ * 切片加载器表：键 = 切片名（`lania.package.json` 的 `payload.slices` 项）。
+ *
+ * 阶段 4b：切片已是独立 npm 包，这里改用包名动态 import（B.2 形态）。
+ * 说明：动态 import 的 specifier 用变量承载，是刻意为之——核与切片互为
+ * devDependency 会造成构建顺序环；核的构建不要求切片 dist 已存在，
+ * 缺失切片在运行期按「加载失败 → rejected」路径处理。
+ * **插入顺序即 `'*'` 全量装配顺序**，必须与迁移前 plugin-registry.ts 的
+ * `builtinPlugins` 数组顺序完全一致（影响握手 methods 排列）。
  */
-function adaptAgentPlugin(agentPlugin: BridgePlugin): BridgePlugin {
-  return {
-    name: agentPlugin.name,
-    methods: agentPlugin.methods,
-    handle: async (method, params, context) => {
-      const result = await agentPlugin.handle(method, params, {
-        cwd: context?.cwd ?? null,
-        ...(context?.emit ? { emit: context.emit } : {}),
-        ...(context?.hostCall ? { hostCall: context.hostCall } : {}),
-      });
-      if (!result) {
-        return undefined;
-      }
-      return { result: result.result, events: [] as BridgeEvent[] };
-    },
-  };
-}
-
-/**
- * 切片加载器表：键 = 切片名（`lania.package.json` 的 `payload.slices` 项），
- * 值 = 懒加载函数。**插入顺序即 `'*'` 全量装配顺序**，必须与迁移前
- * plugin-registry.ts 的 `builtinPlugins` 数组顺序完全一致（影响握手 methods 排列）。
- */
-export const SLICE_LOADERS: Record<string, () => Promise<BridgePlugin>> = {
-  config: async () => (await import('../plugins/config.js')).configPlugin,
-  'dynamic-commands': async () =>
-    (await import('../plugins/dynamic-commands.js')).dynamicCommandsPlugin,
-  lifecycle: async () => (await import('../plugins/lifecycle.js')).lifecyclePlugin,
-  compiler: async () => (await import('../plugins/compiler.js')).compilerPlugin,
-  product: async () => (await import('../plugins/product.js')).productPlugin,
-  lint: async () => (await import('../plugins/lint.js')).lintPlugin,
-  system: async () => (await import('../plugins/system.js')).systemPlugin,
-  template: async () => (await import('../plugins/template.js')).templatePlugin,
+const SLICE_MODULE_SPECIFIERS: Record<string, string> = {
+  config: '@lania-cli-v2/bridge-slice-config',
+  'dynamic-commands': '@lania-cli-v2/bridge-slice-dynamic-commands',
+  lifecycle: '@lania-cli-v2/bridge-slice-lifecycle',
+  compiler: '@lania-cli-v2/bridge-slice-compiler',
+  product: '@lania-cli-v2/bridge-slice-product',
+  lint: '@lania-cli-v2/bridge-slice-lint',
+  system: '@lania-cli-v2/bridge-slice-system',
+  template: '@lania-cli-v2/bridge-slice-template',
   // 运行时知识单点：Rust / doctor / 各语言 bridge 都从这里读，不再各自维护副本。
-  toolchain: async () => (await import('../plugins/toolchain-plugin.js')).toolchainPlugin,
-  commitizen: async () => (await import('../plugins/commitizen.js')).commitizenPlugin,
-  commitlint: async () => (await import('../plugins/commitlint.js')).commitlintPlugin,
-  agent: async () =>
-    adaptAgentPlugin((await import('@lania-cli-v2/agent')).agentPlugin as BridgePlugin),
+  toolchain: '@lania-cli-v2/bridge-slice-toolchain',
+  commitizen: '@lania-cli-v2/bridge-slice-commitizen',
+  commitlint: '@lania-cli-v2/bridge-slice-commitlint',
+  // agent 切片内置 @lania-cli-v2/agent 的边界适配（切片包内完成适配）。
+  agent: '@lania-cli-v2/bridge-slice-agent',
 };
+
+export const SLICE_LOADERS: Record<string, () => Promise<BridgePlugin>> = Object.fromEntries(
+  Object.entries(SLICE_MODULE_SPECIFIERS).map(([name, specifier]) => [
+    name,
+    async () => {
+      const mod = (await import(specifier)) as { plugin: BridgePlugin };
+      return mod.plugin;
+    },
+  ]),
+);
 
 /** 读取切片装配清单（见模块注释的默认值语义）。 */
 export function resolveSliceSpec(): string {
@@ -98,7 +90,15 @@ export async function loadSlices(spec: string): Promise<SliceLoadResult> {
       continue;
     }
     try {
-      plugins.push(await loader());
+      const plugin = await loader();
+      // 阶段 4b 依赖倒置：切片加载后把方法前缀注册进核侧本地分发表，
+      // 供 schema-tools 的 `tools.bridge` / scaffold 本地路径使用。
+      registerLocalBridgeHandler(
+        (method, params, context) =>
+          plugin.handle(method, params, context) as Promise<LocalBridgeHandlerResult | null>,
+        plugin.methods,
+      );
+      plugins.push(plugin);
     } catch (error) {
       rejected.push({
         plugin: name,

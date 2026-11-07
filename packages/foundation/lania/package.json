@@ -11,7 +11,8 @@
     "./types": {
       "types": "./dist/types-entry.d.ts",
       "default": "./dist/types-entry.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {

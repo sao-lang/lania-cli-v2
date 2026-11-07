@@ -100,12 +100,6 @@ importers:
 
   packages/foundation/bridge-runtime/ts:
     dependencies:
-      '@lania-cli-v2/agent':
-        specifier: workspace:*
-        version: link:../../../products/agent/ts/agent
-      '@lania-cli-v2/templates':
-        specifier: workspace:*
-        version: link:../../templates
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
@@ -113,9 +107,267 @@ importers:
         specifier: ^2.8.1
         version: 2.8.3
     devDependencies:
+      '@lania-cli-v2/bridge-slice-agent':
+        specifier: workspace:*
+        version: link:../../bridge-slices/agent/ts
+      '@lania-cli-v2/bridge-slice-commitizen':
+        specifier: workspace:*
+        version: link:../../bridge-slices/commitizen/ts
+      '@lania-cli-v2/bridge-slice-commitlint':
+        specifier: workspace:*
+        version: link:../../bridge-slices/commitlint/ts
+      '@lania-cli-v2/bridge-slice-compiler':
+        specifier: workspace:*
+        version: link:../../bridge-slices/compiler/ts
+      '@lania-cli-v2/bridge-slice-config':
+        specifier: workspace:*
+        version: link:../../bridge-slices/config/ts
+      '@lania-cli-v2/bridge-slice-dynamic-commands':
+        specifier: workspace:*
+        version: link:../../bridge-slices/dynamic-commands/ts
+      '@lania-cli-v2/bridge-slice-lifecycle':
+        specifier: workspace:*
+        version: link:../../bridge-slices/lifecycle/ts
+      '@lania-cli-v2/bridge-slice-lint':
+        specifier: workspace:*
+        version: link:../../bridge-slices/lint/ts
+      '@lania-cli-v2/bridge-slice-product':
+        specifier: workspace:*
+        version: link:../../bridge-slices/product/ts
+      '@lania-cli-v2/bridge-slice-system':
+        specifier: workspace:*
+        version: link:../../bridge-slices/system/ts
+      '@lania-cli-v2/bridge-slice-template':
+        specifier: workspace:*
+        version: link:../../bridge-slices/template/ts
+      '@lania-cli-v2/bridge-slice-toolchain':
+        specifier: workspace:*
+        version: link:../../bridge-slices/toolchain/ts
       '@types/node':
         specifier: ^22.10.0
         version: 22.19.17
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/agent/ts:
+    dependencies:
+      '@lania-cli-v2/agent':
+        specifier: workspace:*
+        version: link:../../../../products/agent/ts/agent
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/commitizen/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+    devDependencies:
+      '@lania-cli-v2/bridge-slice-commitlint':
+        specifier: workspace:*
+        version: link:../../commitlint/ts
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/commitlint/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/compiler/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+      '@lania-cli-v2/bridge-slice-lint':
+        specifier: workspace:*
+        version: link:../../lint/ts
+      '@lania-cli-v2/bridge-slice-toolchain':
+        specifier: workspace:*
+        version: link:../../toolchain/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/config/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/dynamic-commands/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/lifecycle/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/lint/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+      '@lania-cli-v2/bridge-slice-toolchain':
+        specifier: workspace:*
+        version: link:../../toolchain/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/product/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+      '@lania-cli-v2/bridge-slice-dynamic-commands':
+        specifier: workspace:*
+        version: link:../../dynamic-commands/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/system/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/template/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+      '@lania-cli-v2/bridge-slice-dynamic-commands':
+        specifier: workspace:*
+        version: link:../../dynamic-commands/ts
+      '@lania-cli-v2/templates':
+        specifier: workspace:*
+        version: link:../../../templates
+      ejs:
+        specifier: ^5.0.1
+        version: 5.0.2
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/foundation/bridge-slices/toolchain/ts:
+    dependencies:
+      '@lania-cli-v2/bridge-runtime':
+        specifier: workspace:*
+        version: link:../../../bridge-runtime/ts
+      '@lania-cli-v2/templates':
+        specifier: workspace:*
+        version: link:../../../templates
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

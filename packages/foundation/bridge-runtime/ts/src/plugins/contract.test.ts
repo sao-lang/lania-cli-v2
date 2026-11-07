@@ -11,7 +11,6 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { createHandshakeResponse } from '../index.js';
-import { lintPlugin } from './lint.js';
 
 test('handshake exposes the current public method and event contract', async () => {
   const response = await createHandshakeResponse({
@@ -90,16 +89,31 @@ test('handshake exposes the current public method and event contract', async () 
 });
 
 test('lint.run keeps formatter, normalizer, and lint event schema stable', async (t) => {
+  // 切片类型经动态导入（核与切片互不阻塞构建顺序）；切片未安装时跳过该契约用例。
+  const lintModuleUrl = '@lania-cli-v2/bridge-slice-lint/plugins/lint.js';
+  let lintPlugin: import('../core/bridge-plugin.js').BridgePlugin;
+  try {
+    lintPlugin = ((await import(/* @vite-ignore */ lintModuleUrl)) as any).lintPlugin;
+  } catch {
+    t.skip('bridge-slice-lint is not installed');
+    return;
+  }
   const cwd = await mkdtemp(path.join(tmpdir(), 'lania-node-bridge-contract-'));
   t.after(async () => rm(cwd, { recursive: true, force: true }));
 
-  const handled = await lintPlugin.handle('lint.run', {
+  const handled = (await lintPlugin.handle('lint.run', {
     cwd,
     linters: ['eslint', 'oxlint', 'prettier', 'oxfmt'],
     mode: 'check',
     concurrency: 2,
     fix: false,
-  });
+  })) as {
+    result: Record<string, unknown> & {
+      summaryByAdaptor: Record<string, unknown>;
+      resultsByAdaptor: Record<string, unknown>;
+    };
+    events: Array<{ method: string }>;
+  };
 
   assert.ok(handled);
   assert.equal(handled.result.accepted, true);
@@ -116,7 +130,7 @@ test('lint.run keeps formatter, normalizer, and lint event schema stable', async
   assert.equal(typeof handled.result.resultsByAdaptor.prettier, 'object');
   assert.equal(typeof handled.result.resultsByAdaptor.oxfmt, 'object');
 
-  const eventMethods = handled.events.map((event) => event.method);
+  const eventMethods = handled.events.map((event: { method: string }) => event.method);
   assert.ok(eventMethods.includes('event.lint_start'));
   assert.ok(eventMethods.includes('event.lint_file'));
   assert.ok(eventMethods.includes('event.lint_result'));

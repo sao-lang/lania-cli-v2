@@ -11,7 +11,8 @@
     "./presentation": {
       "types": "./dist/presentation.d.ts",
       "default": "./dist/presentation.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
