@@ -7,35 +7,74 @@
   "required": ["name", "kind", "versionFamily", "version", "api"],
   "additionalProperties": true,
   "properties": {
-    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-    "kind": { "enum": ["foundation", "product", "command", "distribution"] },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "kind": {
+      "enum": ["foundation", "product", "command", "distribution", "command-runtime"]
+    },
     "command": {
       "type": "string",
       "description": "仅 command 类必填，且必须等于 describes/<cmd>.json 里的 spec().name"
     },
-    "versionFamily": { "enum": ["lan", "runex", "agent", "bridge-hub"] },
-    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "versionFamily": {
+      "enum": ["lan", "runex", "agent", "bridge-hub"]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
     "api": {
       "type": "object",
       "required": ["protocol", "rust"],
       "properties": {
-        "protocol": { "type": "integer", "minimum": 1 },
+        "protocol": {
+          "type": "integer",
+          "minimum": 1
+        },
         "rust": {
           "type": "object",
           "required": ["lib"],
           "properties": {
-            "cratePath": { "type": "string", "default": "rust" },
-            "lib": { "type": "string" },
-            "bin": { "type": "string" },
-            "features": { "type": "array", "items": { "type": "string" } },
-            "dependencies": { "type": "array", "items": { "type": "string" } },
+            "cratePath": {
+              "type": "string",
+              "default": "rust"
+            },
+            "lib": {
+              "type": "string"
+            },
+            "bin": {
+              "type": "string"
+            },
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "api": {
               "type": "object",
               "required": ["factory", "spec", "surface"],
               "properties": {
-                "factory": { "type": "string" },
-                "spec": { "type": "string" },
-                "surface": { "type": "array", "items": { "type": "string" } }
+                "factory": {
+                  "type": "string"
+                },
+                "spec": {
+                  "type": "string"
+                },
+                "surface": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
@@ -46,57 +85,120 @@
       "type": "object",
       "description": "包内全部 Cargo crate 的相对路径，供 workspace 覆盖校验",
       "properties": {
-        "crates": { "type": "array", "items": { "type": "string" } }
+        "crates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "npm": {
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "bin": { "type": "object", "additionalProperties": { "type": "string" } },
-        "optionalDependencies": { "type": "object" },
-        "platformPackages": { "type": "array", "items": { "type": "string" } }
+        "name": {
+          "type": "string"
+        },
+        "bin": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "optionalDependencies": {
+          "type": "object"
+        },
+        "platformPackages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "payload": {
       "type": "object",
       "properties": {
-        "slices": { "type": "array", "items": { "type": "string" } },
-        "nodeBridge": { "type": "boolean" }
+        "slices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nodeBridge": {
+          "type": "boolean"
+        }
       }
     },
-    "shimHost": { "enum": ["lan", "runex-binary", "command-binary"] },
+    "shimHost": {
+      "enum": ["lan", "runex-binary", "command-binary"]
+    },
     "configSchema": {
       "type": "object",
       "description": "命令子包的包级偏好声明（决策 #11 / §10.2）：作用域硬锁定 ~/.lania/config/<pkg>.json，key 由各包白名单校验",
       "properties": {
-        "scope": { "const": "package" },
-        "path": { "type": "string" },
+        "scope": {
+          "const": "package"
+        },
+        "path": {
+          "type": "string"
+        },
         "keys": {
           "type": "array",
           "items": {
             "type": "object",
             "required": ["key", "kind", "default"],
             "properties": {
-              "key": { "type": "string" },
-              "kind": { "enum": ["string", "bool", "enum"] },
-              "choices": { "type": "array", "items": { "type": "string" } },
+              "key": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": ["string", "bool", "enum"]
+              },
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "default": {},
-              "description": { "type": "string" }
+              "description": {
+                "type": "string"
+              }
             }
           }
         }
       }
     },
-    "describe": { "type": "string" },
-    "order": { "type": "integer" },
-    "hostDependencies": { "type": "array", "items": { "type": "string" } },
-    "scripts": { "type": "object" }
+    "describe": {
+      "type": "string"
+    },
+    "order": {
+      "type": "integer"
+    },
+    "hostDependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scripts": {
+      "type": "object"
+    }
   },
   "allOf": [
     {
-      "if": { "properties": { "kind": { "const": "command" } }, "required": ["kind"] },
-      "then": { "required": ["command", "order", "describe"] }
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "command"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["command", "order", "describe"]
+      }
     }
   ]
 }

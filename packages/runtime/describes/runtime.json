@@ -1,0 +1,17 @@
+{
+  "name": "runtime",
+  "kind": "command-runtime",
+  "about": "runtime 设施：项目级动态命令（lan.config.* 的 runtimeCommands）与脚手架封装命令的执行宿主",
+  "actions": {
+    "--list": "列出当前项目的动态命令（JSON）",
+    "--resolve <cmd>": "判定命令是否为项目动态命令（JSON）",
+    "<cmd> [args...]": "执行一条动态命令"
+  },
+  "capabilities": [
+    "host-core 全量 leaf（exec/fs/git/pm/runtime/task/workflows/...）",
+    "bridge-host 桥接能力",
+    "node-bridge dynamic-commands 切片（项目级命令解析与执行）",
+    "templates 资产（脚手架模板）"
+  ],
+  "install": "npm i @lania-cli-v2/runtime"
+}

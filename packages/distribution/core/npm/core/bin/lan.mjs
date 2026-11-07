@@ -13,7 +13,7 @@
  * - 全局参数（--json/--locale/--output-profile/--no-progress）不属于 core，由各命令二进制解析；
  * - launcher 只剥掉命令名，不改写其余 argv。
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -225,6 +225,82 @@ function assertSupportedProtocol(protocol) {
   }
 }
 
+// ── Phase 2：动态回退（文档 §5.6 F.2）───────────────────────────────
+
+/** runtime 设施是否已安装（core 的 optional/peer 依赖，缺失即提示）。 */
+function resolveRuntimeDir() {
+  try {
+    return path.dirname(require.resolve('@lania-cli-v2/runtime/package.json'));
+  } catch {
+    return null;
+  }
+}
+
+/** runtime 设施的平台二进制（runtime-<platform>）。 */
+function resolveRuntimeBinary(runtimeDir) {
+  const suffix = platformSuffix();
+  if (!suffix) return null;
+  return resolveBinaryFromPlatformPackage(
+    `@lania-cli-v2/runtime-${suffix}`,
+    'lan-runtime',
+    requireFrom(runtimeDir),
+  );
+}
+
+/**
+ * 询问 runtime 设施：项目里是否挂了这条动态命令。
+ * 返回 { found, handlerId }；设施不可用时返回 null（调用方据此给安装提示）。
+ */
+function askRuntime(runtimeBinary, command, cwd) {
+  try {
+    const result = spawnSync(runtimeBinary, ['--resolve', command, '--cwd', cwd], {
+      encoding: 'utf8',
+      env: { ...process.env, LANIA_COMMAND_NAME: command },
+    });
+    if (result.status !== 0 || !result.stdout) return { found: false };
+    const payload = JSON.parse(result.stdout);
+    return { found: payload.found === true, handlerId: payload.handlerId ?? null };
+  } catch {
+    return { found: false };
+  }
+}
+
+/** Phase 2：把动态命令交给 runtime 设施执行。 */
+function dispatchDynamic(command, args) {
+  const runtimeDir = resolveRuntimeDir();
+  if (!runtimeDir) {
+    console.error(
+      `命令 "${command}" 既不是内置命令，也未安装 runtime 设施。\n` +
+        '  项目级动态命令需要：npm i @lania-cli-v2/runtime',
+    );
+    process.exit(127);
+  }
+  const runtimeBinary = resolveRuntimeBinary(runtimeDir);
+  if (!runtimeBinary) {
+    console.error(
+      `runtime 设施的平台二进制缺失（${process.platform}-${process.arch}）。` +
+        '  请重新安装 @lania-cli-v2/runtime。',
+    );
+    process.exit(1);
+  }
+  const cwd = process.cwd();
+  const verdict = askRuntime(runtimeBinary, command, cwd);
+  if (!verdict.found) {
+    console.error(`未知命令 "${command}"。运行 lan --help 查看可用命令。`);
+    process.exit(127);
+  }
+  const env = {
+    LANIA_COMMAND_NAME: command,
+    LANIA_PRODUCT_ROOT: process.env.LANIA_PRODUCT_ROOT ?? cwd,
+    LANIA_RUNTIME_MODE: process.env.LANIA_RUNTIME_MODE ?? 'installed',
+  };
+  if (process.env.LANIA_NODE_BRIDGE_DIR) {
+    env.LANIA_NODE_BRIDGE_DIR = process.env.LANIA_NODE_BRIDGE_DIR;
+  }
+  // 动态命令由 runtime 设施执行（同一份 node-bridge + host-core）。
+  execDirect(runtimeBinary, env, [command, ...args]);
+}
+
 function dispatch(known) {
   if (argv.length === 0 || ['--help', '-h', 'help'].includes(argv[0])) {
     printAggregatedHelp(known);
@@ -238,12 +314,25 @@ function dispatch(known) {
   const command = argv[0];
   const entry = known.commands.find((item) => item.command === command);
   if (!entry) {
-    console.error(`未知命令 "${command}"。运行 lan --help 查看可用命令。`);
-    process.exit(127);
+    // Phase 1 未命中 → Phase 2 动态回退（§5.6 F.2）：项目级动态命令由 runtime 设施承载。
+    dispatchDynamic(command, argv.slice(1));
+    return;
   }
 
   const cmdDir = resolveCommandPackageDir(entry.package);
   if (!cmdDir) {
+    // builtin 未安装：先问 runtime 设施（项目可能挂了同名动态命令），再给安装提示。
+    const runtimeDir = resolveRuntimeDir();
+    if (runtimeDir) {
+      const runtimeBinary = resolveRuntimeBinary(runtimeDir);
+      if (runtimeBinary) {
+        const verdict = askRuntime(runtimeBinary, command, process.cwd());
+        if (verdict.found) {
+          dispatchDynamic(command, argv.slice(1));
+          return;
+        }
+      }
+    }
     console.error(`命令 "${command}" 未安装。安装：npm i ${entry.package}`);
     process.exit(127);
   }

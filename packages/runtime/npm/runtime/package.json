@@ -1,0 +1,22 @@
+{
+  "name": "@lania-cli-v2/runtime",
+  "version": "0.0.3",
+  "description": "lan-runtime — runtime 设施包（项目级动态命令 / 脚手架执行宿主）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-runtime": "./bin/lan-runtime.mjs"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/runtime-darwin-arm64": "workspace:*",
+    "@lania-cli-v2/runtime-linux-x64": "workspace:*",
+    "@lania-cli-v2/runtime-win32-x64": "workspace:*"
+  }
+}

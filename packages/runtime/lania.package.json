@@ -1,0 +1,51 @@
+{
+  "name": "runtime",
+  "kind": "command-runtime",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "describe": "describes/runtime.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust/lania-command-runtime",
+      "lib": "lania-command-runtime",
+      "bin": "lan-runtime",
+      "features": [],
+      "dependencies": [
+        "lania-cli-kit",
+        "lania-command",
+        "lania-host",
+        "lania-node-bridge",
+        "runex-home"
+      ],
+      "api": {
+        "factory": "lania_command_runtime::RUNTIME_PACKAGE_NAME",
+        "spec": "lania_command_runtime::parse_runtime_args",
+        "surface": [
+          "RUNTIME_PACKAGE_NAME",
+          "parse_runtime_args",
+          "resolve_payload",
+          "RuntimeAction"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust/lania-command-runtime"]
+  },
+  "payload": {
+    "slices": ["dynamic-commands", "toolchain", "config"],
+    "nodeBridge": true
+  },
+  "npm": {
+    "name": "@lania-cli-v2/runtime",
+    "bin": {
+      "lan-runtime": "npm/runtime/bin/lan-runtime.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/runtime-darwin-arm64",
+      "@lania-cli-v2/runtime-linux-x64",
+      "@lania-cli-v2/runtime-win32-x64"
+    ]
+  }
+}

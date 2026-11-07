@@ -13,7 +13,7 @@ const PACKAGES = join(ROOT, 'packages');
 const SCHEMA = join(PACKAGES, 'schemas', 'lania.package.schema.json');
 const MANIFEST = 'lania.package.json';
 
-const KINDS = new Set(['foundation', 'product', 'command', 'distribution']);
+const KINDS = new Set(['foundation', 'product', 'command', 'distribution', 'command-runtime']);
 const FAMILIES = new Set(['lan', 'runex', 'agent', 'bridge-hub']);
 const SHIM_HOSTS = new Set(['lan', 'runex-binary', 'command-binary']);
 
@@ -110,6 +110,8 @@ export function validatePackage(entry) {
     const describePath = join(dir, manifest.describe);
     if (!existsSync(describePath)) {
       fail(`describe 产物不存在：${manifest.describe}`);
+    } else if (manifest.kind === 'command-runtime') {
+      // runtime 是设施而非命令：describe 只要求存在，不做 spec().name 一致性比对。
     } else if (manifest.command) {
       const spec = JSON.parse(readFileSync(describePath, 'utf8'));
       if (spec.name !== manifest.command) {

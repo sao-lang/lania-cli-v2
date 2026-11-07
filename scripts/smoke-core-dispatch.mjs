@@ -95,8 +95,11 @@ if (!help.stdout.includes('npm i @lania-cli-v2/cmd-dev')) {
 // 5) 未安装命令 → 127 + 安装提示
 const missing = run(['definitely-not-installed']);
 if (missing.status !== 127) fail(`未安装命令退出码期望 127，实际 ${missing.status}`);
-if (!`${missing.stdout}${missing.stderr}`.includes('未知命令')) {
-  fail('未安装命令缺少「未知命令」提示');
+// Phase 1 未命中 → Phase 2 动态回退（§5.6 F.2）：
+// runtime 设施未装时提示安装 runtime；装了但没有该命令时提示未知命令。
+const missingText = `${missing.stdout}${missing.stderr}`;
+if (!missingText.includes('未知命令') && !missingText.includes('@lania-cli-v2/runtime')) {
+  fail('未安装命令缺少「未知命令」或 runtime 安装提示');
 }
 
 console.log('[smoke:core-dispatch] ✓ 调度模式 smoke 通过（core + cmd-env）');

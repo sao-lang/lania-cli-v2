@@ -651,6 +651,24 @@ importers:
 
   packages/products/runex/npm/runex-win32-x64: {}
 
+  packages/runtime/npm/runtime:
+    optionalDependencies:
+      '@lania-cli-v2/runtime-darwin-arm64':
+        specifier: workspace:*
+        version: link:../runtime-darwin-arm64
+      '@lania-cli-v2/runtime-linux-x64':
+        specifier: workspace:*
+        version: link:../runtime-linux-x64
+      '@lania-cli-v2/runtime-win32-x64':
+        specifier: workspace:*
+        version: link:../runtime-win32-x64
+
+  packages/runtime/npm/runtime-darwin-arm64: {}
+
+  packages/runtime/npm/runtime-linux-x64: {}
+
+  packages/runtime/npm/runtime-win32-x64: {}
+
 packages:
   '@anthropic-ai/sdk@0.129.0':
     resolution:
