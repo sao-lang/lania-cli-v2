@@ -37,6 +37,21 @@ const FAMILY_TAGS = {
   'bridge-hub': 'bridge-hub-v*',
 };
 
+/**
+ * 语义比较两个 JSON 产物：只关心内容，不关心字节排版。
+ *
+ * 产物可能被 prettier 重新格式化（短数组内联 vs 多行），那不是漂移；
+ * 真正的漂移是内容不同（命令增删、字段变化）。
+ */
+function isSemanticDrift(currentText, expected) {
+  if (!currentText) return true;
+  try {
+    return JSON.stringify(JSON.parse(currentText)) !== JSON.stringify(expected);
+  } catch {
+    return true;
+  }
+}
+
 function buildMatrix() {
   const packages = discoverPackages();
   const include = [];
@@ -98,7 +113,7 @@ function main() {
   const serialized = `${JSON.stringify(matrix, null, 2)}\n`;
   if (process.argv.includes('--check')) {
     const current = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : '';
-    if (current !== serialized) {
+    if (isSemanticDrift(current, matrix)) {
       console.error('artifact-matrix.json 已过期，请运行 node scripts/gen-artifact-matrix.mjs');
       process.exit(1);
     }

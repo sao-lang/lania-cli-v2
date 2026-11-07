@@ -25,6 +25,21 @@ const outputPath = path.join(
 /** core 支持的协议版本（launcher 运行时校验用同一个常量）。 */
 const SUPPORTED_PROTOCOL = 1;
 
+/**
+ * 语义比较两个 JSON 产物：只关心内容，不关心字节排版。
+ *
+ * 产物可能被 prettier 重新格式化（短数组内联 vs 多行），那不是漂移；
+ * 真正的漂移是内容不同（命令增删、字段变化）。
+ */
+function isSemanticDrift(currentText, expected) {
+  if (!currentText) return true;
+  try {
+    return JSON.stringify(JSON.parse(currentText)) !== JSON.stringify(expected);
+  } catch {
+    return true;
+  }
+}
+
 function buildCompat() {
   const packages = discoverPackages();
   const byName = new Map(packages.map((entry) => [entry.manifest.name, entry.manifest]));
@@ -68,7 +83,7 @@ function main() {
   const serialized = `${JSON.stringify(compat, null, 2)}\n`;
   if (process.argv.includes('--check')) {
     const current = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : '';
-    if (current !== serialized) {
+    if (isSemanticDrift(current, compat)) {
       console.error('compat.json 与包清单不一致，请运行 node scripts/gen-compat.mjs');
       process.exit(1);
     }

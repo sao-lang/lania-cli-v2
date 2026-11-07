@@ -38,6 +38,21 @@ function collectManifests(dir, out = []) {
   return out;
 }
 
+/**
+ * 语义比较两个 JSON 产物：只关心内容，不关心字节排版。
+ *
+ * 产物可能被 prettier 重新格式化（短数组内联 vs 多行），那不是漂移；
+ * 真正的漂移是内容不同（命令增删、字段变化）。
+ */
+function isSemanticDrift(currentText, expected) {
+  if (!currentText) return true;
+  try {
+    return JSON.stringify(JSON.parse(currentText)) !== JSON.stringify(expected);
+  } catch {
+    return true;
+  }
+}
+
 function buildKnownCommands() {
   const packagesDir = path.join(repoRoot, 'packages');
   const manifests = collectManifests(packagesDir)
@@ -84,8 +99,10 @@ function main() {
   const serialized = `${JSON.stringify(known, null, 2)}\n`;
 
   if (process.argv.includes('--check')) {
+    // 语义比较而非字节比较：产物可能被 prettier 重新格式化（数组内联 vs 多行），
+    // 那不是漂移。真正的漂移是内容不同（命令增删/字段变化）。
     const current = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : '';
-    if (current !== serialized) {
+    if (isSemanticDrift(current, known)) {
       console.error('known-commands.json 与包清单不一致，请运行 node scripts/gen-known-commands.mjs');
       process.exit(1);
     }
