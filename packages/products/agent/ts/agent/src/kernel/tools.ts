@@ -160,7 +160,7 @@ export function createAgentTools(runtime: ToolRuntime): AgentTool<any>[] {
       name: 'project_command',
       label: 'Run lan command',
       description:
-        'Run a lan CLI command (for example ["build"] or ["generate","module"]). Prefer this over exec when the project exposes a lan command for the job.',
+        'Run a lan CLI command (for example ["build"] or ["lint"]). Prefer this over exec when the project exposes a lan command for the job.',
       parameters: Type.Object({
         args: Type.Array(Type.String(), { description: 'Arguments after `lan`' }),
       }),

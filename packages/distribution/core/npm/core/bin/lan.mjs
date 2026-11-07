@@ -371,6 +371,18 @@ function dispatch(known) {
       configApplyCommand(known, argv.slice(2));
       return;
     }
+    // `--package` 允许 npm 全名 / bin 名 / crate 名；转发给 config 子包的 Rust
+    // 二进制前统一成短命名空间，保证主包写入的正是子包真正读取的那份文件。
+    const flag = argv.findIndex((item) => item === '--package' || item === '-p');
+    const rawPackage = flag >= 0 ? argv[flag + 1] : null;
+    if (rawPackage && !rawPackage.startsWith('-')) {
+      const normalized = normalizePackageName(rawPackage, known);
+      if (!normalized) {
+        console.error(tr(`Unknown package: ${rawPackage}`, `未知子包：${rawPackage}`));
+        process.exit(1);
+      }
+      argv[flag + 1] = normalized;
+    }
   }
 
   const entry = known.commands.find((item) => item.command === command);
@@ -524,6 +536,40 @@ function printPackageList(known) {
 // 一键覆盖下发到全部已安装子包。子包偏好存放在
 // `~/.lania/config/<pkg>.json`（与 Rust 侧 lania-package-config 引擎同路径）。
 
+/** launcher 侧的文案按全局偏好 locale 选择语言。 */
+function tr(en, zh) {
+  return loadGlobalPreferences().locale === 'zh' ? zh : en;
+}
+
+/**
+ * 把用户可能写出的多种包名形态统一成 config 文件的短命名空间。
+ *
+ * 支持短命令名（env）、npm 包名（@lania-cli-v2/cmd-env / cmd-env）、
+ * 二进制名（lan-env）、crate 名（lania-plugins-command-env）与平台包名。
+ * 未命中静态表时返回 null，由调用方报错——避免把任意字符串写成配置文件。
+ */
+function normalizePackageName(input, known) {
+  const raw = String(input ?? '').trim();
+  if (!raw) return null;
+  if (known.commands.some((item) => item.command === raw)) return raw;
+
+  const candidates = known.commands.filter((item) => {
+    const short = item.command;
+    const aliases = [
+      item.package,
+      typeof item.package === 'string' ? item.package.replace(/^@[^/]+\//, '') : null,
+      `lan-${short}`,
+      `lania-plugins-command-${short}`,
+      ...(item.platformPackages ?? []),
+      ...(item.platformPackages ?? []).map((name) =>
+        typeof name === 'string' ? name.replace(/^@[^/]+\//, '') : null,
+      ),
+    ];
+    return aliases.includes(raw);
+  });
+  return candidates.length === 1 ? candidates[0].command : null;
+}
+
 /** 子包偏好文件路径（与 Rust 侧 lania-package-config 引擎一致）。 */
 function packageConfigPath(pkg) {
   const home = process.env.HOME || process.env.USERPROFILE;
@@ -577,11 +623,20 @@ function setDottedValue(target, dottedKey, value) {
  * `configSchema.keys[].key` 给出。这里从子包清单读取该声明，
  * 避免把全局键无差别灌进每个子包（那会污染子包的配置语义）。
  */
-function globalOverridesFor(pkg, globalConfig, schemaKeys) {
+function globalOverridesFor(globalConfig, schemaKeys, explicit = {}) {
   const overrides = {};
+  // 子包 configSchema 用点分键（output.mode），全局偏好落盘是 camelCase
+  // （outputMode）。这里做一次显式映射，否则 apply 永远匹配不到这两个键。
+  const aliases = {
+    'output.mode': ['outputMode', 'output.mode', 'output'],
+    'log.timestamps': ['logTimestamps', 'log.timestamps', 'log.timestamp'],
+    locale: ['locale'],
+  };
   for (const key of schemaKeys) {
-    const value = globalConfig[key];
-    if (value !== undefined) overrides[key] = value;
+    const names = aliases[key] ?? [key];
+    const hit = names.find((name) => globalConfig[name] !== undefined);
+    if (hit) overrides[key] = globalConfig[hit];
+    if (explicit[key] !== undefined) overrides[key] = explicit[key];
   }
   return overrides;
 }
@@ -594,18 +649,18 @@ function globalOverridesFor(pkg, globalConfig, schemaKeys) {
  * 再向上找同级的 `lania.package.json`；两者都没有则返回空数组
  * （此时 apply 会跳过该子包，不做无差别覆盖）。
  */
-function readPackageConfigSchema(cmdDir) {
-  const candidates = [
-    path.join(cmdDir, 'package.json'),
-    path.join(path.dirname(cmdDir), '..', 'lania.package.json'),
-  ];
+function readPackageConfigSchema(entry, cmdDir) {
+  // 构建期静态表是唯一事实源：同时装了主包与子包时，launcher 无需再解析磁盘上的
+  // npm manifest 就知道每个子包声明了哪些键。
+  if (Array.isArray(entry?.configSchema?.keys)) return entry.configSchema.keys;
+  const candidates = cmdDir
+    ? [path.join(cmdDir, 'package.json'), path.join(cmdDir, '..', '..', 'lania.package.json')]
+    : [];
   for (const candidate of candidates) {
     try {
       const manifest = JSON.parse(fs.readFileSync(candidate, 'utf8'));
       const schema = manifest.configSchema ?? manifest.lania?.configSchema;
-      if (!schema) continue;
-      const keys = Array.isArray(schema.keys) ? schema.keys : [];
-      return keys.map((entry) => (typeof entry === 'string' ? entry : entry?.key)).filter(Boolean);
+      if (Array.isArray(schema?.keys)) return schema.keys;
     } catch {
       continue;
     }
@@ -613,38 +668,83 @@ function readPackageConfigSchema(cmdDir) {
   return [];
 }
 
+function schemaKeyNames(keys) {
+  return keys.map((item) => (typeof item === 'string' ? item : item?.key)).filter(Boolean);
+}
+
+/** 点分 key 读取（与 setDottedValue 对称）。 */
+function getDottedValue(source, dottedKey) {
+  let current = source;
+  for (const segment of dottedKey.split('.')) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = current[segment];
+  }
+  return current;
+}
+
+/**
+ * 跨包配置视图。`config` 自身是管理面，不作为被管理的子包出现。
+ * 展示的是「子包声明了哪些键 + 当前值 + 默认值」，而不只是已落盘的键。
+ */
 function configPackagesCommand(known, args) {
   const states = loadPackageStates();
   const rows = [];
   for (const entry of known.commands) {
+    if (entry.command === 'config') continue;
     const cmdDir = resolveCommandPackageDir(entry.package);
     if (!cmdDir) continue;
     if (isPackageDisabled(entry.command, states)) continue;
+    const schema = readPackageConfigSchema(entry, cmdDir);
     const config = loadPackageConfig(entry.command);
-    const file = packageConfigPath(entry.command);
     rows.push({
       command: entry.command,
       package: entry.package,
-      path: file,
-      keys: Object.keys(config),
-      config,
+      path: packageConfigPath(entry.command),
+      keys: schemaKeyNames(schema).map((key) => {
+        const declared = schema.find((item) => (item?.key ?? item) === key) ?? {};
+        return {
+          key,
+          kind: declared.kind ?? null,
+          default: declared.default ?? null,
+          value: getDottedValue(config, key) ?? null,
+        };
+      }),
     });
   }
-  console.log('命令子包配置：');
+
+  if (args.includes('--json')) {
+    console.log(JSON.stringify({ scope: 'packages', packages: rows }, null, 2));
+    return;
+  }
+  console.log(tr('Command package configuration:', '命令子包配置：'));
   console.log('');
   if (rows.length === 0) {
-    console.log('  （没有已安装的命令子包）');
+    console.log(tr('  (no installed command subpackages)', '  （没有已安装的命令子包）'));
     return;
   }
   for (const row of rows) {
-    const keyText = row.keys.length > 0 ? row.keys.join(', ') : '（未配置）';
-    console.log(`  ${row.command.padEnd(10)} ${keyText}`);
-    console.log(`  ${' '.repeat(10)} ${row.path}`);
+    console.log(`  ${row.command}  (${row.package})`);
+    if (row.keys.length === 0) {
+      console.log(tr('    (no configSchema declared)', '    （未声明 configSchema）'));
+    } else {
+      for (const item of row.keys) {
+        const current = item.value === null ? (item.default ?? '-') : JSON.stringify(item.value);
+        console.log(`    ${item.key.padEnd(18)} = ${current}`);
+      }
+    }
+    console.log(`    ${row.path}`);
   }
   console.log('');
-  console.log(`共 ${rows.length} 个子包有配置存储。`);
-  console.log('读取：lan config get <key> --package <pkg>');
-  console.log('写入：lan config set <key> <value> --package <pkg>');
+  console.log(tr(`Total: ${rows.length} subpackages.`, `共 ${rows.length} 个子包。`));
+  console.log(
+    tr('Read:  lan config get <key> --package <pkg>', '读取：lan config get <key> --package <pkg>'),
+  );
+  console.log(
+    tr(
+      'Write: lan config set <key> <value> --package <pkg>',
+      '写入：lan config set <key> <value> --package <pkg>',
+    ),
+  );
 }
 
 /**
@@ -655,19 +755,55 @@ function configPackagesCommand(known, args) {
 function configApplyCommand(known, args) {
   const states = loadPackageStates();
   const globalConfig = loadGlobalPreferences();
-  const globalKeys = Object.keys(globalConfig);
-  if (globalKeys.length === 0) {
-    console.log('全局配置为空，无需覆盖。');
+  const explicit = {};
+  let onlyPackage = null;
+
+  // `lan config apply [--package <pkg>] [--set <dotted.key>=<value>]...`
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--package' || arg === '-p') {
+      const raw = args[++index];
+      onlyPackage = normalizePackageName(raw, known);
+      if (!onlyPackage) {
+        console.error(tr(`Unknown package: ${raw ?? ''}`, `未知子包：${raw ?? ''}`));
+        process.exit(1);
+      }
+    } else if (arg === '--set' || arg === '-s') {
+      const pair = args[++index] ?? '';
+      const at = pair.indexOf('=');
+      if (at <= 0) {
+        console.error(tr('--set expects <key>=<value>', '--set 需要 <key>=<value> 格式'));
+        process.exit(1);
+      }
+      const rawValue = pair.slice(at + 1);
+      let value = rawValue;
+      try {
+        value = JSON.parse(rawValue);
+      } catch {
+        // 不是 JSON 就按字符串处理。
+      }
+      explicit[pair.slice(0, at)] = value;
+    }
+  }
+
+  const sourceKeys = Object.keys({ ...globalConfig, ...explicit });
+  if (sourceKeys.length === 0) {
+    console.log(
+      tr('No global config or --set values to apply.', '全局配置与 --set 均为空，无需覆盖。'),
+    );
     return;
   }
+
   const applied = [];
   const skipped = [];
   for (const entry of known.commands) {
+    if (entry.command === 'config') continue;
+    if (onlyPackage && entry.command !== onlyPackage) continue;
     const cmdDir = resolveCommandPackageDir(entry.package);
     if (!cmdDir) continue;
     if (isPackageDisabled(entry.command, states)) continue;
-    const schemaKeys = readPackageConfigSchema(cmdDir);
-    const overrides = globalOverridesFor(entry.command, globalConfig, schemaKeys);
+    const schemaKeys = schemaKeyNames(readPackageConfigSchema(entry, cmdDir));
+    const overrides = globalOverridesFor(globalConfig, schemaKeys, explicit);
     if (Object.keys(overrides).length === 0) {
       skipped.push(entry.command);
       continue;
@@ -680,16 +816,33 @@ function configApplyCommand(known, args) {
     applied.push({ command: entry.command, keys: Object.keys(overrides) });
   }
   for (const item of applied) {
-    console.log(`  ${item.command.padEnd(10)} 已覆盖：${item.keys.join(', ')}`);
+    console.log(
+      tr(
+        `  ${item.command.padEnd(10)} applied: ${item.keys.join(', ')}`,
+        `  ${item.command.padEnd(10)} 已覆盖：${item.keys.join(', ')}`,
+      ),
+    );
   }
   if (applied.length === 0) {
-    console.log('没有子包声明可覆盖的配置键（全局键：' + globalKeys.join(', ') + '）。');
+    console.log(
+      tr(
+        `No subpackage declares an overridable key (source keys: ${sourceKeys.join(', ')}).`,
+        `没有子包声明可覆盖的配置键（可用键：${sourceKeys.join(', ')}）。`,
+      ),
+    );
   } else {
     console.log('');
-    console.log(`已覆盖 ${applied.length} 个子包。`);
+    console.log(
+      tr(`Applied to ${applied.length} subpackage(s).`, `已覆盖 ${applied.length} 个子包。`),
+    );
   }
   if (skipped.length > 0) {
-    console.log(`跳过 ${skipped.length} 个未声明相关配置键的子包：${skipped.join(', ')}`);
+    console.log(
+      tr(
+        `Skipped ${skipped.length} subpackage(s) without matching keys: ${skipped.join(', ')}`,
+        `跳过 ${skipped.length} 个未声明相关配置键的子包：${skipped.join(', ')}`,
+      ),
+    );
   }
 }
 

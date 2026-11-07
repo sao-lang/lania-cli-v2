@@ -138,7 +138,7 @@
   "examples": [
     {
       "command": "lan create --name demo-app",
-      "description": "Create a default react application"
+      "description": "Create a project from the default built-in template"
     },
     {
       "command": "lan create .",
@@ -147,6 +147,10 @@
     {
       "command": "lan create --template toolkit --package-manager pnpm",
       "description": "Create a toolkit template with pnpm"
+    },
+    {
+      "command": "lan create --name svc --template go-service --package-manager go",
+      "description": "Scaffold a Go service with the Go toolchain"
     },
     {
       "command": "lan create --template spa-vue --preview",
@@ -180,6 +184,172 @@
       ],
       "subcommands": [],
       "handler_id": "command.template"
+    },
+    {
+      "name": "config",
+      "about": "Manage create package preferences and global CLI configuration",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "global",
+          "short": null,
+          "help": "Operate on global CLI preferences instead of the package store",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [
+        {
+          "command": "lan create config",
+          "description": "Show create package preferences and their storage path"
+        },
+        {
+          "command": "lan create config get locale",
+          "description": "Read a preference (omit --global for package scope)"
+        },
+        {
+          "command": "lan create config set output.mode json",
+          "description": "Write a package preference"
+        },
+        {
+          "command": "lan create config --global",
+          "description": "Show global CLI preferences"
+        },
+        {
+          "command": "lan create config init",
+          "description": "Initialize global preferences and report the project config"
+        },
+        {
+          "command": "lan create config doctor",
+          "description": "Read-only diagnostics for preferences and project config"
+        },
+        {
+          "command": "lan create config sync",
+          "description": "List config sync suggestions between global and package scopes"
+        }
+      ],
+      "subcommands": [
+        {
+          "name": "get",
+          "about": "Read a preference (omit <key> to print all)",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "key",
+              "required": false,
+              "multiple": false,
+              "help": "Preference key: locale | output.mode | log.timestamps"
+            }
+          ],
+          "options": [
+            {
+              "long": "global",
+              "short": null,
+              "help": "Read from global CLI preferences instead of the package store",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.create.config.get"
+        },
+        {
+          "name": "set",
+          "about": "Update a preference",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "key",
+              "required": true,
+              "multiple": false,
+              "help": "Preference key: locale | output.mode | log.timestamps"
+            },
+            {
+              "name": "value",
+              "required": true,
+              "multiple": false,
+              "help": "Preference value (validated against the create configSchema)"
+            }
+          ],
+          "options": [
+            {
+              "long": "global",
+              "short": null,
+              "help": "Write global CLI preferences instead of the package store",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.create.config.set"
+        },
+        {
+          "name": "init",
+          "about": "Initialize global CLI preferences and report the project config",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [
+            {
+              "long": "force",
+              "short": null,
+              "help": "Overwrite an existing preferences file",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.create.config.init"
+        },
+        {
+          "name": "doctor",
+          "about": "Read-only diagnostics for global preferences and project config",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.create.config.doctor"
+        },
+        {
+          "name": "sync",
+          "about": "Suggest config entries to sync between global and package scopes",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [
+            {
+              "long": "write",
+              "short": null,
+              "help": "Write the suggested config entries",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.create.config.sync"
+        }
+      ],
+      "handler_id": "command.create.config"
     }
   ],
   "handler_id": "command.create"

@@ -101,6 +101,173 @@
       "description": "Run dev without streaming the app's own runtime logs"
     }
   ],
-  "subcommands": [],
+  "subcommands": [
+    {
+      "name": "config",
+      "about": "Manage dev package preferences and global CLI configuration",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "global",
+          "short": null,
+          "help": "Operate on global CLI preferences instead of the package store",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [
+        {
+          "command": "lan dev config",
+          "description": "Show dev package preferences and their storage path"
+        },
+        {
+          "command": "lan dev config get locale",
+          "description": "Read a preference (omit --global for package scope)"
+        },
+        {
+          "command": "lan dev config set output.mode json",
+          "description": "Write a package preference"
+        },
+        {
+          "command": "lan dev config --global",
+          "description": "Show global CLI preferences"
+        },
+        {
+          "command": "lan dev config init",
+          "description": "Initialize global preferences and report the project config"
+        },
+        {
+          "command": "lan dev config doctor",
+          "description": "Read-only diagnostics for preferences and project config"
+        },
+        {
+          "command": "lan dev config sync",
+          "description": "List config sync suggestions between global and package scopes"
+        }
+      ],
+      "subcommands": [
+        {
+          "name": "get",
+          "about": "Read a preference (omit <key> to print all)",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "key",
+              "required": false,
+              "multiple": false,
+              "help": "Preference key: locale | output.mode | log.timestamps"
+            }
+          ],
+          "options": [
+            {
+              "long": "global",
+              "short": null,
+              "help": "Read from global CLI preferences instead of the package store",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.dev.config.get"
+        },
+        {
+          "name": "set",
+          "about": "Update a preference",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "key",
+              "required": true,
+              "multiple": false,
+              "help": "Preference key: locale | output.mode | log.timestamps"
+            },
+            {
+              "name": "value",
+              "required": true,
+              "multiple": false,
+              "help": "Preference value (validated against the dev configSchema)"
+            }
+          ],
+          "options": [
+            {
+              "long": "global",
+              "short": null,
+              "help": "Write global CLI preferences instead of the package store",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.dev.config.set"
+        },
+        {
+          "name": "init",
+          "about": "Initialize global CLI preferences and report the project config",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [
+            {
+              "long": "force",
+              "short": null,
+              "help": "Overwrite an existing preferences file",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.dev.config.init"
+        },
+        {
+          "name": "doctor",
+          "about": "Read-only diagnostics for global preferences and project config",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.dev.config.doctor"
+        },
+        {
+          "name": "sync",
+          "about": "Suggest config entries to sync between global and package scopes",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [
+            {
+              "long": "write",
+              "short": null,
+              "help": "Write the suggested config entries",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.dev.config.sync"
+        }
+      ],
+      "handler_id": "command.dev.config"
+    }
+  ],
   "handler_id": "command.dev"
 }

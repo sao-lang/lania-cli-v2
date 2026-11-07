@@ -603,8 +603,6 @@ fn legacy_aliases_for_path(path: &[&str]) -> Option<&'static [&'static str]> {
         ["lint"] => Some(&["l"]),
         ["create"] => Some(&["c"]),
         ["add"] => Some(&["a"]),
-        ["generate"] => Some(&["g"]),
-        ["generate", "api"] => Some(&["contract"]),
         ["release"] => Some(&["r"]),
         ["git"] => Some(&["gt"]),
         ["git", "branch"] => Some(&["br"]),

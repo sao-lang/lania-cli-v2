@@ -263,7 +263,6 @@ export const RESERVED_TOP_LEVEL_COMMANDS = new Set([
   'sync',
   'template',
   'release',
-  'generate',
   'help',
 ]);
 

@@ -13,7 +13,7 @@ use lania_host::{
 };
 
 use crate::handlers::{
-    BuildCommandHandler, DoctorProductCommandHandler, InspectProductCommandHandler,
+    BuildCommandHandler, ConfigHandler, DoctorProductCommandHandler, InspectProductCommandHandler,
     PackProductCommandHandler, ProductBuildCommandHandler, PublishProductCommandHandler,
 };
 use crate::{
@@ -27,12 +27,8 @@ use crate::{
 
 pub(crate) fn register_build_commands(ctx: &mut PluginSetupContext<'_>) -> Result<()> {
     // 注册基础 `build` 命令及其 handler，并统一记录内建命令注册事件。
-    register_builtin_command_handlers(
-        ctx,
-        "command-build",
-        "build",
-        BuildCommandPlugin::spec(),
-        vec![
+    let config_ids = lania_command_config::handler_ids(crate::COMMAND_NAME);
+    let mut handlers: Vec<(&str, Box<dyn CommandHandler>)> = vec![
             (HANDLER_ID, Box::new(BuildCommandHandler) as Box<dyn CommandHandler>),
             (
                 PRODUCT_HANDLER_ID,
@@ -54,7 +50,16 @@ pub(crate) fn register_build_commands(ctx: &mut PluginSetupContext<'_>) -> Resul
                 DOCTOR_PRODUCT_HANDLER_ID,
                 Box::new(DoctorProductCommandHandler) as Box<dyn CommandHandler>,
             ),
-        ],
+    ];
+    for id in &config_ids {
+        handlers.push((id.as_str(), Box::new(ConfigHandler) as Box<dyn CommandHandler>));
+    }
+    register_builtin_command_handlers(
+        ctx,
+        "command-build",
+        "build",
+        BuildCommandPlugin::spec(),
+        handlers,
     )?;
     // 所有 product 相关命令统一挂到 `lan product ...` 下。
     ctx.commands

@@ -4,15 +4,12 @@
 目标：把一个产品 CLI 工程从开发态推进到可分发的 npm 包，并理解 build / pack / publish 三个阶段。
 </div>
 
-## 1. 生成产品工程
+## 1. 准备产品工程
+
+> `lan product generate` 已下线归档，将在后续版本重新设计。请从已有的产品 CLI 工程（例如 `examples/product-cli-demo`）开始。
 
 ```bash
-lan product generate \
-  --preset demo \
-  --name "Acme CLI" \
-  --binary-name acme \
-  --output-dir ./acme-cli \
-  --force
+cd examples/product-cli-demo
 ```
 
 ## 2. 检查工程

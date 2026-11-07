@@ -106,12 +106,8 @@ impl Plugin for EnvCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
-        register_builtin_command::<EnvCommandHandler, _>(
-            ctx,
-            "command-env",
-            "env",
-            Self::spec(),
-            &[
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![
                 HANDLER_ID,
                 LIST_HANDLER_ID,
                 INFO_HANDLER_ID,
@@ -123,10 +119,14 @@ impl Plugin for EnvCommandPlugin {
                 UI_HANDLER_ID,
                 WHICH_HANDLER_ID,
                 INIT_HANDLER_ID,
-                CONFIG_HANDLER_ID,
-                CONFIG_GET_HANDLER_ID,
-                CONFIG_SET_HANDLER_ID,
-            ],
+            ];
+        ids.extend(config_ids.iter().map(String::as_str));
+        register_builtin_command::<EnvCommandHandler, _>(
+            ctx,
+            "command-env",
+            "env",
+            Self::spec(),
+            &ids,
             || EnvCommandHandler,
         )
     }
@@ -136,15 +136,15 @@ impl Plugin for EnvCommandPlugin {
 impl CommandHandler for EnvCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         let command = ctx.command();
-        let cwd = std::path::PathBuf::from(&command.cwd);
-
-        // `config` 只读写包级偏好文件，不需要构造 runex API（无 runex 环境也可用）。
-        match command.handler_id.as_str() {
-            CONFIG_HANDLER_ID | CONFIG_GET_HANDLER_ID | CONFIG_SET_HANDLER_ID => {
-                return config::execute_config(ctx);
-            }
-            _ => {}
+        if lania_command_config::is_config_handler_id(COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                COMMAND_NAME,
+                &config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
         }
+        let cwd = std::path::PathBuf::from(&command.cwd);
 
         // 宿主只负责命令注册与输出；全部运行时能力都走 runex 的 Rust API。
         let api = runtime_api(&cwd)?;

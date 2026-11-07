@@ -1,5 +1,4 @@
 import { handleBuild } from './product/handlers/build.js';
-import { handleGenerate } from './product/handlers/generate.js';
 import { handleInspect } from './product/handlers/inspect.js';
 import { handlePack } from './product/handlers/pack.js';
 import { handlePublish } from './product/handlers/publish.js';
@@ -12,17 +11,9 @@ import { handlePublish } from './product/handlers/publish.js';
 
 export const productPlugin = {
   name: 'product',
-  methods: [
-    'product.generate',
-    'product.inspect',
-    'product.build',
-    'product.pack',
-    'product.publish',
-  ],
+  methods: ['product.inspect', 'product.build', 'product.pack', 'product.publish'],
   async handle(method: string, params: Record<string, unknown>) {
     switch (method) {
-      case 'product.generate':
-        return await handleGenerate(params);
       case 'product.inspect':
         return await handleInspect(params);
       case 'product.build':

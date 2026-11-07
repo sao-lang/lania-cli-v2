@@ -12,6 +12,7 @@ use lania_host::{
     plugin::{Plugin, PluginKind, PluginMeta, PluginSetupContext},
 };
 
+mod config;
 mod handlers;
 mod registry;
 mod request;
@@ -127,7 +128,7 @@ mod tests {
         assert_eq!(build_spec.name, "build");
         assert_eq!(build_spec.handler_id, "command.build");
         assert_eq!(build_spec.options.len(), 6);
-        assert_eq!(build_spec.subcommands.len(), 0);
+        assert_eq!(build_spec.subcommands.len(), 1);
         let product_root_spec = commands
             .commands()
             .iter()

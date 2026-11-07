@@ -17,7 +17,7 @@
 6. `operations/成熟度地图.zh-CN.md`
    - 当前哪些能力已经被验证、哪些能力应谨慎使用
 7. `design/transports/`
-   - 按协议查看 `generate module` 的专项方案
+   - 按协议查看传输层专项方案（历史设计，对应已下线的 generate 命令）
 
 ## 目录结构
 
@@ -29,8 +29,6 @@
   - 面向维护者的命令链路总图和函数追踪入口
 - `guides/create-symbol-index.zh-CN.md`
   - `lan create` 的结构体、字段、函数与上下游索引
-- `guides/generate-module-symbol-index.zh-CN.md`
-  - `lan generate module` 的结构体、字段、函数与上下游索引
 - `guides/release-symbol-index.zh-CN.md`
   - `lan release` 的结构体、字段、函数与上下游索引
 
@@ -46,13 +44,13 @@
 - `design/专题设计与对账.zh-CN.md`
   - 专题级设计决策与实现对账
 - `design/transports/thrift-http-rest-技术方案.zh-CN.md`
-  - `generate module` 在 `thrift -> http rest` 场景下的后续技术方案
+  - `thrift -> http rest` 场景下的传输层技术方案（历史设计）
 - `design/transports/protobuf-grpc-技术方案.zh-CN.md`
-  - `generate module` 在 `protobuf -> grpc` 场景下的后续技术方案
+  - `protobuf -> grpc` 场景下的传输层技术方案（历史设计）
 - `design/transports/graphql-graphql-技术方案.zh-CN.md`
-  - `generate module` 在 `graphql -> graphql` 场景下的后续技术方案
+  - `graphql -> graphql` 场景下的传输层技术方案（历史设计）
 - `design/transports/thrift-ws-技术方案.zh-CN.md`
-  - `generate module` 在 `thrift -> ws` 场景下的后续技术方案
+  - `thrift -> ws` 场景下的传输层技术方案（历史设计）
 
 ### `operations/`
 

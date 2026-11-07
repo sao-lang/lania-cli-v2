@@ -1,0 +1,14 @@
+[package]
+name = "lania-command-config"
+version = "0.0.3"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "命令子包 config 子树的共享实现：包级偏好 + 全局偏好 + init/doctor/sync 只读报告（拆分文档决策 #11 / §10.2）"
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true
+lania-command = { path = "../../../command/rust/lania-command" }
+lania-package-config = { path = "../lania-package-config" }
+lania-preferences = { path = "../../../capabilities/rust/lania-preferences" }

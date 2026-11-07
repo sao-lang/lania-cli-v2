@@ -3,7 +3,7 @@
   "version": "0.0.3",
   "private": false,
   "type": "module",
-  "description": "bridge 切片：product generate/pack/publish 产品化切片",
+  "description": "bridge 切片：product build/pack/publish 产品化切片",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

@@ -4,6 +4,7 @@
 //! 关键点：
 //! - 包含异步/超时/取消等控制流
 //! - 包含序列化/反序列化与 JSON 结构约定
+mod config;
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::{ArgSpec, CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
@@ -51,6 +52,7 @@ impl CreateCommandPlugin {
         // 评审决定：顶层 `template` 命令并入此处作为二级命令（§3.3 注 5）。
         CommandSpec::new("create", "Create a new project from a template", HANDLER_ID)
             .with_subcommand(TemplateCommandSpec::spec())
+            .with_subcommand(config::config_spec())
             .with_args(vec![ArgSpec {
                 name: "path".into(),
                 required: false,
@@ -185,7 +187,7 @@ impl CreateCommandPlugin {
             .with_examples(vec![
                 Example {
                     command: "lan create --name demo-app".into(),
-                    description: "Create a default react application".into(),
+                    description: "Create a project from the default built-in template".into(),
                 },
                 Example {
                     command: "lan create .".into(),
@@ -194,6 +196,11 @@ impl CreateCommandPlugin {
                 Example {
                     command: "lan create --template toolkit --package-manager pnpm".into(),
                     description: "Create a toolkit template with pnpm".into(),
+                },
+                Example {
+                    command: "lan create --name svc --template go-service --package-manager go"
+                        .into(),
+                    description: "Scaffold a Go service with the Go toolchain".into(),
                 },
                 Example {
                     command: "lan create --template spa-vue --preview".into(),
@@ -323,12 +330,15 @@ impl Plugin for CreateCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![HANDLER_ID];
+        ids.extend(config_ids.iter().map(String::as_str));
         register_builtin_command::<CreateCommandHandler, _>(
             ctx,
             "command-create",
             "create",
             Self::spec(),
-            &[HANDLER_ID],
+            &ids,
             || CreateCommandHandler,
         )?;
         // template 二级命令：原独立 crate 的注册点（handler 零改动迁移）。
@@ -346,6 +356,15 @@ impl Plugin for CreateCommandPlugin {
 #[async_trait(?Send)]
 impl CommandHandler for CreateCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        if lania_command_config::is_config_handler_id(COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                COMMAND_NAME,
+                &config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
+        }
         ctx.require_capability(CapabilityName::Template)?;
         ctx.emit_workflow_start("create").await;
         let input = CreateCommandPlugin::build_input(ctx.command());

@@ -22,18 +22,8 @@ import readline from 'node:readline';
 import { createHandshakeResponse, handleExchange, readyEvent } from './index.js';
 import { runHubEndpoint } from './hub-stdio.js';
 import { handleHostResponse, installHostRpcTransport } from '../core/host-rpc.js';
-import type { BridgeRequest, HandshakeRequest } from '../protocol/request.js';
-
-type IncomingEnvelope =
-  | { type: 'handshake'; payload: HandshakeRequest }
-  | { type: 'request'; payload: BridgeRequest }
-  | { type: 'host_response'; payload: unknown };
-
-type OutgoingEnvelope =
-  | { type: 'handshake'; payload: unknown }
-  | { type: 'event'; requestId: string; payload: unknown }
-  | { type: 'response'; payload: unknown }
-  | { type: 'host_request'; payload: unknown };
+// 唯一的 envelope 类型与帧写出实现（与 hub-stdio.ts 共用）。
+import { parseEnvelope, writeEnvelope } from './envelope.js';
 
 // Hub endpoint 模式（决策 #12）：帧层复用 bridge-protocol，1:1 模式保持默认。
 if (process.env.LANIA_BRIDGE_MODE === 'hub') {
@@ -47,7 +37,6 @@ const rl = readline.createInterface({
 });
 
 let heartbeatTimer: NodeJS.Timeout | null = null;
-let writeChain: Promise<void> = Promise.resolve();
 
 installHostRpcTransport({
   write: async (envelope) => {
@@ -73,7 +62,7 @@ for await (const line of rl) {
 
   // 注意：stdio 传输严格要求 stdout 只输出协议 envelope（jsonl）。
   // bridge 内部如果有多余 console.log/println，会污染协议并导致 Rust 端解析失败。
-  const envelope = JSON.parse(trimmed) as IncomingEnvelope;
+  const envelope = parseEnvelope(trimmed);
   if (envelope.type === 'handshake') {
     const handshake = await createHandshakeResponse(envelope.payload);
     await writeEnvelope({
@@ -132,21 +121,4 @@ for await (const line of rl) {
   if (envelope.type === 'host_response') {
     handleHostResponse(envelope.payload as any);
   }
-}
-
-async function writeEnvelope(envelope: OutgoingEnvelope): Promise<void> {
-  // Serialize writes so concurrent handlers won't interleave envelopes.
-  writeChain = writeChain.then(
-    () =>
-      new Promise<void>((resolve, reject) => {
-        process.stdout.write(`${JSON.stringify(envelope)}\n`, (error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve();
-        });
-      }),
-  );
-  await writeChain;
 }

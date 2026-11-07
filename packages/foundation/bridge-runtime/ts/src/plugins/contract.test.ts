@@ -36,7 +36,6 @@ test('handshake exposes the current public method and event contract', async () 
     'compiler.dev',
     'compiler.build',
     'compiler.stop',
-    'product.generate',
     'product.inspect',
     'product.build',
     'product.pack',

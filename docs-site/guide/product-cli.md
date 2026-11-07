@@ -1,14 +1,13 @@
 # 产品 CLI
 
 <div class="lead">
-product 命令族把 Lania CLI 从“工程工具”变成“可分发的 CLI 产品”：生成产品工程、开发本地命令、构建快照、组装 install-root、生成 npm 发布包，并提供诊断能力。
+product 命令族把 Lania CLI 从“工程工具”变成“可分发的 CLI 产品”：开发本地命令、构建快照、组装 install-root、生成 npm 发布包，并提供诊断能力。
 </div>
 
 ## 命令结构
 
 ```text
 lan product
-  generate  生成产品 CLI 工程骨架
   dev       以开发模式运行产品命令
   build     生成产品快照
   pack      组装 install-root 布局
@@ -17,27 +16,7 @@ lan product
   doctor    运行兼容性与完整性诊断
 ```
 
-## generate
-
-```bash
-lan product generate \
-  --name "Acme CLI" \
-  --binary-name acme \
-  --output-dir ./acme-cli \
-  --force
-```
-
-参数：
-
-| 参数                        | 作用          |
-| --------------------------- | ------------- |
-| `--preset <demo\|minimal>`  | 脚手架预设    |
-| `-i, --interactive`         | 交互式补问    |
-| `-n, --name <name>`         | 展示名        |
-| `-b, --binary-name <name>`  | 二进制/命令名 |
-| `-p, --package-name <name>` | npm 包名      |
-| `-o, --output-dir <dir>`    | 输出目录      |
-| `-f, --force`               | 覆盖已有文件  |
+> `lan product generate` 已下线归档，将在后续版本重新设计；请从已有的产品 CLI 工程（例如 `examples/product-cli-demo`）开始。
 
 ## dev
 
@@ -172,8 +151,9 @@ lan product doctor --path .
 
 ## 推荐验证顺序
 
+在已有产品 CLI 工程中执行：
+
 ```bash
-lan product generate --preset demo --name "Acme CLI" --binary-name acme --output-dir ./acme-cli
 cd ./acme-cli
 lan product inspect --path .
 lan product dev hello --path .

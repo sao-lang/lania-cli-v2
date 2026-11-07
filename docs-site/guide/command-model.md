@@ -6,14 +6,14 @@ Lania CLI 的命令不是写死在 clap 里的，而是由 Rust 插件、Node Br
 
 ## 命令的六种来源
 
-| 来源           | 注册方                                   | 执行方                              | 典型命令                                                 |
-| -------------- | ---------------------------------------- | ----------------------------------- | -------------------------------------------------------- |
-| 内置 Rust 命令 | Rust 插件 `setup()`                      | Rust handler                        | `create`、`add`、`generate`、`release`、`git`、`config`  |
-| Bridge 命令    | Rust 插件注册 spec                       | Node Bridge 插件                    | `dev`、`build`、`lint`                                   |
-| 混合命令       | Rust 插件                                | 本地 + Bridge                       | `tools`（`list` 走 Bridge，`run/view` 走本地）           |
-| 查询命令       | Rust 插件                                | Node Bridge 查询                    | `template`                                               |
-| 运行时命令     | Node Bridge 解析 manifest 后由 Rust 注册 | Node Bridge `command.invokeDynamic` | 项目自定义命令                                           |
-| 产品命令       | Rust 插件 / Node Bridge                  | Bridge                              | `product generate/dev/build/pack/publish/inspect/doctor` |
+| 来源           | 注册方                                   | 执行方                              | 典型命令                                        |
+| -------------- | ---------------------------------------- | ----------------------------------- | ----------------------------------------------- |
+| 内置 Rust 命令 | Rust 插件 `setup()`                      | Rust handler                        | `create`、`add`、`release`、`git`、`config`     |
+| Bridge 命令    | Rust 插件注册 spec                       | Node Bridge 插件                    | `dev`、`build`、`lint`                          |
+| 混合命令       | Rust 插件                                | 本地 + Bridge                       | `tools`（`list` 走 Bridge，`run/view` 走本地）  |
+| 查询命令       | Rust 插件                                | Node Bridge 查询                    | `template`                                      |
+| 运行时命令     | Node Bridge 解析 manifest 后由 Rust 注册 | Node Bridge `command.invokeDynamic` | 项目自定义命令                                  |
+| 产品命令       | Rust 插件 / Node Bridge                  | Bridge                              | `product dev/build/pack/publish/inspect/doctor` |
 
 ## 启动与注册顺序
 
@@ -27,7 +27,6 @@ HostRuntime::new()
   → register_plugin(LintCommandPlugin)
   → register_plugin(CreateCommandPlugin)
   → register_plugin(AddCommandPlugin)
-  → register_plugin(GenerateCommandPlugin)
   → register_plugin(ReleaseCommandPlugin)
   → register_plugin(GitCommandPlugin)
   → register_plugin(TemplateCommandPlugin)
@@ -169,18 +168,16 @@ HostRuntime::execute_command(context)
 
 当前历史别名：
 
-| 命令           | 别名       |
-| -------------- | ---------- |
-| `dev`          | `d`        |
-| `build`        | `b`        |
-| `lint`         | `l`        |
-| `create`       | `c`        |
-| `add`          | `a`        |
-| `generate`     | `g`        |
-| `generate api` | `contract` |
-| `release`      | `r`        |
-| `git`          | `gt`       |
-| `template`     | `t`        |
+| 命令       | 别名 |
+| ---------- | ---- |
+| `dev`      | `d`  |
+| `build`    | `b`  |
+| `lint`     | `l`  |
+| `create`   | `c`  |
+| `add`      | `a`  |
+| `release`  | `r`  |
+| `git`      | `gt` |
+| `template` | `t`  |
 
 > `lan.config.commands.aliases` 与 `commands.shortcuts` 目前会被解析并校验，但没有接入实际命令解析流程。不要依赖它们改变 CLI 行为。
 
@@ -257,7 +254,6 @@ BuildCommandPlugin
 
 ```text
 lan product
-  generate
   dev
   build
   pack
@@ -265,6 +261,8 @@ lan product
   inspect
   doctor
 ```
+
+> `lan product generate` 已下线归档，将在后续版本重新设计。
 
 请使用：
 

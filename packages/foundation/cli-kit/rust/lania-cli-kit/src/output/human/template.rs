@@ -90,86 +90,12 @@ fn template_info_label(key: &str, locale: &str) -> &'static str {
 }
 
 fn template_info_summary(name: &str, locale: &str) -> String {
-    // 对“内置模板”给一个更短、更像产品说明的简介；
-    // 其它未知模板回退为原名，避免误导。
-    match (template_info_is_zh(locale), name) {
-        (true, "spa-react") => "基于 React 的单页应用项目模板，适合快速启动前端业务项目。".into(),
-        (true, "spa-vue") => "基于 Vue 3 的单文件组件项目模板，适合快速启动前端业务项目。".into(),
-        (true, "toolkit") => "面向工具库或 SDK 的单包项目模板，适合构建可复用的前端工具模块。".into(),
-        (true, "toolkit-monorepo") => {
-            "面向多包协作场景的 monorepo 模板，适合组件库、工具集或多模块工程。".into()
-        }
-        (_, "spa-react") => {
-            "A React single-page application template for quickly bootstrapping frontend projects."
-                .into()
-        }
-        (_, "spa-vue") => {
-            "A Vue 3 single-file component template for quickly bootstrapping frontend projects."
-                .into()
-        }
-        (_, "toolkit") => "A single-package toolkit template for building reusable utilities or SDKs."
-            .into(),
-        (_, "toolkit-monorepo") => {
-            "A monorepo template for multi-package toolkits, component libraries, or modular projects."
-                .into()
-        }
-        _ => name.to_string(),
-    }
+    // 与 `lan create template` 共用一份数据（cli-kit::template_catalog）。
+    crate::template_catalog::template_summary(name, locale)
 }
 
 fn template_info_highlights(name: &str, locale: &str) -> Vec<String> {
-    // highlights 是用户最关心的“这个模板能干什么”，这里保持短句且可扫描。
-    match (template_info_is_zh(locale), name) {
-        (true, "spa-react") => vec![
-            "使用 React 组件结构，默认包含 `App` 与入口文件".into(),
-            "支持 TypeScript 或 JavaScript".into(),
-            "支持 Vite 或 Webpack 构建".into(),
-            "可选 CSS 预处理器、Tailwind 和常见 lint 工具".into(),
-        ],
-        (true, "spa-vue") => vec![
-            "使用 Vue 3 + 单文件组件（`App.vue`）结构".into(),
-            "支持 TypeScript 或 JavaScript".into(),
-            "支持 Vite 或 Webpack 构建".into(),
-            "可选 CSS 预处理器、Tailwind 和常见 lint 工具".into(),
-        ],
-        (true, "toolkit") => vec![
-            "单包目录结构，适合工具库或 SDK".into(),
-            "默认基于 Vite 构建".into(),
-            "支持 TypeScript，可选 Vitest".into(),
-            "内置常见工程化与发布配置".into(),
-        ],
-        (true, "toolkit-monorepo") => vec![
-            "多包目录结构，默认包含 `packages/core`".into(),
-            "支持 pnpm workspace 与 changesets 发布流程".into(),
-            "适合组件库、工具集或多模块协作".into(),
-            "内置常见工程化与提交规范配置".into(),
-        ],
-        (_, "spa-react") => vec![
-            "Uses a React component structure with an `App` entry".into(),
-            "Supports TypeScript or JavaScript".into(),
-            "Supports Vite or Webpack".into(),
-            "Optional CSS preprocessors, Tailwind, and common lint tools".into(),
-        ],
-        (_, "spa-vue") => vec![
-            "Uses Vue 3 with a single-file component (`App.vue`) structure".into(),
-            "Supports TypeScript or JavaScript".into(),
-            "Supports Vite or Webpack".into(),
-            "Optional CSS preprocessors, Tailwind, and common lint tools".into(),
-        ],
-        (_, "toolkit") => vec![
-            "Single-package structure for utilities or SDKs".into(),
-            "Built around Vite by default".into(),
-            "Supports TypeScript with optional Vitest".into(),
-            "Includes common engineering and release setup".into(),
-        ],
-        (_, "toolkit-monorepo") => vec![
-            "Multi-package structure with a default `packages/core` workspace".into(),
-            "Supports pnpm workspace and changesets release flow".into(),
-            "Suitable for component libraries, toolkits, or modular repos".into(),
-            "Includes common engineering and commit tooling".into(),
-        ],
-        _ => Vec::new(),
-    }
+    crate::template_catalog::template_highlights(name, locale)
 }
 
 fn template_names(value: Option<&serde_json::Value>) -> Option<Vec<String>> {

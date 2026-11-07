@@ -13,7 +13,9 @@ use anyhow::Result;
 use lania_host::plugin::{register_builtin_command_handlers, PluginSetupContext};
 use lania_host::CommandHandler;
 
-use crate::handlers::{DevCommandHandler, ProductDevCommandHandler, ProductRootCommandHandler};
+use crate::handlers::{
+    ConfigHandler, DevCommandHandler, ProductDevCommandHandler, ProductRootCommandHandler,
+};
 use crate::{DevCommandPlugin, HANDLER_ID, PRODUCT_HANDLER_ID, PRODUCT_ROOT_HANDLER_ID};
 
 // `command-dev` 的注册胶水（命令 spec + handler）。
@@ -30,12 +32,8 @@ pub(crate) fn register_dev_commands(ctx: &mut PluginSetupContext<'_>) -> Result<
     // 注册根命令：
     // - `dev`：标准开发流程（走 node-bridge 的 compiler.dev）
     // - `product`：产品命令分组根（自身不可执行，只承载子命令）
-    register_builtin_command_handlers(
-        ctx,
-        "command-dev",
-        "dev",
-        DevCommandPlugin::spec(),
-        vec![
+    let config_ids = lania_command_config::handler_ids(crate::COMMAND_NAME);
+    let mut handlers: Vec<(&str, Box<dyn CommandHandler>)> = vec![
             (HANDLER_ID, Box::new(DevCommandHandler) as Box<dyn CommandHandler>),
             (
                 PRODUCT_ROOT_HANDLER_ID,
@@ -45,7 +43,16 @@ pub(crate) fn register_dev_commands(ctx: &mut PluginSetupContext<'_>) -> Result<
                 PRODUCT_HANDLER_ID,
                 Box::new(ProductDevCommandHandler) as Box<dyn CommandHandler>,
             ),
-        ],
+    ];
+    for id in &config_ids {
+        handlers.push((id.as_str(), Box::new(ConfigHandler) as Box<dyn CommandHandler>));
+    }
+    register_builtin_command_handlers(
+        ctx,
+        "command-dev",
+        "dev",
+        DevCommandPlugin::spec(),
+        handlers,
     )?;
     ctx.commands
         .register(DevCommandPlugin::product_root_spec())?;

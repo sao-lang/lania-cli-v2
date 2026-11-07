@@ -81,38 +81,6 @@ fn localize_release_shared_options(spec: &mut CommandSpec) {
     set_option_help(spec, "yes", "执行发布时跳过额外交互确认");
 }
 
-fn localize_product_generate_options(spec: &mut CommandSpec) {
-    set_option_help(spec, "preset", "脚手架预设（demo 或 minimal）");
-    set_option_help(spec, "interactive", "生成 product 脚手架时启用交互提示");
-    set_option_help(spec, "name", "生成 product 的显示名称");
-    set_option_help(spec, "binary-name", "生成 product 使用的二进制名称");
-    set_option_help(spec, "package-name", "写入生成 package.json 的包名");
-    set_option_help(spec, "output-dir", "生成 product 脚手架的输出目录");
-    set_option_help(spec, "force", "目标已存在时覆盖生成文件");
-}
-
-fn localize_generate_module_options(spec: &mut CommandSpec) {
-    set_option_help(spec, "config", "模块配置文件路径");
-    set_option_help(spec, "input", "仅生成指定输入目录或文件");
-    set_option_help(spec, "source", "按 source 类型过滤，例如 proto 或 thrift");
-    set_option_help(spec, "target", "按 target 过滤，例如 grpc,http");
-    set_option_help(spec, "framework", "框架后端名称");
-    set_option_help(spec, "entry", "按 entry 过滤（支持逗号分隔）");
-    set_option_help(spec, "main", "覆盖 main.go 注入目标");
-    set_option_help(spec, "module-name", "为单个 entry 覆盖生成的模块名");
-    set_option_help(
-        spec,
-        "package",
-        "覆盖生成的 main.go helper 使用的 Go import 路径",
-    );
-    set_option_help(spec, "manifest", "覆盖 manifest 路径");
-    set_option_help(spec, "dry-run", "仅规划生成，不写入文件");
-    set_option_help(spec, "check", "校验生成结果，不写入文件");
-    set_option_help(spec, "clean", "清理 manifest 跟踪的过期生成文件");
-    set_option_help(spec, "force", "覆盖不受管理的冲突文件");
-    set_option_help(spec, "no-inject", "跳过 main.go 注入和 helper 生成");
-}
-
 fn localize_product_common_options(spec: &mut CommandSpec) {
     set_option_help(spec, "path", "product 根目录路径（默认当前工作目录）");
 }
@@ -143,7 +111,81 @@ fn localize_env_mutation(spec: &mut CommandSpec) {
     set_option_help(spec, "project", "将版本写入项目版本文件");
 }
 
+/// 解析包级 config 子树的 handler id：`command.<pkg>.config[.<sub>]`。
+///
+/// 全局 `lan config`（`command.config` / `command.config.get` 等）第 3 段不是
+/// `config`，其它命令（`command.dev.product` …）同理，均不匹配——因此这个分支
+/// 只覆盖 11 个命令子包新增的 config 子树，不会误伤既有命令。
+fn package_config_handler(handler_id: &str) -> Option<(String, String)> {
+    let rest = handler_id.strip_prefix("command.")?;
+    let mut parts = rest.split('.');
+    let pkg = parts.next()?;
+    if pkg.is_empty() || parts.next()? != "config" {
+        return None;
+    }
+    let sub = parts.next().unwrap_or("");
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((pkg.to_string(), sub.to_string()))
+}
+
+/// 所有 `command.<pkg>.config*` 的统一 zh 翻译：about / option help / arg help /
+/// example description 各一份逻辑，按 handler_id 后缀与字段名选取，不给每个包
+/// 复制一遍分支。任何兜底文案同样含 CJK，保证覆盖测试通过。
+fn localize_package_config_zh(spec: &mut CommandSpec, pkg: &str, sub: &str) {
+    spec.about = match sub {
+        "" => format!("管理 {pkg} 命令包偏好与全局 CLI 配置"),
+        "get" => "读取偏好配置（省略键时显示全部）".into(),
+        "set" => "写入偏好配置".into(),
+        "init" => "初始化全局偏好并报告项目配置".into(),
+        "doctor" => "只读诊断全局偏好与项目配置".into(),
+        "sync" => "列出全局与包级作用域的配置同步建议".into(),
+        _ => format!("管理 {pkg} 命令包偏好与全局 CLI 配置"),
+    };
+
+    for option in &mut spec.options {
+        option.help = match option.long.as_str() {
+            "global" => "操作全局 CLI 偏好，而非包级配置".into(),
+            "force" => "覆盖已存在的偏好文件".into(),
+            "write" => "写入建议的配置项".into(),
+            _ => "配置命令选项".into(),
+        };
+    }
+    for arg in &mut spec.args {
+        arg.help = match arg.name.as_str() {
+            "key" => "配置键（locale | output.mode | log.timestamps，或本包特有键）".into(),
+            "value" => "配置值（按 configSchema 校验）".into(),
+            _ => "配置参数".into(),
+        };
+    }
+
+    let ex = |suffix: &str| format!("lan {pkg} config{suffix}");
+    let translations: Vec<(String, &str)> = vec![
+        (ex(""), "查看本包偏好及其存储路径"),
+        (ex(" get locale"), "读取偏好（省略 --global 时为包级作用域）"),
+        (ex(" set output.mode json"), "写入一条包级偏好"),
+        (ex(" --global"), "查看全局 CLI 偏好"),
+        (ex(" init"), "初始化全局偏好并报告项目配置"),
+        (ex(" doctor"), "只读诊断偏好与项目配置"),
+        (ex(" sync"), "列出全局与包级作用域的配置同步建议"),
+    ];
+    for example in &mut spec.examples {
+        example.description = translations
+            .iter()
+            .find(|(command, _)| command == &example.command)
+            .map(|(_, zh)| *zh)
+            .unwrap_or("查看或设置配置")
+            .into();
+    }
+}
+
 fn apply_zh_translations(spec: &mut CommandSpec) {
+    // 包级 config 子树统一走一份通用翻译，避免 11 个包各自维护一套分支。
+    if let Some((pkg, sub)) = package_config_handler(&spec.handler_id) {
+        localize_package_config_zh(spec, &pkg, &sub);
+        return;
+    }
     match spec.handler_id.as_str() {
         // config
         "command.config" => {
@@ -178,6 +220,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         "command.config.get" => {
             spec.about = "读取全局 CLI 配置".into();
             set_arg_help(spec, "key", "配置项：locale | log.timestamps | output.mode");
+            set_option_help(
+                spec,
+                "package",
+                "读取指定命令子包的包级偏好（~/.lania/config/<pkg>.json）",
+            );
         }
         "command.config.set" => {
             spec.about = "更新全局 CLI 配置或项目 lan.config".into();
@@ -187,6 +234,11 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "全局配置项（locale | log.timestamps | output.mode）或项目配置路径（runtime | lintTools | runtimes.go.build | …）",
             );
             set_arg_help(spec, "value", "配置值（列表可用逗号分隔或 JSON）");
+            set_option_help(
+                spec,
+                "package",
+                "写入指定命令子包的包级偏好（~/.lania/config/<pkg>.json）",
+            );
         }
         "command.config.init" => {
             spec.about = "为当前项目创建 lan.config.ts".into();
@@ -198,6 +250,13 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         "command.config.sync" => {
             spec.about = "给出（或写入）项目配置缺失项的建议".into();
             set_option_help(spec, "write", "纯数据配置时直接写入建议内容");
+        }
+        "command.config.packages" => {
+            spec.about = "查看所有命令子包的包级配置".into();
+        }
+        "command.config.apply" => {
+            spec.about = "把全局配置一键下发到命令子包".into();
+            set_option_help(spec, "package", "只应用到指定子包（短命令名或 npm 包名）");
         }
 
         // dev
@@ -289,12 +348,17 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             );
             set_option_help(spec, "dry-run", "仅规划文件写入与安装命令，不实际执行");
             set_option_help(spec, "preview", "预览渲染的模板文件（隐含 dry-run）");
-            set_example_desc(spec, "lan create --name demo-app", "创建默认 React 项目");
+            set_example_desc(spec, "lan create --name demo-app", "用内置模板创建项目");
             set_example_desc(spec, "lan create .", "在当前目录创建项目");
             set_example_desc(
                 spec,
                 "lan create --template toolkit --package-manager pnpm",
                 "使用 pnpm 创建 toolkit 模板项目",
+            );
+            set_example_desc(
+                spec,
+                "lan create --name svc --template go-service --package-manager go",
+                "用 Go 工具链创建 Go 服务项目",
             );
             set_example_desc(
                 spec,
@@ -345,11 +409,6 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         // product root / product workflows
         "command.product" => {
             spec.about = "面向 product 的 CLI 工作流与分发命令".into();
-            set_example_desc(
-                spec,
-                "lan product generate --name \"Acme CLI\" --binary-name acme",
-                "生成一个新的 CLI product 工作区脚手架",
-            );
             set_example_desc(
                 spec,
                 "lan product dev hello --path ./products/acme-cli",
@@ -752,102 +811,6 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "state-file", "发布状态文件路径");
         }
 
-        // generate (high-level; subcommands vary)
-        "command.generate" => {
-            spec.about = "生成项目产物".into();
-            set_example_desc(
-                spec,
-                "lan product generate --name \"Acme CLI\" --binary-name acme",
-                "生成一个新的 CLI product 工作区脚手架",
-            );
-            set_example_desc(
-                spec,
-                "lan generate api",
-                "根据 lania.contract.yaml 生成契约与传输层产物",
-            );
-            set_example_desc(
-                spec,
-                "lan g api --source proto --target grpc,http --dry-run",
-                "预览 protobuf grpc/http 生成结果，但不写入文件",
-            );
-            set_example_desc(
-                spec,
-                "lan generate module",
-                "根据 lania.module.yaml 生成 lania-g 模块文件",
-            );
-        }
-        "command.generate.product" => {
-            spec.about = "生成一个带脚手架的 CLI product 工作区".into();
-            localize_product_generate_options(spec);
-            set_example_desc(
-                spec,
-                "lan product generate --preset demo --interactive",
-                "在 `products/acme-cli` 下创建一个 product 工作区脚手架",
-            );
-        }
-        "command.generate.api" => {
-            spec.about = "生成契约 DTO 与传输层封装".into();
-            set_option_help(spec, "config", "契约配置文件路径");
-            set_option_help(spec, "source", "按 source 类型过滤，例如 proto 或 thrift");
-            set_option_help(spec, "target", "按 target 过滤，例如 grpc,http");
-            set_option_help(spec, "entry", "按 entry 过滤（逗号分隔）");
-            set_option_help(spec, "manifest", "覆盖 manifest 输出路径");
-            set_option_help(spec, "dry-run", "仅规划生成，不写入文件");
-            set_option_help(spec, "check", "校验生成结果是否为最新（不写入文件）");
-            set_option_help(spec, "clean", "清理 manifest 跟踪的过期文件");
-            set_option_help(spec, "force", "覆盖不受管理的冲突文件");
-            set_example_desc(spec, "lan generate api", "生成所有配置的契约输出");
-            set_example_desc(
-                spec,
-                "lan generate api --entry user-service --target http",
-                "仅生成指定 entry/target",
-            );
-            set_example_desc(spec, "lan generate api check", "当产物过期时返回失败");
-        }
-        "command.generate.api.plan" => {
-            spec.about = "预览将生成的文件、冲突与清理动作".into();
-        }
-        "command.generate.api.diff" => {
-            spec.about = "对比当前 manifest 与计划输出".into();
-        }
-        "command.generate.api.init" => {
-            spec.about = "初始化 lania.contract.yaml 与示例 schema 文件".into();
-            set_option_help(spec, "force", "覆盖已存在的初始化文件");
-        }
-        "command.generate.module" => {
-            spec.about = "生成 lania-g 模块与 main.go 注入产物".into();
-            localize_generate_module_options(spec);
-            set_example_desc(
-                spec,
-                "lan generate module",
-                "生成所有已配置的 lania-g 模块产物",
-            );
-            set_example_desc(
-                spec,
-                "lan generate module --entry user --target grpc --check",
-                "检查单个 entry 的模块生成漂移",
-            );
-            set_example_desc(
-                spec,
-                "lan generate module apply --no-inject",
-                "写入模块产物，但不改动 main.go",
-            );
-        }
-        "command.generate.module.plan" => {
-            spec.about = "预览生成的模块文件、注入变更与清理动作".into();
-        }
-        "command.generate.module.diff" => {
-            spec.about = "对比当前模块 manifest 与计划输出".into();
-        }
-        "command.generate.module.init" => {
-            spec.about = "初始化 lania.module.yaml 与示例 schema 文件".into();
-            set_option_help(spec, "force", "覆盖已存在的初始化文件");
-        }
-        "command.generate.module.apply" => {
-            spec.about = "显式写入模块产物与 main.go 注入资产".into();
-            localize_generate_module_options(spec);
-        }
-
         // env
         "command.env" => {
             spec.about =
@@ -980,26 +943,6 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "渲染一帧画面而不进入交互模式",
             );
         }
-        "command.env.config" => {
-            spec.about = "管理 env 命令包的包级偏好（~/.lania/config/env.json，按包隔离）".into();
-            set_example_desc(spec, "lan env config", "查看 env 包偏好及存储路径");
-            set_example_desc(spec, "lan env config get shim.host", "读取 shim 宿主偏好");
-            set_example_desc(
-                spec,
-                "lan env config set shim.host runex",
-                "让生成的 shim 改调 `runex which` 而非 `lan env which`",
-            );
-        }
-        "command.env.config.get" => {
-            spec.about = "读取 env 包偏好（省略 <key> 时输出全部）".into();
-            set_arg_help(spec, "key", "偏好 key：shim.host");
-        }
-        "command.env.config.set" => {
-            spec.about = "写入 env 包偏好".into();
-            set_arg_help(spec, "key", "偏好 key：shim.host");
-            set_arg_help(spec, "value", "偏好值（shim.host 的可选值：lan | runex）");
-        }
-
         // pi（旧名 agent，保留为别名）
         "command.pi" => {
             spec.about = "运行基于 pi 的编码 agent（交互式 REPL 或单次执行）".into();

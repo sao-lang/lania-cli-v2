@@ -151,6 +151,8 @@ Hub 与其它端点无需任何改动。这就是「其它语言使用的时候�
 
 ## 5. 接入方式（后续开工时）
 
+> 当前状态（2026-11-07）：本节「后续开工时」为当时计划，现已接线完成，正文示例与历史决策保留不改。统一入口 `packages/distribution/cli/rust/lania-host/src/bridge_setup.rs`（`maybe_run_rust_bridge()` / `configure_command_bridges()`）把 9 个命令 bin 与总包 `main.rs` 里重复的 B11 短路块、3 行语言桥登记收敛为 1-2 行调用；`packages/products/bridge-hub/rust/lania-bridge-host/src/provider.rs` 的 `HubBridgeProvider` 不再是空 Hub——`register_language` 真正 attach 语言端点并声明 capability，`bridge_slot` 在命令启动时注入，`call_bridge` 优先走 provider、未命中 capability 时回落既有 1:1 `NodeBridgeClient`。**该 1:1 回落是刻意保留的兼容层（行为不退化），并未删除**；TS 侧 `packages/foundation/bridge-runtime/ts/src/entry/envelope.ts` 为默认 1:1（`stdio.ts`）与 `LANIA_BRIDGE_MODE=hub`（`hub-stdio.ts`）提供唯一一份 envelope 类型与 `writeEnvelope` / `parseEnvelope` / `flushEnvelopes`，帧构造/解码仍来自 bridge-protocol 生成物。刻意不替换：`packages/products/runex/rust/runex-core/src/provider/*` 的 `RuntimeProvider`（运行时下载/安装器）、`packages/products/agent/**` 的 provider（LLM 模型供应商）、`lania-host/src/runtime/detect.rs` 的 `RuntimeKind`（项目语言判定）、`bridge-slices/compiler/**/runtime-adapters/*`（业务适配器）——它们都不是通信桥；`scripts/check-bridge-protocol.mjs` 边界扫描半径保持不变。
+
 ```rust
 // CLI 或任意包：嵌入 Hub，注册 Rust 端点
 let hub = BridgeHub::new();
@@ -222,6 +224,8 @@ cli.publish("event.diag", json!({"text": "..."}));
       `cargo test --workspace` 在本机被既有 C build script 卡住（需完整 C 工具链，与本阶段改动无关）；
       `pnpm format:check` 仍受仓库既有 CRLF 问题影响（与本次改动无关）
 
+> 当前状态（2026-11-07）：上表「过渡现有直连链路」一项按兼容策略完成——Hub 已接入为优先链路（见 §5 当前状态），1:1 `NodeBridgeClient` 作为回落兼容层刻意保留而非删除，`node scripts/smoke-pi.mjs` 8/8 行为不退化；`BridgeRegistry` / `RuntimeKind` 属于装配与语言判定细节，未从通信 API 移除，也不在本轮替换范围。§6 多 provider 冲突/优先级、背压/超时/重连、端点鉴权等未决问题仍保持未决，不因本轮接线而关闭。
+
 ---
 
 ## 9. 第一阶段实施记录（2026-11-06 重新开工）
@@ -265,3 +269,5 @@ TS/Py/Go/Dart 走 stdio 子进程，Hub 与端点代码都不认语言。
 `BridgeRegistry` / `RuntimeKind` 从通信 API 移除、`lania-host` 5 条语言硬依赖改接 `bridge-host`，
 以及 §6 剩余未决问题（鉴权/超时/背压/命名空间细则）。这些属于 §5「过渡」阶段，
 本阶段未触碰任何既有消费点，因此不影响现有行为。
+
+> 当前状态（2026-11-07）：上述「尚未做」的接线项已完成，详见 §5 当前状态——`bridge_setup.rs` 两个统一入口、`HubBridgeProvider` 真实 attach / capability、`call_bridge` provider 优先 + 1:1 回落、TS `entry/envelope.ts` 统一 envelope；`lania-host` 已通过 `call_bridge` 接入 provider。1:1 `NodeBridgeClient` 直连链路作为兼容层刻意保留（未删除），`RuntimeKind` / `BridgeRegistry` 等非通信桥细节不在替换范围；§6 剩余未决问题（鉴权/超时/背压/命名空间细则）仍保持未决。`scripts/check-bridge-protocol.mjs` 边界扫描半径不变。

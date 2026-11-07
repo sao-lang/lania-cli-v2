@@ -56,7 +56,9 @@ pub fn normalize_output_mode(value: &str) -> String {
 }
 
 pub fn preferences_path() -> Option<PathBuf> {
-    let home = env::var("HOME").ok()?;
+    // Windows 只设置 USERPROFILE 而不设 HOME 时也要能读写偏好；
+    // 与 Node launcher 的 `HOME || USERPROFILE` 保持一致。
+    let home = env::var("HOME").or_else(|_| env::var("USERPROFILE")).ok()?;
     if home.trim().is_empty() {
         return None;
     }

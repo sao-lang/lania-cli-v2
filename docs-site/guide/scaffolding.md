@@ -40,18 +40,20 @@ lan create [path] [options]
 
 ### 常用选项
 
-| 选项                         | 说明                       |
-| ---------------------------- | -------------------------- |
-| `-n, --name <name>`          | 项目名                     |
-| `-t, --template <template>`  | 模板名                     |
-| `-p, --package-manager <pm>` | npm / pnpm / yarn / bun    |
-| `--directory <dir>`          | 旧版路径别名               |
-| `-g, --git`                  | 初始化 Git 仓库            |
-| `--skip-git`                 | 不初始化 Git               |
-| `--skip-install`             | 跳过安装                   |
-| `--language <lang>`          | 传给模板上下文             |
-| `-d, --dry-run`              | 只规划                     |
-| `-P, --preview`              | 预览渲染结果并隐含 dry-run |
+| 选项                         | 说明                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `-n, --name <name>`          | 项目名                                                                                               |
+| `-t, --template <template>`  | 10 个模板，覆盖 Node.js / Python / Go / Rust / Dart                                                  |
+| `-p, --package-manager <pm>` | `npm` / `pnpm` / `yarn` / `bun` / `pip` / `uv` / `poetry` / `go` / `cargo` / `dart` / `pub`（11 个） |
+| `--directory <dir>`          | 旧版路径别名                                                                                         |
+| `-g, --git`                  | 初始化 Git 仓库                                                                                      |
+| `--skip-git`                 | 不初始化 Git                                                                                         |
+| `--skip-install`             | 跳过安装                                                                                             |
+| `--language <lang>`          | 传给模板上下文                                                                                       |
+| `-d, --dry-run`              | 只规划                                                                                               |
+| `-P, --preview`              | 预览渲染结果并隐含 dry-run                                                                           |
+
+安装命令按运行时选择：Node 走 `npm/pnpm/yarn/bun install`，Python 走 `pip/uv/poetry`，Go 走 `go mod tidy`，Rust 走 `cargo fetch`，Dart 走 `dart pub get`。
 
 ### 示例
 
@@ -70,6 +72,13 @@ lan create --template spa-vue --preview
 
 # 不安装依赖
 lan create --name demo-app --template spa-vue --skip-install
+
+# 多运行时项目（不限于前端/Node）
+lan create --name svc --template go-service --package-manager go
+lan create --name cli --template python-cli --package-manager uv
+lan create --name lib --template rust-lib --package-manager cargo
+lan create --name app --template dart-cli --package-manager dart
+lan create --name api --template nestjs --package-manager pnpm
 ```
 
 ### create 内部流程
@@ -160,6 +169,6 @@ ts/packages/templates/
 
 ## 下一步
 
-- [代码生成](/guide/generate)
 - [模板参考](/reference/templates)
 - [创建项目实战](/cookbook/create-project)
+- [CLI 命令参考](/reference/cli)

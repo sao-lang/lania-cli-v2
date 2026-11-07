@@ -37,27 +37,6 @@ export function structuredCloneRecord<T extends Record<string, unknown>>(value: 
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function normalizeGeneratedBinaryName(value: string): string {
-  // We want a `bin` name that is:
-  // - lowercase
-  // - filesystem friendly
-  // - stable
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/^@[^/]+\//, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .replace(/-cli$/, '') || 'product'
-  );
-}
-
-export function resolveGeneratedPackageName(input: unknown, binaryName: string): string {
-  const provided = firstNonEmptyString(input);
-  return provided ?? `@lania-product/${binaryName}`;
-}
-
 export function escapeTemplateString(value: string): string {
   // Used when embedding user-provided strings into generated TS template strings.
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");

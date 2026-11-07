@@ -666,10 +666,9 @@ rg -n "commands.resolveDynamic|command.invokeDynamic|host_request|host_response"
 
 从这一页开始就不再重复展开函数级细节了。`roadmap` 的职责只保留“命令总路由图”和“跨模块链路图”，更细的函数、结构体和中间对象统一下沉到专题索引页。
 
-如果你要继续往下追，直接用这三页：
+如果你要继续往下追，直接用以下索引页：
 
 - `create`：[create-symbol-index.zh-CN.md](file:///Users/bytedance/Desktop/files/projects/self/lania-zip/lania-cli-v2/docs/guides/create-symbol-index.zh-CN.md)
-- `generate module`：[generate-module-symbol-index.zh-CN.md](file:///Users/bytedance/Desktop/files/projects/self/lania-zip/lania-cli-v2/docs/guides/generate-module-symbol-index.zh-CN.md)
 - `release`：[release-symbol-index.zh-CN.md](file:///Users/bytedance/Desktop/files/projects/self/lania-zip/lania-cli-v2/docs/guides/release-symbol-index.zh-CN.md)
 
 建议的下钻顺序：

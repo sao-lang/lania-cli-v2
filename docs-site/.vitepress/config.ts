@@ -9,7 +9,7 @@ export default defineConfig({
   lang: 'zh-CN',
   title: 'Lania CLI',
   titleTemplate: ':title · Lania CLI 学习文档',
-  description: 'Lania CLI v2 学习文档：双运行时 CLI 宿主、命令、模板、代码生成、发布与产品化。',
+  description: 'Lania CLI v2 学习文档：双运行时 CLI 宿主、命令、多运行时项目模板、发布与产品化。',
   cleanUrls: true,
   lastUpdated: true,
   head: [
@@ -60,8 +60,7 @@ export default defineConfig({
             { text: '命令总览', link: '/guide/commands' },
             { text: '工具命令 tools', link: '/guide/tools' },
             { text: '语言环境管理 env', link: '/guide/env' },
-            { text: '模板与脚手架', link: '/guide/scaffolding' },
-            { text: '代码生成', link: '/guide/generate' },
+            { text: '多运行时模板与脚手架', link: '/guide/scaffolding' },
             { text: '发布与同步', link: '/guide/release' },
             { text: '产品 CLI', link: '/guide/product-cli' }
           ]
@@ -112,8 +111,6 @@ export default defineConfig({
           text: '实战',
           items: [
             { text: '创建项目', link: '/cookbook/create-project' },
-            { text: '生成 HTTP / gRPC 代码', link: '/cookbook/generate-api' },
-            { text: '生成 Go 模块', link: '/cookbook/generate-module' },
             { text: '打包并发布产品 CLI', link: '/cookbook/product-publish' }
           ]
         }

@@ -475,8 +475,6 @@ docs-site/
     workflows.md
   cookbook/
     create-project.md
-    generate-api.md
-    generate-module.md
     release.md
     product-publish.md
   contributing/

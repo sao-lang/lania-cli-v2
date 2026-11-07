@@ -6,12 +6,10 @@ use lania_plugins_command_add::AddCommandPlugin;
 use lania_plugins_command_build::BuildCommandPlugin;
 use lania_plugins_command_create::CreateCommandPlugin;
 use lania_plugins_command_dev::DevCommandPlugin;
-use lania_plugins_command_generate::GenerateCommandPlugin;
 use lania_plugins_command_git::GitCommandPlugin;
 use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_plugins_command_release::ReleaseCommandPlugin;
-use lania_plugins_command_template::TemplateCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
 
 fn register_cli_plugins(host: &mut HostRuntime) {
@@ -27,14 +25,10 @@ fn register_cli_plugins(host: &mut HostRuntime) {
         .expect("create plugin registers");
     host.register_plugin(Box::new(AddCommandPlugin))
         .expect("add plugin registers");
-    host.register_plugin(Box::new(GenerateCommandPlugin))
-        .expect("generate plugin registers");
     host.register_plugin(Box::new(ReleaseCommandPlugin))
         .expect("release plugin registers");
     host.register_plugin(Box::new(GitCommandPlugin))
         .expect("git plugin registers");
-    host.register_plugin(Box::new(TemplateCommandPlugin))
-        .expect("template plugin registers");
     host.register_plugin(Box::new(ToolsCommandPlugin))
         .expect("tools plugin registers");
     host.register_plugin(Box::new(ConfigCommandPlugin))
@@ -448,112 +442,6 @@ fn lan_inspect_product_human_mode_e2e() {
     let doctor_stdout = String::from_utf8_lossy(&doctor_output.stdout);
     assert_eq!(doctor_output.status.code(), Some(0));
     assert!(doctor_stdout.contains("Product Doctor Diagnostics"));
-
-    let _ = fs::remove_dir_all(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn phase2_product_authoring_full_chain_demo_e2e() {
-    let root = temp_dir("phase2-product-full-chain");
-    ensure_node_bridge_dist();
-
-    // 1) Generate a demo product scaffold.
-    let gen_output = run_cli(
-        &root,
-        &[
-            "product",
-            "generate",
-            "--preset",
-            "demo",
-            "--name",
-            "Acme CLI",
-            "--binary-name",
-            "acme",
-            "--output-dir",
-            "product",
-            "--force",
-        ],
-        &[],
-    );
-    assert_eq!(gen_output.status.code(), Some(0));
-
-    let product = root.join("product");
-
-    // 2) Inspect product (human mode in demo preset).
-    let inspect_output = run_cli(&product, &["product", "inspect"], &[]);
-    let inspect_stdout = String::from_utf8_lossy(&inspect_output.stdout);
-    let inspect_stderr = String::from_utf8_lossy(&inspect_output.stderr);
-    assert_eq!(
-        inspect_output.status.code(),
-        Some(0),
-        "inspect failed.\nstdout:\n{}\nstderr:\n{}",
-        inspect_stdout,
-        inspect_stderr
-    );
-    assert!(inspect_stdout.contains("Product Development Diagnostics"));
-    assert!(inspect_stdout.contains("Next Steps"));
-
-    // 3) Ensure product templates are discoverable via `lan template` (product.templatesDir).
-    let template_list = run_cli(&product, &["template"], &[]);
-    let template_stdout = String::from_utf8_lossy(&template_list.stdout);
-    assert_eq!(template_list.status.code(), Some(0));
-    assert!(
-        template_stdout.contains("demo-app"),
-        "template list should include product template: {template_stdout}"
-    );
-
-    // 4) Run a product command in development mode through `product dev`.
-    let dev_output = run_cli(&product, &["product", "dev", "hello", "--path", "."], &[]);
-    assert_eq!(dev_output.status.code(), Some(0));
-
-    // 4.1) Grouped product commands should work as aliases for the scattered command surface.
-    assert_eq!(
-        run_cli(&product, &["product", "inspect"], &[])
-            .status
-            .code(),
-        Some(0)
-    );
-    assert_eq!(
-        run_cli(&product, &["product", "doctor"], &[]).status.code(),
-        Some(0)
-    );
-    assert_eq!(
-        run_cli(&product, &["product", "build"], &[]).status.code(),
-        Some(0)
-    );
-    assert_eq!(
-        run_cli(&product, &["product", "pack"], &[]).status.code(),
-        Some(0)
-    );
-    assert_eq!(
-        run_cli(&product, &["product", "publish"], &[])
-            .status
-            .code(),
-        Some(0)
-    );
-    assert_eq!(
-        run_cli(&product, &["product", "dev", "hello", "--path", "."], &[])
-            .status
-            .code(),
-        Some(0)
-    );
-
-    // 5) Ensure the product-provided template workflow writes the expected report.
-    let run_output = run_cli(&product, &["product-template"], &[]);
-    assert_eq!(
-        run_output.status.code(),
-        Some(0),
-        "product-template failed.\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&run_output.stdout),
-        String::from_utf8_lossy(&run_output.stderr)
-    );
-    let product_template_report = product.join(".lania/reports/product-templates.json");
-    assert!(
-        product_template_report.exists(),
-        "expected product template workflow output: {}",
-        product_template_report.display()
-    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1325,33 +1213,6 @@ fn lan_dynamic_command_human_output_zh_e2e() {
     assert_eq!(output.status.code(), Some(0));
     assert!(stdout.contains("lan ops ping"));
     assert!(stdout.contains("pong"));
-
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
-fn lan_generate_missing_subcommand_zh_e2e() {
-    let root = temp_dir("generate-missing-subcommand-zh");
-    let home = isolated_home(&root);
-    write_file(
-        std::path::Path::new(&home)
-            .join(".lania")
-            .join("preferences.json"),
-        r#"{
-  "locale": "zh",
-  "outputMode": "json",
-  "logTimestamps": false
-}
-"#,
-    );
-
-    let output = run_cli(&root, &["generate"], &[("HOME", home.as_str())]);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(2));
-    assert!(stderr.contains("缺少 generate 子命令"));
-    assert!(stdout.contains("缺少 generate 子命令"));
 
     let _ = fs::remove_dir_all(root);
 }

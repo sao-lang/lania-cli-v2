@@ -6,7 +6,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-`Lania CLI v2` 是一个以 Rust 为宿主、以 Node Bridge 承接 JavaScript 生态能力的双运行时 CLI。当前实现已经覆盖项目开发、模板脚手架、代码生成、发布编排、Git 同步，以及项目级自定义指令扩展。
+`Lania CLI v2` 是一个以 Rust 为宿主、以 Node Bridge 承接 JavaScript 生态能力的双运行时 CLI。当前实现已经覆盖项目开发、多运行时模板脚手架、发布编排、Git 同步，以及项目级自定义指令扩展。
 
 它不只是一个“内置命令集合”，也可以作为一个可扩展的 CLI 宿主框架使用。项目可以通过 `lan.config.*`、`lania.schemas.*` 和项目插件，在不修改 Rust 宿主的前提下，向同一棵命令树里挂载自己的工程化命令、产品命令或领域命令。
 
@@ -17,7 +17,7 @@
 - [在线文档](https://sao-lang.github.io/lania-cli-v2/)：由 GitHub Actions 自动构建并部署到 GitHub Pages。
 - [学习地图](./docs/guides/learning-map.zh-CN.md)：面向首次接手仓库的开发者，解释目录结构、模块协作和关键链路。
 - [命令与运行时 Roadmap](./docs/guides/command-runtime-roadmap.zh-CN.md)：按命令族梳理入口、handler、workflow / bridge / local 分支，以及关键函数追踪切口。
-- [符号索引](./docs/README.zh-CN.md#guides)：补充 `create`、`generate module`、`release` 三条重链路的结构体、字段、函数和上下游调用索引。
+- [符号索引](./docs/README.zh-CN.md#guides)：补充 `create`、`release` 两条重链路的结构体、字段、函数和上下游调用索引。
 - [模块设计与通信总览](./docs/architecture/模块设计与通信总览.zh-CN.md)：逐模块解释 npm wrapper、Rust host runtime、Node Bridge、插件系统、Dynamic Commands、Host RPC、workflow 与模板层之间的协作和通信。
 - [框架化与产品化总览](./docs/architecture/框架化与产品化总览.zh-CN.md)：框架定位、作者 API 和产品化闭环。
 - [专题设计与对账](./docs/design/专题设计与对账.zh-CN.md)：`ctx.tools`、模板边界、插件安全、类型契约与工程化增强收敛。
@@ -26,17 +26,17 @@
 
 ## 当前能力
 
-- 内置命令覆盖 `dev`、`build`、`lint`、`tools`、`env`、`create`、`add`、`template`、`generate api`、`generate module`、`release`、`git`、`config`。
+- 11 个内置命令：`dev`、`build`、`lint`、`tools`、`env`、`pi`、`create`、`add`、`release`、`git`、`config`（模板查询是 `create` 的二级命令 `lan create template`）。
 - 支持三类执行路径：
   - Bridge 型命令：`dev`、`build`、`lint`
   - 混合型命令：`tools`，其中 `tools list` 走 Node Bridge，`tools run/view` 走本地宿主能力
   - 混合型命令：`env`，探测走本地宿主能力，变更操作默认 dry-run；`env ui` 提供终端 TUI 双栏界面
-  - Workflow 型命令：`create`、`add`、`generate`、`release`、`git`
+  - Workflow 型命令：`create`、`add`、`release`、`git`
   - 运行时扩展命令：由项目通过 `lan.config.*` 和 `lania.schemas.*` 动态注入
 - 支持项目级插件与方法白名单、来源约束、签名策略等安全机制。
 - 支持 `json`、`human` 两种输出模式，以及 `spinner`、`bar`、`none` 三种进度渲染策略。
 - 支持 `lan.config.js`、`lan.config.cjs`、`lan.config.json`、`lan.config.ts`。
-- 支持模板元信息查询、项目脚手架生成、局部模板补充、契约生成、模块生成、发布状态恢复。
+- 支持模板元信息查询、多运行时项目脚手架生成、局部模板补充、发布状态恢复。
 - 支持项目级动态命令与 Hook 绑定，允许在不修改 Rust 宿主的前提下扩展命令树。
 - 支持将当前 CLI 作为项目级工程化 CLI 宿主进行二次开发：可以为团队封装自己的命令入口、交互流程、校验逻辑和宿主能力调用。
 
@@ -119,12 +119,6 @@ lan env ui                       # 打开终端 TUI（键盘操作）
 
 `lan env` 不自己造安装器，而是复用 nvm / fnm / volta / pyenv / uv / rustup / sdkman / scoop / winget / brew 等生态既有方案。`lan env ui` 提供双栏终端界面：左侧工具列表（`↑↓` 切换），右侧详情与操作（`i` 安装 / `u` 切换 / `d` 卸载），所有变更先显示计划再执行。详见 [语言环境管理 env](./docs-site/guide/env.md)。
 
-初始化契约生成配置：
-
-```bash
-lan generate api init
-```
-
 规划一次发布：
 
 ```bash
@@ -185,10 +179,9 @@ pnpm publish:verdaccio
 - `examples/product-cli-demo/lan.config.json`
 - `examples/product-cli-demo/product/lania.schemas.ts`
 
-一个推荐的产品 CLI 打包/发布验证顺序：
+在已有产品 CLI 工程（例如 `examples/product-cli-demo`）中，推荐的打包/发布验证顺序：
 
 ```bash
-lan product generate --preset demo --name "Acme CLI" --binary-name acme --output-dir ./acme-cli --force
 cd ./acme-cli
 
 lan product build
@@ -201,7 +194,6 @@ lan product publish --execute --dry-run --yes
 
 这个顺序分别对应：
 
-- `product generate`：生成一个可打包的产品 CLI 工程骨架
 - `product build`：产出 product snapshot
 - `product pack`：产出 install-root 布局
 - `product publish`：生成 npm 包、wrapper、bundle 和 `publish-manifest.json`
@@ -227,21 +219,19 @@ cargo run -p lania-cli -- create --preview --name demo-app
 
 ## 命令总览
 
-| 命令              | 类型        | 作用                                                                                                     |
-| ----------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
-| `dev`             | Bridge      | 启动当前项目的开发流程                                                                                   |
-| `build`           | Bridge      | 触发构建或 watch 构建                                                                                    |
-| `lint`            | Bridge      | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复                                                  |
-| `tools`           | 混合命令    | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件 |
-| `env`             | 混合 / TUI  | 查看与管理 Node/Python/Rust/Go/Dart/Kotlin/Java/C 的工具链版本，`lan env ui` 提供终端双栏界面            |
-| `create`          | Workflow    | 以模板创建新项目                                                                                         |
-| `add`             | Workflow    | 向现有仓库补充局部模板、配置或代码片段                                                                   |
-| `template`        | Bridge 查询 | 列出模板或查看模板详情                                                                                   |
-| `generate api`    | Workflow    | 从 `lania.contract.yaml` 生成契约 DTO 与传输层代码                                                       |
-| `generate module` | Workflow    | 从 `lania.module.yaml` 生成 `lania-g` 相关模块与注入代码                                                 |
-| `release`         | Workflow    | 规划、执行、恢复或查询一次发布流程                                                                       |
-| `git`             | Workflow    | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                 |
-| `config`          | Workflow    | 读取或更新 CLI 全局偏好，例如语言和输出模式                                                              |
+| 命令       | 类型        | 作用                                                                                                     |
+| ---------- | ----------- | -------------------------------------------------------------------------------------------------------- |
+| `dev`      | Bridge      | 启动当前项目的开发流程                                                                                   |
+| `build`    | Bridge      | 触发构建或 watch 构建                                                                                    |
+| `lint`     | Bridge      | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复                                                  |
+| `tools`    | 混合命令    | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件 |
+| `env`      | 混合 / TUI  | 查看与管理 Node/Python/Rust/Go/Dart/Kotlin/Java/C 的工具链版本，`lan env ui` 提供终端双栏界面            |
+| `create`   | Workflow    | 以模板创建新项目                                                                                         |
+| `add`      | Workflow    | 向现有仓库补充局部模板、配置或代码片段                                                                   |
+| `template` | Bridge 查询 | 列出模板或查看模板详情                                                                                   |
+| `release`  | Workflow    | 规划、执行、恢复或查询一次发布流程                                                                       |
+| `git`      | Workflow    | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                 |
+| `config`   | Workflow    | 读取或更新 CLI 全局偏好，例如语言和输出模式                                                              |
 
 ## 关键链路
 
@@ -366,10 +356,14 @@ module.exports = {
 - `lan dev` / `lan build` 的构建日志与运行期 stdout/stderr 实时流式输出，统一为 compiler 事件格式（`▶ start` / `• status` / `✖ issue` / `✔ done`）；Ctrl-C 停止时也会输出收尾日志。
 - `lan create --template <name> --skip-install` 可跳过 npm/pnpm 安装；新语言模板的 `skipInstall` 默认即为 true。
 
-内置模板：
+内置模板（create 共 10 个，覆盖 Node.js / Python / Go / Rust / Dart 五种运行时）：
 
-- create：`go-service`、`rust-lib`、`python-cli`、`dart-cli`、`nestjs`、`express`
+- `spa-react`（React SPA）、`spa-vue`（Vue 3 SPA）、`toolkit`（Node 工具库）、`toolkit-monorepo`（pnpm monorepo）
+- `nestjs`（NestJS 服务端）、`express`（Express 服务端）
+- `go-service`（Go 服务/CLI）、`rust-lib`（Rust 库）、`python-cli`（Python CLI）、`dart-cli`（Dart CLI）
 - add：`go-handler`、`python-module`、`rust-module`、`dart-class`
+
+`--package-manager` 共 11 个候选：`npm` / `pnpm` / `yarn` / `bun` / `pip` / `uv` / `poetry` / `go` / `cargo` / `dart` / `pub`。
 
 创建项目时可以选择包管理器、lint 工具与测试工具：
 
@@ -401,20 +395,9 @@ lan lint --linters dart-analyze
 
 Node 框架项目通过 `lan.config.js` 的 `buildTool` 选择构建工具：`nest` 调用本地 `@nestjs/cli`，`tsc` 调用本地 `typescript`；工具缺失时 fail-fast。生成模板时写入的 `lintTools` 也会被 `lan lint` 直接使用。Python 的生成文件优先用 `ruff format`，不可用时回退 `black`；Dart 使用 `dart format`。
 
-### `generate api` / `generate module`
+### `generate api` / `generate module`（已下线归档）
 
-- Rust 工作流读取对应 YAML 配置。
-- 生成链路负责构建计划、输出差异、清理旧文件、维护 manifest 锁文件。
-- `generate module` 还会负责 `main.go` 标记块注入与幂等校验。
-- `generate module` 支持按 `inputs[].targets` 做 source -> target 映射，并生成 `lania-g` 风格 DSL 注册代码：
-  - `protobuf -> grpc`
-  - `thrift -> http`
-  - `json|yaml -> ws`
-  - `graphql -> graphql`
-- schema 内可直接声明 transport metadata：
-  - `proto/thrift`：单行注释 `// lania:...`
-  - `json/yaml`：扩展字段 `x-lania-operations`
-  - 详细规范见 [模块设计与通信总览](./docs/architecture/模块设计与通信总览.zh-CN.md) 与 [专题设计与对账](./docs/design/专题设计与对账.zh-CN.md)
+> `generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计；完整代码保存在本地分支 `archive/generate-command`（指向删除前提交 `61d47b9`），便于恢复。相关 YAML 配置（`lania.contract.yaml` / `lania.module.yaml`）与锁文件不再由内置命令维护；历史设计可参见 [模块设计与通信总览](./docs/architecture/模块设计与通信总览.zh-CN.md) 与 [专题设计与对账](./docs/design/专题设计与对账.zh-CN.md)。
 
 ### `release` / `git`
 
@@ -663,7 +646,7 @@ export default {
   - `onAnswered`
 - `prompt.whenMissing` 仍然可用，但它只是“缺参才问”的兼容写法；复杂分支建议直接用 `when/goto/onAnswered`。
 - `hooks.preRun` / `hooks.postRun` 会分别映射到 `onCommandPreInit` / `onSuccess`。
-- 顶级保留命令如 `dev`、`build`、`generate`、`release` 不能被 `mount` 覆盖。
+- 顶级保留命令如 `dev`、`build`、`release` 不能被 `mount` 覆盖。
 
 ## 用当前 CLI 开发项目自己的 CLI
 
@@ -943,15 +926,33 @@ handler: async (ctx) => {
   - `.yaml`
   - `.yml`
 
-### 生成与状态文件
+### 三层配置统一管理（config 统一管理面）
 
-| 文件                          | 用途                         |
-| ----------------------------- | ---------------------------- |
-| `lania.contract.yaml`         | `generate api` 的输入配置    |
-| `lania.module.yaml`           | `generate module` 的输入配置 |
-| `.lania/contracts.lock.json`  | 契约生成输出跟踪             |
-| `.lania/module-gen.lock.json` | 模块生成输出跟踪             |
-| `.lania/release-state.json`   | 发布流程状态快照             |
+配置分三层：项目级 `lan.config.*`、全局偏好 `~/.lania/preferences.json`、包级偏好 `~/.lania/config/<pkg>.json`。`lan config` 是统一管理面（`config` 自身不算命令子包），`generate` 归档后共 11 个命令。
+
+10 个命令子包（`add` / `build` / `create` / `dev` / `env` / `git` / `lint` / `pi` / `release` / `tools`）全部带 `config` 二级命令：`bare` / `get` / `set` / `init` / `doctor` / `sync`，中英双语文案齐全，`get` / `set` 支持 `--global` 切到全局作用域。包级键由各包 `lania.package.json` 的 `configSchema` 声明：通用 `locale`（`zh` / `en`）、`output.mode`（`json` / `human`）、`log.timestamps`（bool），`env` 额外 `shim.host`（`lan` / `runex`）。共用实现收敛在 `packages/foundation/package-config/rust/lania-command-config`，不再每包写一遍。
+
+```bash
+# 读写单个子包（--package 支持短名 / npm 全名 / bin 名 / crate 名，统一归一化）
+lan config get locale --package env
+lan config set locale zh --package @lania-cli-v2/cmd-env
+lan config set shim.host runex --package lan-env
+
+# 列出所有已安装子包声明的键、默认值与当前值
+lan config packages --json
+
+# 把全局偏好一键下发到所有已安装且启用的子包
+lan config apply
+lan config apply --package env --set locale=zh --set output.mode=human
+```
+
+`--package` 统一归一化后按目标包 `configSchema` 校验写入；`apply` 只覆盖子包已声明的键（点分键与 camelCase 全局键有映射）。静态表 `known-commands.json` 现携带每个子包的 `configSchema`，launcher 运行时不再解析 npm manifest；独立二进制 `lan-config packages` / `lan-config apply`（扫描 `~/.lania/config/*.json`）也可用，但主路径是 `lan`。详见 [配置文件指南](./docs-site/guide/configuration.md) 与 [配置字段参考](./docs-site/reference/config.md)。
+
+### 状态文件
+
+| 文件                        | 用途             |
+| --------------------------- | ---------------- |
+| `.lania/release-state.json` | 发布流程状态快照 |
 
 ## 输出与交互
 

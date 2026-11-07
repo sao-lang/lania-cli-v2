@@ -30,7 +30,8 @@ use serde::Serialize;
 use std::{env, future::Future, pin::Pin, sync::Arc};
 
 use crate::{
-    runtime::bridges::SharedBridgeRegistry, CapabilityName, CapabilityResolver, RuntimeKind,
+    runtime::bridges::SharedBridgeRegistry, BridgeProvider, CapabilityName, CapabilityResolver,
+    RuntimeKind,
 };
 
 use super::types::EXIT_RUNTIME_ERROR;
@@ -54,6 +55,8 @@ pub struct HostExecutionServices<'a> {
     pub node_bridge: &'a NodeBridgeClient,
     /// 其他运行时的 bridge 注册表（`None` 时只能走 JS 簇 / 回落）。
     pub bridges: Option<&'a SharedBridgeRegistry>,
+    /// 新总线注入槽（`bridge_slot` 已 attach 时优先走它，否则回落 1:1 客户端）。
+    pub bridge_provider: Option<Arc<dyn BridgeProvider>>,
     pub hooks: Arc<dyn HookRuntime>,
     pub project_config: Option<LanConfigSnapshot>,
     pub locale: String,
@@ -80,6 +83,9 @@ pub struct CommandExecutionContext<'a> {
     pub(super) runtime: &'a RuntimeService,
     pub(super) node_bridge: &'a NodeBridgeClient,
     pub(super) bridges: Option<&'a SharedBridgeRegistry>,
+    /// 注入的 BridgeProvider；`call_bridge` 优先走它，未注入或未声明该 capability
+    /// 时回落到 `node_bridge` 的 1:1 链路（兼容层，保证行为不退化）。
+    pub(super) bridge_provider: Option<Arc<dyn BridgeProvider>>,
     // `hooks` 使用 `Arc<dyn HookRuntime>` 而不是 `&dyn HookRuntime`：
     // - workflow / task 往往会跨异步边界、跨闭包 move；
     // - 普通借用 `&T` 生命周期更短，不容易安全地传进 `'static` 异步任务；
@@ -156,6 +162,7 @@ impl<'a> CommandExecutionContext<'a> {
             runtime: services.runtime,
             node_bridge: services.node_bridge,
             bridges: services.bridges,
+            bridge_provider: services.bridge_provider,
             policy: ExecutionPolicy::from_env(services.node_bridge),
             hooks: services.hooks,
             project_config: services.project_config,
@@ -226,8 +233,14 @@ impl<'a> CommandExecutionContext<'a> {
         self.node_bridge
     }
 
-    /// 按运行时取得 bridge 客户端（JS 簇恒返回共享 node bridge）。
-    /// 未登记/不可用时返回错误，调用方据此回落到 CLI spawn。
+    /// 已注入的新总线 provider（未注入时为 `None`，即纯 1:1 回落）。
+    pub fn bridge_provider(&self) -> Option<&Arc<dyn BridgeProvider>> {
+        self.bridge_provider.as_ref()
+    }
+
+    /// 按运行时取得 1:1 bridge 客户端（JS 簇恒返回共享 node bridge）。
+    /// 这是新总线未命中时的回落链路（§5.3）；provider 优先是在 `call_bridge`
+    /// 的执行分发处判断的，不在本方法里改变返回类型。
     pub fn bridge(&self, kind: RuntimeKind) -> Result<NodeBridgeClient> {
         if kind.is_js_cluster() {
             return Ok(self.node_bridge.clone());

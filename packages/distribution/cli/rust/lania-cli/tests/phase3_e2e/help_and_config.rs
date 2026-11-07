@@ -213,39 +213,6 @@ fn lan_release_help_is_localized_in_zh_e2e() {
 }
 
 #[test]
-fn lan_generate_module_help_is_localized_in_zh_e2e() {
-    let root = temp_dir("generate-module-help-zh");
-    let home = isolated_home(&root);
-    write_file(
-        Path::new(&home).join(".lania").join("preferences.json"),
-        r#"{
-  "locale": "zh",
-  "outputMode": "json",
-  "logTimestamps": false
-}
-"#,
-    );
-
-    let output = run_cli(
-        &root,
-        &["generate", "module", "--help"],
-        &[("HOME", home.as_str())],
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(output.status.code(), Some(0));
-    assert!(stdout.contains("生成 lania-g 模块与 main.go 注入产物"));
-    assert!(stdout.contains("预览生成的模块文件、注入变更与清理动作"));
-    assert!(stdout.contains("对比当前模块 manifest 与计划输出"));
-    assert!(stdout.contains("模块配置文件路径"));
-    assert!(stdout.contains("跳过 main.go 注入和 helper 生成"));
-    assert!(!stdout.contains("Generate lania-g modules"));
-    assert!(!stdout.contains("Preview generated module files"));
-
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
 fn lan_product_help_is_localized_in_zh_e2e() {
     let root = temp_dir("product-help-zh");
     let home = isolated_home(&root);
@@ -267,9 +234,7 @@ fn lan_product_help_is_localized_in_zh_e2e() {
     assert!(stdout.contains("以开发模式运行本地 product"));
     assert!(stdout.contains("构建一个用于打包的最小 product 快照"));
     assert!(stdout.contains("运行 product doctor 诊断，包括兼容性检查"));
-    assert!(stdout.contains("生成一个带脚手架的 CLI product 工作区"));
     assert!(!stdout.contains("Run a local product in development mode"));
-    assert!(!stdout.contains("Generate a scaffolded CLI product workspace"));
 
     let _ = fs::remove_dir_all(root);
 }

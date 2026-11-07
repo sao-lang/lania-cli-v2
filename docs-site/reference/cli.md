@@ -133,18 +133,20 @@ lan tools view <path> [options]
 lan create [path] [options]
 ```
 
-| 选项                         | 说明                                                     |
-| ---------------------------- | -------------------------------------------------------- |
-| `-n, --name <name>`          | 项目名                                                   |
-| `-t, --template <template>`  | `spa-react` / `spa-vue` / `toolkit` / `toolkit-monorepo` |
-| `-p, --package-manager <pm>` | npm/pnpm/yarn/bun                                        |
-| `--directory <dir>`          | 旧版路径                                                 |
-| `-g, --git`                  | 初始化 Git                                               |
-| `--skip-git`                 | 跳过 Git                                                 |
-| `--skip-install`             | 跳过安装                                                 |
-| `--language <lang>`          | 模板语言                                                 |
-| `-d, --dry-run`              | 只规划                                                   |
-| `-P, --preview`              | 预览并隐含 dry-run                                       |
+| 选项                         | 说明                                                                                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-n, --name <name>`          | 项目名                                                                                                                                             |
+| `-t, --template <template>`  | 10 个模板：`spa-react` / `spa-vue` / `toolkit` / `toolkit-monorepo` / `nestjs` / `express` / `go-service` / `rust-lib` / `python-cli` / `dart-cli` |
+| `-p, --package-manager <pm>` | 11 个候选：`npm` / `pnpm` / `yarn` / `bun` / `pip` / `uv` / `poetry` / `go` / `cargo` / `dart` / `pub`                                             |
+| `--directory <dir>`          | 旧版路径                                                                                                                                           |
+| `-g, --git`                  | 初始化 Git                                                                                                                                         |
+| `--skip-git`                 | 跳过 Git                                                                                                                                           |
+| `--skip-install`             | 跳过安装                                                                                                                                           |
+| `--language <lang>`          | 模板语言                                                                                                                                           |
+| `-d, --dry-run`              | 只规划                                                                                                                                             |
+| `-P, --preview`              | 预览并隐含 dry-run                                                                                                                                 |
+
+安装命令按运行时选择：Node 走 `npm/pnpm/yarn/bun install`，Python 走 `pip/uv/poetry`，Go 走 `go mod tidy`，Rust 走 `cargo fetch`，Dart 走 `dart pub get`。
 
 ## add
 
@@ -166,48 +168,6 @@ lan add [options]
 lan template
 lan template <name>
 ```
-
-## generate api
-
-```bash
-lan generate api [plan|diff|init] [options]
-```
-
-| 选项                    | 说明                       |
-| ----------------------- | -------------------------- |
-| `-c, --config <path>`   | 默认 `lania.contract.yaml` |
-| `-s, --source <source>` | 源过滤                     |
-| `-t, --target <target>` | 目标过滤                   |
-| `-e, --entry <entry>`   | 入口过滤                   |
-| `-m, --manifest <path>` | manifest                   |
-| `-d, --dry-run`         | 只规划                     |
-| `-k, --check`           | 只校验                     |
-| `--clean`               | 清理 stale                 |
-| `-f, --force`           | 覆盖冲突                   |
-
-## generate module
-
-```bash
-lan generate module [plan|diff|init|apply] [options]
-```
-
-| 选项                    | 说明                     |
-| ----------------------- | ------------------------ |
-| `-c, --config <path>`   | 默认 `lania.module.yaml` |
-| `-i, --input <path>`    | 限定输入                 |
-| `-s, --source <source>` | 源过滤                   |
-| `-t, --target <target>` | 目标过滤                 |
-| `--framework <name>`    | 后端框架                 |
-| `-e, --entry <entry>`   | 入口过滤                 |
-| `--main <path>`         | main.go 注入目标         |
-| `--module-name <name>`  | 模块名覆盖               |
-| `--package <path>`      | Go import path           |
-| `-m, --manifest <path>` | manifest                 |
-| `-d, --dry-run`         | 只规划                   |
-| `-k, --check`           | 只校验                   |
-| `--clean`               | 清理 stale               |
-| `-f, --force`           | 覆盖冲突                 |
-| `--no-inject`           | 跳过 main.go 注入        |
 
 ## release
 
@@ -268,22 +228,39 @@ lan git sync|commit|push [options]
 
 ## config
 
+`lan config` 是「项目级 `lan.config.*` / 全局偏好 / 包级偏好」三层配置的统一管理面。
+
 ```bash
 lan config
 lan config get <key>
 lan config set <key> <value>
+lan config get <key> --package <pkg>
+lan config set <key> <value> --package <pkg>
+lan config packages [--json]
+lan config apply [--package <pkg>] [--set <dotted.key>=<value>]...
 ```
 
-支持的 key：
+支持的全局 key：
 
-- `locale`
-- `log.timestamps`
-- `output.mode`
+- `locale`（`zh` / `en`）
+- `log.timestamps`（bool）
+- `output.mode`（`json` / `human`）
+
+包级偏好保存在 `~/.lania/config/<pkg>.json`，可用键由各包 `lania.package.json` 的 `configSchema` 声明：通用为 `locale` / `output.mode` / `log.timestamps`，`env` 额外有 `shim.host`（`lan` / `runex`）；写入按 `configSchema` 校验。
+
+| 用法                                               | 说明                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `lan config get/set <key> [value] --package <pkg>` | 直接读写子包配置；`--package` 支持短命令名、npm 全名（`@lania-cli-v2/cmd-env`）、bin 名（`lan-env`）、crate 名，统一归一化 |
+| `lan config packages [--json]`                     | 列出所有已安装子包声明的键、默认值与当前值                                                                                 |
+| `lan config apply [--package <pkg>] [--set ...]`   | 把全局偏好一键下发到所有**已安装且启用**的子包，只覆盖子包声明过的键（点分键与 camelCase 全局键有映射）                    |
+
+10 个命令子包（add / build / create / dev / env / git / lint / pi / release / tools）各自带 `config` 二级命令 `bare` / `get` / `set` / `init` / `doctor` / `sync`，`get` / `set` 支持 `--global` 切到全局作用域，均有中英双语文案；`config` 自身为管理面，故当前共 11 个命令。独立二进制 `lan-config packages` / `lan-config apply`（扫描 `~/.lania/config/*.json`）也可用，主路径仍是 `lan`。
+
+详见 [配置字段参考](/reference/config) 与 [配置文件指南](/guide/configuration)。
 
 ## product
 
 ```bash
-lan product generate
 lan product dev <command>
 lan product build
 lan product pack
@@ -292,17 +269,7 @@ lan product inspect
 lan product doctor
 ```
 
-### product generate
-
-| 选项                        | 说明                            |
-| --------------------------- | ------------------------------- |
-| `--preset <preset>`         | `demo` / `minimal`，默认 `demo` |
-| `-i, --interactive`         | 交互补问                        |
-| `-n, --name <name>`         | 展示名                          |
-| `-b, --binary-name <name>`  | 二进制名                        |
-| `-p, --package-name <name>` | npm 包名                        |
-| `-o, --output-dir <dir>`    | 输出目录                        |
-| `-f, --force`               | 覆盖已有目录                    |
+> `generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计，本页不再列出其语法；完整代码保存在本地分支 `archive/generate-command`。
 
 ### product dev
 

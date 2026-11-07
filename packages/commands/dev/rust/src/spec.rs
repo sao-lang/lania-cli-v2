@@ -37,10 +37,6 @@ impl DevCommandPlugin {
         )
         .with_examples(vec![
             Example {
-                command: "lan product generate --name \"Acme CLI\" --binary-name acme".into(),
-                description: "Scaffold a new CLI product workspace".into(),
-            },
-            Example {
                 command: "lan product dev hello --path ./products/acme-cli".into(),
                 description: "Run a local product command in development mode".into(),
             },
@@ -144,6 +140,7 @@ impl DevCommandPlugin {
                     negatable: true,
                 },
             ])
+            .with_subcommand(crate::config::config_spec())
             .with_examples(vec![
                 Example {
                     command: "lan dev".into(),

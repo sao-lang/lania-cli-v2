@@ -151,10 +151,14 @@ impl HostRuntime {
         &self.services.node_bridge
     }
 
-    /// 按运行时取 bridge 客户端。
+    /// 按运行时取 1:1 bridge 客户端（§5.3 回落链路）。
     ///
     /// JS 簇（node / bun / deno）永远返回共享的 node bridge；
     /// 其他运行时若未登记/未启动，返回错误 —— 调用方据此回落到 CLI spawn（§5.3）。
+    ///
+    /// 新总线优先是在 `call_bridge` 的执行分发处判断的：`bridge_slot` 已 attach
+    /// 时先走 `BridgeProvider`，未命中 capability 才回落到这里的 1:1 客户端。
+    /// 本方法保持返回具体 `NodeBridgeClient`，因此不改变既有回落语义。
     pub fn bridge(&self, kind: RuntimeKind) -> Result<NodeBridgeClient> {
         self.services
             .bridges

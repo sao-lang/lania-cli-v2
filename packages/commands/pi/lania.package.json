@@ -45,5 +45,31 @@
   "payload": {
     "slices": ["agent", "toolchain"],
     "nodeBridge": true
+  },
+  "configSchema": {
+    "scope": "package",
+    "path": "~/.lania/config/pi.json",
+    "keys": [
+      {
+        "key": "locale",
+        "kind": "enum",
+        "choices": ["zh", "en"],
+        "default": "en",
+        "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+      },
+      {
+        "key": "output.mode",
+        "kind": "enum",
+        "choices": ["json", "human"],
+        "default": "json",
+        "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+      },
+      {
+        "key": "log.timestamps",
+        "kind": "bool",
+        "default": false,
+        "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+      }
+    ]
   }
 }

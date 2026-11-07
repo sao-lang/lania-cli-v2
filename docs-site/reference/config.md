@@ -626,6 +626,52 @@ export default {
 | `invalid_value`       | 值不合法     |
 | `unsupported_version` | 配置版本过新 |
 
+## 19. 三层配置统一管理（全局 / 包级 / 管理面）
+
+CLI 的配置分为三层，由 `lan config` 作为统一管理面：
+
+| 层       | 位置                                       | 作用                                                                           |
+| -------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| 项目级   | `lan.config.js` / `.cjs` / `.json` / `.ts` | 构建 / Lint 适配器、插件、动态命令、UI（见前文各节）                           |
+| 全局偏好 | `~/.lania/preferences.json`                | `locale` / `outputMode` / `logTimestamps`，作用于所有项目（§17）               |
+| 包级偏好 | `~/.lania/config/<pkg>.json`               | 单个已安装命令子包的偏好，键由该包 `lania.package.json` 的 `configSchema` 声明 |
+
+`config` 自身是管理面，不算命令子包；顶级 `generate` 归档后命令数为 **11**。其余 **10 个命令子包**（`add` / `build` / `create` / `dev` / `env` / `git` / `lint` / `pi` / `release` / `tools`）全部带 `config` 二级命令：`bare` / `get` / `set` / `init` / `doctor` / `sync`，且都有中英双语文案；`get` / `set` 支持 `--global` 切换到全局作用域。共用实现收敛在 `packages/foundation/package-config/rust/lania-command-config`，不再每包各写一遍。
+
+### 19.1 configSchema 声明的键
+
+| 键               | 取值             | 适用范围 |
+| ---------------- | ---------------- | -------- |
+| `locale`         | `zh` / `en`      | 全部子包 |
+| `output.mode`    | `json` / `human` | 全部子包 |
+| `log.timestamps` | bool             | 全部子包 |
+| `shim.host`      | `lan` / `runex`  | 仅 `env` |
+
+写入按目标包的 `configSchema` 校验；`--package <pkg>` 支持短命令名（`env`）、npm 全名（`@lania-cli-v2/cmd-env`）、bin 名（`lan-env`）与 crate 名，统一归一化后定位到 `~/.lania/config/<pkg>.json`。
+
+### 19.2 主包统一管理命令
+
+```bash
+# 读写单个子包配置
+lan config get locale --package env
+lan config set locale zh --package @lania-cli-v2/cmd-env
+lan config set shim.host runex --package lan-env
+
+# 列出所有已安装子包声明的键、默认值与当前值
+lan config packages
+lan config packages --json
+
+# 把全局偏好一键下发到所有已安装且启用的子包
+lan config apply
+lan config apply --package env --set locale=zh --set output.mode=human
+```
+
+- `lan config apply` 只覆盖子包**已声明**过的键，不做无差别灌入；点分键与 camelCase 全局键之间有映射。`--package` 可限定单个子包，`--set <dotted.key>=<value>` 可追加覆盖项。
+- 静态表 `known-commands.json` 现携带每个子包的 `configSchema`，launcher 运行时不再解析 npm manifest。
+- 独立二进制形态 `lan-config packages` / `lan-config apply` 也可用（扫描 `~/.lania/config/*.json`），但主路径仍是 `lan`。
+
+详见 [配置文件指南](/guide/configuration) 与 [CLI 命令参考](/reference/cli#config)。
+
 ## 下一步
 
 - [配置文件指南](/guide/configuration)

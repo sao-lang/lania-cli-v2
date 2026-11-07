@@ -72,18 +72,19 @@ Usage: lan [COMMAND]
 
 Commands:
   dev       Start the project development workflow [aliases: d]
-  product   Product-oriented CLI workflows and distribution commands
   build     Run the project build workflow [aliases: b]
   lint      Run project lint checks [aliases: l]
   create    Create a new project from a template [aliases: c]
   add       Add generated content into an existing workspace [aliases: a]
-  generate  Generate project artifacts [aliases: g]
   release   Project release orchestration [aliases: r]
   git       Inspect and sync git state [aliases: gt]
-  template  List templates or inspect a template detail [aliases: t]
   tools     List commands, run files by type, or view local files
+  env       Install and switch language runtimes managed by lania itself
+  pi        Run the coding agent (interactive REPL or one-shot)
   config    Manage global CLI preferences
 ```
+
+当前共 11 个内置命令。
 
 ## 创建项目
 
@@ -102,14 +103,16 @@ cd demo-app
 
 常用参数：
 
-| 参数                | 作用                                                     |
-| ------------------- | -------------------------------------------------------- |
-| `--name`            | 项目名                                                   |
-| `--template`        | `spa-react` / `spa-vue` / `toolkit` / `toolkit-monorepo` |
-| `--package-manager` | `npm` / `pnpm` / `yarn` / `bun`                          |
-| `--skip-install`    | 跳过依赖安装                                             |
-| `--preview`         | 预览渲染结果并隐含 dry-run                               |
-| `--dry-run`         | 只规划，不写文件                                         |
+| 参数                | 作用                                                                                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--name`            | 项目名                                                                                                                                             |
+| `--template`        | 10 个模板：`spa-react` / `spa-vue` / `toolkit` / `toolkit-monorepo` / `nestjs` / `express` / `go-service` / `rust-lib` / `python-cli` / `dart-cli` |
+| `--package-manager` | 11 个候选：`npm` / `pnpm` / `yarn` / `bun` / `pip` / `uv` / `poetry` / `go` / `cargo` / `dart` / `pub`                                             |
+| `--skip-install`    | 跳过依赖安装                                                                                                                                       |
+| `--preview`         | 预览渲染结果并隐含 dry-run                                                                                                                         |
+| `--dry-run`         | 只规划，不写文件                                                                                                                                   |
+
+`create` 覆盖 Node.js、Python、Go、Rust、Dart 五种运行时，例如 `lan create --name svc --template go-service --package-manager go`；安装命令会按运行时自动选择。
 
 ## 开发、构建与检查
 

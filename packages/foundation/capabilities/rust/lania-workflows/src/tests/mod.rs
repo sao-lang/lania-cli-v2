@@ -28,8 +28,6 @@ use crate::models::ReleasePlan;
 
 mod common;
 mod create_add;
-mod generate_api;
-mod generate_module;
 mod release;
 mod sync;
 

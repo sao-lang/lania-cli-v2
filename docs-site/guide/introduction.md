@@ -16,9 +16,8 @@ Lania CLI v2 是一个以 Rust 为宿主、以 Node Bridge 承接 JavaScript 生
 
 现代前端/全栈项目通常需要同时处理：
 
-- 项目脚手架与模板
+- 多运行时项目脚手架与模板
 - 开发服务器、构建与 Lint
-- 契约代码与模块代码生成
 - Git 同步与发布编排
 - 团队自己的领域命令
 - 将内部 CLI 打包成可分发的产品
@@ -91,7 +90,7 @@ rust/crates/lania-cli
 
 由 Rust 插件注册，随 CLI 一起发布：
 
-`dev`、`build`、`lint`、`tools`、`create`、`add`、`template`、`generate`、`release`、`git`、`config`、`product`。
+共 11 个：`dev`、`build`、`lint`、`tools`、`create`、`add`、`template`、`release`、`git`、`config`、`product`。其中 `create` 内置 10 个模板，覆盖 Node.js / Python / Go / Rust / Dart 五种运行时。
 
 ### 动态命令
 
@@ -123,12 +122,12 @@ export default {
 
 ## 什么场景适合使用
 
-- 你希望用一个 `lan` 统一团队项目的开发、构建、生成和发布流程。
-- 你有多套模板或代码生成配置，希望集中管理。
+- 你希望用一个 `lan` 统一团队项目的开发、构建和发布流程。
+- 你有多套多运行时项目模板，希望集中管理。
 - 你想把内部工程能力封装成团队专属 CLI。
 - 你最终希望把这些能力打包成可分发的 npm 产品。
 
-如果你只需要一个简单的脚本运行器，`tools run` 已经够用；如果你需要完整的工程闭环，再逐步引入模板、生成与发布工作流。
+如果你只需要一个简单的脚本运行器，`tools run` 已经够用；如果你需要完整的工程闭环，再逐步引入模板与发布工作流。
 
 ## 下一步
 

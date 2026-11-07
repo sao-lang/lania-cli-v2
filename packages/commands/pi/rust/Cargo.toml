@@ -15,6 +15,7 @@ lania-bridge-host = { path = "../../../../packages/products/bridge-hub/rust/lani
 anyhow.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
+lania-command-config = { path = "../../../../packages/foundation/package-config/rust/lania-command-config" }
 lania-agent = { path = "../../../../packages/products/agent/rust/lania-agent" }
 lania-agent-core = { path = "../../../../packages/products/agent/rust/lania-agent-core" }
 lania-command = { path = "../../../../packages/foundation/command/rust/lania-command" }

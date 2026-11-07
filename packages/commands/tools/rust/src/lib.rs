@@ -1,5 +1,6 @@
 //! 注册 `tools` 命令，并将 `list` / `run` / `view` 子能力组织在同一插件下。
 
+mod config;
 mod list;
 mod run;
 mod shared;
@@ -55,7 +56,7 @@ impl ToolsCommandPlugin {
             HANDLER_ID,
         )
         .with_options(list::options())
-        .with_subcommands(vec![list::spec(), run::spec(), view::spec()])
+        .with_subcommands(vec![list::spec(), run::spec(), view::spec(), config::config_spec()])
         .with_examples(examples())
     }
 
@@ -82,12 +83,15 @@ impl Plugin for ToolsCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![HANDLER_ID, LIST_HANDLER_ID, RUN_HANDLER_ID, VIEW_HANDLER_ID];
+        ids.extend(config_ids.iter().map(String::as_str));
         register_builtin_command::<ToolsCommandHandler, _>(
             ctx,
             "command-tools",
             "tools",
             Self::spec(),
-            &[HANDLER_ID, LIST_HANDLER_ID, RUN_HANDLER_ID, VIEW_HANDLER_ID],
+            &ids,
             || ToolsCommandHandler,
         )
     }
@@ -96,6 +100,15 @@ impl Plugin for ToolsCommandPlugin {
 #[async_trait(?Send)]
 impl CommandHandler for ToolsCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        if lania_command_config::is_config_handler_id(COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                COMMAND_NAME,
+                &config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
+        }
         match ctx.command().handler_id.as_str() {
             RUN_HANDLER_ID => run::execute(ctx),
             VIEW_HANDLER_ID => view::execute(ctx),

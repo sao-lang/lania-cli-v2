@@ -17,7 +17,33 @@
         "@lania-cli-v2/cmd-dev-linux-x64",
         "@lania-cli-v2/cmd-dev-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/dev.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "build",
@@ -34,7 +60,33 @@
         "@lania-cli-v2/cmd-build-linux-x64",
         "@lania-cli-v2/cmd-build-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/build.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "lint",
@@ -51,7 +103,33 @@
         "@lania-cli-v2/cmd-lint-linux-x64",
         "@lania-cli-v2/cmd-lint-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/lint.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "create",
@@ -68,7 +146,33 @@
         "@lania-cli-v2/cmd-create-linux-x64",
         "@lania-cli-v2/cmd-create-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/create.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "add",
@@ -85,24 +189,33 @@
         "@lania-cli-v2/cmd-add-linux-x64",
         "@lania-cli-v2/cmd-add-win32-x64"
       ],
-      "protocol": 1
-    },
-    {
-      "command": "generate",
-      "package": "@lania-cli-v2/cmd-generate",
-      "bin": "lan-generate",
-      "npmBin": "lan-generate.mjs",
-      "order": 6,
-      "describe": "describes/generate.json",
-      "about": "Generate project artifacts",
-      "needsNodeBridge": true,
-      "slices": ["product", "dynamic-commands", "toolchain", "config"],
-      "platformPackages": [
-        "@lania-cli-v2/cmd-generate-darwin-arm64",
-        "@lania-cli-v2/cmd-generate-linux-x64",
-        "@lania-cli-v2/cmd-generate-win32-x64"
-      ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/add.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "release",
@@ -119,7 +232,33 @@
         "@lania-cli-v2/cmd-release-linux-x64",
         "@lania-cli-v2/cmd-release-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/release.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "git",
@@ -136,7 +275,33 @@
         "@lania-cli-v2/cmd-git-linux-x64",
         "@lania-cli-v2/cmd-git-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/git.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "tools",
@@ -153,7 +318,33 @@
         "@lania-cli-v2/cmd-tools-linux-x64",
         "@lania-cli-v2/cmd-tools-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/tools.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "env",
@@ -170,7 +361,40 @@
         "@lania-cli-v2/cmd-env-linux-x64",
         "@lania-cli-v2/cmd-env-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/env.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          },
+          {
+            "key": "shim.host",
+            "kind": "enum",
+            "choices": ["lan", "runex"],
+            "default": "lan",
+            "description": "shims 调用的管理命令：lan（默认，`lan env which`）或 runex（`runex which`）；见拆分文档 §6.6"
+          }
+        ]
+      }
     },
     {
       "command": "pi",
@@ -187,7 +411,33 @@
         "@lania-cli-v2/cmd-pi-linux-x64",
         "@lania-cli-v2/cmd-pi-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": {
+        "scope": "package",
+        "path": "~/.lania/config/pi.json",
+        "keys": [
+          {
+            "key": "locale",
+            "kind": "enum",
+            "choices": ["zh", "en"],
+            "default": "en",
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+          },
+          {
+            "key": "output.mode",
+            "kind": "enum",
+            "choices": ["json", "human"],
+            "default": "json",
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+          },
+          {
+            "key": "log.timestamps",
+            "kind": "bool",
+            "default": false,
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+          }
+        ]
+      }
     },
     {
       "command": "config",
@@ -204,7 +454,8 @@
         "@lania-cli-v2/cmd-config-linux-x64",
         "@lania-cli-v2/cmd-config-win32-x64"
       ],
-      "protocol": 1
+      "protocol": 1,
+      "configSchema": null
     }
   ]
 }

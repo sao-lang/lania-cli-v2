@@ -6,21 +6,19 @@ Lania CLI 的命令可以按执行路径分为四类：Bridge 型、混合型、
 
 ## 命令地图
 
-| 命令       | 别名 | 类型              | 作用                                  |
-| ---------- | ---- | ----------------- | ------------------------------------- |
-| `dev`      | `d`  | Bridge            | 启动项目开发流程                      |
-| `build`    | `b`  | Bridge            | 触发构建或 watch 构建                 |
-| `lint`     | `l`  | Bridge            | 执行 Lint 检查或修复                  |
-| `tools`    | —    | 混合              | 枚举命令、运行文件、查看文件          |
-| `create`   | `c`  | Workflow          | 从模板创建项目                        |
-| `add`      | `a`  | Workflow          | 向现有项目补充模板内容                |
-| `template` | `t`  | Bridge 查询       | 列出模板或查看详情                    |
-| `generate` | `g`  | Workflow          | 契约与模块代码生成                    |
-| `release`  | `r`  | Workflow          | 发布规划、执行、恢复与状态查询        |
-| `git`      | `gt` | Workflow          | Git 查询、分支/标签、暂存、提交与推送 |
-| `config`   | —    | Workflow          | 管理全局 CLI 偏好                     |
-| `env`      | —    | 混合 / TUI        | 查看与管理多语言工具链版本            |
-| `product`  | —    | Bridge / Workflow | 产品 CLI 生成、构建、打包、发布与诊断 |
+| 命令      | 别名 | 类型           | 作用                                     |
+| --------- | ---- | -------------- | ---------------------------------------- |
+| `dev`     | `d`  | Bridge         | 启动项目开发流程（含 `product` 子命令）  |
+| `build`   | `b`  | Bridge         | 触发构建或 watch 构建                    |
+| `lint`    | `l`  | Bridge         | 执行 Lint 检查或修复                     |
+| `tools`   | —    | 混合           | 枚举命令、运行文件、查看文件             |
+| `create`  | `c`  | Workflow       | 从模板创建项目（含 `template` 二级命令） |
+| `add`     | `a`  | Workflow       | 向现有项目补充模板内容                   |
+| `release` | `r`  | Workflow       | 发布规划、执行、恢复与状态查询           |
+| `git`     | `gt` | Workflow       | Git 查询、分支/标签、暂存、提交与推送    |
+| `config`  | —    | 管理面         | 全局偏好、项目配置与跨包配置统一管理     |
+| `env`     | —    | 混合 / TUI     | 查看与管理多语言工具链版本               |
+| `pi`      | —    | Bridge / Agent | 编码 agent（交互 REPL 或一次性执行）     |
 
 ## 四类执行路径
 
@@ -45,7 +43,7 @@ Rust 解析命令 → Node Bridge → compiler / lint 插件 → JS 工具链
 Rust 解析命令 → lania-workflows → 宿主服务 / Node Bridge 能力
 ```
 
-代表命令：`create`、`add`、`generate`、`release`、`git`。
+代表命令：`create`、`add`、`release`、`git`。
 
 ### 运行时扩展型
 
@@ -94,6 +92,23 @@ lan config set output.progress none
 
 具体字段以 `lan config get` 与 [配置字段参考](/reference/config) 为准。
 
+### 三层配置统一管理
+
+配置分三层：项目级 `lan.config.*`、全局偏好 `~/.lania/preferences.json`、包级偏好 `~/.lania/config/<pkg>.json`。`lan config` 是统一管理面（`config` 自身不是命令子包），`generate` 归档后共 11 个命令。
+
+10 个命令子包（add / build / create / dev / env / git / lint / pi / release / tools）各自带 `config` 二级命令 `bare` / `get` / `set` / `init` / `doctor` / `sync`，`get` / `set` 可用 `--global` 切到全局作用域，均有中英双语文案。包级键由各包 `configSchema` 声明：通用 `locale` / `output.mode` / `log.timestamps`，`env` 额外 `shim.host`。
+
+```bash
+# 跨包读写、查看、一键下发
+lan config get locale --package env
+lan config set locale zh --package @lania-cli-v2/cmd-env
+lan config packages --json
+lan config apply
+lan config apply --package env --set output.mode=human
+```
+
+`--package` 统一归一化短名 / npm 全名 / bin 名 / crate 名；`apply` 只覆盖已声明的键，且只作用于已安装且启用的子包。详见 [配置文件指南](/guide/configuration) 与 [CLI 命令参考](/reference/cli#config)。
+
 ## 按场景选择命令
 
 <div class="command-card">
@@ -104,10 +119,6 @@ lan config set output.progress none
   <div>
     <strong>脚手架</strong>
     <code>lan create</code> / <code>lan add</code> / <code>lan template</code>
-  </div>
-  <div>
-    <strong>代码生成</strong>
-    <code>lan generate api</code> / <code>lan generate module</code>
   </div>
   <div>
     <strong>发布</strong>
@@ -123,14 +134,16 @@ lan config set output.progress none
   </div>
   <div>
     <strong>产品化</strong>
-    <code>lan product generate</code> / <code>build</code> / <code>pack</code> / <code>publish</code>
+    <code>lan product dev</code> / <code>build</code> / <code>pack</code> / <code>publish</code>
   </div>
 </div>
+
+> `generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计；完整代码保存在本地分支 `archive/generate-command`。
 
 ## 下一步
 
 - [工具命令 tools](/guide/tools)
 - [语言环境管理 env](/guide/env)
 - [模板与脚手架](/guide/scaffolding)
-- [代码生成](/guide/generate)
+- [模板参考](/reference/templates)
 - [CLI 命令参考](/reference/cli)

@@ -32,7 +32,9 @@ export type { AddTemplateManifest } from './add-template-runtime.js';
 export { RUNTIME_PRESENTATIONS, choicesFor, presentationRuntimeIds } from './presentation.js';
 /**
  * node 模板族的「额外工程化工具」选项（B14 extras）：
- * spa-react / spa-vue / toolkit / toolkit-monorepo 的 lint 工具、包管理器与 git hook 名单
+ * 全部 10 个内置模板（spa-react / spa-vue / toolkit / toolkit-monorepo / nestjs /
+ * express / go-service / rust-lib / python-cli / dart-cli）的 lint 工具、包管理器与
+ * git hook 名单（Node 4 个为完整问答族，Go/Rust/Python/Dart 4 个由 Rust 兜底渲染）
  * 都从这一份派生（`NODE_TEMPLATE_CHOICES` + `NODE_GIT_HOOK_TOOLS`）。
  */
 export { NODE_GIT_HOOK_TOOLS, NODE_TEMPLATE_CHOICES, templateChoicesFor } from './presentation.js';

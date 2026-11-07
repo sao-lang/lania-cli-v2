@@ -1,5 +1,5 @@
 /**
- * bridge 切片：product generate/pack/publish 产品化切片。
+ * bridge 切片：product build/pack/publish 产品化切片。
  *
  * 主要导出：plugin。
  *

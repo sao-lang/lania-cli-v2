@@ -10,14 +10,22 @@
 lan template
 ```
 
-当前内置模板：
+当前内置 10 个模板，覆盖 Node.js、Python、Go、Rust、Dart 五种运行时：
 
-| 模板               | 用途            |
-| ------------------ | --------------- |
-| `spa-react`        | React 单页应用  |
-| `spa-vue`          | Vue 单页应用    |
-| `toolkit`          | 工具库          |
-| `toolkit-monorepo` | Monorepo 工具库 |
+| 模板               | 运行时  | 用途                 |
+| ------------------ | ------- | -------------------- |
+| `spa-react`        | Node.js | React 单页应用       |
+| `spa-vue`          | Node.js | Vue 3 单页应用       |
+| `toolkit`          | Node.js | Node 工具库          |
+| `toolkit-monorepo` | Node.js | pnpm monorepo 工具库 |
+| `nestjs`           | Node.js | NestJS 服务端        |
+| `express`          | Node.js | Express 服务端       |
+| `go-service`       | Go      | Go 服务 / CLI        |
+| `rust-lib`         | Rust    | Rust 库              |
+| `python-cli`       | Python  | Python CLI           |
+| `dart-cli`         | Dart    | Dart CLI             |
+
+非 Node 模板可配合 `--package-manager go / cargo / pip / uv / poetry / dart / pub` 使用，安装命令会按运行时自动选择。
 
 查看模板详情：
 
@@ -121,4 +129,4 @@ lan tools view ./src --tree --files-only
 
 - [工具命令 tools](/guide/tools)
 - [模板与脚手架](/guide/scaffolding)
-- [代码生成](/guide/generate)
+- [模板参考](/reference/templates)

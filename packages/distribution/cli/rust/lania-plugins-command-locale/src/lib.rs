@@ -10,7 +10,7 @@
 //! 校验顶层字段）。这样既保住既有用法，又不会把两种语义混在一个 key 上。
 mod project_config;
 
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
@@ -23,7 +23,9 @@ use lania_host::{
     },
 };
 use lania_logger::LogLevel;
-use lania_package_config::{get_value, load_package_config, package_config_path, save_package_config, set_value};
+use lania_package_config::{
+    get_value, load_package_config, package_config_path, save_package_config, set_value, ConfigKey,
+};
 use lania_preferences::{
     load_preferences, normalize_locale, normalize_output_mode, save_preferences, UserPreferences,
 };
@@ -117,6 +119,8 @@ impl ConfigCommandPlugin {
                 Self::init_spec(),
                 Self::doctor_spec(),
                 Self::sync_spec(),
+                Self::packages_spec(),
+                Self::apply_spec(),
             ])
     }
 
@@ -216,6 +220,33 @@ impl ConfigCommandPlugin {
         }])
     }
 
+    /// 跨包配置视图（主包统一管理面）：列出所有子包的包级配置文件。
+    fn packages_spec() -> CommandSpec {
+        CommandSpec::new(
+            "packages",
+            "Show every command subpackage's config keys and values",
+            PACKAGES_HANDLER_ID,
+        )
+    }
+
+    /// 一键覆盖：把全局偏好下发到子包配置文件。
+    fn apply_spec() -> CommandSpec {
+        CommandSpec::new(
+            "apply",
+            "Apply global preferences to command subpackage configs",
+            APPLY_HANDLER_ID,
+        )
+        .with_options(vec![OptionSpec {
+            long: "package".into(),
+            short: Some('p'),
+            help: "Only apply to one subpackage (short name or npm package name)".into(),
+            value_kind: ValueKind::String,
+            default_value: None,
+            choices: vec![],
+            negatable: false,
+        }])
+    }
+
     fn is_zh(locale: &str) -> bool {
         locale == "zh"
     }
@@ -259,11 +290,33 @@ impl ConfigCommandPlugin {
             .map(ToOwned::to_owned)
     }
 
-    /// 子包配置读写的公共前置：校验包名合法（引擎内的路径穿越防护）。
+    /// 把用户可能写出的包名形态统一成子包配置文件的短命名空间。
+    ///
+    /// `@lania-cli-v2/cmd-env` / `cmd-env` / `lan-env` /
+    /// `lania-plugins-command-env` / `cmd-env-win32-x64` 都归一为 `env`，
+    /// 保证主包 `lan config set --package` 写的正是子包自己读取的那份文件。
+    fn normalize_package_name(raw: &str) -> String {
+        let mut value = raw.trim().rsplit('/').next().unwrap_or(raw.trim()).to_string();
+        for prefix in ["cmd-", "lan-", "lania-plugins-command-"] {
+            if let Some(rest) = value.strip_prefix(prefix) {
+                value = rest.to_string();
+                break;
+            }
+        }
+        for suffix in ["-win32-x64", "-linux-x64", "-darwin-arm64"] {
+            if let Some(rest) = value.strip_suffix(suffix) {
+                value = rest.to_string();
+                break;
+            }
+        }
+        value.to_ascii_lowercase()
+    }
+
+    /// 子包配置读写的公共前置：先归一化包名，再做路径穿越防护校验。
     fn package_scope(context: &CommandContext) -> Result<String> {
-        let pkg = Self::read_option(context, "package").ok_or_else(|| {
-            anyhow!("missing required option: --package <pkg>")
-        })?;
+        let raw = Self::read_option(context, "package")
+            .ok_or_else(|| anyhow!("missing required option: --package <pkg>"))?;
+        let pkg = Self::normalize_package_name(&raw);
         lania_package_config::validate_package_name(&pkg)?;
         Ok(pkg)
     }
@@ -387,6 +440,8 @@ impl Plugin for ConfigCommandPlugin {
                 (INIT_HANDLER_ID, Box::new(ConfigInitHandler)),
                 (DOCTOR_HANDLER_ID, Box::new(ConfigDoctorHandler)),
                 (SYNC_HANDLER_ID, Box::new(ConfigSyncHandler)),
+                (PACKAGES_HANDLER_ID, Box::new(ConfigPackagesHandler)),
+                (APPLY_HANDLER_ID, Box::new(ConfigApplyHandler)),
             ],
         )
     }
@@ -459,9 +514,23 @@ impl CommandHandler for ConfigSetHandler {
         // 包级偏好与全局偏好、项目配置三者互不覆盖，作用域由参数显式指定。
         if ConfigCommandPlugin::read_option(ctx.command(), "package").is_some() {
             let pkg = ConfigCommandPlugin::package_scope(ctx.command())?;
+            // 与各命令子包 manifest 的 configSchema 同构校验：只接受声明过的键，
+            // 并按 enum / bool 类型解析，避免把任意字符串写进子包配置文件。
+            let key_spec = package_config_keys(&pkg)
+                .into_iter()
+                .find(|item| {
+                    item.key == key
+                        || (key == "log.timestamp" && item.key == "log.timestamps")
+                        || (key == "output" && item.key == "output.mode")
+                })
+                .ok_or_else(|| {
+                    anyhow!(
+                        "unknown package config key `{key}`; run `lan config packages` to see declared keys"
+                    )
+                })?;
+            let parsed = key_spec.parse(&value).map_err(|error| anyhow!("{error}"))?;
             let mut config = load_package_config(&pkg)?;
-            let parsed = project_config::parse_value(&key, &value);
-            set_value(&mut config, &key, parsed.clone())
+            set_value(&mut config, &key_spec.key, parsed.clone())
                 .map_err(|error| anyhow!("{error}"))?;
             save_package_config(&pkg, &config)?;
             let path = package_config_path(&pkg)?;
@@ -470,7 +539,7 @@ impl CommandHandler for ConfigSetHandler {
                 "scope": "package",
                 "package": pkg,
                 "path": path.map(|p| p.display().to_string()),
-                "key": key,
+                "key": key_spec.key,
                 "value": parsed,
             });
             return Ok(ctx.complete_template_info(output, 0));
@@ -486,6 +555,50 @@ impl CommandHandler for ConfigSetHandler {
         let output = ConfigCommandPlugin::config_value_output(normalized_key, &prefs);
         Ok(ctx.complete_template_info(output, 0))
     }
+}
+
+/// 所有命令子包共用的包级配置键（与各自 manifest 的 `configSchema` 对齐）。
+/// 主包 `--package` 写入只接受这些键，避免任意 key 污染子包配置文件。
+fn package_config_keys(pkg: &str) -> Vec<ConfigKey> {
+    let mut keys = vec![
+        ConfigKey::enumeration("locale", &["zh", "en"], "en"),
+        ConfigKey::enumeration("output.mode", &["json", "human"], "json"),
+        ConfigKey::boolean("log.timestamps", false),
+    ];
+    if pkg == "env" {
+        keys.push(ConfigKey::enumeration("shim.host", &["lan", "runex"], "lan"));
+    }
+    keys
+}
+
+/// 独立二进制形态下的子包清单：扫描 `~/.lania/config/*.json`。
+/// `only` 指定时直接返回该包（文件尚未存在也返回，便于首次创建）。
+/// launcher 形态（`lan config packages/apply`）改由 known-commands.json
+/// 静态表覆盖全部已安装子包，两条路径写入的是同一份配置文件。
+fn package_names(only: Option<&str>) -> Vec<String> {
+    if let Some(name) = only {
+        return vec![name.to_string()];
+    }
+    let Ok(Some(dir)) = package_config_path("scan")
+        .map(|path| path.and_then(|p| p.parent().map(PathBuf::from)))
+    else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            let stem = path.file_stem()?.to_string_lossy().into_owned();
+            (path.extension().and_then(|ext| ext.to_str()) == Some("json")
+                && lania_package_config::validate_package_name(&stem).is_ok())
+            .then_some(stem)
+        })
+        .collect();
+    names.sort();
+    names
 }
 
 /// 命令的 cwd（`ProjectView` 只借用它，所以必须由调用方持有）。
@@ -614,6 +727,80 @@ impl CommandHandler for ConfigSyncHandler {
             output["reason"] = json!("config uses functions/imports; not rewritten");
         }
         Ok(ctx.complete_template_info(output, 0))
+    }
+}
+
+#[async_trait(?Send)]
+impl CommandHandler for ConfigPackagesHandler {
+    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let only = ConfigCommandPlugin::read_option(ctx.command(), "package")
+            .as_deref()
+            .map(ConfigCommandPlugin::normalize_package_name);
+        let rows: Vec<serde_json::Value> = package_names(only.as_deref())
+            .iter()
+            .map(|pkg| {
+                let config = load_package_config(pkg).unwrap_or_default();
+                json!({
+                    "package": pkg,
+                    "path": package_config_path(pkg)
+                        .ok()
+                        .flatten()
+                        .map(|p| p.display().to_string()),
+                    "keys": package_config_keys(pkg),
+                    "config": config,
+                })
+            })
+            .collect();
+        Ok(ctx.complete_template_info(
+            json!({
+                "kind": "config_packages",
+                "scope": "packages",
+                "packages": rows,
+            }),
+            0,
+        ))
+    }
+}
+
+#[async_trait(?Send)]
+impl CommandHandler for ConfigApplyHandler {
+    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let only = ConfigCommandPlugin::read_option(ctx.command(), "package")
+            .as_deref()
+            .map(ConfigCommandPlugin::normalize_package_name);
+        let prefs = load_preferences();
+        let targets = package_names(only.as_deref());
+        let mut applied = Vec::new();
+        for pkg in &targets {
+            let mut config = load_package_config(pkg)?;
+            for key in package_config_keys(pkg) {
+                if key.key == "shim.host" {
+                    continue;
+                }
+                let value = match key.key.as_str() {
+                    "locale" => json!(prefs.locale),
+                    "output.mode" => json!(prefs.output_mode),
+                    "log.timestamps" => json!(prefs.log_timestamps),
+                    _ => continue,
+                };
+                set_value(&mut config, &key.key, value)?;
+            }
+            save_package_config(pkg, &config)?;
+            applied.push(pkg.clone());
+        }
+        Ok(ctx.complete_template_info(
+            json!({
+                "kind": "config_apply",
+                "scope": "packages",
+                "applied": applied,
+                "hint": if applied.is_empty() {
+                    "no subpackage config files found; use `lan config apply` to cover every installed subpackage"
+                } else {
+                    ""
+                },
+            }),
+            0,
+        ))
     }
 }
 

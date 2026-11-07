@@ -34,10 +34,15 @@ pub fn validate_package_name(pkg: &str) -> Result<()> {
     }
 }
 
-/// 某个包的偏好文件路径：`~/.lania/config/<pkg>.json`。无 `HOME` 时返回 `None`。
+/// 某个包的偏好文件路径：`~/.lania/config/<pkg>.json`。
+/// 无 `HOME`（Windows 上回退 `USERPROFILE`，与 Node launcher 一致）时返回 `None`。
 pub fn package_config_path(pkg: &str) -> Result<Option<PathBuf>> {
     validate_package_name(pkg)?;
-    let Some(home) = env::var("HOME").ok().filter(|home| !home.trim().is_empty()) else {
+    let home = env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .ok()
+        .filter(|home| !home.trim().is_empty());
+    let Some(home) = home else {
         return Ok(None);
     };
     Ok(Some(

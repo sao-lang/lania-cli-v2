@@ -13,6 +13,7 @@ use lania_host::{
     plugin::{Plugin, PluginKind, PluginMeta, PluginSetupContext},
 };
 
+mod config;
 mod handlers;
 mod registry;
 mod request;
@@ -56,7 +57,7 @@ impl Plugin for DevCommandPlugin {
                 CapabilityName::Exec,
                 CapabilityName::Progress,
             ],
-            before: vec!["command-build".into(), "command-generate".into()],
+            before: vec!["command-build".into()],
             after: vec![],
         }
     }
@@ -107,7 +108,7 @@ mod tests {
             .expect("dev spec registered");
         assert_eq!(dev_spec.handler_id, "command.dev");
         assert_eq!(dev_spec.options.len(), 9);
-        assert_eq!(dev_spec.subcommands.len(), 0);
+        assert_eq!(dev_spec.subcommands.len(), 1);
         let product_spec = specs
             .iter()
             .find(|spec| spec.name == "product")

@@ -22,14 +22,10 @@ mod common;
 mod create_and_add;
 #[path = "phase3_e2e/distribution_and_dynamic.rs"]
 mod distribution_and_dynamic;
-#[path = "phase3_e2e/generate_api.rs"]
-mod generate_api;
 #[path = "phase3_e2e/dynamic_commands_host_rpc.rs"]
 mod dynamic_commands_host_rpc;
 #[path = "phase3_e2e/env_commands.rs"]
 mod env_commands;
-#[path = "phase3_e2e/generate_workflows.rs"]
-mod generate_workflows;
 #[path = "phase3_e2e/help_and_config.rs"]
 mod help_and_config;
 #[path = "phase3_e2e/git_and_release.rs"]

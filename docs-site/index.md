@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Lania CLI
   text: 双运行时 CLI 宿主框架
-  tagline: Rust 负责命令树与执行编排，Node 负责 JavaScript 生态与模板运行时。一套 CLI，覆盖开发、生成、发布与产品化。
+  tagline: Rust 负责命令树与执行编排，Node 负责 JavaScript 生态与模板运行时。一套 CLI，覆盖开发、多运行时脚手架、发布与产品化。
   image:
     src: /hero.svg
     alt: Lania CLI 双运行时架构
@@ -31,10 +31,10 @@ features:
     details: 通过 lan.config.*、lania.schemas.* 与项目插件，在不修改 Rust 宿主的前提下挂载团队自己的命令。
   - icon: 🏗️
     title: 工程化闭环
-    details: 脚手架、契约生成、模块生成、发布编排、Git 同步与产品 CLI 打包发布全部内置。
+    details: 覆盖 Node.js / Python / Go / Rust / Dart 的多运行时脚手架、发布编排、Git 同步与产品 CLI 打包发布全部内置。
   - icon: 🚀
     title: 产品化能力
-    details: product generate / build / pack / publish 将内部工程 CLI 变成可分发的 npm 产品。
+    details: product build / pack / publish 将内部工程 CLI 变成可分发的 npm 产品。
   - icon: 🛠️
     title: 跨平台
     details: 支持 Windows、macOS 与 Linux，并兼容 .cmd、.bat 等 Windows 可执行入口。
@@ -74,17 +74,18 @@ Lania CLI 不是一组零散脚本，而是一个分层的 CLI 宿主：
 
 ## 常用入口
 
-| 我想……         | 运行                                                        |
-| -------------- | ----------------------------------------------------------- |
-| 查看帮助       | `lan --help`                                                |
-| 启动开发服务器 | `lan dev`                                                   |
-| 构建项目       | `lan build`                                                 |
-| 执行 Lint      | `lan lint`                                                  |
-| 创建项目       | `lan create --name demo-app --template spa-vue`             |
-| 查看模板       | `lan template`                                              |
-| 运行单文件     | `lan tools run ./demo.ts`                                   |
-| 生成契约代码   | `lan generate api init`                                     |
-| 规划发布       | `lan release plan --profile package --version 1.2.3`        |
-| 生成产品 CLI   | `lan product generate --name "Acme CLI" --binary-name acme` |
+| 我想……         | 运行                                                 |
+| -------------- | ---------------------------------------------------- |
+| 查看帮助       | `lan --help`                                         |
+| 启动开发服务器 | `lan dev`                                            |
+| 构建项目       | `lan build`                                          |
+| 执行 Lint      | `lan lint`                                           |
+| 创建前端项目   | `lan create --name demo-app --template spa-vue`      |
+| 创建 Go 服务   | `lan create --name svc --template go-service`        |
+| 查看模板       | `lan template`                                       |
+| 运行单文件     | `lan tools run ./demo.ts`                            |
+| 规划发布       | `lan release plan --profile package --version 1.2.3` |
+
+`lan create` 内置 10 个模板、11 个包管理器候选，覆盖 Node.js / Python / Go / Rust / Dart 五种运行时；安装命令按运行时自动选择，例如 `lan create --name svc --template go-service --package-manager go`。`generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计。
 
 接下来，建议从 [认识 Lania CLI](/guide/introduction) 开始。

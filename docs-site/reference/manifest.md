@@ -80,7 +80,7 @@ lan ops <command>
 保留命令：
 
 ```text
-dev, build, lint, create, add, sync, template, release, generate, help
+dev, build, lint, create, add, sync, template, release, help
 ```
 
 实际还应避免与 `product`、`tools`、`config` 等所有内置命令重名。

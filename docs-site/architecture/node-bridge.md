@@ -149,9 +149,8 @@ product 插件负责：
 - `product.publish`
 - `product.inspect`
 - `product.doctor`
-- `product.generate`
 
-它会生成 build-report、pack-report、publish-report 与 publish-manifest。
+它会生成 build-report、pack-report、publish-report 与 publish-manifest。`product.generate` 已下线归档，将在后续版本重新设计。
 
 ## 错误与事件
 

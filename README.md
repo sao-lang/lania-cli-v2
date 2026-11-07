@@ -21,9 +21,9 @@
 
 ## Current Capabilities
 
-- Built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `template`, `generate api`, `generate module`, `release`, `git`, `config`
+- 11 built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `release`, `git`, `env`, `pi`, `config` — template queries are a `create` subcommand (`lan create template`)
 - Bridge-backed execution for compiler and lint workflows, plus mixed host/bridge tooling utilities under `tools`
-- Rust workflows for scaffolding, code generation, release orchestration, and Git automation
+- Rust workflows for multi-runtime scaffolding, release orchestration, and Git automation
 - Project-level dynamic commands loaded from manifest files
 - Project plugins with source constraints, allowlists, and method restrictions
 - Config support for `lan.config.js`, `lan.config.cjs`, `lan.config.json`, `lan.config.ts`
@@ -43,16 +43,71 @@ In practice:
 
 ## Command Categories
 
-| Command Group                     | Path                                                    | Description                                                            |
-| --------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `dev`, `build`, `lint`            | Rust -> Node Bridge -> compiler/lint plugins            | JS toolchain execution                                                 |
-| `tools list`                      | Rust -> Node Bridge -> system plugin                    | enumerate terminal-resolvable commands from PATH and shell             |
-| `tools run`, `tools view`         | Rust host utilities                                     | detect runtimes, execute local code files, or display/open local files |
-| `create`, `add`                   | Rust workflow + template bridge calls                   | project and partial scaffolding                                        |
-| `generate api`, `generate module` | Rust workflow                                           | file generation, manifests, optional injection                         |
-| `release`, `git`                  | Rust workflow                                           | release orchestration and Git automation                               |
-| `template`                        | Rust query -> Node Bridge                               | template catalog and template detail lookup                            |
-| dynamic commands                  | project manifest -> Rust registration -> Node execution | runtime command extension                                              |
+| Command Group             | Path                                                    | Description                                                            |
+| ------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `dev`, `build`, `lint`    | Rust -> Node Bridge -> compiler/lint plugins            | JS toolchain execution                                                 |
+| `tools list`              | Rust -> Node Bridge -> system plugin                    | enumerate terminal-resolvable commands from PATH and shell             |
+| `tools run`, `tools view` | Rust host utilities                                     | detect runtimes, execute local code files, or display/open local files |
+| `create`, `add`           | Rust workflow + template bridge calls                   | multi-runtime project and partial scaffolding                          |
+| `release`, `git`          | Rust workflow                                           | release orchestration and Git automation                               |
+| `template`                | Rust query -> Node Bridge                               | template catalog and template detail lookup                            |
+| dynamic commands          | project manifest -> Rust registration -> Node execution | runtime command extension                                              |
+
+## Project templates
+
+`lan create` ships 10 built-in templates across five runtimes (Node.js, Python, Go, Rust, Dart):
+
+| Template           | Runtime | Stack / package manager                     |
+| ------------------ | ------- | ------------------------------------------- |
+| `spa-react`        | Node.js | React SPA (Vite); npm / pnpm / yarn / bun   |
+| `spa-vue`          | Node.js | Vue 3 SPA (Vite); npm / pnpm / yarn / bun   |
+| `toolkit`          | Node.js | TypeScript toolkit; npm / pnpm / yarn / bun |
+| `toolkit-monorepo` | Node.js | pnpm monorepo; npm / pnpm / yarn / bun      |
+| `nestjs`           | Node.js | NestJS server; npm / pnpm / yarn / bun      |
+| `express`          | Node.js | Express server; npm / pnpm / yarn / bun     |
+| `go-service`       | Go      | Go service / CLI; go modules                |
+| `rust-lib`         | Rust    | Rust library; cargo                         |
+| `python-cli`       | Python  | Python CLI; pip / uv / poetry               |
+| `dart-cli`         | Dart    | Dart CLI; dart pub                          |
+
+`--package-manager` accepts 11 values: `npm`, `pnpm`, `yarn`, `bun`, `pip`, `uv`, `poetry`, `go`, `cargo`, `dart`, `pub`.
+
+Install commands are selected by runtime: Node -> `npm/pnpm/yarn/bun install`, Python -> `pip/uv/poetry`, Go -> `go mod tidy`, Rust -> `cargo fetch`, Dart -> `dart pub get`. Language templates default to `skipInstall: true`; Node framework templates install dependencies by default.
+
+```bash
+lan create --name svc --template go-service --package-manager go
+lan create --name cli --template python-cli --package-manager uv
+```
+
+## Unified configuration (three layers)
+
+Configuration is managed in three layers, all reachable from the `lan config` management plane:
+
+| Layer               | Location                                   | Scope                                                                 |
+| ------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| Project             | `lan.config.js` / `.cjs` / `.json` / `.ts` | build/lint adapters, plugins, dynamic commands, UI                    |
+| Global preferences  | `~/.lania/preferences.json`                | `locale`, `outputMode`, `logTimestamps` for every project             |
+| Package preferences | `~/.lania/config/<pkg>.json`               | one installed command subpackage, keys declared by its `configSchema` |
+
+All 10 command subpackages (`add`, `build`, `create`, `dev`, `env`, `git`, `lint`, `pi`, `release`, `tools`) now ship a `config` subcommand — `bare` / `get` / `set` / `init` / `doctor` / `sync` — with bilingual (zh/en) messages; `get` / `set` accept `--global` to target the global scope. `config` itself is the management plane, so the CLI has 11 commands after `generate` was archived. Common keys are `locale` (`zh` / `en`), `output.mode` (`json` / `human`) and `log.timestamps` (bool); `env` additionally declares `shim.host` (`lan` / `runex`). The shared implementation is centralized in `packages/foundation/package-config/rust/lania-command-config` instead of being duplicated per package.
+
+```bash
+# read / write one subpackage (--package accepts short name, npm full name,
+# bin name or crate name; all are normalized)
+lan config get locale --package env
+lan config set locale zh --package @lania-cli-v2/cmd-env
+lan config set shim.host runex --package lan-env
+
+# list declared keys, defaults and current values of all installed subpackages
+lan config packages
+lan config packages --json
+
+# push global preferences down to every installed and enabled subpackage
+lan config apply
+lan config apply --package env --set locale=zh --set output.mode=human
+```
+
+`--package` values are normalized across `env`, `@lania-cli-v2/cmd-env`, `lan-env` and the crate name, and writes are validated against the target package's `configSchema`. `apply` only overwrites keys the subpackage has declared (dot-separated keys map to camelCase global keys). The static `known-commands.json` now carries each subpackage's `configSchema`, so the launcher no longer parses npm manifests at runtime. The standalone `lan-config packages` / `lan-config apply` binaries (scanning `~/.lania/config/*.json`) also work, but `lan` is the primary path. See the [configuration guide](./docs-site/guide/configuration.md) and the [config field reference](./docs-site/reference/config.md).
 
 ## Quick Start
 
@@ -65,10 +120,12 @@ lan tools run ./scripts/demo.rs
 lan tools run ./scripts/demo.go
 lan tools view ./src/index.ts
 lan create --name demo-app --template spa-react
+lan create --name svc --template go-service --package-manager go
 lan template
-lan generate api init
 lan release plan --profile package --version 1.2.3
 ```
+
+`generate` commands (`generate api` / `generate module` / `lan product generate`) have been archived and will be redesigned in a later release. The complete pre-removal code is preserved on the local branch `archive/generate-command` (pointing at commit `61d47b9`) for recovery.
 
 Plan a product package release:
 

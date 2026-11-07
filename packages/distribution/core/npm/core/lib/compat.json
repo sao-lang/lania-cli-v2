@@ -47,12 +47,6 @@
       "versionFamily": "lan"
     },
     {
-      "command": "generate",
-      "package": "@lania-cli-v2/cmd-generate",
-      "protocol": 1,
-      "versionFamily": "lan"
-    },
-    {
       "command": "git",
       "package": "@lania-cli-v2/cmd-git",
       "protocol": 1,

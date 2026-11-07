@@ -26,6 +26,15 @@ pub struct PiCommandHandler;
 #[async_trait(?Send)]
 impl CommandHandler for PiCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        if lania_command_config::is_config_handler_id(crate::COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                crate::COMMAND_NAME,
+                &crate::config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
+        }
         let cwd = ctx.command().cwd.clone();
         let args = CliArgs::from_context(ctx)?;
 

@@ -38,7 +38,6 @@ template.getOutputTasks
 template.render
 addTemplate.render
 
-product.generate
 product.inspect
 product.build
 product.pack
@@ -494,7 +493,18 @@ commitlint.run
 
 ```json
 {
-  "templates": ["spa-react", "spa-vue", "toolkit", "toolkit-monorepo"],
+  "templates": [
+    "spa-react",
+    "spa-vue",
+    "toolkit",
+    "toolkit-monorepo",
+    "nestjs",
+    "express",
+    "go-service",
+    "rust-lib",
+    "python-cli",
+    "dart-cli"
+  ],
   "metadata": [
     {
       "name": "spa-vue",
@@ -614,27 +624,7 @@ commitlint.run
 | `path`  | string? | 原始路径参数                |
 | `clean` | bool    | 是否清理输出目录，默认 true |
 
-### product.generate
-
-额外参数：
-
-| 字段          | 类型               |
-| ------------- | ------------------ |
-| `preset`      | `demo` / `minimal` |
-| `name`        | string?            |
-| `binaryName`  | string?            |
-| `packageName` | string?            |
-| `outputDir`   | string?            |
-| `force`       | bool?              |
-
-返回包含：
-
-- `accepted`
-- `generatedFiles`
-- `checks`
-- `experimental.templateId`
-- `experimental.binaryName`
-- `experimental.packageName`
+> `product.generate`（`lan product generate`）已下线归档，将在后续版本重新设计，此处不再列出该 Bridge 方法。
 
 ### product.inspect
 

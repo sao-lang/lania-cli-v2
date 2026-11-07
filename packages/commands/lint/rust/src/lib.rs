@@ -4,6 +4,7 @@
 //! 关键点：
 //! - 包含异步/超时/取消等控制流
 //! - 包含序列化/反序列化与 JSON 结构约定
+mod config;
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::{CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
@@ -106,7 +107,7 @@ impl LintCommandPlugin {
     pub fn spec() -> CommandSpec {
         CommandSpec::new("lint", "Run project lint checks", HANDLER_ID)
             .with_options(Self::shared_options())
-            .with_subcommands(vec![Self::check_spec(), Self::fix_spec()])
+            .with_subcommands(vec![config::config_spec(), Self::check_spec(), Self::fix_spec()])
             .with_examples(vec![
                 Example {
                     command: "lan lint".into(),
@@ -260,12 +261,15 @@ impl Plugin for LintCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![HANDLER_ID, CHECK_HANDLER_ID, FIX_HANDLER_ID];
+        ids.extend(config_ids.iter().map(String::as_str));
         register_builtin_command::<LintCommandHandler, _>(
             ctx,
             "command-lint",
             "lint",
             Self::spec(),
-            &[HANDLER_ID, CHECK_HANDLER_ID, FIX_HANDLER_ID],
+            &ids,
             || LintCommandHandler,
         )
     }
@@ -274,6 +278,15 @@ impl Plugin for LintCommandPlugin {
 #[async_trait(?Send)]
 impl CommandHandler for LintCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        if lania_command_config::is_config_handler_id(COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                COMMAND_NAME,
+                &config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
+        }
         ctx.require_capability(CapabilityName::NodeBridge)?;
         let started = std::time::Instant::now();
 

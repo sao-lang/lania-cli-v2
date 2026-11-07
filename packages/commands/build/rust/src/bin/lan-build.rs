@@ -9,7 +9,7 @@ use std::env;
 
 use anyhow::Result;
 use lania_cli_kit::run_single_command;
-use lania_host::{plugin::EmptyPlugin, HostRuntime};
+use lania_host::{maybe_run_rust_bridge, configure_command_bridges, plugin::EmptyPlugin, HostRuntime};
 use lania_plugins_command_build::{factory, spec, COMMAND_NAME};
 
 #[tokio::main]
@@ -17,11 +17,9 @@ async fn main() -> Result<()> {
     // 所有子进程继承 PATH（§5.1 A.2）；只依赖极小的 runex-home，不拉下载引擎。
     runex_home::activate_managed_runtimes();
 
-    // B11：bridge 模式只需要 stdin/stdout 协议循环，在任何宿主装配之前短路。
-    if lania_bridge_host::rust_bridge::is_bridge_invocation(env::args_os()) {
-        let code = lania_bridge_host::rust_bridge::run_stdio_bridge()?;
-        debug_assert_eq!(spec().name, COMMAND_NAME);
-    std::process::exit(code);
+    // B11 短路与桥接装配统一收口到 lania-host（与其它命令二进制不再各写一遍）。
+    if maybe_run_rust_bridge()? {
+        return Ok(());
     }
 
     let forwarded: Vec<String> = env::args().skip(1).collect();
@@ -40,10 +38,8 @@ async fn main() -> Result<()> {
     let _ = host
         .bootstrap_project_extensions_from_cwd_async(cwd.display().to_string())
         .await?;
-    // 登记语言 bridge（§5.3，best-effort，懒加载不启动进程）。
-    let _ = host.register_python_bridge(&cwd);
-    let _ = host.register_go_bridge(&cwd);
-    let _ = host.register_dart_bridge(&cwd);
+    // 统一登记各语言桥 + 装配 Hub provider + 注入 bridge_slot。
+    configure_command_bridges(&mut host, &cwd, false).await;
 
     let code = run_single_command(&mut host, spec(), forwarded).await?;
     host.shutdown_async().await?;

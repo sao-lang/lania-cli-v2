@@ -5,6 +5,7 @@
 //! - 本 crate 只做三件事：声明命令 → 解析宿主上下文 → 注入传输与审批通道；
 //! - 反向依赖禁止：`lania-agent` 里不出现本 crate 的名字。
 
+mod config;
 mod bridge;
 mod handler;
 mod options;
@@ -123,6 +124,7 @@ impl PiCommandPlugin {
             ),
             flag("verbose", None, "Show extra diagnostics"),
         ])
+        .with_subcommand(config::config_spec())
         .with_examples(vec![
             Example {
                 command: "lan pi".into(),
@@ -165,12 +167,15 @@ impl Plugin for PiCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![HANDLER_ID];
+        ids.extend(config_ids.iter().map(String::as_str));
         register_builtin_command::<handler::PiCommandHandler, _>(
             ctx,
             "command-pi",
             "pi",
             Self::spec(),
-            &[HANDLER_ID],
+            &ids,
             || handler::PiCommandHandler,
         )
     }

@@ -170,24 +170,6 @@ importers:
 
   packages/commands/env/npm/cmd-env-win32-x64: {}
 
-  packages/commands/generate/npm/cmd-generate:
-    optionalDependencies:
-      '@lania-cli-v2/cmd-generate-darwin-arm64':
-        specifier: workspace:*
-        version: link:../cmd-generate-darwin-arm64
-      '@lania-cli-v2/cmd-generate-linux-x64':
-        specifier: workspace:*
-        version: link:../cmd-generate-linux-x64
-      '@lania-cli-v2/cmd-generate-win32-x64':
-        specifier: workspace:*
-        version: link:../cmd-generate-win32-x64
-
-  packages/commands/generate/npm/cmd-generate-darwin-arm64: {}
-
-  packages/commands/generate/npm/cmd-generate-linux-x64: {}
-
-  packages/commands/generate/npm/cmd-generate-win32-x64: {}
-
   packages/commands/git/npm/cmd-git:
     optionalDependencies:
       '@lania-cli-v2/cmd-git-darwin-arm64':
@@ -298,9 +280,6 @@ importers:
       '@lania-cli-v2/cmd-env':
         specifier: 0.0.3
         version: link:../../../../commands/env/npm/cmd-env
-      '@lania-cli-v2/cmd-generate':
-        specifier: 0.0.3
-        version: link:../../../../commands/generate/npm/cmd-generate
       '@lania-cli-v2/cmd-git':
         specifier: 0.0.3
         version: link:../../../../commands/git/npm/cmd-git

@@ -4,6 +4,7 @@
 //! 关键点：
 //! - 包含异步/超时/取消等控制流
 //! - 包含序列化/反序列化与 JSON 结构约定
+mod config;
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::{CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
@@ -56,6 +57,7 @@ impl ReleaseCommandPlugin {
                 },
             ])
             .with_subcommands(vec![
+                config::config_spec(),
                 Self::plan_spec(),
                 Self::run_spec(),
                 Self::resume_spec(),
@@ -383,18 +385,21 @@ impl Plugin for ReleaseCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
-        register_builtin_command::<ReleaseCommandHandler, _>(
-            ctx,
-            "command-release",
-            "release",
-            Self::spec(),
-            &[
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![
                 HANDLER_ID,
                 PLAN_HANDLER_ID,
                 RUN_HANDLER_ID,
                 RESUME_HANDLER_ID,
                 STATUS_HANDLER_ID,
-            ],
+            ];
+        ids.extend(config_ids.iter().map(String::as_str));
+        register_builtin_command::<ReleaseCommandHandler, _>(
+            ctx,
+            "command-release",
+            "release",
+            Self::spec(),
+            &ids,
             || ReleaseCommandHandler,
         )
     }
@@ -403,6 +408,15 @@ impl Plugin for ReleaseCommandPlugin {
 #[async_trait(?Send)]
 impl CommandHandler for ReleaseCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        if lania_command_config::is_config_handler_id(COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                COMMAND_NAME,
+                &config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
+        }
         ctx.require_capability(CapabilityName::Git)?;
         ctx.emit_workflow_start("release").await;
         let input = ReleaseCommandPlugin::build_input(ctx.command());

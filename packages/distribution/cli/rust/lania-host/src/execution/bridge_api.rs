@@ -11,7 +11,9 @@
 use anyhow::Result;
 use lania_hooks::hook_keys;
 use lania_logger::LogLevel;
-use lania_bridge_host::node_bridge::{BridgeExchange, BridgeRequest, NodeBridgeClient};
+use lania_bridge_host::node_bridge::{
+    BridgeExchange, BridgeRequest, BridgeResponse, NodeBridgeClient,
+};
 use lania_workflows::WorkflowExecution;
 use serde_json::json;
 
@@ -82,9 +84,41 @@ impl<'a> CommandExecutionContext<'a> {
             request.params = params;
         }
 
-        // 真正发起 bridge 调用（包含 timeout/retry/流式 events 的处理），见 bridge_helpers.rs。
-        let BridgeDispatchResult { exchange, active } =
-            self.dispatch_bridge_request(&request).await?;
+        // 真正发起 bridge 调用（§5.5 E.1 接线）：
+        // bridge_slot 已注入时优先走新总线 BridgeProvider；provider 未声明该
+        // capability（Hub 回 E_METHOD_NOT_FOUND）或超时/出错时，回落到既有
+        // 1:1 客户端 dispatch_bridge_request —— 兼容层，保证行为不退化。
+        // 命中 provider 时构造一个只有 response、没有 events 的 exchange，
+        // 之后仍统一经过 after-hook / 错误映射 / 长任务收尾，保持调用生命周期一致。
+        let provider_dispatch = match self.bridge_provider() {
+            Some(provider) => {
+                let attempt = tokio::time::timeout(
+                    std::time::Duration::from_millis(self.policy.timeout_ms),
+                    provider.call(&request.method, request.params.clone()),
+                )
+                .await;
+                match attempt {
+                    Ok(Ok(value)) => Some(BridgeDispatchResult {
+                        exchange: BridgeExchange {
+                            response: BridgeResponse {
+                                id: request.id.clone(),
+                                result: Some(value),
+                                error: None,
+                            },
+                            events: Vec::new(),
+                        },
+                        active: None,
+                    }),
+                    _ => None,
+                }
+            }
+            None => None,
+        };
+        let BridgeDispatchResult { exchange, active } = match provider_dispatch {
+            Some(dispatch) => dispatch,
+            // 回落：包含 timeout/retry/流式 events 的处理，见 bridge_helpers.rs。
+            None => self.dispatch_bridge_request(&request).await?,
+        };
         if let Some(error) = exchange.response.error.as_ref() {
             // after hook 使用 parallel：不影响主流程（仅用于观测/上报）。
             // 失败和成功都发 after hook，说明 hook 的职责是“记录这次调用发生了什么”，

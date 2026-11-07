@@ -4,6 +4,8 @@
 本页说明 stdout/stderr 约定、输出 profile、退出码，以及 .lania 下的状态与报告文件。
 </div>
 
+> `lan create` 支持 Node.js / Python / Go / Rust / Dart 五种运行时，dry-run / human 输出里展示的安装命令随运行时变化（如 `go mod tidy`、`cargo fetch`、`dart pub get`），但统一输出 envelope 与状态文件约定保持一致。
+
 ## 1. stdout / stderr
 
 ```text
@@ -134,27 +136,14 @@ lan config set output.mode human
 
 ### 动态命令与 schema
 
-| 路径                      | 用途                   |
-| ------------------------- | ---------------------- |
-| `lania.schemas.ts/js/cjs` | 默认 manifest          |
-| `.lania/schemas/`         | 额外 manifest 目录     |
-| `lania.contract.yaml`     | `generate api` 输入    |
-| `lania.module.yaml`       | `generate module` 输入 |
+| 路径                      | 用途               |
+| ------------------------- | ------------------ |
+| `lania.schemas.ts/js/cjs` | 默认 manifest      |
+| `.lania/schemas/`         | 额外 manifest 目录 |
 
-### 生成状态
+### 已下线的生成状态
 
-| 路径                          | 用途             |
-| ----------------------------- | ---------------- |
-| `.lania/contracts.lock.json`  | 契约生成输出跟踪 |
-| `.lania/module-gen.lock.json` | 模块生成输出跟踪 |
-
-这些 manifest 用于：
-
-- 判断文件是否由工具生成
-- 计算 stale 文件
-- 支持 `--check`
-- 支持 `--clean`
-- 避免覆盖未受管理文件
+`generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计；`lania.contract.yaml`、`lania.module.yaml`、`.lania/contracts.lock.json`、`.lania/module-gen.lock.json` 不再由内置命令维护。
 
 ### 发布状态
 
@@ -212,10 +201,6 @@ coverage/
 
 ```text
 lania.schemas.*
-lania.contract.yaml
-lania.module.yaml
-.lania/contracts.lock.json
-.lania/module-gen.lock.json
 ```
 
 发布状态 `.lania/release-state.json` 是否提交取决于团队策略，一般不建议。

@@ -15,6 +15,7 @@ lania-command = { path = "../../../../packages/foundation/command/rust/lania-com
 lania-host = { path = "../../../../packages/distribution/cli/rust/lania-host" }
 lania-workflows = { path = "../../../../packages/foundation/capabilities/rust/lania-workflows" }
 serde_json.workspace = true
+lania-command-config = { path = "../../../../packages/foundation/package-config/rust/lania-command-config" }
 
 
 tokio.workspace = true

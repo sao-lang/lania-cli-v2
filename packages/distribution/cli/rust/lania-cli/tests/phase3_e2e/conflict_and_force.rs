@@ -3,9 +3,8 @@
 //! 补充 P2-3：
 //! - `add` 冲突检测（无 force 时检测 existing 文件且报告冲突路径）
 //! - `add --force` 覆盖已有文件
-//! - `generate api --force` 覆盖已有生成文件
 //!
-//! create 和 generate module 依赖 Node bridge（模板渲染），标记为 #[cfg(unix)]。
+//! create 依赖 Node bridge（模板渲染），标记为 #[cfg(unix)]。
 use super::common::*;
 use super::*;
 
@@ -168,40 +167,7 @@ fn lan_add_with_force_overwrites_duplicate_without_crashing_e2e() {
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn lan_generate_api_with_force_overwrites_existing_file_e2e() {
-    let root = temp_dir("generate-api-force");
-    write_contract_fixture(&root, &["grpc", "http"]);
-
-    // 首次 apply
-    let first = run_cli(&root, &["generate", "api"], &[]);
-    assert_eq!(first.status.code(), Some(0));
-    assert!(root
-        .join("contracts/generated/user_service.contract.gen.go")
-        .exists());
-
-    // 修改生成的文件
-    let contract_path = root.join("contracts/generated/user_service.contract.gen.go");
-    fs::write(&contract_path, "// manual edit\n").expect("write custom content");
-
-    // 带 --force 再次 apply 应覆盖
-    let second = run_cli(&root, &["generate", "api", "--force"], &[]);
-    assert_eq!(
-        second.status.code(),
-        Some(0),
-        "generate api --force should succeed"
-    );
-
-    let content = fs::read_to_string(&contract_path).expect("file readable");
-    assert!(
-        !content.contains("manual edit"),
-        "force should overwrite custom edits: {content}"
-    );
-
-    let _ = fs::remove_dir_all(root);
-}
-
-// create 和 generate module 依赖 Node bridge，只在 Unix 上运行
+// create 依赖 Node bridge，只在 Unix 上运行
 #[cfg(unix)]
 #[test]
 fn lan_create_on_existing_dir_reports_conflict_e2e() {
@@ -265,37 +231,6 @@ fn lan_create_on_existing_dir_reports_conflict_e2e() {
             "conflict should be reported: {stdout}"
         );
     }
-
-    let _ = fs::remove_dir_all(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn lan_generate_module_with_force_overwrites_existing_file_e2e() {
-    let root = temp_dir("generate-module-force");
-    write_module_fixture(&root, &["grpc"], false);
-
-    let first = run_cli(&root, &["generate", "module"], &[]);
-    assert_eq!(first.status.code(), Some(0));
-    assert!(root
-        .join("generated/lania/contracts/user.contract.gen.go")
-        .exists());
-
-    let contract_path = root.join("generated/lania/contracts/user.contract.gen.go");
-    fs::write(&contract_path, "// custom manual edit\n").expect("write custom content");
-
-    let second = run_cli(&root, &["generate", "module", "--force"], &[]);
-    assert_eq!(
-        second.status.code(),
-        Some(0),
-        "generate module --force should succeed"
-    );
-
-    let content = fs::read_to_string(&contract_path).expect("file readable");
-    assert!(
-        !content.contains("custom manual edit"),
-        "force should overwrite custom edits: {content}"
-    );
 
     let _ = fs::remove_dir_all(root);
 }

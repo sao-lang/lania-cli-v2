@@ -16,7 +16,6 @@ use lania_plugins_command_build::BuildCommandPlugin;
 use lania_plugins_command_create::CreateCommandPlugin;
 use lania_plugins_command_dev::DevCommandPlugin;
 use lania_plugins_command_env::EnvCommandPlugin;
-use lania_plugins_command_generate::GenerateCommandPlugin;
 use lania_plugins_command_git::GitCommandPlugin;
 use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
@@ -52,7 +51,6 @@ fn builtin_command_specs() -> Vec<CommandSpec> {
     setup!(LintCommandPlugin);
     setup!(CreateCommandPlugin);
     setup!(AddCommandPlugin);
-    setup!(GenerateCommandPlugin);
     setup!(ReleaseCommandPlugin);
     setup!(GitCommandPlugin);
     setup!(ToolsCommandPlugin);
@@ -120,7 +118,7 @@ fn collect_untranslated(spec: &CommandSpec, parent_path: &str, failures: &mut Ve
 fn zh_localization_covers_every_builtin_command_string() {
     let mut specs = builtin_command_specs();
     for expected in [
-        "dev", "build", "lint", "create", "add", "generate", "release", "git", "template",
+        "dev", "build", "lint", "create", "add", "release", "git", "template",
         "tools", "env", "pi", "config",
     ] {
         assert!(

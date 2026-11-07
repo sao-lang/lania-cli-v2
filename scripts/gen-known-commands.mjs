@@ -2,7 +2,7 @@
 /**
  * 构建期生成 `known-commands.json`（文档 §5.3 C.7）。
  *
- * 输入：12 份 `kind === "command"` 的 `lania.package.json`（命令子包清单）。
+ * 输入：所有 `kind === "command"` 的 `lania.package.json`（命令子包清单）。
  * 输出：`packages/distribution/core/npm/core/lib/known-commands.json`
  *       —— 随 `@lania-cli-v2/core` 发布，运行时 launcher 只读此表，
  *          **不扫描目录、不发现未知命令**。
@@ -83,6 +83,9 @@ function buildKnownCommands() {
         slices: Array.isArray(payload.slices) ? payload.slices : [],
         platformPackages,
         protocol: manifest.api?.protocol ?? 1,
+        // 各子包声明的包级配置键。launcher 的 `lan config packages/apply` 只读这份
+        // 静态表即可完成跨包管理，不必在运行时再去解析已安装 npm 包的 manifest。
+        configSchema: manifest.configSchema ?? null,
       };
     })
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99));

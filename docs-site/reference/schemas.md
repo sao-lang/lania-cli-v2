@@ -1,7 +1,7 @@
 # Schema 与协议
 
 <div class="lead">
-本页说明三类 schema：动态命令 manifest、契约生成配置、模块生成配置。
+本页说明动态命令 manifest 的最小结构与字段约定。
 </div>
 
 ## 动态命令 manifest
@@ -101,99 +101,12 @@ handler: async (ctx) => ({
 
 `ctx.tools` 的可用范围由 `lan.config.tools`（旧名 `tooling`）控制，而不是 manifest 字段。完整策略与 API 见 [ctx.tools API](/reference/host-tools)。
 
-## 契约生成配置
+## 已下线的契约/模块生成配置
 
-文件：`lania.contract.yaml`
-
-```yaml
-version: 1
-
-defaults:
-  language: go
-  output:
-    contractDir: contracts/generated
-    transportDir: transport/generated
-    moduleFile: modules/generated_module.gen.go
-    manifest: .lania/contracts.lock.json
-
-entries:
-  - name: greeter-service
-    source:
-      kind: proto
-      inputs:
-        - schemas/proto/greeter.proto
-    targets:
-      - grpc
-      - http
-```
-
-### 字段
-
-| 字段                      | 说明                  |
-| ------------------------- | --------------------- |
-| `version`                 | 配置版本              |
-| `defaults.language`       | 目标语言              |
-| `defaults.output`         | 输出目录与 manifest   |
-| `entries[].name`          | 入口名                |
-| `entries[].source.kind`   | `proto` / `thrift` 等 |
-| `entries[].source.inputs` | 输入文件              |
-| `entries[].targets`       | `grpc` / `http` 等    |
-
-## 模块生成配置
-
-文件：`lania.module.yaml`
-
-```yaml
-version: 1
-
-framework:
-  name: lania-g
-  language: go
-
-inputs:
-  - name: user-grpc
-    source: protobuf
-    path: schemas/proto
-    include:
-      - '**/*.proto'
-    targets:
-      - grpc
-
-output:
-  root: generated/lania
-  moduleDir: generated/lania/modules
-  adapterDir: generated/lania/adapters
-  contractDir: generated/lania/contracts
-  grpcRootDir: generated/grpc
-  manifest: .lania/module-gen.lock.json
-
-inject:
-  enabled: false
-```
-
-### 字段
-
-| 字段                 | 说明                                                |
-| -------------------- | --------------------------------------------------- |
-| `framework.name`     | 后端框架，如 `lania-g`                              |
-| `framework.language` | 目标语言                                            |
-| `inputs[].name`      | 输入名                                              |
-| `inputs[].source`    | `protobuf` / `thrift` / `json` / `yaml` / `graphql` |
-| `inputs[].path`      | schema 目录或文件                                   |
-| `inputs[].include`   | glob                                                |
-| `inputs[].targets`   | `grpc` / `http` / `ws` / `graphql`                  |
-| `output.*`           | 输出目录                                            |
-| `inject.enabled`     | 是否执行 main.go 注入                               |
-
-## 协议 metadata
-
-schema 内可声明 transport metadata：
-
-- `proto` / `thrift`：单行注释 `// lania:...`
-- `json` / `yaml`：`x-lania-operations`
+`generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计；`lania.contract.yaml`、`lania.module.yaml` 以及 `.lania/contracts.lock.json`、`.lania/module-gen.lock.json` 等锁文件不再由内置命令维护。历史设计可参见仓库内的 `docs/design/transports/` 专题方案。
 
 ## 下一步
 
-- [代码生成](/guide/generate)
-- [生成 HTTP / gRPC 代码](/cookbook/generate-api)
-- [生成 Go 模块](/cookbook/generate-module)
+- [动态命令与插件](/guide/dynamic-commands)
+- [运行时清单参考](/reference/manifest)
+- [模板参考](/reference/templates)

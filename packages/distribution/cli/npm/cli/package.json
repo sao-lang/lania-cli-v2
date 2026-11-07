@@ -19,7 +19,6 @@
     "@lania-cli-v2/cmd-lint": "0.0.3",
     "@lania-cli-v2/cmd-create": "0.0.3",
     "@lania-cli-v2/cmd-add": "0.0.3",
-    "@lania-cli-v2/cmd-generate": "0.0.3",
     "@lania-cli-v2/cmd-release": "0.0.3",
     "@lania-cli-v2/cmd-git": "0.0.3",
     "@lania-cli-v2/cmd-tools": "0.0.3",

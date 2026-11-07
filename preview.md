@@ -2,7 +2,7 @@
 
 ## 一、一句话定位（30秒版）
 
-> "这是一个以 Rust 为宿主运行时、通过 Node Bridge 接入 JavaScript 生态能力的双运行时 CLI 框架。它既是一个开发工具集（内置 dev/build/lint/create/generate/release 等命令），也是一个可扩展的 CLI 宿主框架——团队可以在不修改 Rust 代码的前提下，通过配置文件向命令树挂载自己的工程化命令。"
+> "这是一个以 Rust 为宿主运行时、通过 Node Bridge 接入 JavaScript 生态能力的双运行时 CLI 框架。它既是一个开发工具集（内置 dev/build/lint/create/release 等命令），也是一个可扩展的 CLI 宿主框架——团队可以在不修改 Rust 代码的前提下，通过配置文件向命令树挂载自己的工程化命令。"
 
 **面试价值**：快速建立技术画像——你同时涉足 Rust 系统工程和 Node.js 生态集成。
 
@@ -97,11 +97,11 @@ lania-plugins-command-*        — 各命令插件
 
 ### 4. 三种执行路径
 
-| 类型        | 命令                             | 执行方式                              |
-| ----------- | -------------------------------- | ------------------------------------- |
-| Bridge 型   | dev/build/lint                   | Rust → Node Bridge → JS 插件          |
-| 混合型      | tools                            | list 走 Bridge，run/view 走 Rust 本地 |
-| Workflow 型 | create/add/generate/release/sync | Rust 工作流引擎编排，按需调用 Bridge  |
+| 类型        | 命令                        | 执行方式                              |
+| ----------- | --------------------------- | ------------------------------------- |
+| Bridge 型   | dev/build/lint              | Rust → Node Bridge → JS 插件          |
+| 混合型      | tools                       | list 走 Bridge，run/view 走 Rust 本地 |
+| Workflow 型 | create/add/release/git/sync | Rust 工作流引擎编排，按需调用 Bridge  |
 
 ### 5. 产品化闭环
 
@@ -181,7 +181,7 @@ lania-plugins-command-*        — 各命令插件
 > "拆分的核心原则是**职责边界 + 可测试性 + 编译缓存**。
 >
 > 1. **按领域拆分**：fs、git、exec、pm、config、prompt、progress、logger —— 每个都是独立的宿主能力，有清晰的输入输出边界
-> 2. **按命令拆分**：每个命令插件一个 crate（command-create、command-release、command-generate...），互不依赖
+> 2. **按命令拆分**：每个命令插件一个 crate（command-create、command-release、command-git...），互不依赖
 > 3. **独立可测试**：比如 `lania-git` 不依赖其他 crate，可以独立写单元测试，mock Git 命令输出即可
 > 4. **编译缓存友好**：高频修改的业务代码在命令插件 crate 里，低频修改的基础 crate 不会频繁重编
 >
@@ -267,7 +267,7 @@ lania-plugins-command-*        — 各命令插件
 
 > "推荐路径是：
 >
-> 1. 拉取这个仓库，把 `lan config create`、`lan template`、`lan generate` 等作为基础设施直接使用
+> 1. 拉取这个仓库，把 `lan create`、`lan template` 等作为基础设施直接使用
 > 2. 在项目根写 `lan.config.*` 开启 `dynamicCommands`，配置插件白名单
 > 3. 写 `lania.schemas.ts` 定义团队自己的命令树（比如 `lan team init`、`lan app deploy`）
 > 4. 使用 `ctx.tools` 中的 git/fs/exec/pm 等宿主能力，不需要自己实现系统级操作
@@ -282,7 +282,7 @@ lania-plugins-command-*        — 各命令插件
 > "当前 `lania-format` 和 `lania-validate` 中使用了 tree-sitter，主要用于：
 >
 > 1. **代码结构分析**：比如检查生成代码中是否已经存在标记块（用于幂等插入）
-> 2. **文件解析**：在 `generate module` 中解析 `main.go` 定位注入点
+> 2. **文件解析**：解析 `main.go` 定位幂等注入点（对应已下线归档的 `generate module` 链路，将在后续版本重新设计）
 > 3. **语法验证**：对某些 DSL 配置文件做结构化校验
 >
 > 选择 tree-sitter 而不是正则或手写解析器，是因为它：

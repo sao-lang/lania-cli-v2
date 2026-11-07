@@ -278,58 +278,6 @@ pub(crate) struct ReleasePlan {
     pub(crate) package_manager: PackageManager,
 }
 
-#[derive(Debug, Clone)]
-pub struct GenerateApiWorkflowInput {
-    pub cwd: PathBuf,
-    pub config_path: Option<String>,
-    pub manifest_path: Option<String>,
-    pub source_filter: Vec<String>,
-    pub target_filter: Vec<String>,
-    pub entry_filter: Vec<String>,
-    pub dry_run: bool,
-    pub check: bool,
-    pub clean: bool,
-    pub force: bool,
-    pub mode: GenerateApiMode,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GenerateApiMode {
-    Apply,
-    Plan,
-    Diff,
-    Init,
-}
-
-#[derive(Debug, Clone)]
-pub struct GenerateModuleWorkflowInput {
-    pub cwd: PathBuf,
-    pub config_path: Option<String>,
-    pub manifest_path: Option<String>,
-    pub input_path: Option<String>,
-    pub source_filter: Vec<String>,
-    pub target_filter: Vec<String>,
-    pub entry_filter: Vec<String>,
-    pub framework: Option<String>,
-    pub main_path: Option<String>,
-    pub module_name: Option<String>,
-    pub package_name: Option<String>,
-    pub dry_run: bool,
-    pub check: bool,
-    pub clean: bool,
-    pub force: bool,
-    pub no_inject: bool,
-    pub mode: GenerateModuleMode,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GenerateModuleMode {
-    Apply,
-    Plan,
-    Diff,
-    Init,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct CreateWorkflow;
 
@@ -344,12 +292,6 @@ pub struct GitWorkflow;
 
 #[derive(Debug, Clone, Default)]
 pub struct ReleaseWorkflow;
-
-#[derive(Debug, Clone, Default)]
-pub struct GenerateApiWorkflow;
-
-#[derive(Debug, Clone, Default)]
-pub struct GenerateModuleWorkflow;
 
 pub(crate) fn step(request: BridgeRequest, exchange: BridgeExchange) -> WorkflowBridgeStep {
     WorkflowBridgeStep {

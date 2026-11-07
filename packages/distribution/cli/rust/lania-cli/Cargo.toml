@@ -24,3 +24,15 @@ lania-progress = { path = "../../../../../packages/foundation/capabilities/rust/
 lania-workflows = { path = "../../../../../packages/foundation/capabilities/rust/lania-workflows" }
 lania-plugins-command-locale = { path = "../lania-plugins-command-locale" }
 lania-preferences = { path = "../../../../../packages/foundation/capabilities/rust/lania-preferences" }
+
+# phase3_e2e 仍按单体形态注册命令插件做集成测试；这些 crate 只在测试时链接，
+# 不进入发布产物（总包运行时只静态注册 config，其余命令由 launcher 调度子包）。
+[dev-dependencies]
+lania-plugins-command-add = { path = "../../../../../packages/commands/add/rust" }
+lania-plugins-command-build = { path = "../../../../../packages/commands/build/rust" }
+lania-plugins-command-create = { path = "../../../../../packages/commands/create/rust" }
+lania-plugins-command-dev = { path = "../../../../../packages/commands/dev/rust" }
+lania-plugins-command-git = { path = "../../../../../packages/commands/git/rust" }
+lania-plugins-command-lint = { path = "../../../../../packages/commands/lint/rust" }
+lania-plugins-command-release = { path = "../../../../../packages/commands/release/rust" }
+lania-plugins-command-tools = { path = "../../../../../packages/commands/tools/rust" }

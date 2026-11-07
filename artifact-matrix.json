@@ -78,17 +78,6 @@
         {
           "family": "lan",
           "tag": "lan-v*",
-          "package": "@lania-cli-v2/cmd-generate",
-          "platformPackage": "@lania-cli-v2/cmd-generate-darwin-arm64",
-          "os": "darwin",
-          "cpu": "arm64",
-          "binary": "lan-generate",
-          "artifact": "lan-generate-0.0.3-darwin-arm64",
-          "version": "0.0.3"
-        },
-        {
-          "family": "lan",
-          "tag": "lan-v*",
           "package": "@lania-cli-v2/cmd-git",
           "platformPackage": "@lania-cli-v2/cmd-git-darwin-arm64",
           "os": "darwin",
@@ -240,17 +229,6 @@
         {
           "family": "lan",
           "tag": "lan-v*",
-          "package": "@lania-cli-v2/cmd-generate",
-          "platformPackage": "@lania-cli-v2/cmd-generate-linux-x64",
-          "os": "linux",
-          "cpu": "x64",
-          "binary": "lan-generate",
-          "artifact": "lan-generate-0.0.3-linux-x64",
-          "version": "0.0.3"
-        },
-        {
-          "family": "lan",
-          "tag": "lan-v*",
           "package": "@lania-cli-v2/cmd-git",
           "platformPackage": "@lania-cli-v2/cmd-git-linux-x64",
           "os": "linux",
@@ -397,17 +375,6 @@
           "cpu": "x64",
           "binary": "lan-env.exe",
           "artifact": "lan-env-0.0.3-win32-x64",
-          "version": "0.0.3"
-        },
-        {
-          "family": "lan",
-          "tag": "lan-v*",
-          "package": "@lania-cli-v2/cmd-generate",
-          "platformPackage": "@lania-cli-v2/cmd-generate-win32-x64",
-          "os": "win32",
-          "cpu": "x64",
-          "binary": "lan-generate.exe",
-          "artifact": "lan-generate-0.0.3-win32-x64",
           "version": "0.0.3"
         },
         {

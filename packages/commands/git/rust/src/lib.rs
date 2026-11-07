@@ -11,6 +11,7 @@
 //! | `lan sync status` | `lan git status` |
 //! | `lan sync commit` | `lan git commit` |
 //! | `lan sync push` | `lan git push` |
+mod config;
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::{ArgSpec, CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
@@ -80,6 +81,7 @@ impl GitCommandPlugin {
                 },
             ])
             .with_subcommands(vec![
+                config::config_spec(),
                 Self::status_spec(),
                 Self::log_spec(),
                 Self::diff_spec(),
@@ -549,12 +551,8 @@ impl Plugin for GitCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
-        register_builtin_command::<GitCommandHandler, _>(
-            ctx,
-            "command-git",
-            "git",
-            Self::spec(),
-            &[
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![
                 HANDLER_ID,
                 STATUS_HANDLER_ID,
                 LOG_HANDLER_ID,
@@ -571,7 +569,14 @@ impl Plugin for GitCommandPlugin {
                 SYNC_HANDLER_ID,
                 COMMIT_HANDLER_ID,
                 PUSH_HANDLER_ID,
-            ],
+            ];
+        ids.extend(config_ids.iter().map(String::as_str));
+        register_builtin_command::<GitCommandHandler, _>(
+            ctx,
+            "command-git",
+            "git",
+            Self::spec(),
+            &ids,
             || GitCommandHandler,
         )
     }
@@ -580,6 +585,15 @@ impl Plugin for GitCommandPlugin {
 #[async_trait(?Send)]
 impl CommandHandler for GitCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        if lania_command_config::is_config_handler_id(COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                COMMAND_NAME,
+                &config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
+        }
         ctx.require_capability(CapabilityName::Git)?;
         let mut input = GitCommandPlugin::build_input(ctx.command());
 

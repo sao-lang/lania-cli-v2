@@ -68,7 +68,7 @@ Lania CLI 的核心设计是“Rust 宿主 + Node Bridge”的双运行时分层
 
 ### 工作流
 
-- `lania-workflows`：create / add / generate / release / sync 等编排。
+- `lania-workflows`：create / add / release / git 等编排。
 
 ### 基础设施
 

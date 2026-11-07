@@ -33,50 +33,6 @@ fn lan_tools_view_nonexistent_file_returns_error_e2e() {
 }
 
 #[test]
-fn lan_generate_api_with_nonexistent_config_returns_error_e2e() {
-    let root = temp_dir("generate-api-no-config");
-
-    let output = run_cli(
-        &root,
-        &["generate", "api", "--config", "nonexistent.yaml"],
-        &[],
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    // 不存在的 config 应非零退出
-    assert_ne!(
-        output.status.code(),
-        Some(0),
-        "generate api with nonexistent config should fail.\nstdout:\n{stdout}\nstderr:\n{stderr}"
-    );
-
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
-fn lan_generate_module_with_nonexistent_config_returns_error_e2e() {
-    let root = temp_dir("generate-module-no-config");
-
-    let output = run_cli(
-        &root,
-        &["generate", "module", "--config", "nonexistent.yaml"],
-        &[],
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    // 不存在的 config 应非零退出
-    assert_ne!(
-        output.status.code(),
-        Some(0),
-        "generate module with nonexistent config should fail.\nstdout:\n{stdout}\nstderr:\n{stderr}"
-    );
-
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
 fn lan_add_with_nonexistent_template_returns_error_e2e() {
     let root = temp_dir("add-nonexistent-template");
     write_file(
@@ -114,35 +70,11 @@ fn lan_add_with_nonexistent_template_returns_error_e2e() {
 }
 
 #[test]
-fn lan_missing_subcommand_reports_usage_error_e2e() {
-    let root = temp_dir("missing-subcommand");
-    let home = isolated_home(&root);
-
-    // generate 需要子命令（api/module/product），不带子命令应报错
-    let output = run_cli(
-        &root,
-        &["generate"],
-        &[("HOME", home.as_str())],
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    // 缺少子命令应非零退出
-    assert_ne!(
-        output.status.code(),
-        Some(0),
-        "generate without subcommand should fail.\nstdout:\n{stdout}\nstderr:\n{stderr}"
-    );
-
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
 fn lan_product_missing_subcommand_reports_error_e2e() {
     let root = temp_dir("product-missing-subcommand");
     let home = isolated_home(&root);
 
-    // product 需要子命令（dev/build/pack/publish/inspect/doctor/generate）
+    // product 需要子命令（dev/build/pack/publish/inspect/doctor）
     let output = run_cli(
         &root,
         &["product"],

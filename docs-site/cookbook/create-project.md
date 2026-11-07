@@ -47,6 +47,13 @@ lan create \
 lan create --name demo-app --template spa-vue --skip-install
 ```
 
+`create` 不只面向前端项目：把 `--template` 换成目标运行时，安装阶段会自动选择对应包管理器命令（Go 用 `go mod tidy`、Python 用 `pip/uv/poetry`、Rust 用 `cargo fetch`、Dart 用 `dart pub get`）：
+
+```bash
+lan create --name svc --template go-service --package-manager go
+lan create --name cli --template python-cli --package-manager uv
+```
+
 ## 步骤 5：进入项目
 
 ```bash
@@ -99,4 +106,5 @@ lan tools view ./src/button.vue
 ## 下一步
 
 - [模板与脚手架](/guide/scaffolding)
-- [生成 HTTP / gRPC 代码](/cookbook/generate-api)
+- [模板参考](/reference/templates)
+- [CLI 命令参考](/reference/cli)

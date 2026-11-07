@@ -207,3 +207,19 @@ impl CommandHandler for DoctorProductCommandHandler {
         Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
     }
 }
+
+/// `config` 子树统一 handler：转发共享实现（包级偏好 / 全局偏好 / init/doctor/sync）。
+pub(crate) struct ConfigHandler;
+
+#[async_trait(?Send)]
+impl CommandHandler for ConfigHandler {
+    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        let value = lania_command_config::execute_config(
+            crate::COMMAND_NAME,
+            &crate::config::config_keys(),
+            command,
+        )?;
+        Ok(ctx.complete_template_info(value, 0))
+    }
+}

@@ -18,6 +18,7 @@ lania-workflows = { path = "../../../../packages/foundation/capabilities/rust/la
 lania-node-bridge = { path = "../../../../packages/products/bridge-hub/adaptors/ts/lania-node-bridge" }
 lania-prompt = { path = "../../../../packages/foundation/capabilities/rust/lania-prompt" }
 serde_json.workspace = true
+lania-command-config = { path = "../../../../packages/foundation/package-config/rust/lania-command-config" }
 
 
 tokio.workspace = true

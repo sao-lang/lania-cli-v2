@@ -13,7 +13,10 @@ use std::{env, sync::Arc};
 
 use anyhow::Result;
 use clap::error::ErrorKind as ClapErrorKind;
-use lania_host::{plugin::EmptyPlugin, ExecutionError, Host, HostRuntime, EXIT_RUNTIME_ERROR};
+use lania_host::{
+    configure_command_bridges, maybe_run_rust_bridge, plugin::EmptyPlugin, ExecutionError, Host,
+    HostRuntime, EXIT_RUNTIME_ERROR,
+};
 use lania_logger::{AutoStyledLogRenderer, CliMessageLevel, LogRenderer, StderrLogSink};
 use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_progress::TerminalProgressMode;
@@ -31,12 +34,11 @@ async fn main() -> Result<()> {
     activate_managed_runtimes();
 
     // B11：同一个二进制兼作 Rust 运行时 bridge（`lan __lania_rs_bridge`）。
-    //
     // 必须在任何宿主装配之前短路：bridge 模式只需要 stdin/stdout 协议循环，
     // 不加载插件、不读项目配置，也不打印任何额外输出（§3.1 约定 1）。
-    if lania_bridge_host::rust_bridge::is_bridge_invocation(env::args_os()) {
-        let code = lania_bridge_host::rust_bridge::run_stdio_bridge()?;
-        std::process::exit(code);
+    // 短路逻辑与命令子包共用 lania-host 的统一入口。
+    if maybe_run_rust_bridge()? {
+        return Ok(());
     }
 
     let mut host = HostRuntime::new();
@@ -85,38 +87,10 @@ async fn main() -> Result<()> {
     let _ = host
         .bootstrap_project_extensions_from_cwd_async(cwd.clone())
         .await?;
-    // 登记语言 bridge（§5.3：装了就更好，不装也能用）。
-    //
-    // 全部 best-effort：解析失败时保持未登记，`lint` / `build` 回落到 JS 簇路径。
+    // 登记语言 bridge（§5.3：装了就更好，不装也能用）+ 装配 Hub provider +
+    // 注入 bridge_slot。与命令子包共用同一入口；总包额外登记 `lan-rs-bridge`。
     // 必须在 `execute_command` 之前 —— 注册表是懒加载的，登记本身不启动进程。
-    //
-    // - Python（B8）：登记只做路径探测 + 脚本落盘，成本可忽略。
-    // - Go（B10）/ Dart（B9）：**延迟解析**，首次真正需要 bridge 时才编译/探测，
-    //   所以 Go 项目里跑 `lan env` / `lan add` 不会白白付一次 `go build`。
-    if let Err(error) = host.register_python_bridge(std::path::Path::new(&cwd)) {
-        host.logger().log(
-            lania_logger::LogLevel::Debug,
-            format!("lan-py-bridge not registered: {error}"),
-        );
-    }
-    if let Err(error) = host.register_go_bridge(std::path::Path::new(&cwd)) {
-        host.logger().log(
-            lania_logger::LogLevel::Debug,
-            format!("lan-go-bridge not registered: {error}"),
-        );
-    }
-    if let Err(error) = host.register_dart_bridge(std::path::Path::new(&cwd)) {
-        host.logger().log(
-            lania_logger::LogLevel::Debug,
-            format!("lan-dart-bridge not registered: {error}"),
-        );
-    }
-    if let Err(error) = host.register_rust_bridge(std::path::Path::new(&cwd)) {
-        host.logger().log(
-            lania_logger::LogLevel::Debug,
-            format!("lan-rs-bridge not registered: {error}"),
-        );
-    }
+    configure_command_bridges(&mut host, std::path::Path::new(&cwd), true).await;
     let renderer: Arc<dyn LogRenderer> = Arc::new(
         AutoStyledLogRenderer::default()
             .with_locale(locale.clone())

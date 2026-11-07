@@ -6,12 +6,22 @@
 
 ## create 模板
 
-| 模板               | 用途            | 渲染引擎                         |
-| ------------------ | --------------- | -------------------------------- |
-| `spa-react`        | React 单页应用  | Rust declarative / Node fallback |
-| `spa-vue`          | Vue 单页应用    | Rust declarative / Node fallback |
-| `toolkit`          | 工具库          | Node Bridge                      |
-| `toolkit-monorepo` | Monorepo 工具库 | Node Bridge                      |
+`lan create` 内置 10 个模板，覆盖 Node.js、Python、Go、Rust、Dart 五种运行时；安装阶段会按运行时选择对应包管理器命令，而不是只走 npm/pnpm。
+
+| 模板               | 用途                 | 运行时 · 技术栈             | 渲染引擎                         |
+| ------------------ | -------------------- | --------------------------- | -------------------------------- |
+| `spa-react`        | React 单页应用       | Node.js · React + Vite      | Rust declarative / Node fallback |
+| `spa-vue`          | Vue 3 单页应用       | Node.js · Vue 3 + Vite      | Rust declarative / Node fallback |
+| `toolkit`          | Node 工具库          | Node.js · TypeScript 工具库 | Node Bridge                      |
+| `toolkit-monorepo` | pnpm monorepo 工具库 | Node.js · pnpm workspace    | Node Bridge                      |
+| `nestjs`           | NestJS 服务端        | Node.js · NestJS            | Node Bridge                      |
+| `express`          | Express 服务端       | Node.js · Express           | Node Bridge                      |
+| `go-service`       | Go 服务 / CLI        | Go · go modules             | Node Bridge                      |
+| `rust-lib`         | Rust 库              | Rust · cargo                | Node Bridge                      |
+| `python-cli`       | Python CLI           | Python · pip / uv / poetry  | Node Bridge                      |
+| `dart-cli`         | Dart CLI             | Dart · dart pub             | Node Bridge                      |
+
+`--package-manager` 共 11 个候选：`npm` / `pnpm` / `yarn` / `bun` / `pip` / `uv` / `poetry` / `go` / `cargo` / `dart` / `pub`。安装命令按运行时选择：Node 走 `npm/pnpm/yarn/bun install`，Python 走 `pip/uv/poetry`，Go 走 `go mod tidy`，Rust 走 `cargo fetch`，Dart 走 `dart pub get`。
 
 ### 模板元信息
 
@@ -38,6 +48,12 @@ ts/packages/templates/
       spa-vue/
       toolkit/
       toolkit-monorepo/
+      nestjs/
+      express/
+      go-service/
+      rust-lib/
+      python-cli/
+      dart-cli/
     add-templates/
       assets/
   dist/
@@ -173,7 +189,18 @@ ts/packages/templates/
 
 ```json
 {
-  "templates": ["spa-react", "spa-vue", "toolkit"],
+  "templates": [
+    "spa-react",
+    "spa-vue",
+    "toolkit",
+    "toolkit-monorepo",
+    "nestjs",
+    "express",
+    "go-service",
+    "rust-lib",
+    "python-cli",
+    "dart-cli"
+  ],
   "metadata": [
     {
       "name": "spa-vue",

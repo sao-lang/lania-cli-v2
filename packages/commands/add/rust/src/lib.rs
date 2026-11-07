@@ -4,6 +4,7 @@
 //! 关键点：
 //! - 包含异步/超时/取消等控制流
 //! - 包含序列化/反序列化与 JSON 结构约定
+mod config;
 use anyhow::Result;
 use async_trait::async_trait;
 use lania_command::{ArgSpec, CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
@@ -118,6 +119,7 @@ impl AddCommandPlugin {
                 negatable: true,
             },
         ])
+        .with_subcommand(config::config_spec())
         .with_examples(vec![
             Example {
                 command: "lan add resource users".into(),
@@ -259,12 +261,15 @@ impl Plugin for AddCommandPlugin {
     }
 
     fn setup(&self, ctx: &mut PluginSetupContext<'_>) -> Result<()> {
+        let config_ids = lania_command_config::handler_ids(COMMAND_NAME);
+        let mut ids: Vec<&str> = vec![HANDLER_ID];
+        ids.extend(config_ids.iter().map(String::as_str));
         register_builtin_command::<AddCommandHandler, _>(
             ctx,
             "command-add",
             "add",
             Self::spec(),
-            &[HANDLER_ID],
+            &ids,
             || AddCommandHandler,
         )
     }
@@ -273,6 +278,15 @@ impl Plugin for AddCommandPlugin {
 #[async_trait(?Send)]
 impl CommandHandler for AddCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
+        let command = ctx.command();
+        if lania_command_config::is_config_handler_id(COMMAND_NAME, &command.handler_id) {
+            let value = lania_command_config::execute_config(
+                COMMAND_NAME,
+                &config::config_keys(),
+                command,
+            )?;
+            return Ok(ctx.complete_template_info(value, 0));
+        }
         ctx.require_capability(CapabilityName::Template)?;
         let input = AddCommandPlugin::build_input(ctx.command());
         if ctx.bool_option("list") {

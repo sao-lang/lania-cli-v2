@@ -94,6 +94,7 @@ impl BuildCommandPlugin {
                     negatable: false,
                 },
             ])
+            .with_subcommand(crate::config::config_spec())
             .with_examples(vec![
                 Example {
                     command: "lan build".into(),

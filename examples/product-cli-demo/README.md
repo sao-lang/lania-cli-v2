@@ -2,7 +2,7 @@
 
 [简体中文](./README.zh-CN.md)
 
-Minimal example product CLI workspace for `generate/build/pack/publish`.
+Minimal example product CLI workspace for `dev/build/pack/publish`.
 
 This example shows how to author a product CLI that:
 

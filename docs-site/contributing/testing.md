@@ -44,12 +44,14 @@ lan --help
 lan template
 lan tools --plain --names-only --unique --limit 8
 lan create --name demo-app --template spa-vue --preview
+lan create --name svc --template go-service --package-manager go --preview
+lan create --name cli --template python-cli --package-manager uv --preview
 lan add --name button --template v3
-lan generate api init
-lan generate module init
 lan release plan --profile package --version 1.2.3
 lan git status
 ```
+
+`create` 的多运行时模板（Go / Python / Rust / Dart / Node）都建议各跑一次 `--preview`，确认安装命令按运行时正确选择。`generate` 相关命令已下线归档，不再纳入手工验收。
 
 ## 跨平台注意
 

@@ -61,7 +61,17 @@
           "help": "Config key: locale | log.timestamps | output.mode"
         }
       ],
-      "options": [],
+      "options": [
+        {
+          "long": "package",
+          "short": "p",
+          "help": "Read a command subpackage's own preferences (~/.lania/config/<pkg>.json)",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
       "examples": [],
       "subcommands": [],
       "handler_id": "command.config.get"
@@ -85,7 +95,17 @@
           "help": "Config value (lists accept comma-separated values or JSON)"
         }
       ],
-      "options": [],
+      "options": [
+        {
+          "long": "package",
+          "short": "p",
+          "help": "Write a command subpackage's own preferences (~/.lania/config/<pkg>.json)",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
       "examples": [],
       "subcommands": [],
       "handler_id": "command.config.set"
@@ -142,6 +162,38 @@
       "examples": [],
       "subcommands": [],
       "handler_id": "command.config.sync"
+    },
+    {
+      "name": "packages",
+      "about": "Show every command subpackage's config keys and values",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.config.packages"
+    },
+    {
+      "name": "apply",
+      "about": "Apply global preferences to command subpackage configs",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "package",
+          "short": "p",
+          "help": "Only apply to one subpackage (short name or npm package name)",
+          "value_kind": "string",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [],
+      "subcommands": [],
+      "handler_id": "command.config.apply"
     }
   ],
   "handler_id": "command.config"

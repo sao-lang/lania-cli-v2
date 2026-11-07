@@ -164,18 +164,6 @@ export interface ProductDistributionReport {
   exitCode: 0;
 }
 
-export interface ProductGenerateReport {
-  accepted: true;
-  reportVersion: number;
-  kind: 'product_generate';
-  mode: 'scaffold';
-  outputRoot: string;
-  checks: Record<string, boolean>;
-  generatedFiles: string[];
-  experimental?: Record<string, unknown>;
-  exitCode: 0;
-}
-
 export interface ProductCompatSummary {
   verdict: 'ready' | 'warn';
   reasons: string[];

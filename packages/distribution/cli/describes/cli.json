@@ -1,14 +1,13 @@
 {
   "name": "cli",
   "kind": "distribution",
-  "about": "Lania CLI 全量包（12 条 builtin 命令 + 全量 bridge 切片）",
+  "about": "Lania CLI 全量包（11 条 builtin 命令 + 全量 bridge 切片）",
   "commands": [
     "dev",
     "build",
     "lint",
     "create",
     "add",
-    "generate",
     "release",
     "git",
     "tools",

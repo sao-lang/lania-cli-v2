@@ -168,6 +168,35 @@ lan config set log.timestamps true
 
 全局偏好会影响所有项目；项目配置可以覆盖部分运行时行为。
 
+## 三层配置统一管理
+
+除了项目配置与全局偏好，CLI 还有**包级偏好**：每个已安装命令子包的配置保存在 `~/.lania/config/<pkg>.json`，可用键由该包 `lania.package.json` 的 `configSchema` 声明。`lan config` 是统一管理面，`config` 自身不算命令子包；`generate` 归档后共 11 个命令。
+
+| 层       | 位置                         | 说明                                      |
+| -------- | ---------------------------- | ----------------------------------------- |
+| 项目配置 | `lan.config.*`               | 构建 / Lint 适配器、插件、动态命令、UI    |
+| 全局偏好 | `~/.lania/preferences.json`  | `locale` / `outputMode` / `logTimestamps` |
+| 包级偏好 | `~/.lania/config/<pkg>.json` | 10 个命令子包各自的偏好                   |
+
+10 个命令子包（`add` / `build` / `create` / `dev` / `env` / `git` / `lint` / `pi` / `release` / `tools`）全部带 `config` 二级命令：`bare` / `get` / `set` / `init` / `doctor` / `sync`，中英双语文案齐全，`get` / `set` 支持 `--global` 切到全局作用域。通用键为 `locale`（`zh` / `en`）、`output.mode`（`json` / `human`）、`log.timestamps`（bool），`env` 额外声明 `shim.host`（`lan` / `runex`）。共用实现收敛在 `packages/foundation/package-config/rust/lania-command-config`。
+
+主包 `lan config` 可跨包统一管理：
+
+```bash
+# 读写单个子包（--package 支持短名 / npm 全名 / bin 名 / crate 名，统一归一化）
+lan config get locale --package env
+lan config set locale zh --package @lania-cli-v2/cmd-env
+
+# 列出所有已安装子包声明的键、默认值与当前值
+lan config packages --json
+
+# 把全局偏好一键下发到所有已安装且启用的子包
+lan config apply
+lan config apply --package env --set locale=zh --set output.mode=human
+```
+
+`--package` 归一化后按目标包 `configSchema` 校验写入；`apply` 只覆盖子包已声明的键（点分键与 camelCase 全局键有映射）。静态表 `known-commands.json` 现携带各子包 `configSchema`，launcher 不再在运行时解析 npm manifest。独立二进制 `lan-config packages` / `lan-config apply` 也可用，但主路径是 `lan`。字段细节见 [配置字段参考](/reference/config)。
+
 ## 产品配置
 
 ```json
@@ -190,18 +219,16 @@ lan config set log.timestamps true
 }
 ```
 
-## 生成与状态文件
+## 状态文件
 
-| 文件                                 | 用途                   |
-| ------------------------------------ | ---------------------- |
-| `lania.contract.yaml`                | `generate api` 输入    |
-| `lania.module.yaml`                  | `generate module` 输入 |
-| `.lania/contracts.lock.json`         | 契约生成跟踪           |
-| `.lania/module-gen.lock.json`        | 模块生成跟踪           |
-| `.lania/release-state.json`          | 发布状态               |
-| `.lania/build/product`               | 产品构建快照           |
-| `.lania/pack/product/install-root`   | 产品 install-root      |
-| `.lania/publish/product/npm-package` | 产品发布包             |
+| 文件                                 | 用途              |
+| ------------------------------------ | ----------------- |
+| `.lania/release-state.json`          | 发布状态          |
+| `.lania/build/product`               | 产品构建快照      |
+| `.lania/pack/product/install-root`   | 产品 install-root |
+| `.lania/publish/product/npm-package` | 产品发布包        |
+
+> `generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计；完整代码保存在本地分支 `archive/generate-command`（指向提交 `61d47b9`）。`lania.contract.yaml`、`lania.module.yaml` 与对应的 lock 文件不再由内置命令维护。
 
 ## 下一步
 
