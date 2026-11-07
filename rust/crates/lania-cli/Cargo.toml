@@ -15,7 +15,7 @@ lania-bridge-host = { path = "../../../packages/products/bridge-hub/rust/lania-b
 runex-home = { path = "../../../packages/foundation/runex-home/rust/runex-home" }
 lania-cli-kit = { path = "../../../packages/foundation/cli-kit/rust/lania-cli-kit" }
 lania-command = { path = "../../../packages/foundation/command/rust/lania-command" }
-lania-agent = { path = "../lania-agent" }
+lania-agent = { path = "../../../packages/products/agent/rust/lania-agent" }
 lania-plugins-command-pi = { path = "../lania-plugins-command-pi" }
 lania-config = { path = "../../../packages/foundation/capabilities/rust/lania-config" }
 lania-git = { path = "../../../packages/foundation/capabilities/rust/lania-git" }
