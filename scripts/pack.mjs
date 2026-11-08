@@ -95,7 +95,6 @@ function copyFile(src, dst, mode) {
   }
 }
 
-
 function readRustWorkspaceVersion() {
   const cargoToml = fs.readFileSync(path.join(repoRoot, 'Cargo.toml'), 'utf8');
   const marker = '[workspace.package]';
@@ -404,7 +403,13 @@ async function main() {
   console.log(`[pack] building Rust binaries: ${binaryCrates.join(', ')}`);
   run(
     'cargo',
-    ['build', '--release', '--manifest-path', 'Cargo.toml', ...binaryCrates.flatMap((name) => ['-p', name])],
+    [
+      'build',
+      '--release',
+      '--manifest-path',
+      'Cargo.toml',
+      ...binaryCrates.flatMap((name) => ['-p', name]),
+    ],
     { cwd: repoRoot },
   );
 
