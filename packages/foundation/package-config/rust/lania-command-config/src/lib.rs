@@ -32,7 +32,6 @@ use lania_preferences::{
     UserPreferences,
 };
 use serde_json::{json, Map, Value};
-
 /// 各包 `config_keys()` 的返回元素类型（免得每个包都直接依赖 `lania-package-config`）。
 pub use lania_package_config::ConfigKey;
 
@@ -86,6 +85,133 @@ pub fn is_config_handler_id(pkg: &str, handler_id: &str) -> bool {
 fn subcommand<'a>(pkg: &str, handler_id: &'a str) -> &'a str {
     let prefix = format!("command.{pkg}.config.");
     handler_id.strip_prefix(&prefix).unwrap_or("")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 主包覆盖段（新配置模型）：读取包级生效值时的最高优先级层
+// ─────────────────────────────────────────────────────────────
+
+/// 包级生效值的来源（`config get` / bare `config` 输出的 `source` 字段）。
+///
+/// 读取优先级：主包 preferences 的 `packages.<pkg>.<key>` 覆盖段（camelCase）
+/// → 子包自身文件 `~/.lania/config/<pkg>.json` → 通用默认值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigValueSource {
+    /// 主包 `~/.lania/preferences.json` 的 `packages.<pkg>` 覆盖段。
+    MainOverride,
+    /// 子包自身文件 `~/.lania/config/<pkg>.json`。
+    PackageFile,
+    /// 未配置，使用 `ConfigKey` 声明的默认值。
+    Default,
+}
+
+impl ConfigValueSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::MainOverride => "main-override",
+            Self::PackageFile => "package-file",
+            Self::Default => "default",
+        }
+    }
+}
+
+/// 点分 key → 主包覆盖段的 camelCase 键（与全局键映射规则一致）：
+/// `output.mode` → `outputMode`、`log.timestamps` → `logTimestamps`。
+pub fn dotted_to_camel_case(dotted_key: &str) -> String {
+    let mut out = String::with_capacity(dotted_key.len());
+    let mut upper_next = false;
+    for ch in dotted_key.chars() {
+        if ch == '.' {
+            upper_next = true;
+        } else if upper_next {
+            out.extend(ch.to_uppercase());
+            upper_next = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// 读取主包 `~/.lania/preferences.json` 的 `packages.<pkg>` 覆盖段（只读）。
+///
+/// 尽力而为：文件缺失 / 非法 JSON / 无 `packages` 段 / 无本包条目时返回空表，
+/// 不阻断 CLI。主包文件**永不**被子包写回（写入只发生在子包自己的文件或
+/// `--global` 的顶层全局键）。
+pub fn load_main_overrides(pkg: &str) -> Map<String, Value> {
+    let Some(path) = preferences_path() else {
+        return Map::new();
+    };
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return Map::new();
+    };
+    let Ok(Value::Object(root)) = serde_json::from_str::<Value>(&raw) else {
+        return Map::new();
+    };
+    root.get("packages")
+        .and_then(|packages| packages.get(pkg))
+        .and_then(|section| section.as_object())
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// 把主包 preferences.json 的 `packages.<pkg>.<key>` 覆盖段写入一项（camelCase 键）。
+///
+/// 主包（`lan config set --package <pkg>`）的唯一写入口：主包与子包配置文件隔离，
+/// 主包永远不写 `~/.lania/config/<pkg>.json`，只写自己文件里的覆盖段；
+/// 子包运行时通过 `load_main_overrides` 优先读取该段。
+pub fn save_main_override(
+    pkg: &str,
+    dotted_key: &str,
+    value: serde_json::Value,
+) -> anyhow::Result<()> {
+    lania_package_config::validate_package_name(pkg)?;
+    let Some(path) = preferences_path() else {
+        return Ok(()); // 无法定位主包配置文件时静默跳过（与 load 行为一致）
+    };
+    let mut root: serde_json::Map<String, serde_json::Value> =
+        std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default();
+    let packages = root
+        .entry("packages")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let Some(packages_obj) = packages.as_object_mut() else {
+        anyhow::bail!("preferences.json 的 `packages` 段不是对象，无法写入覆盖配置");
+    };
+    let section = packages_obj
+        .entry(pkg.to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let Some(section_obj) = section.as_object_mut() else {
+        anyhow::bail!("preferences.json 的 `packages.{pkg}` 段不是对象，无法写入覆盖配置");
+    };
+    section_obj.insert(dotted_to_camel_case(dotted_key), value);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, serde_json::to_string_pretty(&serde_json::Value::Object(root))?)?;
+    Ok(())
+}
+
+/// 从覆盖段取一个点分 key 的值（覆盖段内是 camelCase 键）。
+fn override_value(overrides: &Map<String, Value>, dotted_key: &str) -> Option<Value> {
+    overrides.get(&dotted_to_camel_case(dotted_key)).cloned()
+}
+
+/// 三层优先级的“包级生效值”：覆盖段 → 子包文件 → 默认值，并返回来源。
+pub fn effective_value_with_source(
+    config: &Map<String, Value>,
+    overrides: &Map<String, Value>,
+    key: &ConfigKey,
+) -> (Value, ConfigValueSource) {
+    if let Some(value) = override_value(overrides, &key.key) {
+        return (value, ConfigValueSource::MainOverride);
+    }
+    if let Some(value) = get_value(config, &key.key) {
+        return (value.clone(), ConfigValueSource::PackageFile);
+    }
+    (key.default.clone(), ConfigValueSource::Default)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -269,12 +395,6 @@ fn find_key<'a>(pkg: &str, keys: &'a [ConfigKey], name: &str) -> Result<&'a Conf
     })
 }
 
-fn effective_value(config: &Map<String, Value>, key: &ConfigKey) -> Value {
-    get_value(config, &key.key)
-        .cloned()
-        .unwrap_or_else(|| key.default.clone())
-}
-
 fn package_path_text(pkg: &str) -> Option<String> {
     package_config_path(pkg)
         .ok()
@@ -303,13 +423,14 @@ fn global_value(prefs: &UserPreferences, key: &str) -> Option<Value> {
     }
 }
 
-fn key_entry(key: &ConfigKey, value: Value) -> Value {
+fn key_entry(key: &ConfigKey, value: Value, source: ConfigValueSource) -> Value {
     json!({
         "key": key.key,
         "kind": key.kind,
         "choices": key.choices,
         "default": key.default,
         "value": value,
+        "source": source.as_str(),
     })
 }
 
@@ -319,7 +440,12 @@ fn execute_view(pkg: &str, keys: &[ConfigKey], global: bool) -> Result<Value> {
         let prefs = load_preferences();
         let entries: Vec<Value> = keys
             .iter()
-            .filter_map(|key| global_value(&prefs, &key.key).map(|value| key_entry(key, value)))
+            .filter_map(|key| {
+                global_value(&prefs, &key.key).map(|value| {
+                    // 全局作用域没有覆盖层概念；来源恒为全局偏好文件。
+                    key_entry(key, value, ConfigValueSource::Default)
+                })
+            })
             .collect();
         return Ok(json!({
             "kind": format!("{pkg}_config"),
@@ -331,9 +457,13 @@ fn execute_view(pkg: &str, keys: &[ConfigKey], global: bool) -> Result<Value> {
     }
 
     let config = load_package_config(pkg)?;
+    let overrides = load_main_overrides(pkg);
     let entries: Vec<Value> = keys
         .iter()
-        .map(|key| key_entry(key, effective_value(&config, key)))
+        .map(|key| {
+            let (value, source) = effective_value_with_source(&config, &overrides, key);
+            key_entry(key, value, source)
+        })
         .collect();
     Ok(json!({
         "kind": format!("{pkg}_config"),
@@ -371,14 +501,17 @@ fn execute_get(
     }
 
     let config = load_package_config(pkg)?;
+    let overrides = load_main_overrides(pkg);
+    let (value, source) = effective_value_with_source(&config, &overrides, key);
     Ok(json!({
         "kind": format!("{pkg}_config_value"),
         "scope": "package",
         "package": pkg,
         "path": package_path_text(pkg),
         "key": key.key,
-        "value": effective_value(&config, key),
+        "value": value,
         "default": key.default,
+        "source": source.as_str(),
     }))
 }
 
@@ -626,5 +759,180 @@ mod tests {
         assert!(init.options.iter().any(|option| option.long == "force"));
         let sync = &spec.subcommands[4];
         assert!(sync.options.iter().any(|option| option.long == "write"));
+    }
+
+    // ── 主包覆盖段：三层读取优先级 ────────────────────────────────
+
+    /// 进程内 HOME 环境守卫（HOME 是进程级状态，并行测试需互斥）。
+    struct HomeGuard {
+        previous: Option<std::ffi::OsString>,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl HomeGuard {
+        fn set(home: &std::path::Path) -> Self {
+            static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+            let lock = LOCK.lock().expect("home lock");
+            let previous = std::env::var_os("HOME");
+            std::env::set_var("HOME", home);
+            Self {
+                previous,
+                _lock: lock,
+            }
+        }
+    }
+
+    impl Drop for HomeGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => std::env::set_var("HOME", value),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+    }
+
+    fn isolated_home(label: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "lania-command-config-{}-{label}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("create home root");
+        root
+    }
+
+    fn write_home_files(home: &std::path::Path, preferences: Option<&str>, pkg_file: Option<&str>) {
+        std::fs::create_dir_all(home.join(".lania/config")).expect("create .lania/config");
+        if let Some(raw) = preferences {
+            std::fs::write(home.join(".lania/preferences.json"), raw).expect("write preferences");
+        }
+        if let Some(raw) = pkg_file {
+            std::fs::write(home.join(".lania/config/workspace.json"), raw).expect("write pkg");
+        }
+    }
+
+    fn workspace_keys() -> Vec<ConfigKey> {
+        common_keys()
+    }
+
+    /// 主包覆盖段存在：覆盖子包文件与默认值，source = main-override。
+    #[test]
+    fn main_override_wins_over_package_file_and_default() {
+        let home = isolated_home("override-wins");
+        write_home_files(
+            &home,
+            Some(r#"{"locale":"en","packages":{"workspace":{"locale":"zh","outputMode":"human"}}}"#),
+            Some(r#"{"locale":"en","output":{"mode":"json"}}"#),
+        );
+        let _guard = HomeGuard::set(&home);
+
+        let overrides = load_main_overrides("workspace");
+        let config = load_package_config("workspace").expect("load package config");
+        let keys = workspace_keys();
+
+        let (locale, source) = effective_value_with_source(&config, &overrides, &keys[0]);
+        assert_eq!(locale, json!("zh"));
+        assert_eq!(source, ConfigValueSource::MainOverride);
+        assert_eq!(source.as_str(), "main-override");
+
+        // camelCase 键 `outputMode` 覆盖点分 key `output.mode`。
+        let (mode, source) = effective_value_with_source(&config, &overrides, &keys[1]);
+        assert_eq!(mode, json!("human"));
+        assert_eq!(source, ConfigValueSource::MainOverride);
+    }
+
+    /// 覆盖段不存在（或无本包条目）：回落到子包自身文件，source = package-file。
+    #[test]
+    fn package_file_is_used_when_no_override_exists() {
+        let home = isolated_home("package-file");
+        write_home_files(
+            &home,
+            Some(r#"{"packages":{"other":{"locale":"zh"}}}"#),
+            Some(r#"{"locale":"zh","log":{"timestamps":true}}"#),
+        );
+        let _guard = HomeGuard::set(&home);
+
+        let overrides = load_main_overrides("workspace");
+        let config = load_package_config("workspace").expect("load package config");
+        let keys = workspace_keys();
+
+        assert!(overrides.is_empty(), "other 包的覆盖段不得泄漏给 workspace");
+        let (locale, source) = effective_value_with_source(&config, &overrides, &keys[0]);
+        assert_eq!(locale, json!("zh"));
+        assert_eq!(source, ConfigValueSource::PackageFile);
+        assert_eq!(source.as_str(), "package-file");
+
+        let (timestamps, source) = effective_value_with_source(&config, &overrides, &keys[2]);
+        assert_eq!(timestamps, json!(true));
+        assert_eq!(source, ConfigValueSource::PackageFile);
+    }
+
+    /// 子包文件也缺失：通用默认值兜底，source = default。
+    #[test]
+    fn default_is_used_when_no_override_and_no_package_file() {
+        let home = isolated_home("default");
+        write_home_files(
+            &home,
+            Some(r#"{"locale":"en"}"#),
+            None, // 子包文件不存在
+        );
+        let _guard = HomeGuard::set(&home);
+
+        let overrides = load_main_overrides("workspace");
+        let config = load_package_config("workspace").expect("load package config");
+        let keys = workspace_keys();
+
+        assert!(overrides.is_empty());
+        assert!(config.is_empty());
+        let (locale, source) = effective_value_with_source(&config, &overrides, &keys[0]);
+        assert_eq!(locale, json!("en"));
+        assert_eq!(source, ConfigValueSource::Default);
+        assert_eq!(source.as_str(), "default");
+
+        let (mode, source) = effective_value_with_source(&config, &overrides, &keys[1]);
+        assert_eq!(mode, json!("json"));
+        assert_eq!(source, ConfigValueSource::Default);
+    }
+
+    /// 覆盖段存在但子包文件缺失：仍是 main-override（子包文件缺失不阻断覆盖层）。
+    #[test]
+    fn main_override_applies_even_without_package_file() {
+        let home = isolated_home("override-no-file");
+        write_home_files(
+            &home,
+            Some(r#"{"packages":{"workspace":{"logTimestamps":true}}}"#),
+            None,
+        );
+        let _guard = HomeGuard::set(&home);
+
+        let overrides = load_main_overrides("workspace");
+        let config = load_package_config("workspace").expect("load package config");
+        let keys = workspace_keys();
+
+        let (timestamps, source) = effective_value_with_source(&config, &overrides, &keys[2]);
+        assert_eq!(timestamps, json!(true));
+        assert_eq!(source, ConfigValueSource::MainOverride);
+    }
+
+    /// 点分 key → camelCase 的映射规则本身。
+    #[test]
+    fn dotted_keys_map_to_camel_case() {
+        assert_eq!(dotted_to_camel_case("locale"), "locale");
+        assert_eq!(dotted_to_camel_case("output.mode"), "outputMode");
+        assert_eq!(dotted_to_camel_case("log.timestamps"), "logTimestamps");
+    }
+
+    /// 主包 preferences.json 缺失 / 非法 / 无 HOME 时：覆盖段为空，不报错。
+    #[test]
+    fn missing_or_invalid_preferences_yield_empty_overrides() {
+        let home = isolated_home("invalid-prefs");
+        write_home_files(&home, Some("not valid json"), None);
+        let _guard = HomeGuard::set(&home);
+        assert!(load_main_overrides("workspace").is_empty());
+
+        let home2 = isolated_home("no-prefs-file");
+        write_home_files(&home2, None, None);
+        let _guard = HomeGuard::set(&home2);
+        assert!(load_main_overrides("workspace").is_empty());
     }
 }

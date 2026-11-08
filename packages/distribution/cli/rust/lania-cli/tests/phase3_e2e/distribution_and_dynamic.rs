@@ -2,29 +2,19 @@
 use super::common::*;
 use super::*;
 use lania_host::{plugin::EmptyPlugin, Host, HostRuntime};
-use lania_plugins_command_add::AddCommandPlugin;
-use lania_plugins_command_build::BuildCommandPlugin;
-use lania_plugins_command_create::CreateCommandPlugin;
-use lania_plugins_command_dev::DevCommandPlugin;
 use lania_plugins_command_git::GitCommandPlugin;
-use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_plugins_command_release::ReleaseCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
+use lania_plugins_command_workspace::WorkspaceCommandPlugin;
 
 fn register_cli_plugins(host: &mut HostRuntime) {
     host.register_plugin(Box::new(EmptyPlugin))
         .expect("empty plugin registers");
-    host.register_plugin(Box::new(DevCommandPlugin))
-        .expect("dev plugin registers");
-    host.register_plugin(Box::new(BuildCommandPlugin))
-        .expect("build plugin registers");
-    host.register_plugin(Box::new(LintCommandPlugin))
-        .expect("lint plugin registers");
-    host.register_plugin(Box::new(CreateCommandPlugin))
-        .expect("create plugin registers");
-    host.register_plugin(Box::new(AddCommandPlugin))
-        .expect("add plugin registers");
+    // workspace 插件承载原 dev/build/lint/create/add 五个命令 + product 子树 +
+    // template 子命令（单体形态集成测试仍按插件注册装配命令树）。
+    host.register_plugin(Box::new(WorkspaceCommandPlugin))
+        .expect("workspace plugin registers");
     host.register_plugin(Box::new(ReleaseCommandPlugin))
         .expect("release plugin registers");
     host.register_plugin(Box::new(GitCommandPlugin))
@@ -47,7 +37,7 @@ fn lan_npm_install_layout_smoke() {
 
     let output = run_cli(
         &project,
-        &["build", "--mode", "production"],
+        &["workspace", "build", "--mode", "production"],
         &[(
             "LANIA_NODE_BRIDGE_DIR",
             bridge_dir.to_str().expect("bridge dir path"),
@@ -83,7 +73,7 @@ fn lan_binary_distribution_smoke() {
         project.join("lan.config.js"),
         "export default { buildTool: 'vite' };\n",
     );
-    let output = run_program(&staged_binary, &project, &["build"], &[]);
+    let output = run_program(&staged_binary, &project, &["workspace", "build"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));

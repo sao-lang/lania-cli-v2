@@ -14,6 +14,7 @@ fn lan_create_e2e() {
     let output = run_cli(
         &root,
         &[
+            "workspace",
             "create",
             "--name",
             "demo-app",
@@ -41,6 +42,7 @@ fn lan_create_with_template_options_e2e() {
     let output = run_cli(
         &root,
         &[
+            "workspace",
             "create",
             "--name",
             "vue-app",
@@ -72,6 +74,7 @@ fn lan_create_preview_e2e() {
     let output = run_cli(
         &root,
         &[
+            "workspace",
             "create",
             "--name",
             "preview-app",
@@ -108,6 +111,7 @@ fn lan_create_interactive_e2e() {
     let output = run_cli_interactive(
         &root,
         &[
+            "workspace",
             "create",
             "--name",
             "interactive-kit",
@@ -138,6 +142,7 @@ fn lan_create_multiselect_interactive_e2e() {
     let output = run_cli_interactive(
         &root,
         &[
+            "workspace",
             "create",
             "--name",
             "interactive-kit",
@@ -177,7 +182,7 @@ fn lan_create_current_directory_interactive_e2e() {
     // This ensures the selector is not the legacy "type a number" prompt.
     let output = run_cli_interactive(
         &root,
-        &["create", ".", "--skip-install"],
+        &["workspace", "create", ".", "--skip-install"],
         &[
             "\u{1b}[B",
             "",
@@ -207,7 +212,7 @@ fn lan_create_current_directory_interactive_e2e() {
 fn lan_create_current_directory_noninteractive_requires_template_e2e() {
     let root = temp_dir("create-current-dir-noninteractive");
 
-    let output = run_cli(&root, &["create", "."], &[]);
+    let output = run_cli(&root, &["workspace", "create", "."], &[]);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -233,7 +238,7 @@ fn lan_add_e2e() {
 
     let output = run_cli(
         &root,
-        &["add", "component", "Button", "--target", "src/components"],
+        &["workspace", "add", "component", "Button", "--target", "src/components"],
         &[],
     );
     let json = parse_stdout_json(&output);
@@ -266,7 +271,7 @@ fn lan_add_generates_nest_resource_e2e() {
         "// <lania:imports>\n@Module({})\nexport class AppModule {}\n",
     );
 
-    let output = run_cli(&root, &["add", "resource", "users"], &[]);
+    let output = run_cli(&root, &["workspace", "add", "resource", "users"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
@@ -297,7 +302,7 @@ fn lan_add_list_e2e() {
         "export default { buildTool: 'vite', language: 'TypeScript' };\n",
     );
 
-    let output = run_cli(&root, &["add", "--list"], &[]);
+    let output = run_cli(&root, &["workspace", "add", "--list"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
@@ -335,7 +340,7 @@ fn lan_add_generates_gin_resource_e2e() {
         "package router\n\n// <lania:routes>\n",
     );
 
-    let output = run_cli(&root, &["add", "resource", "users"], &[]);
+    let output = run_cli(&root, &["workspace", "add", "resource", "users"], &[]);
 
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     for expected in [
@@ -369,7 +374,7 @@ fn lan_add_interactive_e2e() {
 
     let output = run_cli_interactive(
         &root,
-        &["add", "--target", "src/components"],
+        &["workspace", "add", "--target", "src/components"],
         &["", "", "", "Button"],
         &[],
     );

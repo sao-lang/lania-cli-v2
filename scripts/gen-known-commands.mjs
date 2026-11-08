@@ -62,17 +62,12 @@ function buildKnownCommands() {
   // 根命令的 zh about（单点在 lania-command/src/localization.rs，此处为
   // launcher 聚合帮助的消费副本；两边需同步更新）。
   const ZH_ABOUT = {
-    dev: '启动项目开发工作流',
-    build: '执行项目构建工作流',
-    lint: '运行项目 lint 检查',
-    create: '从模板创建新项目',
-    add: '向现有工作区添加生成内容',
+    workspace: '工作区开发工作流（dev/build/lint/create/add，含 product 与 config 子命令）',
     release: '发布工作流（规划、执行、恢复）',
     git: '查看与同步 git 状态',
     tools: '列出命令、按类型运行文件，或查看本地文件',
     env: '由 lania 自行安装并切换语言运行时（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir）',
     pi: '运行基于 pi 的编码 agent（交互式 REPL 或单次执行）',
-    config: '管理全局 CLI 配置与项目 lan.config',
   };
 
   const commands = manifests

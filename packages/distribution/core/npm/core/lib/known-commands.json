@@ -3,221 +3,54 @@
   "coreVersion": "0.0.3",
   "commands": [
     {
-      "command": "dev",
-      "package": "@lania-cli-v2/cmd-dev",
-      "bin": "lan-dev",
-      "npmBin": "lan-dev.mjs",
+      "command": "workspace",
+      "package": "@lania-cli-v2/cmd-workspace",
+      "bin": "lan-workspace",
+      "npmBin": "lan-workspace.mjs",
       "order": 1,
-      "describe": "describes/dev.json",
-      "about": "Start the project development workflow",
-      "aboutZh": "启动项目开发工作流",
+      "describe": "describes/workspace.json",
+      "about": "Workspace development workflows (dev/build/lint/create/add)",
+      "aboutZh": "工作区开发工作流（dev/build/lint/create/add，含 product 与 config 子命令）",
       "needsNodeBridge": true,
-      "slices": ["compiler", "product", "config", "lifecycle", "lint", "toolchain"],
+      "slices": [
+        "compiler",
+        "product",
+        "config",
+        "lifecycle",
+        "lint",
+        "toolchain",
+        "template",
+        "dynamic-commands"
+      ],
       "platformPackages": [
-        "@lania-cli-v2/cmd-dev-darwin-arm64",
-        "@lania-cli-v2/cmd-dev-linux-x64",
-        "@lania-cli-v2/cmd-dev-win32-x64"
+        "@lania-cli-v2/cmd-workspace-darwin-arm64",
+        "@lania-cli-v2/cmd-workspace-linux-x64",
+        "@lania-cli-v2/cmd-workspace-win32-x64"
       ],
       "protocol": 1,
       "configSchema": {
         "scope": "package",
-        "path": "~/.lania/config/dev.json",
+        "path": "~/.lania/config/workspace.json",
         "keys": [
           {
             "key": "locale",
             "kind": "enum",
             "choices": ["zh", "en"],
             "default": "en",
-            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
+            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
           },
           {
             "key": "output.mode",
             "kind": "enum",
             "choices": ["json", "human"],
             "default": "json",
-            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
+            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
           },
           {
             "key": "log.timestamps",
             "kind": "bool",
             "default": false,
-            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
-          }
-        ]
-      }
-    },
-    {
-      "command": "build",
-      "package": "@lania-cli-v2/cmd-build",
-      "bin": "lan-build",
-      "npmBin": "lan-build.mjs",
-      "order": 2,
-      "describe": "describes/build.json",
-      "about": "Run the project build workflow",
-      "aboutZh": "执行项目构建工作流",
-      "needsNodeBridge": true,
-      "slices": ["compiler", "product", "config", "lifecycle", "lint", "toolchain"],
-      "platformPackages": [
-        "@lania-cli-v2/cmd-build-darwin-arm64",
-        "@lania-cli-v2/cmd-build-linux-x64",
-        "@lania-cli-v2/cmd-build-win32-x64"
-      ],
-      "protocol": 1,
-      "configSchema": {
-        "scope": "package",
-        "path": "~/.lania/config/build.json",
-        "keys": [
-          {
-            "key": "locale",
-            "kind": "enum",
-            "choices": ["zh", "en"],
-            "default": "en",
-            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
-          },
-          {
-            "key": "output.mode",
-            "kind": "enum",
-            "choices": ["json", "human"],
-            "default": "json",
-            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
-          },
-          {
-            "key": "log.timestamps",
-            "kind": "bool",
-            "default": false,
-            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
-          }
-        ]
-      }
-    },
-    {
-      "command": "lint",
-      "package": "@lania-cli-v2/cmd-lint",
-      "bin": "lan-lint",
-      "npmBin": "lan-lint.mjs",
-      "order": 3,
-      "describe": "describes/lint.json",
-      "about": "Run project lint checks",
-      "aboutZh": "运行项目 lint 检查",
-      "needsNodeBridge": true,
-      "slices": ["lint", "toolchain", "config"],
-      "platformPackages": [
-        "@lania-cli-v2/cmd-lint-darwin-arm64",
-        "@lania-cli-v2/cmd-lint-linux-x64",
-        "@lania-cli-v2/cmd-lint-win32-x64"
-      ],
-      "protocol": 1,
-      "configSchema": {
-        "scope": "package",
-        "path": "~/.lania/config/lint.json",
-        "keys": [
-          {
-            "key": "locale",
-            "kind": "enum",
-            "choices": ["zh", "en"],
-            "default": "en",
-            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
-          },
-          {
-            "key": "output.mode",
-            "kind": "enum",
-            "choices": ["json", "human"],
-            "default": "json",
-            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
-          },
-          {
-            "key": "log.timestamps",
-            "kind": "bool",
-            "default": false,
-            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
-          }
-        ]
-      }
-    },
-    {
-      "command": "create",
-      "package": "@lania-cli-v2/cmd-create",
-      "bin": "lan-create",
-      "npmBin": "lan-create.mjs",
-      "order": 4,
-      "describe": "describes/create.json",
-      "about": "Create a new project from a template",
-      "aboutZh": "从模板创建新项目",
-      "needsNodeBridge": true,
-      "slices": ["template", "dynamic-commands", "toolchain", "config"],
-      "platformPackages": [
-        "@lania-cli-v2/cmd-create-darwin-arm64",
-        "@lania-cli-v2/cmd-create-linux-x64",
-        "@lania-cli-v2/cmd-create-win32-x64"
-      ],
-      "protocol": 1,
-      "configSchema": {
-        "scope": "package",
-        "path": "~/.lania/config/create.json",
-        "keys": [
-          {
-            "key": "locale",
-            "kind": "enum",
-            "choices": ["zh", "en"],
-            "default": "en",
-            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
-          },
-          {
-            "key": "output.mode",
-            "kind": "enum",
-            "choices": ["json", "human"],
-            "default": "json",
-            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
-          },
-          {
-            "key": "log.timestamps",
-            "kind": "bool",
-            "default": false,
-            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
-          }
-        ]
-      }
-    },
-    {
-      "command": "add",
-      "package": "@lania-cli-v2/cmd-add",
-      "bin": "lan-add",
-      "npmBin": "lan-add.mjs",
-      "order": 5,
-      "describe": "describes/add.json",
-      "about": "Add generated content into an existing workspace",
-      "aboutZh": "向现有工作区添加生成内容",
-      "needsNodeBridge": false,
-      "slices": [],
-      "platformPackages": [
-        "@lania-cli-v2/cmd-add-darwin-arm64",
-        "@lania-cli-v2/cmd-add-linux-x64",
-        "@lania-cli-v2/cmd-add-win32-x64"
-      ],
-      "protocol": 1,
-      "configSchema": {
-        "scope": "package",
-        "path": "~/.lania/config/add.json",
-        "keys": [
-          {
-            "key": "locale",
-            "kind": "enum",
-            "choices": ["zh", "en"],
-            "default": "en",
-            "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名"
-          },
-          {
-            "key": "output.mode",
-            "kind": "enum",
-            "choices": ["json", "human"],
-            "default": "json",
-            "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名"
-          },
-          {
-            "key": "log.timestamps",
-            "kind": "bool",
-            "default": false,
-            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名"
+            "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
           }
         ]
       }
@@ -227,7 +60,7 @@
       "package": "@lania-cli-v2/cmd-release",
       "bin": "lan-release",
       "npmBin": "lan-release.mjs",
-      "order": 7,
+      "order": 2,
       "describe": "describes/release.json",
       "about": "Project release orchestration",
       "aboutZh": "发布工作流（规划、执行、恢复）",
@@ -271,7 +104,7 @@
       "package": "@lania-cli-v2/cmd-git",
       "bin": "lan-git",
       "npmBin": "lan-git.mjs",
-      "order": 8,
+      "order": 3,
       "describe": "describes/git.json",
       "about": "Inspect and sync git state",
       "aboutZh": "查看与同步 git 状态",
@@ -315,7 +148,7 @@
       "package": "@lania-cli-v2/cmd-tools",
       "bin": "lan-tools",
       "npmBin": "lan-tools.mjs",
-      "order": 9,
+      "order": 4,
       "describe": "describes/tools.json",
       "about": "List commands, run files by type, or view local files",
       "aboutZh": "列出命令、按类型运行文件，或查看本地文件",
@@ -359,7 +192,7 @@
       "package": "@lania-cli-v2/cmd-env",
       "bin": "lan-env",
       "npmBin": "lan-env.mjs",
-      "order": 11,
+      "order": 5,
       "describe": "describes/env.json",
       "about": "Install and switch language runtimes managed by lania itself (node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir)",
       "aboutZh": "由 lania 自行安装并切换语言运行时（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir）",
@@ -410,7 +243,7 @@
       "package": "@lania-cli-v2/cmd-pi",
       "bin": "lan-pi",
       "npmBin": "lan-pi.mjs",
-      "order": 12,
+      "order": 6,
       "describe": "describes/pi.json",
       "about": "Run the coding agent (interactive REPL or one-shot)",
       "aboutZh": "运行基于 pi 的编码 agent（交互式 REPL 或单次执行）",
@@ -448,25 +281,6 @@
           }
         ]
       }
-    },
-    {
-      "command": "config",
-      "package": "@lania-cli-v2/cmd-config",
-      "bin": "lan-config",
-      "npmBin": "lan-config.mjs",
-      "order": 13,
-      "describe": "describes/config.json",
-      "about": "Manage global CLI preferences",
-      "aboutZh": "管理全局 CLI 配置与项目 lan.config",
-      "needsNodeBridge": false,
-      "slices": [],
-      "platformPackages": [
-        "@lania-cli-v2/cmd-config-darwin-arm64",
-        "@lania-cli-v2/cmd-config-linux-x64",
-        "@lania-cli-v2/cmd-config-win32-x64"
-      ],
-      "protocol": 1,
-      "configSchema": null
     }
   ]
 }

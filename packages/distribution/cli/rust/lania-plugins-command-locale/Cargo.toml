@@ -17,6 +17,7 @@ lania-config = { path = "../../../../../packages/foundation/capabilities/rust/la
 lania-host = { path = "../lania-host" }
 lania-logger = { path = "../../../../../packages/foundation/capabilities/rust/lania-logger" }
 lania-package-config = { path = "../../../../../packages/foundation/package-config/rust/lania-package-config" }
+lania-command-config = { path = "../../../../../packages/foundation/package-config/rust/lania-command-config" }
 lania-preferences = { path = "../../../../../packages/foundation/capabilities/rust/lania-preferences" }
 
 [[bin]]

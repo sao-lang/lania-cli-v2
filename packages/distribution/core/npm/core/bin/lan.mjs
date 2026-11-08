@@ -234,11 +234,22 @@ function printAggregatedHelp(known) {
   }
   console.log('Lania CLI v2 — 可用命令');
   console.log('');
+  // config 是主包内建命令（不在子包表），固定追加在清单末尾。
+  const builtinRows = [
+    {
+      command: 'config',
+      about: tr('Manage global CLI preferences', '管理全局 CLI 配置与项目 lan.config'),
+    },
+  ];
+  for (const entry of installed) {
+    const about = tr(entry.about ?? '', entry.aboutZh ?? entry.about ?? '');
+    console.log(`  ${entry.command.padEnd(10)} ${about}`.trimEnd());
+  }
+  for (const row of builtinRows) {
+    console.log(`  ${row.command.padEnd(10)} ${row.about}`.trimEnd());
+  }
+  console.log('');
   if (installed.length > 0) {
-    for (const entry of installed) {
-      const about = tr(entry.about ?? '', entry.aboutZh ?? entry.about ?? '');
-      console.log(`  ${entry.command.padEnd(10)} ${about}`.trimEnd());
-    }
     console.log('');
   } else {
     console.log('  （尚未安装任何命令子包）');
@@ -386,6 +397,58 @@ function dispatch(known) {
     }
   }
 
+  // 二级命名空间路由：`lan product <sub>` 这类命令不在 known-commands 顶级表里，
+  // 由 NESTED_ROUTES 指明承载子包；argv **完整保留**（含顶级名）——子包内已挂载
+  // 对应命名空间 root（如 workspace 包内同时有 workspace.build 与 product.build，
+  // 保留 'product' 才能与 `lan workspace build` 区分开）。
+  const nestedTarget = NESTED_ROUTES[command];
+  if (Array.isArray(nestedTarget)) {
+    const nestedEntry = known.commands.find((item) => item.command === nestedTarget[0]);
+    if (nestedEntry && nestedTarget.includes(argv[1])) {
+      const nestedDir = resolveCommandPackageDir(nestedEntry.package);
+      if (!nestedDir) {
+        console.error(`命令 "${command}" 的承载子包未安装。安装：npm i ${nestedEntry.package}`);
+        process.exit(1);
+      }
+      assertSupportedProtocol(nestedEntry.protocol ?? 1);
+      const nestedBinary = resolveCommandBinary(nestedEntry, nestedDir);
+      if (!nestedBinary) {
+        console.error(
+          `命令 "${command}" 的平台二进制缺失（${process.platform}-${process.arch}）。` +
+            `请重新安装 ${nestedEntry.package}。`,
+        );
+        process.exit(1);
+      }
+      const nestedEnv = {
+        LANIA_COMMAND_NAME: nestedEntry.command,
+        LANIA_PRODUCT_ROOT: process.env.LANIA_PRODUCT_ROOT ?? process.cwd(),
+        LANIA_RUNTIME_MODE: process.env.LANIA_RUNTIME_MODE ?? 'installed',
+      };
+      if (nestedEntry.needsNodeBridge) {
+        nestedEnv.LANIA_NODE_BRIDGE_DIR = path.join(nestedDir, 'lib', 'bridge');
+        nestedEnv.LANIA_BRIDGE_SLICES = Array.isArray(nestedEntry.slices)
+          ? nestedEntry.slices.join(',')
+          : '';
+      }
+      execDirect(nestedBinary, nestedEnv, argv.slice(1));
+      return;
+    }
+  }
+
+  // `config` 是主包内建命令（总包二进制承载）：packages/apply 已由 launcher
+  // 内建处理，其余子命令整体转发总包二进制（argv 完整保留）。
+  if (command === 'config') {
+    const mainBinary = resolveMainCliBinary();
+    if (mainBinary) {
+      execDirect(mainBinary, {}, argv.slice(1));
+      return;
+    }
+    console.error(
+      'config 由总包二进制承载，但未找到 lania-cli 平台二进制。请安装 @lania-cli-v2/cli。',
+    );
+    process.exit(1);
+  }
+
   const entry = known.commands.find((item) => item.command === command);
   if (!entry) {
     // Phase 1 未命中 → Phase 2 动态回退（§5.6 F.2）：项目级动态命令由 runtime 设施承载。
@@ -441,6 +504,35 @@ function dispatch(known) {
   // argv 契约：剥掉命令名后转发（§5.3 C.4）。
   execDirect(binary, env, argv.slice(1));
 }
+
+/** 主包内建 config 的承载二进制：开发态 source 二进制优先，其次总包平台包。 */
+function resolveMainCliBinary() {
+  const source = resolveSourceBinary();
+  if (source) return source;
+  try {
+    const cliDir = path.dirname(require.resolve('@lania-cli-v2/cli/package.json'));
+    const suffix = `${process.platform}-${process.arch}`;
+    const platformDir = path.join(path.dirname(cliDir), `cli-${suffix}`);
+    const platformPkg = JSON.parse(fs.readFileSync(path.join(platformDir, 'package.json'), 'utf8'));
+    const bin = Object.keys(platformPkg.bin ?? {})[0] ?? 'lania-cli';
+    const candidate = path.join(
+      platformDir,
+      'bin',
+      process.platform === 'win32' ? `${bin}.exe` : bin,
+    );
+    return fs.existsSync(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── 二级命名空间路由表 ────────────────────────────────────────────────
+// `lan product <sub>` / `lan workspace <sub>` 的二级命令由承载子包提供。
+// 值数组为允许的子命令集合（防止把未知二级命令误路由）。
+const NESTED_ROUTES = {
+  product: ['dev', 'build', 'pack', 'publish', 'inspect', 'doctor'],
+  workspace: ['dev', 'build', 'lint', 'create', 'add', 'product', 'template', 'config'],
+};
 
 // ── 3) 命令子包管理（lan package）────────────────────────────────────
 //

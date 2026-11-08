@@ -4,7 +4,7 @@
   "command": "tools",
   "versionFamily": "lan",
   "version": "0.0.3",
-  "order": 9,
+  "order": 4,
   "describe": "describes/tools.json",
   "api": {
     "protocol": 1,

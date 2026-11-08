@@ -259,7 +259,17 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "package", "只应用到指定子包（短命令名或 npm 包名）");
         }
 
-        // dev
+        // workspace 根命令（dev/build/lint/create/add 五个原顶级命令的宿主）
+        "command.workspace" => {
+            spec.about = "Workspace 开发工作流（dev/build/lint/create/add）".into();
+            set_example_desc(spec, "lan workspace dev", "运行默认开发工作流");
+            set_example_desc(spec, "lan workspace build", "执行一次生产构建");
+            set_example_desc(spec, "lan workspace lint", "运行 lint 检查");
+            set_example_desc(spec, "lan workspace create --name demo-app", "用内置模板创建项目");
+            set_example_desc(spec, "lan workspace add --list", "查看当前框架可用的生成器");
+        }
+
+        // dev（现为 `lan workspace dev`）
         "command.dev" => {
             spec.about = "启动项目开发工作流".into();
             set_option_help(spec, "port", "覆盖开发服务器端口");
@@ -279,20 +289,20 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
                 "quiet-app",
                 "开发服务器就绪后隐藏应用日志（channel: app）",
             );
-            set_example_desc(spec, "lan dev", "运行默认开发工作流");
+            set_example_desc(spec, "lan workspace dev", "运行默认开发工作流");
             set_example_desc(
                 spec,
-                "lan dev --port 3001 --open --mode development",
+                "lan workspace dev --port 3001 --open --mode development",
                 "使用自定义端口运行开发工作流",
             );
             set_example_desc(
                 spec,
-                "lan dev --quiet-app",
+                "lan workspace dev --quiet-app",
                 "运行开发工作流但不透出应用自身运行日志",
             );
         }
 
-        // build
+        // build（现为 `lan workspace build`）
         "command.build" => {
             spec.about = "执行项目构建工作流".into();
             set_option_help(spec, "config", "兼容参数：旧版 config 路径（可能被忽略）");
@@ -301,22 +311,22 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "mode", "转发构建 mode 到底层编译器");
             set_option_help(spec, "output-dir", "覆盖构建输出目录");
             set_option_help(spec, "runtime", "覆盖运行时（web|python|go|rust|dart）");
-            set_example_desc(spec, "lan build", "执行一次生产构建");
+            set_example_desc(spec, "lan workspace build", "执行一次生产构建");
             set_example_desc(
                 spec,
-                "lan build --watch --mode development",
+                "lan workspace build --watch --mode development",
                 "以 watch 模式运行构建工作流",
             );
         }
 
-        // lint
+        // lint（现为 `lan workspace lint`）
         "command.lint" => {
             spec.about = "运行项目 lint 检查".into();
             localize_lint_options(spec);
-            set_example_desc(spec, "lan lint", "运行 lint 检查");
+            set_example_desc(spec, "lan workspace lint", "运行 lint 检查");
             set_example_desc(
                 spec,
-                "lan lint fix --concurrency 2",
+                "lan workspace lint fix --concurrency 2",
                 "以修复模式运行 lint，并限制并发数",
             );
         }
@@ -348,21 +358,21 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             );
             set_option_help(spec, "dry-run", "仅规划文件写入与安装命令，不实际执行");
             set_option_help(spec, "preview", "预览渲染的模板文件（隐含 dry-run）");
-            set_example_desc(spec, "lan create --name demo-app", "用内置模板创建项目");
-            set_example_desc(spec, "lan create .", "在当前目录创建项目");
+            set_example_desc(spec, "lan workspace create --name demo-app", "用内置模板创建项目");
+            set_example_desc(spec, "lan workspace create .", "在当前目录创建项目");
             set_example_desc(
                 spec,
-                "lan create --template toolkit --package-manager pnpm",
+                "lan workspace create --template toolkit --package-manager pnpm",
                 "使用 pnpm 创建 toolkit 模板项目",
             );
             set_example_desc(
                 spec,
-                "lan create --name svc --template go-service --package-manager go",
+                "lan workspace create --name svc --template go-service --package-manager go",
                 "用 Go 工具链创建 Go 服务项目",
             );
             set_example_desc(
                 spec,
-                "lan create --template spa-vue --preview",
+                "lan workspace create --template spa-vue --preview",
                 "预览渲染结果（不写入文件）",
             );
         }
@@ -388,22 +398,22 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
             set_option_help(spec, "force", "覆盖冲突文件");
             set_example_desc(
                 spec,
-                "lan add resource users",
+                "lan workspace add resource users",
                 "生成 NestJS 多文件资源（module/controller/service/dto/entity/spec）",
             );
             set_example_desc(
                 spec,
-                "lan add component Button --target src/components",
+                "lan workspace add component Button --target src/components",
                 "添加一个与框架无关的 UI 组件",
             );
-            set_example_desc(spec, "lan add --list", "查看当前框架可用的生成器");
+            set_example_desc(spec, "lan workspace add --list", "查看当前框架可用的生成器");
         }
 
         "command.template" => {
             spec.about = "查看模板列表或某个模板的详情".into();
             set_arg_help(spec, "name", "模板名称");
-            set_example_desc(spec, "lan template", "交互式查看可用模板");
-            set_example_desc(spec, "lan template toolkit", "查看指定模板详情");
+            set_example_desc(spec, "lan workspace template", "交互式查看可用模板");
+            set_example_desc(spec, "lan workspace template toolkit", "查看指定模板详情");
         }
 
         // product root / product workflows

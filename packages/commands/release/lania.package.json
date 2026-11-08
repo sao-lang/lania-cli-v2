@@ -4,7 +4,7 @@
   "command": "release",
   "versionFamily": "lan",
   "version": "0.0.3",
-  "order": 7,
+  "order": 2,
   "describe": "describes/release.json",
   "api": {
     "protocol": 1,

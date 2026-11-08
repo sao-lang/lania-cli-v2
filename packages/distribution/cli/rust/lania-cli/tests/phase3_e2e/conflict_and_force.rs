@@ -20,6 +20,7 @@ fn lan_add_without_force_reports_conflicts_in_conflicts_field_e2e() {
     let first = run_cli(
         &root,
         &[
+            "workspace",
             "add",
             "--name",
             "Button",
@@ -37,6 +38,7 @@ fn lan_add_without_force_reports_conflicts_in_conflicts_field_e2e() {
     let second = run_cli(
         &root,
         &[
+            "workspace",
             "add",
             "--name",
             "Button",
@@ -84,6 +86,7 @@ fn lan_add_with_force_overwrites_existing_file_e2e() {
     let output = run_cli(
         &root,
         &[
+            "workspace",
             "add",
             "--name",
             "Button",
@@ -126,6 +129,7 @@ fn lan_add_with_force_overwrites_duplicate_without_crashing_e2e() {
     let first = run_cli(
         &root,
         &[
+            "workspace",
             "add",
             "--name",
             "Button",
@@ -147,6 +151,7 @@ fn lan_add_with_force_overwrites_duplicate_without_crashing_e2e() {
     let second = run_cli(
         &root,
         &[
+            "workspace",
             "add",
             "--name",
             "Button",
@@ -180,6 +185,7 @@ fn lan_create_on_existing_dir_reports_conflict_e2e() {
     let first = run_cli(
         &root,
         &[
+            "workspace",
             "create",
             "--name",
             "demo-app",
@@ -196,6 +202,7 @@ fn lan_create_on_existing_dir_reports_conflict_e2e() {
     let second = run_cli(
         &root,
         &[
+            "workspace",
             "create",
             "--name",
             "demo-app",
@@ -248,7 +255,7 @@ fn lan_add_conflict_interactively_renames_file_e2e() {
     // 冲突询问只有一字：选择「重命名」（第 3 项）。
     let output = run_cli_interactive(
         &root,
-        &["add", "component", "Button", "--target", "src/components"],
+        &["workspace", "add", "component", "Button", "--target", "src/components"],
         &["2"],
         &[],
     );
@@ -288,7 +295,7 @@ fn lan_add_conflict_interactively_overwrites_file_e2e() {
 
     let output = run_cli_interactive(
         &root,
-        &["add", "component", "Button", "--target", "src/components"],
+        &["workspace", "add", "component", "Button", "--target", "src/components"],
         &["0"],
         &[],
     );

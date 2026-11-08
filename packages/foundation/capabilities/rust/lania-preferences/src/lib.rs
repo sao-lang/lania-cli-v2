@@ -3,6 +3,7 @@
 //! Storage:
 //! - `~/.lania/preferences.json` (best-effort; falls back to defaults if unreadable)
 use std::{
+    collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
 };
@@ -21,6 +22,11 @@ pub struct UserPreferences {
     pub output_mode: String,
     #[serde(default)]
     pub log_timestamps: bool,
+    /// 未被上面三个键消费的顶层字段（如命令子包覆盖段 `packages`）。
+    /// 读写都原样保留：全局偏好写入（`--global`）不能把主包为子包维护的
+    /// 覆盖段抹掉；`BTreeMap` 保证序列化顺序稳定。
+    #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: BTreeMap<String, serde_json::Value>,
 }
 
 impl Default for UserPreferences {
@@ -29,6 +35,7 @@ impl Default for UserPreferences {
             locale: DEFAULT_LOCALE.into(),
             output_mode: DEFAULT_OUTPUT_MODE.into(),
             log_timestamps: false,
+            extra: BTreeMap::new(),
         }
     }
 }

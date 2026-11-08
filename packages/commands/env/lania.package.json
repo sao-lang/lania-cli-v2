@@ -4,7 +4,7 @@
   "command": "env",
   "versionFamily": "lan",
   "version": "0.0.3",
-  "order": 11,
+  "order": 5,
   "describe": "describes/env.json",
   "api": {
     "protocol": 1,

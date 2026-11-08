@@ -925,15 +925,11 @@ dependencies = [
  "lania-git",
  "lania-host",
  "lania-logger",
- "lania-plugins-command-add",
- "lania-plugins-command-build",
- "lania-plugins-command-create",
- "lania-plugins-command-dev",
  "lania-plugins-command-git",
- "lania-plugins-command-lint",
  "lania-plugins-command-locale",
  "lania-plugins-command-release",
  "lania-plugins-command-tools",
+ "lania-plugins-command-workspace",
  "lania-preferences",
  "lania-progress",
  "lania-workflows",
@@ -987,17 +983,13 @@ version = "0.0.3"
 dependencies = [
  "lania-command",
  "lania-host",
- "lania-plugins-command-add",
- "lania-plugins-command-build",
- "lania-plugins-command-create",
- "lania-plugins-command-dev",
  "lania-plugins-command-env",
  "lania-plugins-command-git",
- "lania-plugins-command-lint",
  "lania-plugins-command-locale",
  "lania-plugins-command-pi",
  "lania-plugins-command-release",
  "lania-plugins-command-tools",
+ "lania-plugins-command-workspace",
 ]
 
 [[package]]
@@ -1161,79 +1153,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lania-plugins-command-add"
-version = "0.0.3"
-dependencies = [
- "anyhow",
- "async-trait",
- "lania-bridge-host",
- "lania-cli-kit",
- "lania-command",
- "lania-command-config",
- "lania-host",
- "lania-workflows",
- "runex-home",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "lania-plugins-command-build"
-version = "0.0.3"
-dependencies = [
- "anyhow",
- "async-trait",
- "lania-bridge-host",
- "lania-cli-kit",
- "lania-command",
- "lania-command-config",
- "lania-host",
- "lania-logger",
- "lania-node-bridge",
- "runex-home",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "lania-plugins-command-create"
-version = "0.0.3"
-dependencies = [
- "anyhow",
- "async-trait",
- "lania-bridge-host",
- "lania-cli-kit",
- "lania-command",
- "lania-command-config",
- "lania-host",
- "lania-logger",
- "lania-node-bridge",
- "lania-prompt",
- "lania-workflows",
- "runex-home",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "lania-plugins-command-dev"
-version = "0.0.3"
-dependencies = [
- "anyhow",
- "async-trait",
- "lania-bridge-host",
- "lania-cli-kit",
- "lania-command",
- "lania-command-config",
- "lania-host",
- "lania-node-bridge",
- "notify",
- "runex-home",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "lania-plugins-command-env"
 version = "0.0.3"
 dependencies = [
@@ -1268,25 +1187,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lania-plugins-command-lint"
-version = "0.0.3"
-dependencies = [
- "anyhow",
- "async-trait",
- "lania-bridge-host",
- "lania-cli-kit",
- "lania-command",
- "lania-command-config",
- "lania-host",
- "lania-logger",
- "lania-node-bridge",
- "lania-presentation",
- "runex-home",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "lania-plugins-command-locale"
 version = "0.0.3"
 dependencies = [
@@ -1294,6 +1194,7 @@ dependencies = [
  "async-trait",
  "lania-cli-kit",
  "lania-command",
+ "lania-command-config",
  "lania-config",
  "lania-host",
  "lania-logger",
@@ -1355,6 +1256,28 @@ dependencies = [
  "lania-node-bridge",
  "lania-runtime",
  "regex",
+ "runex-home",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "lania-plugins-command-workspace"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "lania-bridge-host",
+ "lania-cli-kit",
+ "lania-command",
+ "lania-command-config",
+ "lania-host",
+ "lania-logger",
+ "lania-node-bridge",
+ "lania-presentation",
+ "lania-prompt",
+ "lania-workflows",
+ "notify",
  "runex-home",
  "serde_json",
  "tokio",

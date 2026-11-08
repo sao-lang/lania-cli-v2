@@ -11,36 +11,6 @@
   ],
   "commands": [
     {
-      "command": "add",
-      "package": "@lania-cli-v2/cmd-add",
-      "protocol": 1,
-      "versionFamily": "lan"
-    },
-    {
-      "command": "build",
-      "package": "@lania-cli-v2/cmd-build",
-      "protocol": 1,
-      "versionFamily": "lan"
-    },
-    {
-      "command": "config",
-      "package": "@lania-cli-v2/cmd-config",
-      "protocol": 1,
-      "versionFamily": "lan"
-    },
-    {
-      "command": "create",
-      "package": "@lania-cli-v2/cmd-create",
-      "protocol": 1,
-      "versionFamily": "lan"
-    },
-    {
-      "command": "dev",
-      "package": "@lania-cli-v2/cmd-dev",
-      "protocol": 1,
-      "versionFamily": "lan"
-    },
-    {
       "command": "env",
       "package": "@lania-cli-v2/cmd-env",
       "protocol": 1,
@@ -49,12 +19,6 @@
     {
       "command": "git",
       "package": "@lania-cli-v2/cmd-git",
-      "protocol": 1,
-      "versionFamily": "lan"
-    },
-    {
-      "command": "lint",
-      "package": "@lania-cli-v2/cmd-lint",
       "protocol": 1,
       "versionFamily": "lan"
     },
@@ -73,6 +37,12 @@
     {
       "command": "tools",
       "package": "@lania-cli-v2/cmd-tools",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
+      "command": "workspace",
+      "package": "@lania-cli-v2/cmd-workspace",
       "protocol": 1,
       "versionFamily": "lan"
     }

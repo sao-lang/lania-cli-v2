@@ -1,0 +1,85 @@
+{
+  "name": "workspace",
+  "kind": "command",
+  "command": "workspace",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 1,
+  "describe": "describes/workspace.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania-plugins-command-workspace",
+      "bin": "lan-workspace",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania-plugins-command-workspace::factory",
+        "spec": "lania-plugins-command-workspace::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "WorkspaceCommandPlugin",
+          "WorkspaceCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-workspace",
+    "bin": {
+      "lan-workspace": "npm/cmd-workspace/bin/lan-workspace.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-workspace-darwin-arm64",
+      "@lania-cli-v2/cmd-workspace-linux-x64",
+      "@lania-cli-v2/cmd-workspace-win32-x64"
+    ]
+  },
+  "payload": {
+    "slices": [
+      "compiler",
+      "product",
+      "config",
+      "lifecycle",
+      "lint",
+      "toolchain",
+      "template",
+      "dynamic-commands"
+    ],
+    "nodeBridge": true
+  },
+  "configSchema": {
+    "scope": "package",
+    "path": "~/.lania/config/workspace.json",
+    "keys": [
+      {
+        "key": "locale",
+        "kind": "enum",
+        "choices": ["zh", "en"],
+        "default": "en",
+        "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
+      },
+      {
+        "key": "output.mode",
+        "kind": "enum",
+        "choices": ["json", "human"],
+        "default": "json",
+        "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
+      },
+      {
+        "key": "log.timestamps",
+        "kind": "bool",
+        "default": false,
+        "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
+      }
+    ]
+  },
+  "description": "workspace 命令子包：合并原 dev/build/lint/create/add 五个子包（lan workspace dev|build|lint|create|add + template + product 子树 + config）"
+}

@@ -18,7 +18,7 @@ fn lan_build_progress_reports_completion_e2e() {
 
     let output = run_cli(
         &root,
-        &["build", "--mode", "production"],
+        &["workspace", "build", "--mode", "production"],
         &[("HOME", home.as_str())],
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -53,7 +53,7 @@ fn lan_output_envelope_omits_internal_state_e2e() {
 
     let output = run_cli(
         &root,
-        &["build", "--mode", "production"],
+        &["workspace", "build", "--mode", "production"],
         &[("HOME", home.as_str())],
     );
     assert_eq!(output.status.code(), Some(0));

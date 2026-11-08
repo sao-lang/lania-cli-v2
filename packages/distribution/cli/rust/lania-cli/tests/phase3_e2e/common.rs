@@ -44,9 +44,13 @@ fn default_home_dir() -> PathBuf {
 
 /// 返回应执行的二进制与转发 argv。
 ///
-/// 总包静态注册的命令（阶段 9 后仅 config）与全局 flag 直接走总包、argv 原样；
-/// 其余命令按 launcher 语义调度到子包二进制 `lan-<cmd>[.exe]`，并剥掉命令名
-/// （§5.3 C.4：argv 契约 = 剥掉命令名后转发）。
+/// 总包静态注册的命令（仅 config）与全局 flag 直接走总包、argv 原样；
+/// 其余命令按 launcher 二级路由语义调度（§5.3 C.4）：
+/// - `lan workspace <sub>` → `lan-workspace[.exe]`，剥掉 "workspace" 后转发；
+/// - `lan product <sub>`（dev/build/pack/publish/inspect/doctor）→ `lan-workspace[.exe]`，
+///   argv **完整保留**（含 "product"）——子包内同时有 workspace.* 与 product.*，靠
+///   "product" 区分；
+/// - 其它命令调度到 `lan-<cmd>[.exe]`，剥掉命令名后转发。
 pub(crate) fn resolve_command_argv<'a>(args: &'a [&'a str]) -> (PathBuf, &'a [&'a str]) {
     let cli = PathBuf::from(env!("CARGO_BIN_EXE_lania-cli"));
     let Some(command) = args.first() else {
@@ -55,17 +59,29 @@ pub(crate) fn resolve_command_argv<'a>(args: &'a [&'a str]) -> (PathBuf, &'a [&'
     if *command == "config" || command.starts_with('-') {
         return (cli, args);
     }
-    let exe_name = if cfg!(windows) {
-        format!("lan-{command}.exe")
+    const PRODUCT_SUBCOMMANDS: [&str; 6] = ["dev", "build", "pack", "publish", "inspect", "doctor"];
+    let (exe_command, forwarded): (&str, &[&str]) = if *command == "workspace" {
+        ("workspace", &args[1..])
+    } else if *command == "product"
+        && args
+            .get(1)
+            .is_some_and(|sub| PRODUCT_SUBCOMMANDS.contains(sub))
+    {
+        ("workspace", args)
     } else {
-        format!("lan-{command}")
+        (command, &args[1..])
+    };
+    let exe_name = if cfg!(windows) {
+        format!("lan-{exe_command}.exe")
+    } else {
+        format!("lan-{exe_command}")
     };
     let candidate = cli
         .parent()
         .expect("cli binary should have a parent dir")
         .join(exe_name);
     if candidate.exists() {
-        (candidate, &args[1..])
+        (candidate, forwarded)
     } else {
         (cli, args)
     }

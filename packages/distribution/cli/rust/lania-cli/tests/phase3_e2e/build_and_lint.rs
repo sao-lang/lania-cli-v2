@@ -12,7 +12,7 @@ fn lan_dev_with_vite_e2e() {
 
     let output = run_cli(
         &root,
-        &["dev", "--port", "3101"],
+        &["workspace", "dev", "--port", "3101"],
         &[("LANIA_INTERRUPT_AFTER_MS", "20")],
     );
     let json = parse_stdout_json(&output);
@@ -49,7 +49,7 @@ fn lan_dev_with_vite_version_mismatch_warns() {
 
     let output = run_cli(
         &root,
-        &["dev", "--port", "3300"],
+        &["workspace", "dev", "--port", "3300"],
         &[("LANIA_INTERRUPT_AFTER_MS", "20")],
     );
     let json = parse_stdout_json(&output);
@@ -71,7 +71,7 @@ fn lan_dev_with_webpack_e2e() {
 
     let output = run_cli(
         &root,
-        &["dev", "--port", "3201"],
+        &["workspace", "dev", "--port", "3201"],
         &[("LANIA_INTERRUPT_AFTER_MS", "20")],
     );
     let json = parse_stdout_json(&output);
@@ -90,7 +90,7 @@ fn lan_build_with_vite_e2e() {
         "export default { buildTool: 'vite' };\n",
     );
 
-    let output = run_cli(&root, &["build", "--mode", "production"], &[]);
+    let output = run_cli(&root, &["workspace", "build", "--mode", "production"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
@@ -111,7 +111,7 @@ fn lan_build_with_webpack_e2e() {
 
     let output = run_cli(
         &root,
-        &["build", "--watch"],
+        &["workspace", "build", "--watch"],
         &[("LANIA_INTERRUPT_AFTER_MS", "20")],
     );
     let json = parse_stdout_json(&output);
@@ -153,7 +153,7 @@ module.exports = {\n\
 
     let output = run_cli(
         &root,
-        &["dev", "--port", "3301"],
+        &["workspace", "dev", "--port", "3301"],
         &[("LANIA_INTERRUPT_AFTER_MS", "20")],
     );
     let json = parse_stdout_json(&output);
@@ -184,7 +184,7 @@ fn lan_build_with_rollup_e2e() {
 };\n",
     );
 
-    let output = run_cli(&root, &["build", "--mode", "production"], &[]);
+    let output = run_cli(&root, &["workspace", "build", "--mode", "production"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
@@ -209,7 +209,7 @@ fn lan_lint_uses_the_python_bridge_for_python_projects_e2e() {
         "def add(a: int, b: int) -> int:\n    return a + b\n\n\nresult: str = add(1, 2)\n",
     );
 
-    let output = run_cli(&root, &["lint"], &[]);
+    let output = run_cli(&root, &["workspace", "lint"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(
@@ -246,7 +246,7 @@ fn lan_lint_falls_back_when_the_python_bridge_is_unavailable_e2e() {
 
     let output = run_cli(
         &root,
-        &["lint"],
+        &["workspace", "lint"],
         &[("LANIA_PYTHON", "/definitely/not/a/python")],
     );
     let json = parse_stdout_json(&output);
@@ -284,7 +284,7 @@ fn lan_lint_uses_the_go_bridge_for_go_projects_e2e() {
         "export default { lintTools: ['go-vet'] };\n",
     );
 
-    let output = run_cli(&root, &["lint"], &[]);
+    let output = run_cli(&root, &["workspace", "lint"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(
@@ -331,7 +331,7 @@ fn lan_lint_falls_back_when_the_go_bridge_is_unavailable_e2e() {
     let bridge_home = isolated_home(&root);
     let output = run_cli(
         &root,
-        &["lint"],
+        &["workspace", "lint"],
         &[
             ("LANIA_GO", "/definitely/not/a/go"),
             // 缓存目录也指到空目录：否则上一次用例编译好的 bridge 二进制会被命中，
@@ -361,7 +361,7 @@ fn lan_lint_surfaces_go_tool_failures_instead_of_passing_e2e() {
     // 只有 go.mod、没有 .go 文件：`go vet ./...` 退出 1 并打印 "no packages to vet"。
     write_file(root.join("go.mod"), "module demo\n\ngo 1.21\n");
 
-    let output = run_cli(&root, &["lint"], &[]);
+    let output = run_cli(&root, &["workspace", "lint"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(json["result"]["bridge"], "lan-go-bridge", "{json}");
@@ -386,7 +386,7 @@ fn lan_build_uses_the_go_bridge_e2e() {
     let root = temp_dir("build-go-bridge");
     write_go_project(&root, "package main\n\nfunc main() {}\n");
 
-    let output = run_cli(&root, &["build", "--output-dir", "bin/app"], &[]);
+    let output = run_cli(&root, &["workspace", "build", "--output-dir", "bin/app"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0), "{json}");
@@ -425,7 +425,7 @@ fn lan_lint_uses_the_rust_bridge_for_rust_projects_e2e() {
     let root = temp_dir("lint-rs-bridge");
     write_rust_project(&root, RUST_RANGE_LOOP_SOURCE);
 
-    let output = run_cli(&root, &["lint"], &[]);
+    let output = run_cli(&root, &["workspace", "lint"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(
@@ -463,7 +463,7 @@ fn lan_build_uses_the_rust_bridge_e2e() {
     let root = temp_dir("build-rs-bridge");
     write_rust_project(&root, "fn main() {\n    println!(\"hello\");\n}\n");
 
-    let output = run_cli(&root, &["build"], &[]);
+    let output = run_cli(&root, &["workspace", "build"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0), "{json}");
@@ -495,7 +495,7 @@ fn lan_lint_falls_back_when_the_rust_bridge_is_unavailable_e2e() {
 
     let output = run_cli(
         &root,
-        &["lint"],
+        &["workspace", "lint"],
         &[("LANIA_RS_BRIDGE", "/definitely/not/a/bridge")],
     );
     let json = parse_stdout_json(&output);
@@ -532,7 +532,7 @@ fn lan_lint_uses_the_dart_bridge_for_dart_projects_e2e() {
         "void main() {\n  int value = 'text';\n  print(value);\n}\n",
     );
 
-    let output = run_cli(&root, &["lint"], &[]);
+    let output = run_cli(&root, &["workspace", "lint"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(
@@ -565,7 +565,7 @@ fn lan_build_uses_the_dart_bridge_e2e() {
     let root = temp_dir("build-dart-bridge");
     write_dart_project(&root, "void main() {\n  print('hello');\n}\n");
 
-    let output = run_cli(&root, &["build", "--output-dir", "bin/app"], &[]);
+    let output = run_cli(&root, &["workspace", "build", "--output-dir", "bin/app"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0), "{json}");
@@ -589,7 +589,7 @@ fn lan_lint_fix_e2e() {
     );
     write_file(root.join("src/index.js"), "const answer = 42\n");
 
-    let output = run_cli(&root, &["lint", "fix"], &[]);
+    let output = run_cli(&root, &["workspace", "lint", "fix"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
@@ -625,7 +625,7 @@ fn lan_lint_with_stylelint_and_textlint_e2e() {
     write_file(root.join("src/app.css"), "body { color: red; }\n");
     write_file(root.join("README.md"), "hello world\n");
 
-    let output = run_cli(&root, &["lint"], &[]);
+    let output = run_cli(&root, &["workspace", "lint"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(1));
@@ -664,7 +664,7 @@ fn lan_lint_linters_filter_and_grouped_output_e2e() {
 
     let output = run_cli(
         &root,
-        &["lint", "--linters", "stylelint", "--grouped-output"],
+        &["workspace", "lint", "--linters", "stylelint", "--grouped-output"],
         &[],
     );
     let json = parse_stdout_json(&output);
@@ -697,7 +697,7 @@ fn lan_dev_streams_app_logs_with_prefix_and_quiet_app_suppresses_e2e() {
 
     let output = run_cli(
         &root,
-        &["dev"],
+        &["workspace", "dev"],
         &[
             ("LANIA_INTERRUPT_AFTER_MS", "6000"),
             ("LANIA_TIMEOUT_MS", "30000"),
@@ -711,7 +711,7 @@ fn lan_dev_streams_app_logs_with_prefix_and_quiet_app_suppresses_e2e() {
 
     let quiet = run_cli(
         &root,
-        &["dev", "--quiet-app"],
+        &["workspace", "dev", "--quiet-app"],
         &[
             ("LANIA_INTERRUPT_AFTER_MS", "6000"),
             ("LANIA_TIMEOUT_MS", "30000"),

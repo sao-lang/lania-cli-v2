@@ -13,14 +13,10 @@ authors.workspace = true
 [dependencies]
 lania-command = { path = "../../../command/rust/lania-command" }
 lania-host = { path = "../../../../../packages/distribution/cli/rust/lania-host" }
-lania-plugins-command-add = { path = "../../../../../packages/commands/add/rust" }
-lania-plugins-command-build = { path = "../../../../../packages/commands/build/rust" }
-lania-plugins-command-create = { path = "../../../../../packages/commands/create/rust" }
-lania-plugins-command-dev = { path = "../../../../../packages/commands/dev/rust" }
 lania-plugins-command-env = { path = "../../../../../packages/commands/env/rust" }
 lania-plugins-command-git = { path = "../../../../../packages/commands/git/rust" }
-lania-plugins-command-lint = { path = "../../../../../packages/commands/lint/rust" }
 lania-plugins-command-locale = { path = "../../../../../packages/distribution/cli/rust/lania-plugins-command-locale" }
 lania-plugins-command-pi = { path = "../../../../../packages/commands/pi/rust" }
 lania-plugins-command-release = { path = "../../../../../packages/commands/release/rust" }
 lania-plugins-command-tools = { path = "../../../../../packages/commands/tools/rust" }
+lania-plugins-command-workspace = { path = "../../../../../packages/commands/workspace/rust" }

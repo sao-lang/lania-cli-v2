@@ -21,7 +21,7 @@
 
 ## Current Capabilities
 
-- 11 built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `release`, `git`, `env`, `pi`, `config` — template queries are a `create` subcommand (`lan create template`)
+- 11 built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `release`, `git`, `env`, `pi`, `config` — template queries are a `create` subcommand (`lan workspace template`)
 - Bridge-backed execution for compiler and lint workflows, plus mixed host/bridge tooling utilities under `tools`
 - Rust workflows for multi-runtime scaffolding, release orchestration, and Git automation
 - Project-level dynamic commands loaded from manifest files
@@ -34,7 +34,7 @@
 Everything is split into self-contained packages under `packages/`; each ships a
 `lania.package.json` (single source of truth whose `description` field states its role):
 
-- `packages/commands/*` (11): one installable subpackage per built-in command, each with its own `config` subcommand and `configSchema`; `config` itself is the management plane
+- `packages/commands/*` (6): `workspace` (the merged dev/build/lint/create/add namespace, also carrying the `product` tree, `template` and `config` subcommands), plus `release`, `git`, `tools`, `env`, `pi`; `config` is built into the main binary
 - `packages/distribution/core`: the scheduler — the single `lan` entry that dispatches to per-command binaries via the static `known-commands.json`
 - `packages/distribution/cli`: the umbrella package aggregating all command subpackages and the full bridge slices
 - `packages/foundation/*`: shared building blocks — `bridge-runtime` (stdio core + slice assembly), `bridge-slices/*` (12 TS slices), `templates` (10 project templates + EJS), `cli-kit` (output rendering), `host-core` (host seams), `package-config` (per-package config engine), `command` (spec/parsing/localization), `capabilities/*` (16 leaf crates)
@@ -49,15 +49,18 @@ In practice:
 
 ## Command Categories
 
-| Command Group             | Path                                                    | Description                                                            |
-| ------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `dev`, `build`, `lint`    | Rust -> Node Bridge -> compiler/lint plugins            | JS toolchain execution                                                 |
-| `tools list`              | Rust -> Node Bridge -> system plugin                    | enumerate terminal-resolvable commands from PATH and shell             |
-| `tools run`, `tools view` | Rust host utilities                                     | detect runtimes, execute local code files, or display/open local files |
-| `create`, `add`           | Rust workflow + template bridge calls                   | multi-runtime project and partial scaffolding                          |
-| `release`, `git`          | Rust workflow                                           | release orchestration and Git automation                               |
-| `create template`         | Rust query -> Node Bridge                               | template catalog and template detail lookup (a `create` subcommand)    |
-| dynamic commands          | project manifest -> Rust registration -> Node execution | runtime command extension                                              |
+| Command Group                         | Path                                                     | Description                                                          |
+| ------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------- |
+| `workspace dev` / `build` / `lint`    | Rust -> Node Bridge -> compiler/lint slices              | JS toolchain execution (dev/build/lint merged under `workspace`)     |
+| `workspace create` / `add`            | Rust workflow + template bridge calls                    | multi-runtime project and partial scaffolding                        |
+| `workspace template`                  | Rust query -> Node Bridge                                | template catalog and template detail lookup                          |
+| `workspace product`                   | Rust workflow -> compiler/product slices                 | product dev/build/pack/publish/inspect/doctor                        |
+| `workspace config`                    | main-override aware per-package config                   | workspace-level preferences (main override > package file > default) |
+| `tools list` / `run` / `view`         | Rust -> Node Bridge / Rust host utilities                | enumerate commands, execute files, display local files               |
+| `release`, `git`                      | Rust workflow                                            | release orchestration and Git automation                             |
+| `env`, `pi`                           | Rust host / Bridge                                       | runtime management (18 toolchains, TUI) and the coding agent         |
+| `config` (built into the main binary) | main package preferences + per-package override segments | global/project/override configuration management (isolated writes)   |
+| dynamic commands                      | project manifest -> Rust registration -> Node execution  | runtime command extension                                            |
 
 ## Project templates
 
@@ -81,8 +84,8 @@ In practice:
 Install commands are selected by runtime: Node -> `npm/pnpm/yarn/bun install`, Python -> `pip/uv/poetry`, Go -> `go mod tidy`, Rust -> `cargo fetch`, Dart -> `dart pub get`. Language templates default to `skipInstall: true`; Node framework templates install dependencies by default.
 
 ```bash
-lan create --name svc --template go-service --package-manager go
-lan create --name cli --template python-cli --package-manager uv
+lan workspace create --name svc --template go-service --package-manager go
+lan workspace create --name cli --template python-cli --package-manager uv
 ```
 
 ## Unified configuration (three layers)
@@ -125,9 +128,9 @@ lan tools run ./scripts/demo.py arg1 arg2
 lan tools run ./scripts/demo.rs
 lan tools run ./scripts/demo.go
 lan tools view ./src/index.ts
-lan create --name demo-app --template spa-react
-lan create --name svc --template go-service --package-manager go
-lan create template
+lan workspace create --name demo-app --template spa-react
+lan workspace create --name svc --template go-service --package-manager go
+lan workspace template
 lan release plan --profile package --version 1.2.3
 ```
 

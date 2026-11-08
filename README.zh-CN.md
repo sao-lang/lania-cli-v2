@@ -26,7 +26,7 @@
 
 ## 当前能力
 
-- 11 个内置命令：`dev`、`build`、`lint`、`tools`、`env`、`pi`、`create`、`add`、`release`、`git`、`config`（模板查询是 `create` 的二级命令 `lan create template`）。
+- 6 个命令子包 + 主包内建 config：`workspace`（dev/build/lint/create/add/template 的统一命名空间，含 product 产品化子树）、`release`、`git`、`tools`、`env`、`pi`；原 11 命令中 dev/build/lint/create/add 已合并进 workspace。`dev`、`build`、`lint`、`tools`、`env`、`pi`、`create`、`add`、`release`、`git`、`config`（模板查询是 `lan workspace template`）。
 - 支持三类执行路径：
   - Bridge 型命令：`dev`、`build`、`lint`
   - 混合型命令：`tools`，其中 `tools list` 走 Node Bridge，`tools run/view` 走本地宿主能力
@@ -46,7 +46,7 @@
 
 1. 调度层 `packages/distribution/core`
    - 唯一 `lan` 入口（launcher）：按构建期静态表 `known-commands.json` 调度到已安装子包的平台二进制 `lan-<cmd>`，并注入 Bridge 载荷路径；同时提供子包管理（`lan package`）与聚合帮助。
-2. 命令层 `packages/commands/<cmd>`（11 个）
+2. 命令层 `packages/commands/<cmd>`（6 个：workspace/release/git/tools/env/pi）
    - 每个内置命令一个原子子包：Rust crate（spec/handler）+ npm 包 + `describes/` 快照 + 包级 `configSchema`；`config` 是总包管理面。
 3. 宿主与基建 `packages/foundation/*`
    - `bridge-runtime`（stdio 协议核）+ `bridge-slices/*`（12 个 TS 切片）、`templates`（10 个模板 + EJS）、`cli-kit`（输出渲染）、`host-core`、`command`、`package-config`、`capabilities/*`（16 个 leaf crate）等。
@@ -78,14 +78,14 @@ lan dev
 创建新项目：
 
 ```bash
-lan create --name demo-app --template spa-react
+lan workspace create --name demo-app --template spa-react
 ```
 
 查看模板信息（`template` 是 `create` 的二级命令）：
 
 ```bash
-lan create template
-lan create template toolkit
+lan workspace template
+lan workspace template toolkit
 ```
 
 查看当前终端可直接运行的全局命令：
@@ -220,19 +220,15 @@ cargo run -p lania-cli -- config doctor
 
 ## 命令总览
 
-| 命令      | 类型       | 作用                                                                                                                                               |
-| --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dev`     | Bridge     | 启动当前项目的开发流程（并承载 `lan product dev`）                                                                                                 |
-| `build`   | Bridge     | 触发构建或 watch 构建（并承载 `lan product build/pack/publish/inspect/doctor`）                                                                    |
-| `lint`    | Bridge     | 执行 ESLint、Prettier、Stylelint、Textlint 等检查或修复                                                                                            |
-| `tools`   | 混合命令   | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件                                           |
-| `env`     | 混合 / TUI | 自管 18 种语言工具链（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir），`lan env ui` 提供终端双栏界面 |
-| `pi`      | Bridge     | 编码 agent（pi 引擎，交互 REPL 或一次性执行）                                                                                                      |
-| `create`  | Workflow   | 以模板创建新项目；`lan create template` 查询模板目录与详情                                                                                         |
-| `add`     | Workflow   | 向现有仓库补充局部模板、配置或代码片段                                                                                                             |
-| `release` | Workflow   | 规划、执行、恢复或查询一次发布流程                                                                                                                 |
-| `git`     | Workflow   | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                                                           |
-| `config`  | 管理面     | 全局偏好、包级偏好与跨包配置的统一管理（`packages` / `apply` / `--package`）                                                                       |
+| 命令        | 类型       | 作用                                                                                                                                                                                                                  |
+| ----------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace` | 命名空间   | 工作区开发全流程：`lan workspace dev/build/lint/create/add`（原 5 个顶级命令合并于此），并承载 `lan workspace product dev/build/pack/publish/inspect/doctor`、`lan workspace template` 与 `lan workspace config`      |
+| `release`   | Workflow   | 规划、执行、恢复或查询一次发布流程                                                                                                                                                                                    |
+| `git`       | Workflow   | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                                                                                                                              |
+| `tools`     | 混合命令   | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件                                                                                                              |
+| `env`       | 混合 / TUI | 自管 18 种语言工具链（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir），`lan env ui` 提供终端双栏界面                                                                    |
+| `pi`        | Bridge     | 编码 agent（pi 引擎，交互 REPL 或一次性执行）                                                                                                                                                                         |
+| `config`    | 主包内建   | 全局偏好、项目配置与跨包覆盖的统一管理（`packages` / `apply` / `--package`）。配置隔离：主包覆盖值写主包自己的 preferences（`packages.workspace` 段），永不写子包文件；子包按「主包覆盖 → 子包文件 → 默认值」取生效值 |
 
 ## 关键链路
 
@@ -992,26 +988,26 @@ Bridge 目录查找顺序如下：
 `description` 字段说明该包职责）、`rust/`（Rust crate）、`npm/`（可安装的 npm 包）、
 `describes/`（命令规格快照）。各包职责一览：
 
-| 包                                                                              | 类别            | 职责                                                                                  |
-| ------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
-| `packages/commands/{add,build,config,create,dev,env,git,lint,pi,release,tools}` | command         | 11 个命令子包，每包自带 `config` 二级命令与包级 `configSchema`；`config` 为总包管理面 |
-| `packages/distribution/cli`                                                     | distribution    | 总包：聚合全部命令子包与全量 bridge 切片（不再静态链接命令）                          |
-| `packages/distribution/core`                                                    | distribution    | 核心调度器：唯一 `lan` 入口，按 `known-commands.json` 静态表调度子包二进制            |
-| `packages/foundation/cli-kit`                                                   | foundation      | 输出渲染与单命令执行支点（envelope/本地化/人类可读渲染 + 模板文案目录）               |
-| `packages/foundation/host-core`                                                 | foundation      | 宿主层共享接缝（`BridgeProvider` 抽象、product root 等内建定义）                      |
-| `packages/foundation/package-config`                                            | foundation      | 包级偏好引擎 `lania-package-config` 与共享 config 二级命令实现 `lania-command-config` |
-| `packages/foundation/runex-home`                                                | foundation      | runex 自管运行时的极小 PATH 前置（`RunexHome` / `ShimHost`）                          |
-| `packages/foundation/bridge-runtime`                                            | foundation      | Bridge 运行时核：stdio 协议、插件注册表与切片动态装配                                 |
-| `packages/foundation/bridge-slices/*`                                           | foundation      | 12 个 TS bridge 切片（compiler/lint/template/product/toolchain/…）                    |
-| `packages/foundation/templates`                                                 | foundation      | 脚手架资产：10 个内置项目模板、add 模板与 EJS 渲染运行时                              |
-| `packages/foundation/lania`                                                     | foundation      | 作者侧 DSL：`lan.config.*` 类型化配置与 schema 工具                                   |
-| `packages/foundation/command`                                                   | foundation      | 命令规格/解析/本地化基建（`lania-command`）                                           |
-| `packages/foundation/capabilities/*`                                            | foundation      | 16 个宿主能力 leaf crate（git/exec/fs/logger/workflows/…）                            |
-| `packages/products/agent`                                                       | product         | 编码 agent：pi 引擎（Rust lib API + npm TS 引擎双形态）                               |
-| `packages/products/bridge-hub`                                                  | product         | 语言中立消息总线：BusFrame 协议、进程内 Hub 与 5 语言端点 adaptor                     |
-| `packages/products/runex`                                                       | product         | 自管多运行时管理器（独立 CLI 双形态，`runex` bin）                                    |
-| `packages/runtime`                                                              | command-runtime | runtime 设施：项目级动态命令与脚手架封装命令的执行宿主（`lan-runtime`）               |
-| `packages/schemas`                                                              | —               | `lania.package.json` 的 JSON Schema                                                   |
+| 包                                                       | 类别            | 职责                                                                                                                      |
+| -------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `packages/commands/{workspace,release,git,tools,env,pi}` | command         | 6 个命令子包：workspace 合并原 dev/build/lint/create/add（含 product 子树与 config）；config 为主包内建，由总包二进制承载 |
+| `packages/distribution/cli`                              | distribution    | 总包：聚合全部命令子包与全量 bridge 切片（不再静态链接命令）                                                              |
+| `packages/distribution/core`                             | distribution    | 核心调度器：唯一 `lan` 入口，按 `known-commands.json` 静态表调度子包二进制                                                |
+| `packages/foundation/cli-kit`                            | foundation      | 输出渲染与单命令执行支点（envelope/本地化/人类可读渲染 + 模板文案目录）                                                   |
+| `packages/foundation/host-core`                          | foundation      | 宿主层共享接缝（`BridgeProvider` 抽象、product root 等内建定义）                                                          |
+| `packages/foundation/package-config`                     | foundation      | 包级偏好引擎 `lania-package-config` 与共享 config 二级命令实现 `lania-command-config`                                     |
+| `packages/foundation/runex-home`                         | foundation      | runex 自管运行时的极小 PATH 前置（`RunexHome` / `ShimHost`）                                                              |
+| `packages/foundation/bridge-runtime`                     | foundation      | Bridge 运行时核：stdio 协议、插件注册表与切片动态装配                                                                     |
+| `packages/foundation/bridge-slices/*`                    | foundation      | 12 个 TS bridge 切片（compiler/lint/template/product/toolchain/…）                                                        |
+| `packages/foundation/templates`                          | foundation      | 脚手架资产：10 个内置项目模板、add 模板与 EJS 渲染运行时                                                                  |
+| `packages/foundation/lania`                              | foundation      | 作者侧 DSL：`lan.config.*` 类型化配置与 schema 工具                                                                       |
+| `packages/foundation/command`                            | foundation      | 命令规格/解析/本地化基建（`lania-command`）                                                                               |
+| `packages/foundation/capabilities/*`                     | foundation      | 16 个宿主能力 leaf crate（git/exec/fs/logger/workflows/…）                                                                |
+| `packages/products/agent`                                | product         | 编码 agent：pi 引擎（Rust lib API + npm TS 引擎双形态）                                                                   |
+| `packages/products/bridge-hub`                           | product         | 语言中立消息总线：BusFrame 协议、进程内 Hub 与 5 语言端点 adaptor                                                         |
+| `packages/products/runex`                                | product         | 自管多运行时管理器（独立 CLI 双形态，`runex` bin）                                                                        |
+| `packages/runtime`                                       | command-runtime | runtime 设施：项目级动态命令与脚手架封装命令的执行宿主（`lan-runtime`）                                                   |
+| `packages/schemas`                                       | —               | `lania.package.json` 的 JSON Schema                                                                                       |
 
 更详细的目录说明见 [目录结构参考](./docs/references/ai/directory-structure.md)。
 

@@ -23,9 +23,10 @@ use lania_host::{
     },
 };
 use lania_logger::LogLevel;
-use lania_package_config::{
-    get_value, load_package_config, package_config_path, save_package_config, set_value, ConfigKey,
+use lania_command_config::{
+    effective_value_with_source, load_main_overrides, save_main_override, ConfigValueSource,
 };
+use lania_package_config::{load_package_config, package_config_path, ConfigKey};
 use lania_preferences::{
     load_preferences, normalize_locale, normalize_output_mode, save_preferences, UserPreferences,
 };
@@ -459,29 +460,49 @@ impl CommandHandler for ConfigRootHandler {
 #[async_trait(?Send)]
 impl CommandHandler for ConfigGetHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
-        // `--package <pkg>`：读该命令子包自己的包级偏好（~/.lania/config/<pkg>.json）。
+        // `--package <pkg>`：主包与子包配置文件隔离——这里只**读**，输出生效值与来源。
+        // 生效优先级：主包 preferences 的 packages.<pkg> 覆盖段 → 子包自身
+        // ~/.lania/config/<pkg>.json → key 默认值。主包从不写子包文件。
         if ConfigCommandPlugin::read_option(ctx.command(), "package").is_some() {
             let pkg = ConfigCommandPlugin::package_scope(ctx.command())?;
             let config = load_package_config(&pkg)?;
             let path = package_config_path(&pkg)?;
+            let overrides = load_main_overrides(&pkg);
             let raw_key = ctx
                 .command()
                 .argv
                 .args
                 .get("key")
                 .and_then(|value| value.as_str());
-            let value = match raw_key {
-                Some(key) => get_value(&config, key).cloned(),
-                None => None,
-            };
+            let keys: Vec<ConfigKey> = package_config_keys(&pkg)
+                .into_iter()
+                .filter(|item| {
+                    raw_key.map_or(true, |raw| {
+                        item.key == raw
+                            || (raw == "log.timestamp" && item.key == "log.timestamps")
+                            || (raw == "output" && item.key == "output.mode")
+                    })
+                })
+                .collect();
+            let mut rows = Vec::new();
+            for key_spec in &keys {
+                let (value, source) =
+                    effective_value_with_source(&config, &overrides, key_spec);
+                rows.push(json!({
+                    "key": key_spec.key,
+                    "value": value,
+                    "source": source.as_str(),
+                }));
+            }
             let output = json!({
                 "kind": "config_get",
                 "scope": "package",
                 "package": pkg,
                 "path": path.map(|p| p.display().to_string()),
                 "key": raw_key,
-                "value": value,
-                "config": config,
+                "effective": rows,
+                "overrides": overrides,
+                "packageFile": config,
             });
             return Ok(ctx.complete_template_info(output, 0));
         }
@@ -510,12 +531,13 @@ impl CommandHandler for ConfigSetHandler {
         let key = ConfigCommandPlugin::read_arg(ctx.command(), ctx.locale(), "key")?;
         let value = ConfigCommandPlugin::read_arg(ctx.command(), ctx.locale(), "value")?;
 
-        // `--package <pkg>`：写该命令子包自己的包级偏好（~/.lania/config/<pkg>.json）。
-        // 包级偏好与全局偏好、项目配置三者互不覆盖，作用域由参数显式指定。
+        // `--package <pkg>`：主包与子包配置文件**隔离**——主包只能把覆盖值写进
+        // 自己的 preferences.json（packages.<pkg>.<key> 段），绝不写子包文件；
+        // 子包运行时经 load_main_overrides 优先读到这份覆盖。
         if ConfigCommandPlugin::read_option(ctx.command(), "package").is_some() {
             let pkg = ConfigCommandPlugin::package_scope(ctx.command())?;
             // 与各命令子包 manifest 的 configSchema 同构校验：只接受声明过的键，
-            // 并按 enum / bool 类型解析，避免把任意字符串写进子包配置文件。
+            // 并按 enum / bool 类型解析，避免把任意字符串写进覆盖段。
             let key_spec = package_config_keys(&pkg)
                 .into_iter()
                 .find(|item| {
@@ -529,14 +551,11 @@ impl CommandHandler for ConfigSetHandler {
                     )
                 })?;
             let parsed = key_spec.parse(&value).map_err(|error| anyhow!("{error}"))?;
-            let mut config = load_package_config(&pkg)?;
-            set_value(&mut config, &key_spec.key, parsed.clone())
-                .map_err(|error| anyhow!("{error}"))?;
-            save_package_config(&pkg, &config)?;
-            let path = package_config_path(&pkg)?;
+            save_main_override(&pkg, &key_spec.key, parsed.clone())?;
+            let path = lania_preferences::preferences_path();
             let output = json!({
                 "kind": "config_set",
-                "scope": "package",
+                "scope": "main-override",
                 "package": pkg,
                 "path": path.map(|p| p.display().to_string()),
                 "key": key_spec.key,
@@ -748,6 +767,7 @@ impl CommandHandler for ConfigPackagesHandler {
                         .map(|p| p.display().to_string()),
                     "keys": package_config_keys(pkg),
                     "config": config,
+                    "overrides": load_main_overrides(pkg),
                 })
             })
             .collect();
@@ -772,7 +792,8 @@ impl CommandHandler for ConfigApplyHandler {
         let targets = package_names(only.as_deref());
         let mut applied = Vec::new();
         for pkg in &targets {
-            let mut config = load_package_config(pkg)?;
+            // 隔离模型：apply 只把全局值写进主包覆盖段（packages.<pkg>），
+            // 不再写子包配置文件。
             for key in package_config_keys(pkg) {
                 if key.key == "shim.host" {
                     continue;
@@ -783,9 +804,8 @@ impl CommandHandler for ConfigApplyHandler {
                     "log.timestamps" => json!(prefs.log_timestamps),
                     _ => continue,
                 };
-                set_value(&mut config, &key.key, value)?;
+                save_main_override(pkg, &key.key, value)?;
             }
-            save_package_config(pkg, &config)?;
             applied.push(pkg.clone());
         }
         Ok(ctx.complete_template_info(

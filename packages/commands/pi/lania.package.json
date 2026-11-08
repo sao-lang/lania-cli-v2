@@ -4,7 +4,7 @@
   "command": "pi",
   "versionFamily": "lan",
   "version": "0.0.3",
-  "order": 12,
+  "order": 6,
   "describe": "describes/pi.json",
   "api": {
     "protocol": 1,

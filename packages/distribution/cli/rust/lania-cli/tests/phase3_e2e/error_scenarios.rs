@@ -43,6 +43,7 @@ fn lan_add_with_nonexistent_template_returns_error_e2e() {
     let output = run_cli(
         &root,
         &[
+            "workspace",
             "add",
             "--name",
             "Test",
@@ -101,7 +102,7 @@ fn lan_build_with_invalid_mode_option_reports_error_e2e() {
     // build 使用非法模式（假设没有 --unknown-mode 选项），应报错
     let output = run_cli(
         &root,
-        &["build", "--unknown-mode", "value"],
+        &["workspace", "build", "--unknown-mode", "value"],
         &[("HOME", home.as_str())],
     );
     let stdout = String::from_utf8_lossy(&output.stdout);

@@ -4,7 +4,7 @@
   "command": "git",
   "versionFamily": "lan",
   "version": "0.0.3",
-  "order": 8,
+  "order": 3,
   "describe": "describes/git.json",
   "api": {
     "protocol": 1,

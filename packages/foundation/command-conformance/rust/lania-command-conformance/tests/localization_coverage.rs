@@ -11,17 +11,13 @@ use lania_host::{
     registry::{CommandHandlerRegistryImpl, CommandRegistry, CommandRegistryImpl},
     HookBusImpl,
 };
-use lania_plugins_command_add::AddCommandPlugin;
-use lania_plugins_command_build::BuildCommandPlugin;
-use lania_plugins_command_create::CreateCommandPlugin;
-use lania_plugins_command_dev::DevCommandPlugin;
 use lania_plugins_command_env::EnvCommandPlugin;
 use lania_plugins_command_git::GitCommandPlugin;
-use lania_plugins_command_lint::LintCommandPlugin;
 use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_plugins_command_pi::PiCommandPlugin;
 use lania_plugins_command_release::ReleaseCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
+use lania_plugins_command_workspace::WorkspaceCommandPlugin;
 
 /// Rebuild the same built-in command tree that `lania-cli` registers before
 /// rendering help, so any new command/option/arg/example is covered here
@@ -46,11 +42,8 @@ fn builtin_command_specs() -> Vec<CommandSpec> {
     }
 
     // Same registration order as `lania-cli/src/main.rs`.
-    setup!(DevCommandPlugin);
-    setup!(BuildCommandPlugin);
-    setup!(LintCommandPlugin);
-    setup!(CreateCommandPlugin);
-    setup!(AddCommandPlugin);
+    // dev/build/lint/create/add 已合并进 workspace 命令子包（package-split phase1）。
+    setup!(WorkspaceCommandPlugin);
     setup!(ReleaseCommandPlugin);
     setup!(GitCommandPlugin);
     setup!(ToolsCommandPlugin);
@@ -118,8 +111,7 @@ fn collect_untranslated(spec: &CommandSpec, parent_path: &str, failures: &mut Ve
 fn zh_localization_covers_every_builtin_command_string() {
     let mut specs = builtin_command_specs();
     for expected in [
-        "dev", "build", "lint", "create", "add", "release", "git", "template",
-        "tools", "env", "pi", "config",
+        "workspace", "product", "release", "git", "tools", "env", "pi", "config",
     ] {
         assert!(
             specs.iter().any(|spec| spec.name == expected),

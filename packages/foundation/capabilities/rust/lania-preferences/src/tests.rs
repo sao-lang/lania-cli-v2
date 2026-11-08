@@ -183,6 +183,7 @@ fn save_and_load_roundtrip_preserves_normalized_values() {
         locale: "zh-TW".into(),
         output_mode: "jsonl".into(),
         log_timestamps: true,
+        extra: Default::default(),
     };
     save_preferences(&input).expect("save succeeds");
     // Verify file was actually written
@@ -225,4 +226,31 @@ fn save_preferences_without_home_is_noop() {
     let result = save_preferences(&UserPreferences::default());
     restore_env("HOME", previous);
     assert!(result.is_ok(), "should return Ok even without HOME");
+}
+
+// ── 覆盖段（packages）round-trip ──────────────────────────────
+
+/// 主包 preferences.json 的 `packages` 覆盖段（camelCase 键）必须在
+/// load/save 往返中原样保留：全局偏好写入（`--global`）不能把它抹掉。
+#[test]
+fn save_preferences_preserves_unknown_top_level_sections() {
+    let (root, prev, _guard) = with_isolated_home();
+    fs::create_dir_all(root.join(".lania")).expect("dir created");
+    fs::write(
+        root.join(".lania/preferences.json"),
+        r#"{"locale":"en","packages":{"workspace":{"locale":"zh","outputMode":"human"}}}"#,
+    )
+    .expect("file written");
+
+    let mut prefs = load_preferences();
+    prefs.log_timestamps = true;
+    save_preferences(&prefs).expect("save succeeds");
+
+    let raw = fs::read_to_string(root.join(".lania/preferences.json")).expect("file readable");
+    let value: serde_json::Value = serde_json::from_str(&raw).expect("valid json");
+    assert_eq!(value["packages"]["workspace"]["locale"], "zh");
+    assert_eq!(value["packages"]["workspace"]["outputMode"], "human");
+    assert_eq!(value["logTimestamps"], true);
+    restore_env("HOME", prev);
+    let _ = fs::remove_dir_all(root);
 }
