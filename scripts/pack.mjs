@@ -21,6 +21,7 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     stdio: 'inherit',
     cwd: options.cwd ?? repoRoot,
+    shell: options.shell ?? false,
     env: { ...process.env, ...(options.env ?? {}) },
   });
   if (result.status !== 0) {
@@ -28,23 +29,45 @@ function run(command, args, options = {}) {
   }
 }
 
-function canRun(command, args = ['--version']) {
+function canRun(command, args = ['--version'], shell = false) {
   const result = spawnSync(command, args, {
     stdio: 'ignore',
     cwd: repoRoot,
+    shell,
     env: process.env,
   });
   return result.status === 0;
 }
 
+// 统一用 `node <pnpm 入口>` 直跑：Windows 上 `spawnSync('pnpm')` 解析不到
+// `pnpm.cmd`，而 `.cmd` 又必须带 shell（Node >= 20.12 对 `.cmd` 强制 shell，
+// 否则 EINVAL）；shell 链路在部分沙箱环境里还会卡死。pnpm 全局安装自带
+// `bin/pnpm.mjs`，直接交给当前 node 执行是最稳的路径。
+function resolvePnpmEntry() {
+  const candidates =
+    process.platform === 'win32'
+      ? [
+          path.join(process.env.APPDATA ?? '', 'npm/node_modules/pnpm/bin/pnpm.mjs'),
+          path.join(process.env.NPM_PREFIX ?? '', 'node_modules/pnpm/bin/pnpm.mjs'),
+        ]
+      : ['/usr/local/lib/node_modules/pnpm/bin/pnpm.mjs'];
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 function runPnpm(pnpmArgs, options = {}) {
-  if (canRun('pnpm')) {
-    run('pnpm', pnpmArgs, options);
+  const pnpmEntry = resolvePnpmEntry();
+  if (pnpmEntry) {
+    run(process.execPath, [pnpmEntry, ...pnpmArgs], options);
     return;
   }
   // Fallback: use npm to execute a pinned pnpm version.
   // This avoids corepack signature issues in some environments.
-  const workspacePkg = readJson(path.join(repoRoot, 'ts/package.json'));
+  const workspacePkg = readJson(path.join(repoRoot, 'package.json'));
   const pinned =
     (workspacePkg.packageManager ?? 'pnpm@10.25.0').split('@').slice(1).join('@') || '10.25.0';
   run('npm', ['exec', '--yes', `pnpm@${pinned}`, '--', ...pnpmArgs], options);
@@ -354,7 +377,21 @@ async function main() {
   }
 
   console.log('[pack] building TS workspace');
-  runPnpm(['-r', 'build'], { cwd: repoRoot });
+  // 先构建被其它包 import 的底座（切片 tsc 通过 workspace link 的 dist 解析类型），
+  // 避免 `pnpm -r build` 并行启动时切片读到还没建好的 dist。
+  runPnpm(
+    [
+      '--filter',
+      '@lania-cli-v2/bridge-protocol',
+      '--filter',
+      '@lania-cli-v2/bridge-runtime',
+      'build',
+    ],
+    { cwd: repoRoot },
+  );
+  // workspace-concurrency=1：`pnpm -r build` 并行时不保证等依赖包 build 完成，
+  //  切片 tsc 会竞态读到还没重建的 dist（TS2307），强制串行后按拓扑顺序稳定通过。
+  runPnpm(['-r', '--workspace-concurrency=1', 'build'], { cwd: repoRoot });
 
   // 一次 cargo build 覆盖所有产出二进制的包（共享 target/ 缓存，文档 §6.4）。
   const binaryCrates = [];
