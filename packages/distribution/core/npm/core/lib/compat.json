@@ -29,6 +29,12 @@
       "versionFamily": "lan"
     },
     {
+      "command": "product",
+      "package": "@lania-cli-v2/cmd-product",
+      "protocol": 1,
+      "versionFamily": "lan"
+    },
+    {
       "command": "release",
       "package": "@lania-cli-v2/cmd-release",
       "protocol": 1,

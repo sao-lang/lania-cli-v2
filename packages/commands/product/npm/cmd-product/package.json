@@ -1,0 +1,53 @@
+{
+  "name": "@lania-cli-v2/cmd-product",
+  "version": "0.0.3",
+  "description": "lan-product — workspace 命令子包（dev/build/lint/create/add 子命令，TS payload 经 lib/bridge 提供）",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "lan-product": "./bin/lan-product.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@lania-cli-v2/cmd-product-darwin-arm64": "workspace:*",
+    "@lania-cli-v2/cmd-product-linux-x64": "workspace:*",
+    "@lania-cli-v2/cmd-product-win32-x64": "workspace:*"
+  },
+  "configSchema": {
+    "scope": "package",
+    "path": "~/.lania/config/workspace.json",
+    "keys": [
+      {
+        "key": "locale",
+        "kind": "enum",
+        "choices": [
+          "zh",
+          "en"
+        ],
+        "default": "en",
+        "description": "包级偏好：界面语言（zh | en，默认 en）；与全局 lan config 的 locale 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
+      },
+      {
+        "key": "output.mode",
+        "kind": "enum",
+        "choices": [
+          "json",
+          "human"
+        ],
+        "default": "json",
+        "description": "包级偏好：输出模式（json | human，默认 json）；与全局 lan config 的 output.mode 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
+      },
+      {
+        "key": "log.timestamps",
+        "kind": "bool",
+        "default": false,
+        "description": "包级偏好：人类可读日志是否显示时间戳（默认 false）；与全局 lan config 的 log.timestamps 同名；主包 preferences 的 packages.workspace 段可覆盖本文件键值"
+      }
+    ]
+  }
+}

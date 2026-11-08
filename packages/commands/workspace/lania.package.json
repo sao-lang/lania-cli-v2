@@ -45,7 +45,6 @@
   "payload": {
     "slices": [
       "compiler",
-      "product",
       "config",
       "lifecycle",
       "lint",

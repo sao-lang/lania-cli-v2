@@ -16,7 +16,6 @@ use lania_host::{
 use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
 use std::path::Path;
 
-use crate::watch::{resolve_product_dev_options, run_product_dev_once, run_product_dev_watch};
 
 // handler 只负责：
 // - 校验需要的 capability（例如 NodeBridge）
@@ -24,7 +23,6 @@ use crate::watch::{resolve_product_dev_options, run_product_dev_once, run_produc
 // - 执行并把结果包装成 `CommandExecution`
 
 pub(crate) struct DevCommandHandler;
-pub(crate) struct ProductDevCommandHandler;
 
 /// 非 web runtime 的 adapter 会在 result 里带 `success` 字段。
 /// 缺失该字段视为成功（保持 web 既有行为）。
@@ -59,18 +57,6 @@ impl CommandHandler for DevCommandHandler {
         let run = ctx.call_bridge(request).await?;
         let exit_code = resolve_dev_exit_code(run.exchange.response.result.as_ref());
         Ok(ctx.complete_bridge(run, exit_code))
-    }
-}
-
-#[async_trait(?Send)]
-impl CommandHandler for ProductDevCommandHandler {
-    async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
-        // `lan product dev`：通过 re-exec 当前 CLI + 注入 env 来实现“开发态 product 命令”。
-        let options = resolve_product_dev_options(ctx.command(), ctx.locale())?;
-        if options.watch {
-            return run_product_dev_watch(ctx, options).await;
-        }
-        run_product_dev_once(ctx, options)
     }
 }
 

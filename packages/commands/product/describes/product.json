@@ -1,0 +1,30 @@
+{
+  "name": "product",
+  "about": "Product lifecycle commands (dev/build/pack/publish/inspect/doctor)",
+  "subcommands": [
+    {
+      "name": "dev",
+      "about": "Run a local product in development"
+    },
+    {
+      "name": "build",
+      "about": "Build the product bundle"
+    },
+    {
+      "name": "pack",
+      "about": "Pack the product install root"
+    },
+    {
+      "name": "publish",
+      "about": "Publish the product to a registry"
+    },
+    {
+      "name": "inspect",
+      "about": "Inspect product metadata"
+    },
+    {
+      "name": "doctor",
+      "about": "Diagnose product packaging issues"
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 //! 将 `workspace` 命令注册到宿主：dev/build/lint/create/add 五个原顶级命令
-//! 降级为 `lan workspace <sub>` 子命令，product 子树仍挂在共享的 `lan product` 根下。
+//! 降级为 `lan workspace <sub>` 子命令（product 子树已拆出为独立子包 packages/commands/product）。
 //!
 //! 拆分说明：
 //! - `spec.rs`：workspace root 与各子命令的 spec 定义
 //! - `registry.rs`：命令与 handler 注册（注册 + mount 的全部胶水）
 //! - `handlers.rs`：workspace root（bare 提示）与 config 统一 handler
-//! - `dev.rs` / `watch.rs`：原 dev 包的 handler、bridge request 与 product dev 运行时
+//! - `dev.rs`：原 dev 包的 handler 与 bridge request（product dev 运行时已迁至 product 子包）
 //! - `build.rs`：原 build 包的 handler 与 bridge request
 //! - `lint.rs`：原 lint 包的 handler 与语言 bridge 路由
 //! - `create.rs` / `create_template.rs`：原 create 包与 template 子命令
@@ -31,7 +31,6 @@ mod handlers;
 mod lint;
 mod registry;
 mod spec;
-mod watch;
 
 use registry::register_workspace_commands;
 
@@ -45,14 +44,7 @@ pub const HANDLER_ID: &str = "command.workspace";
 
 // 以下 handler id 全部保持原包冻结值（localization.rs match 与 e2e 依赖）。
 pub const DEV_HANDLER_ID: &str = "command.dev";
-pub const PRODUCT_DEV_HANDLER_ID: &str = "command.dev.product";
-pub const PRODUCT_ROOT_HANDLER_ID: &str = "command.product";
 pub const BUILD_HANDLER_ID: &str = "command.build";
-pub const PRODUCT_BUILD_HANDLER_ID: &str = "command.build.product";
-pub const PACK_PRODUCT_HANDLER_ID: &str = "command.pack.product";
-pub const PUBLISH_PRODUCT_HANDLER_ID: &str = "command.publish.product";
-pub const INSPECT_PRODUCT_HANDLER_ID: &str = "command.inspect.product";
-pub const DOCTOR_PRODUCT_HANDLER_ID: &str = "command.doctor.product";
 pub const LINT_HANDLER_ID: &str = "command.lint";
 pub const LINT_CHECK_HANDLER_ID: &str = "command.lint.check";
 pub const LINT_FIX_HANDLER_ID: &str = "command.lint.fix";
@@ -112,11 +104,9 @@ impl Plugin for WorkspaceCommandPlugin {
 mod tests {
     use super::spec::workspace_root_spec;
     use super::{
-        ADD_HANDLER_ID, BUILD_HANDLER_ID, CREATE_HANDLER_ID, DEV_HANDLER_ID,
-        DOCTOR_PRODUCT_HANDLER_ID, HANDLER_ID, INSPECT_PRODUCT_HANDLER_ID, LINT_CHECK_HANDLER_ID,
-        LINT_FIX_HANDLER_ID, LINT_HANDLER_ID, PACK_PRODUCT_HANDLER_ID, PRODUCT_BUILD_HANDLER_ID,
-        PRODUCT_DEV_HANDLER_ID, PRODUCT_ROOT_HANDLER_ID, PUBLISH_PRODUCT_HANDLER_ID,
-        TEMPLATE_HANDLER_ID, WorkspaceCommandPlugin,
+        ADD_HANDLER_ID, BUILD_HANDLER_ID, CREATE_HANDLER_ID, DEV_HANDLER_ID, HANDLER_ID,
+        LINT_CHECK_HANDLER_ID, LINT_FIX_HANDLER_ID, LINT_HANDLER_ID, TEMPLATE_HANDLER_ID,
+        WorkspaceCommandPlugin,
     };
     use lania_host::{
         capability::CapabilityContainer,
@@ -198,7 +188,6 @@ mod tests {
             .iter()
             .find(|spec| spec.name == "product")
             .expect("product root spec registered");
-        assert_eq!(product.handler_id, PRODUCT_ROOT_HANDLER_ID);
         assert_eq!(product.subcommands.len(), 6);
         for name in ["dev", "build", "pack", "publish", "inspect", "doctor"] {
             assert!(
@@ -211,15 +200,8 @@ mod tests {
         let mut expected_ids: Vec<&str> = vec![
             HANDLER_ID,
             DEV_HANDLER_ID,
-            PRODUCT_DEV_HANDLER_ID,
-            PRODUCT_ROOT_HANDLER_ID,
-            BUILD_HANDLER_ID,
-            PRODUCT_BUILD_HANDLER_ID,
-            PACK_PRODUCT_HANDLER_ID,
-            PUBLISH_PRODUCT_HANDLER_ID,
-            INSPECT_PRODUCT_HANDLER_ID,
-            DOCTOR_PRODUCT_HANDLER_ID,
-            LINT_HANDLER_ID,
+                    BUILD_HANDLER_ID,
+                                LINT_HANDLER_ID,
             LINT_CHECK_HANDLER_ID,
             LINT_FIX_HANDLER_ID,
             CREATE_HANDLER_ID,
@@ -236,31 +218,20 @@ mod tests {
 
     #[test]
     fn workspace_full_spec_carries_every_subcommand() {
-        // bin 形态的完整树：`lan workspace dev/build/lint/create/add/template/
-        // config/product` 全部可被 clap 解析（spec() 的消费面）。
+        // bin 形态的完整树：dev/build/lint/create（含 template）/add/config。
         let full = crate::spec::workspace_full_spec();
         let names: Vec<&str> = full.subcommands.iter().map(|s| s.name.as_str()).collect();
-        for expected in [
-            "dev",
-            "build",
-            "lint",
-            "create",
-            "add",
-            "template",
-            "config",
-            "product",
-        ] {
+        for expected in ["dev", "build", "lint", "create", "add", "config"] {
             assert!(names.contains(&expected), "missing subcommand {expected}");
         }
-        let product = full
+        assert!(!names.contains(&"product"), "product must live in its own subpackage");
+        let create = full
             .subcommands
             .iter()
-            .find(|s| s.name == "product")
-            .expect("product root present");
-        let product_names: Vec<&str> = product.subcommands.iter().map(|s| s.name.as_str()).collect();
-        for expected in ["dev", "build", "pack", "publish", "inspect", "doctor"] {
-            assert!(product_names.contains(&expected), "missing product.{expected}");
-        }
+            .find(|s| s.name == "create")
+            .expect("create present");
+        let create_names: Vec<&str> = create.subcommands.iter().map(|s| s.name.as_str()).collect();
+        assert!(create_names.contains(&"template"), "template must be under create");
     }
 
     #[test]

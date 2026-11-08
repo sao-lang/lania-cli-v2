@@ -19,4 +19,5 @@ lania-plugins-command-locale = { path = "../../../../../packages/distribution/cl
 lania-plugins-command-pi = { path = "../../../../../packages/commands/pi/rust" }
 lania-plugins-command-release = { path = "../../../../../packages/commands/release/rust" }
 lania-plugins-command-tools = { path = "../../../../../packages/commands/tools/rust" }
+lania-plugins-command-product = { path = "../../../../../packages/commands/product/rust" }
 lania-plugins-command-workspace = { path = "../../../../../packages/commands/workspace/rust" }

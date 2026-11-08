@@ -412,8 +412,8 @@ fn apply_zh_translations(spec: &mut CommandSpec) {
         "command.template" => {
             spec.about = "查看模板列表或某个模板的详情".into();
             set_arg_help(spec, "name", "模板名称");
-            set_example_desc(spec, "lan workspace template", "交互式查看可用模板");
-            set_example_desc(spec, "lan workspace template toolkit", "查看指定模板详情");
+            set_example_desc(spec, "lan workspace create template", "交互式查看可用模板");
+            set_example_desc(spec, "lan workspace create template toolkit", "查看指定模板详情");
         }
 
         // product root / product workflows

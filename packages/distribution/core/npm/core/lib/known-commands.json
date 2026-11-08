@@ -14,7 +14,6 @@
       "needsNodeBridge": true,
       "slices": [
         "compiler",
-        "product",
         "config",
         "lifecycle",
         "lint",
@@ -281,6 +280,25 @@
           }
         ]
       }
+    },
+    {
+      "command": "product",
+      "package": "@lania-cli-v2/cmd-product",
+      "bin": "lan-product",
+      "npmBin": "lan-product.mjs",
+      "order": 7,
+      "describe": "describes/product.json",
+      "about": "Product lifecycle commands (dev/build/pack/publish/inspect/doctor)",
+      "aboutZh": null,
+      "needsNodeBridge": true,
+      "slices": ["product", "config", "lifecycle", "toolchain"],
+      "platformPackages": [
+        "@lania-cli-v2/cmd-product-darwin-arm64",
+        "@lania-cli-v2/cmd-product-linux-x64",
+        "@lania-cli-v2/cmd-product-win32-x64"
+      ],
+      "protocol": 1,
+      "configSchema": null
     }
   ]
 }

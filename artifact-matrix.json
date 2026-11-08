@@ -45,6 +45,17 @@
         {
           "family": "lan",
           "tag": "lan-v*",
+          "package": "@lania-cli-v2/cmd-product",
+          "platformPackage": "@lania-cli-v2/cmd-product-darwin-arm64",
+          "os": "darwin",
+          "cpu": "arm64",
+          "binary": "lan-workspace",
+          "artifact": "lan-workspace-0.0.3-darwin-arm64",
+          "version": "0.0.3"
+        },
+        {
+          "family": "lan",
+          "tag": "lan-v*",
           "package": "@lania-cli-v2/cmd-release",
           "platformPackage": "@lania-cli-v2/cmd-release-darwin-arm64",
           "os": "darwin",
@@ -141,6 +152,17 @@
         {
           "family": "lan",
           "tag": "lan-v*",
+          "package": "@lania-cli-v2/cmd-product",
+          "platformPackage": "@lania-cli-v2/cmd-product-linux-x64",
+          "os": "linux",
+          "cpu": "x64",
+          "binary": "lan-workspace",
+          "artifact": "lan-workspace-0.0.3-linux-x64",
+          "version": "0.0.3"
+        },
+        {
+          "family": "lan",
+          "tag": "lan-v*",
           "package": "@lania-cli-v2/cmd-release",
           "platformPackage": "@lania-cli-v2/cmd-release-linux-x64",
           "os": "linux",
@@ -232,6 +254,17 @@
           "cpu": "x64",
           "binary": "lan-pi.exe",
           "artifact": "lan-pi-0.0.3-win32-x64",
+          "version": "0.0.3"
+        },
+        {
+          "family": "lan",
+          "tag": "lan-v*",
+          "package": "@lania-cli-v2/cmd-product",
+          "platformPackage": "@lania-cli-v2/cmd-product-win32-x64",
+          "os": "win32",
+          "cpu": "x64",
+          "binary": "lan-workspace.exe",
+          "artifact": "lan-workspace-0.0.3-win32-x64",
           "version": "0.0.3"
         },
         {

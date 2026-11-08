@@ -17,6 +17,7 @@ use lania_plugins_command_locale::ConfigCommandPlugin;
 use lania_plugins_command_pi::PiCommandPlugin;
 use lania_plugins_command_release::ReleaseCommandPlugin;
 use lania_plugins_command_tools::ToolsCommandPlugin;
+use lania_plugins_command_product::ProductCommandPlugin;
 use lania_plugins_command_workspace::WorkspaceCommandPlugin;
 
 /// Rebuild the same built-in command tree that `lania-cli` registers before

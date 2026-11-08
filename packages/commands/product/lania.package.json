@@ -1,0 +1,50 @@
+{
+  "name": "workspace",
+  "kind": "command",
+  "command": "product",
+  "versionFamily": "lan",
+  "version": "0.0.3",
+  "order": 7,
+  "describe": "describes/product.json",
+  "api": {
+    "protocol": 1,
+    "rust": {
+      "cratePath": "rust",
+      "lib": "lania-plugins-command-workspace",
+      "bin": "lan-workspace",
+      "features": [],
+      "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
+      "api": {
+        "factory": "lania-plugins-command-workspace::factory",
+        "spec": "lania-plugins-command-workspace::spec",
+        "surface": [
+          "COMMAND_NAME",
+          "HANDLER_ID",
+          "WorkspaceCommandPlugin",
+          "WorkspaceCommandPlugin::spec",
+          "spec",
+          "factory"
+        ]
+      }
+    }
+  },
+  "rust": {
+    "crates": ["rust"]
+  },
+  "npm": {
+    "name": "@lania-cli-v2/cmd-product",
+    "bin": {
+      "lan-product": "npm/cmd-product/bin/lan-workspace.mjs"
+    },
+    "platformPackages": [
+      "@lania-cli-v2/cmd-product-darwin-arm64",
+      "@lania-cli-v2/cmd-product-linux-x64",
+      "@lania-cli-v2/cmd-product-win32-x64"
+    ]
+  },
+  "payload": {
+    "slices": ["product", "config", "lifecycle", "toolchain"],
+    "nodeBridge": true
+  },
+  "description": "workspace 命令子包：合并原 dev/build/lint/create/add 五个子包（lan workspace dev|build|lint|create|add + template + product 子树 + config）"
+}

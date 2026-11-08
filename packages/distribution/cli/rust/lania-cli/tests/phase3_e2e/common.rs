@@ -47,9 +47,8 @@ fn default_home_dir() -> PathBuf {
 /// 总包静态注册的命令（仅 config）与全局 flag 直接走总包、argv 原样；
 /// 其余命令按 launcher 二级路由语义调度（§5.3 C.4）：
 /// - `lan workspace <sub>` → `lan-workspace[.exe]`，剥掉 "workspace" 后转发；
-/// - `lan product <sub>`（dev/build/pack/publish/inspect/doctor）→ `lan-workspace[.exe]`，
-///   argv **完整保留**（含 "product"）——子包内同时有 workspace.* 与 product.*，靠
-///   "product" 区分；
+/// - `lan product <sub>`（dev/build/pack/publish/inspect/doctor）→ `lan-product[.exe]`
+///   （product 独立子包），剥掉 "product" 后转发；
 /// - 其它命令调度到 `lan-<cmd>[.exe]`，剥掉命令名后转发。
 pub(crate) fn resolve_command_argv<'a>(args: &'a [&'a str]) -> (PathBuf, &'a [&'a str]) {
     let cli = PathBuf::from(env!("CARGO_BIN_EXE_lania-cli"));
@@ -59,15 +58,12 @@ pub(crate) fn resolve_command_argv<'a>(args: &'a [&'a str]) -> (PathBuf, &'a [&'
     if *command == "config" || command.starts_with('-') {
         return (cli, args);
     }
-    const PRODUCT_SUBCOMMANDS: [&str; 6] = ["dev", "build", "pack", "publish", "inspect", "doctor"];
     let (exe_command, forwarded): (&str, &[&str]) = if *command == "workspace" {
+        // workspace root（剥 "workspace"）：dev/build/lint/create（内含 template）/add/config
         ("workspace", &args[1..])
-    } else if *command == "product"
-        && args
-            .get(1)
-            .is_some_and(|sub| PRODUCT_SUBCOMMANDS.contains(sub))
-    {
-        ("workspace", args)
+    } else if *command == "product" {
+        // product 子包独立承载（root name="product"，转发剥掉顶级名）
+        ("product", &args[1..])
     } else {
         (command, &args[1..])
     };

@@ -26,7 +26,7 @@
 
 ## 当前能力
 
-- 6 个命令子包 + 主包内建 config：`workspace`（dev/build/lint/create/add/template 的统一命名空间，含 product 产品化子树）、`release`、`git`、`tools`、`env`、`pi`；原 11 命令中 dev/build/lint/create/add 已合并进 workspace。`dev`、`build`、`lint`、`tools`、`env`、`pi`、`create`、`add`、`release`、`git`、`config`（模板查询是 `lan workspace template`）。
+- 7 个命令子包 + 主包内建 config：`workspace`（dev/build/lint/create/add 的统一命名空间，template 挂 create 之下）、`product`（product dev/build/pack/publish/inspect/doctor，用法不变）、`release`、`git`、`tools`、`env`、`pi`；原 11 命令中 dev/build/lint/create/add 已合并进 workspace。`dev`、`build`、`lint`、`tools`、`env`、`pi`、`create`、`add`、`release`、`git`、`config`（模板查询是 `lan workspace template`）。
 - 支持三类执行路径：
   - Bridge 型命令：`dev`、`build`、`lint`
   - 混合型命令：`tools`，其中 `tools list` 走 Node Bridge，`tools run/view` 走本地宿主能力
@@ -46,7 +46,7 @@
 
 1. 调度层 `packages/distribution/core`
    - 唯一 `lan` 入口（launcher）：按构建期静态表 `known-commands.json` 调度到已安装子包的平台二进制 `lan-<cmd>`，并注入 Bridge 载荷路径；同时提供子包管理（`lan package`）与聚合帮助。
-2. 命令层 `packages/commands/<cmd>`（6 个：workspace/release/git/tools/env/pi）
+2. 命令层 `packages/commands/<cmd>`（7 个：workspace/product/release/git/tools/env/pi）
    - 每个内置命令一个原子子包：Rust crate（spec/handler）+ npm 包 + `describes/` 快照 + 包级 `configSchema`；`config` 是总包管理面。
 3. 宿主与基建 `packages/foundation/*`
    - `bridge-runtime`（stdio 协议核）+ `bridge-slices/*`（12 个 TS 切片）、`templates`（10 个模板 + EJS）、`cli-kit`（输出渲染）、`host-core`、`command`、`package-config`、`capabilities/*`（16 个 leaf crate）等。
@@ -222,7 +222,8 @@ cargo run -p lania-cli -- config doctor
 
 | 命令        | 类型       | 作用                                                                                                                                                                                                                  |
 | ----------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workspace` | 命名空间   | 工作区开发全流程：`lan workspace dev/build/lint/create/add`（原 5 个顶级命令合并于此），并承载 `lan workspace product dev/build/pack/publish/inspect/doctor`、`lan workspace template` 与 `lan workspace config`      |
+| `workspace` | 命名空间   | 工作区开发全流程：`lan workspace dev/build/lint/create/add`（原 5 个顶级命令合并于此），template 挂在 create 之下（`lan workspace create template`）；`lan workspace config` 管理本包偏好                             |
+| `product`   | 命名空间   | 产品化生命周期：`lan product dev/build/pack/publish/inspect/doctor`（用法与重构前一致）                                                                                                                               |
 | `release`   | Workflow   | 规划、执行、恢复或查询一次发布流程                                                                                                                                                                                    |
 | `git`       | Workflow   | 查看状态/日志/差异、管理分支与标签、暂存、同步（`git sync/commit/push`）                                                                                                                                              |
 | `tools`     | 混合命令   | `list` 枚举环境命令；`run` 按文件类型匹配运行时执行代码；`view` 直接查看文本或调用系统查看器打开媒体文件                                                                                                              |

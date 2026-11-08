@@ -34,7 +34,7 @@
 Everything is split into self-contained packages under `packages/`; each ships a
 `lania.package.json` (single source of truth whose `description` field states its role):
 
-- `packages/commands/*` (6): `workspace` (the merged dev/build/lint/create/add namespace, also carrying the `product` tree, `template` and `config` subcommands), plus `release`, `git`, `tools`, `env`, `pi`; `config` is built into the main binary
+- `packages/commands/*` (7): `workspace` (the merged dev/build/lint/create/add namespace; `template` lives under `create`; `product` is a separate subpackage), plus `release`, `git`, `tools`, `env`, `pi`; `config` is built into the main binary
 - `packages/distribution/core`: the scheduler — the single `lan` entry that dispatches to per-command binaries via the static `known-commands.json`
 - `packages/distribution/cli`: the umbrella package aggregating all command subpackages and the full bridge slices
 - `packages/foundation/*`: shared building blocks — `bridge-runtime` (stdio core + slice assembly), `bridge-slices/*` (12 TS slices), `templates` (10 project templates + EJS), `cli-kit` (output rendering), `host-core` (host seams), `package-config` (per-package config engine), `command` (spec/parsing/localization), `capabilities/*` (16 leaf crates)
