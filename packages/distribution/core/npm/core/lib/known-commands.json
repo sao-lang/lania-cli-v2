@@ -10,6 +10,7 @@
       "order": 1,
       "describe": "describes/dev.json",
       "about": "Start the project development workflow",
+      "aboutZh": "启动项目开发工作流",
       "needsNodeBridge": true,
       "slices": ["compiler", "product", "config", "lifecycle", "lint", "toolchain"],
       "platformPackages": [
@@ -53,6 +54,7 @@
       "order": 2,
       "describe": "describes/build.json",
       "about": "Run the project build workflow",
+      "aboutZh": "执行项目构建工作流",
       "needsNodeBridge": true,
       "slices": ["compiler", "product", "config", "lifecycle", "lint", "toolchain"],
       "platformPackages": [
@@ -96,6 +98,7 @@
       "order": 3,
       "describe": "describes/lint.json",
       "about": "Run project lint checks",
+      "aboutZh": "运行项目 lint 检查",
       "needsNodeBridge": true,
       "slices": ["lint", "toolchain", "config"],
       "platformPackages": [
@@ -139,6 +142,7 @@
       "order": 4,
       "describe": "describes/create.json",
       "about": "Create a new project from a template",
+      "aboutZh": "从模板创建新项目",
       "needsNodeBridge": true,
       "slices": ["template", "dynamic-commands", "toolchain", "config"],
       "platformPackages": [
@@ -182,6 +186,7 @@
       "order": 5,
       "describe": "describes/add.json",
       "about": "Add generated content into an existing workspace",
+      "aboutZh": "向现有工作区添加生成内容",
       "needsNodeBridge": false,
       "slices": [],
       "platformPackages": [
@@ -225,6 +230,7 @@
       "order": 7,
       "describe": "describes/release.json",
       "about": "Project release orchestration",
+      "aboutZh": "发布工作流（规划、执行、恢复）",
       "needsNodeBridge": false,
       "slices": [],
       "platformPackages": [
@@ -268,6 +274,7 @@
       "order": 8,
       "describe": "describes/git.json",
       "about": "Inspect and sync git state",
+      "aboutZh": "查看与同步 git 状态",
       "needsNodeBridge": false,
       "slices": [],
       "platformPackages": [
@@ -311,6 +318,7 @@
       "order": 9,
       "describe": "describes/tools.json",
       "about": "List commands, run files by type, or view local files",
+      "aboutZh": "列出命令、按类型运行文件，或查看本地文件",
       "needsNodeBridge": true,
       "slices": ["system", "dynamic-commands", "toolchain", "config"],
       "platformPackages": [
@@ -354,6 +362,7 @@
       "order": 11,
       "describe": "describes/env.json",
       "about": "Install and switch language runtimes managed by lania itself (node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir)",
+      "aboutZh": "由 lania 自行安装并切换语言运行时（node/python/go/rust/deno/bun/zig/java/dart/kotlin/scala/julia/d/v/crystal/gleam/haxe/elixir）",
       "needsNodeBridge": false,
       "slices": [],
       "platformPackages": [
@@ -404,6 +413,7 @@
       "order": 12,
       "describe": "describes/pi.json",
       "about": "Run the coding agent (interactive REPL or one-shot)",
+      "aboutZh": "运行基于 pi 的编码 agent（交互式 REPL 或单次执行）",
       "needsNodeBridge": true,
       "slices": ["agent", "toolchain"],
       "platformPackages": [
@@ -447,6 +457,7 @@
       "order": 13,
       "describe": "describes/config.json",
       "about": "Manage global CLI preferences",
+      "aboutZh": "管理全局 CLI 配置与项目 lan.config",
       "needsNodeBridge": false,
       "slices": [],
       "platformPackages": [

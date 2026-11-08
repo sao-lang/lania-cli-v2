@@ -236,7 +236,8 @@ function printAggregatedHelp(known) {
   console.log('');
   if (installed.length > 0) {
     for (const entry of installed) {
-      console.log(`  ${entry.command.padEnd(10)} ${entry.about ?? ''}`.trimEnd());
+      const about = tr(entry.about ?? '', entry.aboutZh ?? entry.about ?? '');
+      console.log(`  ${entry.command.padEnd(10)} ${about}`.trimEnd());
     }
     console.log('');
   } else {
@@ -517,7 +518,12 @@ function printPackageList(known) {
     if (!installed) status = '未安装';
     else if (disabled) status = '已禁用';
     else status = '已安装';
-    return { command: entry.command, package: entry.package, status, about: entry.about ?? '' };
+    return {
+      command: entry.command,
+      package: entry.package,
+      status,
+      about: tr(entry.about ?? '', entry.aboutZh ?? entry.about ?? ''),
+    };
   });
   console.log('命令子包：');
   console.log('');
