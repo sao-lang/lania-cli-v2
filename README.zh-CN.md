@@ -26,7 +26,7 @@
 
 ## 当前能力
 
-- 7 个命令子包 + 主包内建 config：`workspace`（dev/build/lint/create/add 的统一命名空间，template 挂 create 之下）、`product`（product dev/build/pack/publish/inspect/doctor，用法不变）、`release`、`git`、`tools`、`env`、`pi`；原 11 命令中 dev/build/lint/create/add 已合并进 workspace。`dev`、`build`、`lint`、`tools`、`env`、`pi`、`create`、`add`、`release`、`git`、`config`（模板查询是 `lan workspace template`）。
+- 7 个命令子包 + 主包内建 config：`workspace`（dev/build/lint/create/add 的统一命名空间，template 挂 create 之下）、`product`（product dev/build/pack/publish/inspect/doctor，用法不变）、`release`、`git`、`tools`、`env`、`pi`；
 - 支持三类执行路径：
   - Bridge 型命令：`dev`、`build`、`lint`
   - 混合型命令：`tools`，其中 `tools list` 走 Node Bridge，`tools run/view` 走本地宿主能力
