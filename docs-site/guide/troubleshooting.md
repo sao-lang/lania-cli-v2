@@ -155,7 +155,7 @@ pnpm add -D vite
 
 ### Lint 发现已有错误
 
-`lan lint` 的退出码反映真实结果。示例项目中的文件本身可能有 lint error，不代表 CLI 故障。
+`lan workspace lint` 的退出码反映真实结果。示例项目中的文件本身可能有 lint error，不代表 CLI 故障。
 
 ## 发布问题
 
@@ -206,7 +206,7 @@ right: "/repo/apps/demo"
 ```bash
 lan --version
 lan config get
-lan template
+lan workspace create template
 ```
 
 并提供：

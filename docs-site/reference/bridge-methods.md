@@ -519,7 +519,7 @@ commitlint.run
       "migrationLayer": "rust_builtin_template"
     }
   ],
-  "usage": { "list": "lan template", "detail": "lan template <name>" }
+  "usage": { "list": "lan workspace create template", "detail": "lan workspace create template <name>" }
 }
 ```
 

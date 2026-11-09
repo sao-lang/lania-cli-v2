@@ -19,7 +19,7 @@ lan --version
 启动开发服务器。
 
 ```bash
-lan dev [options]
+lan workspace dev [options]
 ```
 
 | 选项                | 说明              |
@@ -35,7 +35,7 @@ lan dev [options]
 ## build
 
 ```bash
-lan build [options]
+lan workspace build [options]
 ```
 
 | 选项                     | 说明                         |
@@ -49,7 +49,7 @@ lan build [options]
 ## lint
 
 ```bash
-lan lint [check|fix] [options]
+lan workspace lint [check|fix] [options]
 ```
 
 | 选项                    | 说明                                              |
@@ -130,7 +130,7 @@ lan tools view <path> [options]
 ## create
 
 ```bash
-lan create [path] [options]
+lan workspace create [path] [options]
 ```
 
 | 选项                         | 说明                                                                                                                                               |
@@ -151,7 +151,7 @@ lan create [path] [options]
 ## add
 
 ```bash
-lan add [options]
+lan workspace add [options]
 ```
 
 | 选项                        | 说明                                                                                                                                              |
@@ -165,8 +165,8 @@ lan add [options]
 ## template
 
 ```bash
-lan template
-lan template <name>
+lan workspace create template
+lan workspace create template <name>
 ```
 
 ## release

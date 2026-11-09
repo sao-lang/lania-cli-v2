@@ -53,7 +53,7 @@ Lania CLI 的核心设计是“Rust 宿主 + Node Bridge”的双运行时分层
 
 ## 请求流转
 
-以 `lan build` 为例：
+以 `lan workspace build` 为例：
 
 1. launcher（`@lania-cli-v2/core`）查 `known-commands.json`，解析已安装的
    `@lania-cli-v2/cmd-build` 平台二进制 `lan-build`，剥掉命令名后转发 argv。

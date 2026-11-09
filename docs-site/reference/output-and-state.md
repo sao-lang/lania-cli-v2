@@ -4,7 +4,7 @@
 本页说明 stdout/stderr 约定、输出 profile、退出码，以及 .lania 下的状态与报告文件。
 </div>
 
-> `lan create` 支持 Node.js / Python / Go / Rust / Dart 五种运行时，dry-run / human 输出里展示的安装命令随运行时变化（如 `go mod tidy`、`cargo fetch`、`dart pub get`），但统一输出 envelope 与状态文件约定保持一致。
+> `lan workspace create` 支持 Node.js / Python / Go / Rust / Dart 五种运行时，dry-run / human 输出里展示的安装命令随运行时变化（如 `go mod tidy`、`cargo fetch`、`dart pub get`），但统一输出 envelope 与状态文件约定保持一致。
 
 ## 1. stdout / stderr
 
@@ -69,7 +69,7 @@ export default {
 
 ```bash
 lan config set output.mode json
-lan template
+lan workspace create template
 ```
 
 ```json

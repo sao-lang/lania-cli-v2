@@ -77,15 +77,15 @@ Lania CLI 不是一组零散脚本，而是一个分层的 CLI 宿主：
 | 我想……         | 运行                                                 |
 | -------------- | ---------------------------------------------------- |
 | 查看帮助       | `lan --help`                                         |
-| 启动开发服务器 | `lan dev`                                            |
-| 构建项目       | `lan build`                                          |
-| 执行 Lint      | `lan lint`                                           |
-| 创建前端项目   | `lan create --name demo-app --template spa-vue`      |
-| 创建 Go 服务   | `lan create --name svc --template go-service`        |
-| 查看模板       | `lan template`                                       |
+| 启动开发服务器 | `lan workspace dev`                                            |
+| 构建项目       | `lan workspace build`                                          |
+| 执行 Lint      | `lan workspace lint`                                           |
+| 创建前端项目   | `lan workspace create --name demo-app --template spa-vue`      |
+| 创建 Go 服务   | `lan workspace create --name svc --template go-service`        |
+| 查看模板       | `lan workspace create template`                                       |
 | 运行单文件     | `lan tools run ./demo.ts`                            |
 | 规划发布       | `lan release plan --profile package --version 1.2.3` |
 
-`lan create` 内置 10 个模板、11 个包管理器候选，覆盖 Node.js / Python / Go / Rust / Dart 五种运行时；安装命令按运行时自动选择，例如 `lan create --name svc --template go-service --package-manager go`。`generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计。
+`lan workspace create` 内置 10 个模板、11 个包管理器候选，覆盖 Node.js / Python / Go / Rust / Dart 五种运行时；安装命令按运行时自动选择，例如 `lan workspace create --name svc --template go-service --package-manager go`。`generate` 相关命令（`generate api` / `generate module` / `lan product generate`）已下线归档，将在后续版本重新设计。
 
 接下来，建议从 [认识 Lania CLI](/guide/introduction) 开始。

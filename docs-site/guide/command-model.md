@@ -272,7 +272,7 @@ lan product pack
 lan product publish
 ```
 
-`lan build product`、`lan pack product`、`lan publish product` 在当前实现中**不是合法命令**；如果看到旧文档或旧脚本这样写，需要改成上面的形式。
+`lan workspace build product`、`lan pack product`、`lan publish product` 在当前实现中**不是合法命令**；如果看到旧文档或旧脚本这样写，需要改成上面的形式。
 
 ## 命令查找失败时怎么排查
 

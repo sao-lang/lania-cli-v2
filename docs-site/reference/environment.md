@@ -41,7 +41,7 @@ $env:LANIA_NODE_BRIDGE_DIR = "E:\repo\ts\packages\node-bridge"
 
 ```powershell
 $env:LANIA_LOG_LEVEL = "debug"
-lan build
+lan workspace build
 ```
 
 ## 交互与 CI

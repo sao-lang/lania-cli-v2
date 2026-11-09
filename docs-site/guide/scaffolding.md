@@ -9,7 +9,7 @@ create、add、template 三个命令共同构成 Lania CLI 的脚手架能力：
 ### 列出模板
 
 ```bash
-lan template
+lan workspace create template
 ```
 
 返回模板元信息，包括：
@@ -26,8 +26,8 @@ lan template
 ### 查看详情
 
 ```bash
-lan template spa-vue
-lan template toolkit
+lan workspace create template spa-vue
+lan workspace create template toolkit
 ```
 
 ## create
@@ -35,7 +35,7 @@ lan template toolkit
 ### 基本用法
 
 ```bash
-lan create [path] [options]
+lan workspace create [path] [options]
 ```
 
 ### 常用选项
@@ -59,26 +59,26 @@ lan create [path] [options]
 
 ```bash
 # 默认 React 项目
-lan create --name demo-app
+lan workspace create --name demo-app
 
 # Vue 项目
-lan create --name demo-app --template spa-vue
+lan workspace create --name demo-app --template spa-vue
 
 # 在当前目录创建
-lan create .
+lan workspace create .
 
 # 预览
-lan create --template spa-vue --preview
+lan workspace create --template spa-vue --preview
 
 # 不安装依赖
-lan create --name demo-app --template spa-vue --skip-install
+lan workspace create --name demo-app --template spa-vue --skip-install
 
 # 多运行时项目（不限于前端/Node）
-lan create --name svc --template go-service --package-manager go
-lan create --name cli --template python-cli --package-manager uv
-lan create --name lib --template rust-lib --package-manager cargo
-lan create --name app --template dart-cli --package-manager dart
-lan create --name api --template nestjs --package-manager pnpm
+lan workspace create --name svc --template go-service --package-manager go
+lan workspace create --name cli --template python-cli --package-manager uv
+lan workspace create --name lib --template rust-lib --package-manager cargo
+lan workspace create --name app --template dart-cli --package-manager dart
+lan workspace create --name api --template nestjs --package-manager pnpm
 ```
 
 ### create 内部流程
@@ -101,7 +101,7 @@ CLI 参数
 ### 基本用法
 
 ```bash
-lan add [options]
+lan workspace add [options]
 ```
 
 ### 常用选项
@@ -135,10 +135,10 @@ lan add [options]
 ### 示例
 
 ```bash
-lan add --name button --template v3
-lan add --name card --template rfc --target src/components
-lan add --template prettier
-lan add --template tsconfig --target .
+lan workspace add --name button --template v3
+lan workspace add --name card --template rfc --target src/components
+lan workspace add --template prettier
+lan workspace add --template tsconfig --target .
 ```
 
 ### 语言与样式

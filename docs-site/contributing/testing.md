@@ -41,12 +41,12 @@ node --import tsx --test --test-name-pattern "product.publish" src/plugins/produ
 
 ```bash
 lan --help
-lan template
+lan workspace create template
 lan tools --plain --names-only --unique --limit 8
-lan create --name demo-app --template spa-vue --preview
-lan create --name svc --template go-service --package-manager go --preview
-lan create --name cli --template python-cli --package-manager uv --preview
-lan add --name button --template v3
+lan workspace create --name demo-app --template spa-vue --preview
+lan workspace create --name svc --template go-service --package-manager go --preview
+lan workspace create --name cli --template python-cli --package-manager uv --preview
+lan workspace add --name button --template v3
 lan release plan --profile package --version 1.2.3
 lan git status
 ```

@@ -91,13 +91,13 @@ Commands:
 先预览模板会生成什么：
 
 ```bash
-lan create --name demo-app --template spa-vue --preview
+lan workspace create --name demo-app --template spa-vue --preview
 ```
 
 确认无误后真正创建：
 
 ```bash
-lan create --name demo-app --template spa-vue
+lan workspace create --name demo-app --template spa-vue
 cd demo-app
 ```
 
@@ -112,27 +112,27 @@ cd demo-app
 | `--preview`         | 预览渲染结果并隐含 dry-run                                                                                                                         |
 | `--dry-run`         | 只规划，不写文件                                                                                                                                   |
 
-`create` 覆盖 Node.js、Python、Go、Rust、Dart 五种运行时，例如 `lan create --name svc --template go-service --package-manager go`；安装命令会按运行时自动选择。
+`create` 覆盖 Node.js、Python、Go、Rust、Dart 五种运行时，例如 `lan workspace create --name svc --template go-service --package-manager go`；安装命令会按运行时自动选择。
 
 ## 开发、构建与检查
 
 进入项目后：
 
 ```bash
-lan dev
-lan build
-lan lint
+lan workspace dev
+lan workspace build
+lan workspace lint
 ```
 
-- `lan dev` 启动开发服务器，默认端口 `8089`。
-- `lan build` 执行项目构建，可通过 `--watch`、`--mode`、`--output-dir` 调整。
-- `lan lint` 执行已配置的 Lint 适配器；`lan lint fix` 进入修复模式。
+- `lan workspace dev` 启动开发服务器，默认端口 `8089`。
+- `lan workspace build` 执行项目构建，可通过 `--watch`、`--mode`、`--output-dir` 调整。
+- `lan workspace lint` 执行已配置的 Lint 适配器；`lan workspace lint fix` 进入修复模式。
 
 ## 查看模板
 
 ```bash
-lan template
-lan template toolkit
+lan workspace create template
+lan workspace create template toolkit
 ```
 
 `template` 查询由 Rust 发起，通过 Node Bridge 读取模板元数据。
@@ -193,7 +193,7 @@ where.exe npm
 ### 开发服务器端口被占用
 
 ```bash
-lan dev --port 3001
+lan workspace dev --port 3001
 ```
 
 如果固定端口不可用，CLI 会在实现允许时回退到安全端口范围。

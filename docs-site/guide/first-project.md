@@ -7,7 +7,7 @@
 ## 1. 查看可用模板
 
 ```bash
-lan template
+lan workspace create template
 ```
 
 当前内置 10 个模板，覆盖 Node.js、Python、Go、Rust、Dart 五种运行时：
@@ -30,13 +30,13 @@ lan template
 查看模板详情：
 
 ```bash
-lan template spa-vue
+lan workspace create template spa-vue
 ```
 
 ## 2. 预览生成结果
 
 ```bash
-lan create --name demo-app --template spa-vue --preview
+lan workspace create --name demo-app --template spa-vue --preview
 ```
 
 `--preview` 会：
@@ -51,51 +51,51 @@ lan create --name demo-app --template spa-vue --preview
 ## 3. 创建项目
 
 ```bash
-lan create --name demo-app --template spa-vue --package-manager pnpm
+lan workspace create --name demo-app --template spa-vue --package-manager pnpm
 cd demo-app
 ```
 
 如果只想先生成文件、不安装依赖：
 
 ```bash
-lan create --name demo-app --template spa-vue --skip-install
+lan workspace create --name demo-app --template spa-vue --skip-install
 ```
 
 ## 4. 启动开发
 
 ```bash
-lan dev
+lan workspace dev
 ```
 
 自定义端口：
 
 ```bash
-lan dev --port 3001
+lan workspace dev --port 3001
 ```
 
 ## 5. 构建
 
 ```bash
-lan build
+lan workspace build
 ```
 
 生产模式：
 
 ```bash
-lan build --mode production
+lan workspace build --mode production
 ```
 
 ## 6. Lint
 
 ```bash
-lan lint
-lan lint fix
+lan workspace lint
+lan workspace lint fix
 ```
 
 指定适配器：
 
 ```bash
-lan lint --linters eslint,prettier
+lan workspace lint --linters eslint,prettier
 ```
 
 ## 7. 向项目补充模板
@@ -103,15 +103,15 @@ lan lint --linters eslint,prettier
 在已有项目中添加一个 Vue 3 组件：
 
 ```bash
-lan add --name button --template v3
+lan workspace add --name button --template v3
 ```
 
 添加配置文件：
 
 ```bash
-lan add --template prettier
-lan add --template eslint
-lan add --template tsconfig
+lan workspace add --template prettier
+lan workspace add --template eslint
+lan workspace add --template tsconfig
 ```
 
 `add` 模板支持：

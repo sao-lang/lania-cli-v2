@@ -114,11 +114,11 @@ lan config apply --package env --set output.mode=human
 <div class="command-card">
   <div>
     <strong>项目开发</strong>
-    <code>lan dev</code> / <code>lan build</code> / <code>lan lint</code>
+    <code>lan workspace dev</code> / <code>lan workspace build</code> / <code>lan workspace lint</code>
   </div>
   <div>
     <strong>脚手架</strong>
-    <code>lan create</code> / <code>lan add</code> / <code>lan template</code>
+    <code>lan workspace create</code> / <code>lan workspace add</code> / <code>lan workspace create template</code>
   </div>
   <div>
     <strong>发布</strong>
