@@ -1,7 +1,8 @@
-//! 原 create 包的 `template` 子命令迁入 workspace（命令上移为 `lan workspace template`）。
+//! 原 create 包的 `template` 子命令迁入 workspace，作为 `create` 的二级子命令
+//! （`lan workspace create template`）。
 //!
 //! 本模块承载原 `lania-plugins-command-template` / create 内 `template.rs` 的
-//! spec 与 handler：handler 代码零改动，仅注册点迁到 workspace 根命令下。
+//! spec 与 handler：handler 代码零改动，注册点挂在 `create_spec` 之下。
 
 use std::io::{stderr, stdin, IsTerminal, Write};
 
@@ -51,11 +52,11 @@ impl TemplateCommandSpec {
         }];
         spec.examples = vec![
             Example {
-                command: "lan workspace template".into(),
+                command: "lan workspace create template".into(),
                 description: "Inspect available templates in an interactive selector".into(),
             },
             Example {
-                command: "lan workspace template toolkit".into(),
+                command: "lan workspace create template toolkit".into(),
                 description: "Show detail information for a specific template".into(),
             },
         ];
@@ -219,9 +220,9 @@ impl CommandHandler for TemplateCommandHandler {
             return Err(ExecutionError {
                 exit_code: EXIT_RUNTIME_ERROR,
                 message: if ctx.locale() == "zh" {
-                    "未知命令：`lan workspace template info`；请使用 `lan workspace template` 或 `lan workspace template <name>`".into()
+                    "未知命令：`lan workspace create template info`；请使用 `lan workspace create template` 或 `lan workspace create template <name>`".into()
                 } else {
-                    "unknown command: `lan workspace template info`; use `lan workspace template` or `lan workspace template <name>`".into()
+                    "unknown command: `lan workspace create template info`; use `lan workspace create template` or `lan workspace create template <name>`".into()
                 },
             }
             .into());
@@ -285,8 +286,8 @@ impl CommandHandler for TemplateCommandHandler {
                 "templates": templates,
                 "metadata": metadata,
                 "usage": {
-                    "list": "lan workspace template",
-                    "detail": "lan workspace template <name>"
+                    "list": "lan workspace create template",
+                    "detail": "lan workspace create template <name>"
                 }
             })
         };

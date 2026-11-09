@@ -147,7 +147,7 @@ mod tests {
             .iter()
             .map(|spec| spec.name.as_str())
             .collect();
-        for name in ["dev", "build", "lint", "create", "add", "template", "config"] {
+        for name in ["dev", "build", "lint", "create", "add", "config"] {
             assert!(sub_names.contains(&name), "missing subcommand {name}");
         }
 

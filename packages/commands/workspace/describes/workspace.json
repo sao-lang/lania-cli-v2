@@ -522,7 +522,35 @@
           "description": "Preview the rendered template files without writing"
         }
       ],
-      "subcommands": [],
+      "subcommands": [
+        {
+          "name": "template",
+          "about": "List templates or inspect a template detail",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "name",
+              "required": false,
+              "multiple": false,
+              "help": "Template name"
+            }
+          ],
+          "options": [],
+          "examples": [
+            {
+              "command": "lan workspace create template",
+              "description": "Inspect available templates in an interactive selector"
+            },
+            {
+              "command": "lan workspace create template toolkit",
+              "description": "Show detail information for a specific template"
+            }
+          ],
+          "subcommands": [],
+          "handler_id": "command.template"
+        }
+      ],
       "handler_id": "command.create"
     },
     {
@@ -616,33 +644,6 @@
       ],
       "subcommands": [],
       "handler_id": "command.add"
-    },
-    {
-      "name": "template",
-      "about": "List templates or inspect a template detail",
-      "alias": null,
-      "aliases": [],
-      "args": [
-        {
-          "name": "name",
-          "required": false,
-          "multiple": false,
-          "help": "Template name"
-        }
-      ],
-      "options": [],
-      "examples": [
-        {
-          "command": "lan workspace template",
-          "description": "Inspect available templates in an interactive selector"
-        },
-        {
-          "command": "lan workspace template toolkit",
-          "description": "Show detail information for a specific template"
-        }
-      ],
-      "subcommands": [],
-      "handler_id": "command.template"
     },
     {
       "name": "config",

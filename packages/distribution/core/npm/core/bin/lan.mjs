@@ -531,7 +531,7 @@ function resolveMainCliBinary() {
 // 值数组为允许的子命令集合（防止把未知二级命令误路由）。
 const NESTED_ROUTES = {
   product: ['dev', 'build', 'pack', 'publish', 'inspect', 'doctor'],
-  workspace: ['dev', 'build', 'lint', 'create', 'add', 'template', 'config'],
+  workspace: ['dev', 'build', 'lint', 'create', 'add', 'config'],
 };
 
 // ── 3) 命令子包管理（lan package）────────────────────────────────────

@@ -2,7 +2,7 @@
 //!
 //! 注册顺序：
 //! 1. `register_builtin_command_handlers`：workspace root spec + 全部 handler
-//!    （root/dev/build/lint/lint check/fix/create/template/add/config 子树，
+//!    （root/dev/build/lint/lint check/fix/create（含 template）/add/config 子树，
 //!    handler_id 全部保持原值）
 //! 2. mount 5 个原顶级命令到 `lan workspace` 下（template 挂在 create 之下）
 

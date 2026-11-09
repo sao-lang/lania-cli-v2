@@ -6,7 +6,7 @@ use super::*;
 fn lan_template_list_command_e2e() {
     let root = temp_dir("template-list");
 
-    let output = run_cli(&root, &["workspace", "template"], &[]);
+    let output = run_cli(&root, &["workspace", "create", "template"], &[]);
     let json = parse_stdout_json(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -17,7 +17,7 @@ fn lan_template_list_command_e2e() {
         .expect("templates")
         .iter()
         .any(|item| item == "toolkit"));
-    assert_eq!(json["result"]["usage"]["detail"], "lan workspace template <name>");
+    assert_eq!(json["result"]["usage"]["detail"], "lan workspace create template <name>");
     assert!(json.get("host_state").is_none());
     assert!(json.get("context").is_none());
     assert!(stdout.contains("\"kind\": \"template_info\""));
@@ -30,7 +30,7 @@ fn lan_template_list_command_e2e() {
 fn lan_template_detail_command_e2e() {
     let root = temp_dir("template-detail");
 
-    let output = run_cli(&root, &["workspace", "template", "toolkit"], &[]);
+    let output = run_cli(&root, &["workspace", "create", "template", "toolkit"], &[]);
     let json = parse_stdout_json(&output);
 
     assert_eq!(output.status.code(), Some(0));
@@ -54,12 +54,16 @@ fn lan_template_info_command_is_rejected_e2e() {
     let root = temp_dir("template-info-rejected");
     let home = isolated_home(&root);
 
-    let output = run_cli(&root, &["workspace", "template", "info"], &[("HOME", home.as_str())]);
+    let output = run_cli(
+        &root,
+        &["workspace", "create", "template", "info"],
+        &[("HOME", home.as_str())],
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert_eq!(output.status.code(), Some(2));
-    assert!(stderr.contains("unknown command: `lan workspace template info`"));
+    assert!(stderr.contains("unknown command: `lan workspace create template info`"));
     assert!(stdout.contains("\"kind\": \"error\""));
 
     let _ = fs::remove_dir_all(root);
@@ -73,7 +77,7 @@ fn lan_template_interactive_selects_template_e2e() {
 
     let output = run_cli_interactive(
         &root,
-        &["workspace", "template"],
+        &["workspace", "create", "template"],
         &["\u{1b}[B"],
         &[("HOME", home.as_str())],
     );
@@ -111,7 +115,7 @@ fn lan_template_interactive_zh_locale_e2e() {
 "#,
     );
 
-    let output = run_cli_interactive(&root, &["workspace", "template"], &[""], &[]);
+    let output = run_cli_interactive(&root, &["workspace", "create", "template"], &[""], &[]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(output.status.code(), Some(0));
@@ -149,7 +153,7 @@ fn lan_template_info_human_zh_locale_e2e() {
 "#,
     );
 
-    let output = run_cli(&root, &["workspace", "template", "toolkit"], &[]);
+    let output = run_cli(&root, &["workspace", "create", "template", "toolkit"], &[]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(output.status.code(), Some(0));

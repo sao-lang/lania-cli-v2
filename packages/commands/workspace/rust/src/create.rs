@@ -4,8 +4,8 @@
 //! - `CreateCommandHandler`：`lan workspace create`（CreateWorkflow + 交互 banner）
 //! - `build_input`：CLI argv/options -> `CreateWorkflowInput` 映射
 //!
-//! spec 构造在 `crate::spec::create_spec`；template 子命令上移到 workspace 根
-//! （`lan workspace template`，见 `crate::create_template`）。
+//! spec 构造在 `crate::spec::create_spec`；template 作为 create 的二级子命令
+//! （`lan workspace create template`，见 `crate::create_template`）。
 
 use anyhow::Result;
 use async_trait::async_trait;

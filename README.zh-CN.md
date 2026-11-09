@@ -84,8 +84,8 @@ lan workspace create --name demo-app --template spa-react
 查看模板信息（`template` 是 `create` 的二级命令）：
 
 ```bash
-lan workspace template
-lan workspace template toolkit
+lan workspace create template
+lan workspace create template toolkit
 ```
 
 查看当前终端可直接运行的全局命令：

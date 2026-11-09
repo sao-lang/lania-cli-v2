@@ -33,7 +33,7 @@ use crate::{
 // - handler 分发见 `handlers.rs` / `dev.rs` / `build.rs` / `lint.rs` / `create.rs` / `add.rs`
 
 /// workspace 根命令：本身不可执行（bare 时由 root handler 给出提示），
-/// 5 个原顶级命令与 template/config 挂在其下。
+/// 5 个原顶级命令与 config 挂在其下；template 是 create 的二级命令。
 pub(crate) fn workspace_root_spec() -> CommandSpec {
     CommandSpec::new(
         "workspace",
@@ -82,7 +82,6 @@ pub(crate) fn workspace_full_spec() -> CommandSpec {
     root.subcommands.push(lint_spec());
     root.subcommands.push(create_spec());
     root.subcommands.push(add_spec());
-    root.subcommands.push(crate::config::config_spec());
     root
 }
 
@@ -354,8 +353,8 @@ fn lint_shared_options() -> Vec<OptionSpec> {
 /// 只有 Node bridge 模板运行时才能渲染的模板；与 Rust 兜底清单合并成 `--template` 候选。
 const BRIDGE_TEMPLATES: &[&str] = &["toolkit", "toolkit-monorepo", "nestjs", "express"];
 
-/// 标准 `lan workspace create`。template 子命令上移到 workspace 根
-/// （`lan workspace template`），不再挂在 create 之下。
+/// 标准 `lan workspace create`。template 作为 create 的二级子命令
+/// （`lan workspace create template`）挂在其下。
 pub(crate) fn create_spec() -> CommandSpec {
     CommandSpec::new(
         "create",

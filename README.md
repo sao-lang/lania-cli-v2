@@ -21,7 +21,7 @@
 
 ## Current Capabilities
 
-- 11 built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `release`, `git`, `env`, `pi`, `config` — template queries are a `create` subcommand (`lan workspace template`)
+- 11 built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `release`, `git`, `env`, `pi`, `config` — template queries are a `create` subcommand (`lan workspace create template`)
 - Bridge-backed execution for compiler and lint workflows, plus mixed host/bridge tooling utilities under `tools`
 - Rust workflows for multi-runtime scaffolding, release orchestration, and Git automation
 - Project-level dynamic commands loaded from manifest files
@@ -53,7 +53,7 @@ In practice:
 | ------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------- |
 | `workspace dev` / `build` / `lint`    | Rust -> Node Bridge -> compiler/lint slices              | JS toolchain execution (dev/build/lint merged under `workspace`)     |
 | `workspace create` / `add`            | Rust workflow + template bridge calls                    | multi-runtime project and partial scaffolding                        |
-| `workspace template`                  | Rust query -> Node Bridge                                | template catalog and template detail lookup                          |
+| `workspace create template`           | Rust query -> Node Bridge                                | template catalog and template detail lookup                          |
 | `workspace product`                   | Rust workflow -> compiler/product slices                 | product dev/build/pack/publish/inspect/doctor                        |
 | `workspace config`                    | main-override aware per-package config                   | workspace-level preferences (main override > package file > default) |
 | `tools list` / `run` / `view`         | Rust -> Node Bridge / Rust host utilities                | enumerate commands, execute files, display local files               |
@@ -130,7 +130,7 @@ lan tools run ./scripts/demo.go
 lan tools view ./src/index.ts
 lan workspace create --name demo-app --template spa-react
 lan workspace create --name svc --template go-service --package-manager go
-lan workspace template
+lan workspace create template
 lan release plan --profile package --version 1.2.3
 ```
 
