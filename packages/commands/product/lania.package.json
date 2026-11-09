@@ -1,5 +1,5 @@
 {
-  "name": "workspace",
+  "name": "product",
   "kind": "command",
   "command": "product",
   "versionFamily": "lan",
@@ -10,21 +10,14 @@
     "protocol": 1,
     "rust": {
       "cratePath": "rust",
-      "lib": "lania-plugins-command-workspace",
-      "bin": "lan-workspace",
+      "lib": "lania-plugins-command-product",
+      "bin": "lan-product",
       "features": [],
       "dependencies": ["lania-cli-kit", "lania-bridge-host", "runex-home"],
       "api": {
-        "factory": "lania-plugins-command-workspace::factory",
-        "spec": "lania-plugins-command-workspace::spec",
-        "surface": [
-          "COMMAND_NAME",
-          "HANDLER_ID",
-          "WorkspaceCommandPlugin",
-          "WorkspaceCommandPlugin::spec",
-          "spec",
-          "factory"
-        ]
+        "factory": "lania-plugins-command-product::factory",
+        "spec": "lania-plugins-command-product::spec",
+        "surface": ["COMMAND_NAME", "HANDLER_ID", "ProductCommandPlugin", "spec", "factory"]
       }
     }
   },
@@ -34,7 +27,7 @@
   "npm": {
     "name": "@lania-cli-v2/cmd-product",
     "bin": {
-      "lan-product": "npm/cmd-product/bin/lan-workspace.mjs"
+      "lan-product": "npm/cmd-product/bin/lan-product.mjs"
     },
     "platformPackages": [
       "@lania-cli-v2/cmd-product-darwin-arm64",
@@ -46,5 +39,5 @@
     "slices": ["product", "config", "lifecycle", "toolchain"],
     "nodeBridge": true
   },
-  "description": "workspace 命令子包：合并原 dev/build/lint/create/add 五个子包（lan workspace dev|build|lint|create|add + template + product 子树 + config）"
+  "description": "product 命令子包：承载 lan product dev|build|pack|publish|inspect|doctor 六条产品化生命周期命令"
 }

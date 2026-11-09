@@ -18,7 +18,7 @@ const platformKey = (() => {
   return `${os}-${cpu}`;
 })();
 
-let binaryPath = process.env.LAN_WORKSPACE_BIN;
+let binaryPath = process.env.LAN_PRODUCT_BIN;
 if (!binaryPath) {
   try {
     const pkg = `@lania-cli-v2/cmd-product-${platformKey}`;
@@ -31,7 +31,7 @@ if (!binaryPath) {
   } catch {
     console.error(
       `[lan-product] 未找到 ${platformKey} 平台包 @lania-cli-v2/cmd-product-${platformKey}。\n` +
-        '  可设置 LAN_WORKSPACE_BIN 指向本地构建的 lan-product 二进制。',
+        '  可设置 LAN_PRODUCT_BIN 指向本地构建的 lan-product 二进制。',
     );
     process.exit(1);
   }

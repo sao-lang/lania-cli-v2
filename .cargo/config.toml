@@ -3,5 +3,14 @@
 # 并复用 rustup 自带的自包含 MinGW 工具链作为 linker（self-contained 目录内含
 # x86_64-w64-mingw32-gcc.exe / ld.exe / crt 对象等）。
 # 如在其他机器上使用 MSVC，删除本文件或改用 msvc toolchain 即可。
+#
+# 部分 Windows 会话对系统临时目录（%TEMP%）启用了应用控制策略，Rust 测试与 CLI
+# 子进程在 std::env::temp_dir() 下创建目录会返回 PermissionDenied（os error 5）。
+# 统一把 TMP/TEMP 指向 workspace 内 target/ 下的目录：该路径在 Linux/macOS/CI 上
+# 同样可写，跨平台无害；force=true 才能覆盖会话里已有的 TMP/TEMP。
+[env]
+TMP = { value = "target/.cargo-tmp", relative = true, force = true }
+TEMP = { value = "target/.cargo-tmp", relative = true, force = true }
+
 [target.x86_64-pc-windows-gnu]
 linker = "C:\\Users\\30895\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\lib\\rustlib\\x86_64-pc-windows-gnu\\bin\\self-contained\\x86_64-w64-mingw32-gcc.exe"

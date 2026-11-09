@@ -19,7 +19,6 @@ use lania_host::{
 };
 use lania_logger::LogLevel;
 use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
-use serde_json::{Map, Value};
 use std::path::PathBuf;
 
 pub(crate) struct BuildCommandHandler;
@@ -220,9 +219,7 @@ fn bool_option_value(context: &CommandContext, key: &str, default: bool) -> bool
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        bool_option_value, build_request, resolve_build_exit_code,
-    };
+    use super::{bool_option_value, build_request, resolve_build_exit_code};
     use lania_command::CommandContext;
     use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
     use serde_json::json;
@@ -296,11 +293,6 @@ mod tests {
         assert_eq!(resolve_build_exit_code(Some(&json!({}))), EXIT_SUCCESS);
         assert_eq!(resolve_build_exit_code(None), EXIT_SUCCESS);
     }
-
-
-
-
-
 
     #[test]
     fn bool_option_value_defaults_when_missing_or_not_bool() {

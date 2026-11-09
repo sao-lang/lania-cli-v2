@@ -157,10 +157,23 @@ impl NodeBridgeClient {
     }
 
     pub async fn shutdown_async(&self) -> Result<()> {
-        if self.config.prefer_process_transport {
-            // 尽力而为（best-effort）：不要因为 shutdown 请求失败而阻塞整体退出流程。
-            // 退出阶段最重要的是“尽快清场”，而不是保证每个 shutdown RPC 都成功返回。
-            let _ = self.call_async(self.shutdown_request()).await;
+        // 仅在确实存在活跃进程时才发送 shutdown RPC。否则 `call_async` 会经由
+        // `ensure_process_locked` 为了「关闭」反而启动一个 bridge 进程；在没有 node
+        // 或桥接资源缺失的环境里它会一直等不到响应，令 CLI 退出阶段永久挂住。
+        let has_process = self
+            .state
+            .lock()
+            .map(|state| state.process.is_some())
+            .unwrap_or(false);
+        if has_process && self.config.prefer_process_transport {
+            // 尽力而为（best-effort）+ 超时：退出阶段最重要的是「尽快清场」，
+            // 不能让一个不响应的 shutdown RPC 拖住整个进程。
+            let shutdown_timeout = self.config.timeout.min(Duration::from_secs(2));
+            let _ = tokio::time::timeout(
+                shutdown_timeout,
+                self.call_async(self.shutdown_request()),
+            )
+            .await;
         }
 
         if let Ok(mut state) = self.state.lock() {

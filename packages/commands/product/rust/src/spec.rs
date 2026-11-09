@@ -1,4 +1,4 @@
-//! `command-workspace` 的命令规格（CommandSpec）定义。
+//! `command-product` 的命令规格（CommandSpec）定义。
 //!
 //! 说明：
 //! - 这里仅定义 CLI 的“形状”（命令/子命令/参数/选项/示例/帮助文案），不做任何运行逻辑。
@@ -13,7 +13,6 @@
 //! - product 开发态命令统一走 `lan product dev`，product 子树仍挂在共享 product 根下。
 
 use lania_command::{ArgSpec, CommandSpec, Example, OptionSpec, ValueKind};
-use lania_workflows::declared_template_names;
 
 use crate::{
     DOCTOR_PRODUCT_HANDLER_ID, INSPECT_PRODUCT_HANDLER_ID, PACK_PRODUCT_HANDLER_ID,

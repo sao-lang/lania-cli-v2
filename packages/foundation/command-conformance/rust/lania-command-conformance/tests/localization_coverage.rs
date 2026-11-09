@@ -42,9 +42,11 @@ fn builtin_command_specs() -> Vec<CommandSpec> {
         }};
     }
 
-    // Same registration order as `lania-cli/src/main.rs`.
-    // dev/build/lint/create/add 已合并进 workspace 命令子包（package-split phase1）。
+    // 与总包及各命令子包实际注册的命令集合一致：
+    // dev/build/lint/create/add 已合并进 workspace 子包（package-split phase1），
+    // product 则拆出为独立子包，仍需纳入本地化覆盖检查。
     setup!(WorkspaceCommandPlugin);
+    setup!(ProductCommandPlugin);
     setup!(ReleaseCommandPlugin);
     setup!(GitCommandPlugin);
     setup!(ToolsCommandPlugin);

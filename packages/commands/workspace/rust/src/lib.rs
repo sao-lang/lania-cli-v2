@@ -183,18 +183,11 @@ mod tests {
         assert_eq!(config.handler_id, "command.workspace.config");
         assert_eq!(config.subcommands.len(), 5);
 
-        // product root + 6 个 product 子命令 mount 成功。
-        let product = specs
-            .iter()
-            .find(|spec| spec.name == "product")
-            .expect("product root spec registered");
-        assert_eq!(product.subcommands.len(), 6);
-        for name in ["dev", "build", "pack", "publish", "inspect", "doctor"] {
-            assert!(
-                product.subcommands.iter().any(|spec| spec.name == name),
-                "missing product subcommand {name}"
-            );
-        }
+        // product 已拆为独立子包，workspace 包内不再注册它。
+        assert!(
+            !specs.iter().any(|spec| spec.name == "product"),
+            "product must live in its own subpackage"
+        );
 
         // 全部 handler（含 config 子树 6 个）注册成功。
         let mut expected_ids: Vec<&str> = vec![

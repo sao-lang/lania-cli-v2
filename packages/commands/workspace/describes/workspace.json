@@ -29,6 +29,172 @@
   ],
   "subcommands": [
     {
+      "name": "config",
+      "about": "Manage workspace package preferences and global CLI configuration",
+      "alias": null,
+      "aliases": [],
+      "args": [],
+      "options": [
+        {
+          "long": "global",
+          "short": null,
+          "help": "Operate on global CLI preferences instead of the package store",
+          "value_kind": "bool",
+          "default_value": null,
+          "choices": [],
+          "negatable": false
+        }
+      ],
+      "examples": [
+        {
+          "command": "lan workspace config",
+          "description": "Show workspace package preferences and their storage path"
+        },
+        {
+          "command": "lan workspace config get locale",
+          "description": "Read a preference (omit --global for package scope)"
+        },
+        {
+          "command": "lan workspace config set output.mode json",
+          "description": "Write a package preference"
+        },
+        {
+          "command": "lan workspace config --global",
+          "description": "Show global CLI preferences"
+        },
+        {
+          "command": "lan workspace config init",
+          "description": "Initialize global preferences and report the project config"
+        },
+        {
+          "command": "lan workspace config doctor",
+          "description": "Read-only diagnostics for preferences and project config"
+        },
+        {
+          "command": "lan workspace config sync",
+          "description": "List config sync suggestions between global and package scopes"
+        }
+      ],
+      "subcommands": [
+        {
+          "name": "get",
+          "about": "Read a preference (omit <key> to print all)",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "key",
+              "required": false,
+              "multiple": false,
+              "help": "Preference key: locale | output.mode | log.timestamps"
+            }
+          ],
+          "options": [
+            {
+              "long": "global",
+              "short": null,
+              "help": "Read from global CLI preferences instead of the package store",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.workspace.config.get"
+        },
+        {
+          "name": "set",
+          "about": "Update a preference",
+          "alias": null,
+          "aliases": [],
+          "args": [
+            {
+              "name": "key",
+              "required": true,
+              "multiple": false,
+              "help": "Preference key: locale | output.mode | log.timestamps"
+            },
+            {
+              "name": "value",
+              "required": true,
+              "multiple": false,
+              "help": "Preference value (validated against the workspace configSchema)"
+            }
+          ],
+          "options": [
+            {
+              "long": "global",
+              "short": null,
+              "help": "Write global CLI preferences instead of the package store",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.workspace.config.set"
+        },
+        {
+          "name": "init",
+          "about": "Initialize global CLI preferences and report the project config",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [
+            {
+              "long": "force",
+              "short": null,
+              "help": "Overwrite an existing preferences file",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.workspace.config.init"
+        },
+        {
+          "name": "doctor",
+          "about": "Read-only diagnostics for global preferences and project config",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.workspace.config.doctor"
+        },
+        {
+          "name": "sync",
+          "about": "Suggest config entries to sync between global and package scopes",
+          "alias": null,
+          "aliases": [],
+          "args": [],
+          "options": [
+            {
+              "long": "write",
+              "short": null,
+              "help": "Write the suggested config entries",
+              "value_kind": "bool",
+              "default_value": null,
+              "choices": [],
+              "negatable": false
+            }
+          ],
+          "examples": [],
+          "subcommands": [],
+          "handler_id": "command.workspace.config.sync"
+        }
+      ],
+      "handler_id": "command.workspace.config"
+    },
+    {
       "name": "dev",
       "about": "Start the project development workflow",
       "alias": null,
@@ -644,593 +810,6 @@
       ],
       "subcommands": [],
       "handler_id": "command.add"
-    },
-    {
-      "name": "config",
-      "about": "Manage workspace package preferences and global CLI configuration",
-      "alias": null,
-      "aliases": [],
-      "args": [],
-      "options": [
-        {
-          "long": "global",
-          "short": null,
-          "help": "Operate on global CLI preferences instead of the package store",
-          "value_kind": "bool",
-          "default_value": null,
-          "choices": [],
-          "negatable": false
-        }
-      ],
-      "examples": [
-        {
-          "command": "lan workspace config",
-          "description": "Show workspace package preferences and their storage path"
-        },
-        {
-          "command": "lan workspace config get locale",
-          "description": "Read a preference (omit --global for package scope)"
-        },
-        {
-          "command": "lan workspace config set output.mode json",
-          "description": "Write a package preference"
-        },
-        {
-          "command": "lan workspace config --global",
-          "description": "Show global CLI preferences"
-        },
-        {
-          "command": "lan workspace config init",
-          "description": "Initialize global preferences and report the project config"
-        },
-        {
-          "command": "lan workspace config doctor",
-          "description": "Read-only diagnostics for preferences and project config"
-        },
-        {
-          "command": "lan workspace config sync",
-          "description": "List config sync suggestions between global and package scopes"
-        }
-      ],
-      "subcommands": [
-        {
-          "name": "get",
-          "about": "Read a preference (omit <key> to print all)",
-          "alias": null,
-          "aliases": [],
-          "args": [
-            {
-              "name": "key",
-              "required": false,
-              "multiple": false,
-              "help": "Preference key: locale | output.mode | log.timestamps"
-            }
-          ],
-          "options": [
-            {
-              "long": "global",
-              "short": null,
-              "help": "Read from global CLI preferences instead of the package store",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            }
-          ],
-          "examples": [],
-          "subcommands": [],
-          "handler_id": "command.workspace.config.get"
-        },
-        {
-          "name": "set",
-          "about": "Update a preference",
-          "alias": null,
-          "aliases": [],
-          "args": [
-            {
-              "name": "key",
-              "required": true,
-              "multiple": false,
-              "help": "Preference key: locale | output.mode | log.timestamps"
-            },
-            {
-              "name": "value",
-              "required": true,
-              "multiple": false,
-              "help": "Preference value (validated against the workspace configSchema)"
-            }
-          ],
-          "options": [
-            {
-              "long": "global",
-              "short": null,
-              "help": "Write global CLI preferences instead of the package store",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            }
-          ],
-          "examples": [],
-          "subcommands": [],
-          "handler_id": "command.workspace.config.set"
-        },
-        {
-          "name": "init",
-          "about": "Initialize global CLI preferences and report the project config",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [
-            {
-              "long": "force",
-              "short": null,
-              "help": "Overwrite an existing preferences file",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            }
-          ],
-          "examples": [],
-          "subcommands": [],
-          "handler_id": "command.workspace.config.init"
-        },
-        {
-          "name": "doctor",
-          "about": "Read-only diagnostics for global preferences and project config",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [],
-          "examples": [],
-          "subcommands": [],
-          "handler_id": "command.workspace.config.doctor"
-        },
-        {
-          "name": "sync",
-          "about": "Suggest config entries to sync between global and package scopes",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [
-            {
-              "long": "write",
-              "short": null,
-              "help": "Write the suggested config entries",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            }
-          ],
-          "examples": [],
-          "subcommands": [],
-          "handler_id": "command.workspace.config.sync"
-        }
-      ],
-      "handler_id": "command.workspace.config"
-    },
-    {
-      "name": "product",
-      "about": "Product-oriented CLI workflows and distribution commands",
-      "alias": null,
-      "aliases": [],
-      "args": [],
-      "options": [],
-      "examples": [
-        {
-          "command": "lan product dev hello --path ./products/acme-cli",
-          "description": "Run a local product command in development mode"
-        },
-        {
-          "command": "lan product inspect --path ./products/acme-cli --compat",
-          "description": "Inspect product compatibility and local distribution state"
-        }
-      ],
-      "subcommands": [
-        {
-          "name": "dev",
-          "about": "Run a local product in development mode",
-          "alias": null,
-          "aliases": [],
-          "args": [
-            {
-              "name": "args",
-              "required": false,
-              "multiple": true,
-              "help": "Product command and arguments"
-            }
-          ],
-          "options": [
-            {
-              "long": "path",
-              "short": null,
-              "help": "Product root path (defaults to current working directory)",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "watch",
-              "short": "w",
-              "help": "Watch product files and restart the forwarded command on change",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": true
-            },
-            {
-              "long": "poll-interval-ms",
-              "short": null,
-              "help": "Polling interval in milliseconds for product watch mode",
-              "value_kind": "number",
-              "default_value": "500",
-              "choices": [],
-              "negatable": false
-            }
-          ],
-          "examples": [
-            {
-              "command": "lan product dev --watch ops hello --path ./products/acme-cli",
-              "description": "Re-run a product command when local product files change"
-            }
-          ],
-          "subcommands": [],
-          "handler_id": "command.dev.product"
-        },
-        {
-          "name": "build",
-          "about": "Build a minimal product snapshot for packaging",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [
-            {
-              "long": "path",
-              "short": null,
-              "help": "Product root path (defaults to current working directory)",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "output-dir",
-              "short": "o",
-              "help": "Override the product build output directory",
-              "value_kind": "string",
-              "default_value": ".lania/build/product",
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "clean",
-              "short": null,
-              "help": "Clean the product build output directory before writing",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": true
-            }
-          ],
-          "examples": [
-            {
-              "command": "lan product build --output-dir .lania/build/product",
-              "description": "Create a minimal product snapshot for later pack/publish steps"
-            }
-          ],
-          "subcommands": [],
-          "handler_id": "command.build.product"
-        },
-        {
-          "name": "pack",
-          "about": "Assemble a minimal install-root layout from a built product snapshot",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [
-            {
-              "long": "path",
-              "short": null,
-              "help": "Product root path (defaults to current working directory)",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "build-dir",
-              "short": null,
-              "help": "Product build directory created by `lan product build`",
-              "value_kind": "string",
-              "default_value": ".lania/build/product",
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "output-dir",
-              "short": "o",
-              "help": "Override the product pack output directory",
-              "value_kind": "string",
-              "default_value": ".lania/pack/product/install-root",
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "clean",
-              "short": null,
-              "help": "Clean the product pack output directory before writing",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": true
-            }
-          ],
-          "examples": [
-            {
-              "command": "lan product pack --build-dir .lania/build/product",
-              "description": "Create a local install-root layout for validation before publish"
-            }
-          ],
-          "subcommands": [],
-          "handler_id": "command.pack.product"
-        },
-        {
-          "name": "publish",
-          "about": "Assemble a publish-ready npm package layout from a packed product",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [
-            {
-              "long": "path",
-              "short": null,
-              "help": "Product root path (defaults to current working directory)",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "pack-dir",
-              "short": null,
-              "help": "Product pack directory created by `lan product pack`",
-              "value_kind": "string",
-              "default_value": ".lania/pack/product/install-root",
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "output-dir",
-              "short": "o",
-              "help": "Override the product publish output directory",
-              "value_kind": "string",
-              "default_value": ".lania/publish/product/npm-package",
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "dist-tag",
-              "short": "t",
-              "help": "Registry dist-tag for publish planning",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "channel",
-              "short": "C",
-              "help": "Release channel for publish planning",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "registry",
-              "short": null,
-              "help": "Override npm registry for publish planning/execution",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "platform-binaries-dir",
-              "short": null,
-              "help": "Directory containing staged per-platform `lania-cli` binaries",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "platform-binary-paths",
-              "short": null,
-              "help": "JSON object mapping platform keys to injected binary paths",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "execute",
-              "short": null,
-              "help": "Execute npm publish steps from the generated publish manifest",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "dry-run",
-              "short": null,
-              "help": "Execute publish steps with npm --dry-run",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "yes",
-              "short": "y",
-              "help": "Confirm real npm publish execution when not using --dry-run",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "resume",
-              "short": null,
-              "help": "Resume publish execution from completed manifest steps",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "otp",
-              "short": null,
-              "help": "Pass npm OTP to publish execution",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "npm-bin",
-              "short": null,
-              "help": "Override npm executable for publish execution",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "max-retries",
-              "short": null,
-              "help": "Retry count for transient npm publish failures",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "retry-delay-ms",
-              "short": null,
-              "help": "Delay between publish retries in milliseconds",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "rollback-on-failure",
-              "short": null,
-              "help": "Execute npm unpublish commands after partial publish failure",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "clean",
-              "short": null,
-              "help": "Clean the product publish output directory before writing",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": true
-            }
-          ],
-          "examples": [
-            {
-              "command": "lan product publish --pack-dir .lania/pack/product/install-root",
-              "description": "Create a publish-ready npm package artifact without pushing to a registry"
-            },
-            {
-              "command": "lan product publish --dist-tag next --channel next",
-              "description": "Emit a registry-ready publish manifest for the next channel"
-            },
-            {
-              "command": "lan product publish --execute --dry-run",
-              "description": "Execute publish-manifest steps through npm publish --dry-run"
-            }
-          ],
-          "subcommands": [],
-          "handler_id": "command.publish.product"
-        },
-        {
-          "name": "inspect",
-          "about": "Inspect product config, schema discovery, and local artifacts",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [
-            {
-              "long": "path",
-              "short": null,
-              "help": "Product root path (defaults to current working directory)",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            },
-            {
-              "long": "compat",
-              "short": null,
-              "help": "Include compatibility snapshot and write compat-report.json (experimental)",
-              "value_kind": "bool",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            }
-          ],
-          "examples": [
-            {
-              "command": "lan product inspect --path ./products/acme-cli",
-              "description": "Inspect the current product config, schema roots, and local build state"
-            },
-            {
-              "command": "lan product inspect --path ./products/acme-cli --compat",
-              "description": "Inspect product compatibility snapshot (framework/protocol/product)"
-            }
-          ],
-          "subcommands": [],
-          "handler_id": "command.inspect.product"
-        },
-        {
-          "name": "doctor",
-          "about": "Run product doctor diagnostics, including compatibility checks",
-          "alias": null,
-          "aliases": [],
-          "args": [],
-          "options": [
-            {
-              "long": "path",
-              "short": null,
-              "help": "Product root path (defaults to current working directory)",
-              "value_kind": "string",
-              "default_value": null,
-              "choices": [],
-              "negatable": false
-            }
-          ],
-          "examples": [
-            {
-              "command": "lan product doctor --path ./products/acme-cli",
-              "description": "Run product diagnostics with compatibility, artifact, and schema checks"
-            }
-          ],
-          "subcommands": [],
-          "handler_id": "command.doctor.product"
-        }
-      ],
-      "handler_id": "command.product"
     }
   ],
   "handler_id": "command.workspace"

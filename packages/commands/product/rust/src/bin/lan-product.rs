@@ -1,4 +1,4 @@
-//! `lan-workspace` 独立二进制（文档 §3.2 / §5.4 D.1 命令双形态）。
+//! `lan-product` 独立二进制（文档 §3.2 / §5.4 D.1 命令双形态）。
 //!
 //! 与总包共用 `lania_cli_kit::run_single_command`、`spec()` 和 `factory()`，
 //! 差别只在「链接了哪些命令 crate」与「注册了几个命令」。
@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
     }
 
     let forwarded: Vec<String> = env::args().skip(1).collect();
-    // 构建期产物：describes/workspace.json 由 `spec()` 序列化得到。
+    // 构建期产物：describes/product.json 由 `spec()` 序列化得到。
     if forwarded.first().map(String::as_str) == Some("--describe") {
         println!("{}", serde_json::to_string_pretty(&spec())?);
         return Ok(());

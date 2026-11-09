@@ -10,7 +10,7 @@
       "order": 1,
       "describe": "describes/workspace.json",
       "about": "Workspace development workflows (dev/build/lint/create/add)",
-      "aboutZh": "工作区开发工作流（dev/build/lint/create/add，含 product 与 config 子命令）",
+      "aboutZh": "Workspace 开发工作流（dev/build/lint/create/add）",
       "needsNodeBridge": true,
       "slices": [
         "compiler",
@@ -288,8 +288,8 @@
       "npmBin": "lan-product.mjs",
       "order": 7,
       "describe": "describes/product.json",
-      "about": "Product lifecycle commands (dev/build/pack/publish/inspect/doctor)",
-      "aboutZh": null,
+      "about": "Product-oriented CLI workflows and distribution commands",
+      "aboutZh": "面向 product 的 CLI 工作流与分发命令",
       "needsNodeBridge": true,
       "slices": ["product", "config", "lifecycle", "toolchain"],
       "platformPackages": [

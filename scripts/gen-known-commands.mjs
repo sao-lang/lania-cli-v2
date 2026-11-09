@@ -62,7 +62,8 @@ function buildKnownCommands() {
   // 根命令的 zh about（单点在 lania-command/src/localization.rs，此处为
   // launcher 聚合帮助的消费副本；两边需同步更新）。
   const ZH_ABOUT = {
-    workspace: '工作区开发工作流（dev/build/lint/create/add，含 product 与 config 子命令）',
+    workspace: 'Workspace 开发工作流（dev/build/lint/create/add）',
+    product: '面向 product 的 CLI 工作流与分发命令',
     release: '发布工作流（规划、执行、恢复）',
     git: '查看与同步 git 状态',
     tools: '列出命令、按类型运行文件，或查看本地文件',

@@ -96,14 +96,11 @@ impl NodeBridgeClient {
         // handshake 是“协议级初始化”：
         // - 协商 protocolVersion / events / failureStrategy 等能力
         // - 同时也作为“bridge 已启动可读写”的确认点
-        write_envelope(
-            &mut stdin,
-            &serde_json::json!({
-                "type": "handshake",
-                "payload": self.handshake_request(),
-            }),
-        )?;
-
+        // 握手时序：bridge 入口先发出 ready event，之后才开始消费 stdin
+        // （入口在 ready 前有 await 装配）。若 spawn 后立刻写 handshake，请求行可能
+        // 落在 readline 开始迭代之前而被丢弃，双方互相等待导致 CLI 启动链路死锁。
+        // 因此等收到第一条全局事件（ready）后再写握手，确认对端已进入输入循环。
+        let mut handshake_written = false;
         let handshake = loop {
             match read_envelope(&mut stdout)? {
                 BridgeEnvelope::Handshake { payload } => break payload,
@@ -112,6 +109,16 @@ impl NodeBridgeClient {
                     // 注意这里不会尝试路由到某个 request：
                     // 现在还处于“进程刚启动、尚无业务请求 in-flight”的阶段。
                     let _ = state.global_events.send(payload);
+                    if !handshake_written {
+                        write_envelope(
+                            &mut stdin,
+                            &serde_json::json!({
+                                "type": "handshake",
+                                "payload": self.handshake_request(),
+                            }),
+                        )?;
+                        handshake_written = true;
+                    }
                     continue;
                 }
                 BridgeEnvelope::Response { .. } => {

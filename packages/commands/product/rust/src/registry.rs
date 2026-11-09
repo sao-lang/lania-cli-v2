@@ -10,7 +10,6 @@ use crate::build::{
     DoctorProductCommandHandler, InspectProductCommandHandler, PackProductCommandHandler,
     ProductBuildCommandHandler, PublishProductCommandHandler,
 };
-use crate::dev::ProductDevCommandHandler;
 use lania_host::product_root_spec;
 use crate::{
     DOCTOR_PRODUCT_HANDLER_ID, HANDLER_ID, INSPECT_PRODUCT_HANDLER_ID,
