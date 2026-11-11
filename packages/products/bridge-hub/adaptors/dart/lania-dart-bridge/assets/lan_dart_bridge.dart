@@ -367,6 +367,14 @@ Future<_Outcome> _run(List<String> args, String cwd) async {
       stdoutEncoding: utf8,
       stderrEncoding: utf8,
     );
+    if (Platform.environment['LANIA_LINT_DEBUG'] != null) {
+      try {
+        File('E:/vsc-workspace/lania-zip/lania-cli-v2/.tmp-smoke/debug-dartbridge.log').writeAsStringSync(
+          '[dartbridge] run ${args.join(' ')} cwd=$cwd exit=${result.exitCode}\nSTDOUT>>>${(result.stdout as String? ?? '').substring(0, (result.stdout as String? ?? '').length.clamp(0, 300))}<<<\nSTDERR>>>${(result.stderr as String? ?? '').substring(0, (result.stderr as String? ?? '').length.clamp(0, 500))}<<<\n',
+          mode: FileMode.append,
+        );
+      } catch (_) {}
+    }
     return _Outcome(
       result.exitCode,
       result.stdout as String? ?? '',
@@ -430,6 +438,12 @@ Future<_Outcome> _runStreaming(
   ];
   final int exitCode = await process.exitCode;
   await Future.wait(pumps);
+  if (Platform.environment['LANIA_LINT_DEBUG'] != null) {
+    try {
+      File('E:/vsc-workspace/lania-zip/lania-cli-v2/.tmp-smoke/debug-dartbridge.log')
+          .writeAsStringSync('[dartbridge] streaming ${args.join(' ')} cwd=$cwd exit=$exitCode\nSTDERR>>>${stderrBuffer.toString().substring(0, stderrBuffer.toString().length.clamp(0, 600))}<<<\n', mode: FileMode.append);
+    } catch (_) {}
+  }
   return _Outcome(exitCode, stdoutBuffer.toString(), stderrBuffer.toString());
 }
 
@@ -563,9 +577,18 @@ Future<Map<String, Object?>> _handleBuild(
     'command': command,
   };
   if (!success) {
+    // stderr 尾部是 Dart 的堆栈（#0 … / <asynchronous suspension>），毫无信息量；
+    // 真正的错误在第一条非堆栈行里。
     final String message = outcome.stderrText.trim().isEmpty
         ? (outcome.failure ?? 'dart build exited with code ${outcome.exitCode}')
-        : outcome.stderrText.trim().split('\n').last.trim();
+        : outcome.stderrText
+            .trim()
+            .split('\n')
+            .map((line) => line.trim())
+            .firstWhere(
+              (line) => line.isNotEmpty && !line.startsWith('#') && line != '<asynchronous suspension>',
+              orElse: () => outcome.stderrText.trim().split('\n').first.trim(),
+            );
     result['error'] = message;
   }
   return result;

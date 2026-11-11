@@ -43,6 +43,7 @@ packages/commands/*/npm/cmd-*-win32-x64/bin/*
 packages/distribution/cli/npm/cli-darwin-arm64/bin/*
 packages/distribution/cli/npm/cli-linux-x64/bin/*
 packages/distribution/cli/npm/cli-win32-x64/bin/*
+packages/runtime/npm/runtime-win32-x64/bin/*
 packages/distribution/cli/npm/cli-*/*.tgz
 .lania/platform-binaries/
 

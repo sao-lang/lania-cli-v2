@@ -284,7 +284,9 @@ function resolveRuntimeDir() {
   try {
     return path.dirname(require.resolve('@lania-cli-v2/runtime/package.json'));
   } catch {
-    return null;
+    // 开发态回退：仓库工作区内的 runtime 包（与 bridge 的 dev 回退同思路）。
+    const devRuntimeDir = path.join(fallbackRepoRoot, 'packages', 'runtime', 'npm', 'runtime');
+    return fs.existsSync(path.join(devRuntimeDir, 'package.json')) ? devRuntimeDir : null;
   }
 }
 
@@ -341,13 +343,24 @@ function dispatchDynamic(command, args) {
     console.error(`未知命令 "${command}"。运行 lan --help 查看可用命令。`);
     process.exit(127);
   }
+  // runtime 设施执行动态命令时需要 Host RPC（ctx.tools.* 回调宿主能力），
+  // 因此必须注入 bridge 目录：开发态回退到工作区 bridge-runtime（与子包分发同思路）。
   const env = {
     LANIA_COMMAND_NAME: command,
     LANIA_PRODUCT_ROOT: process.env.LANIA_PRODUCT_ROOT ?? cwd,
     LANIA_RUNTIME_MODE: process.env.LANIA_RUNTIME_MODE ?? 'installed',
   };
+  const devBridgeDir = path.join(
+    fallbackRepoRoot,
+    'packages',
+    'foundation',
+    'bridge-runtime',
+    'ts',
+  );
   if (process.env.LANIA_NODE_BRIDGE_DIR) {
     env.LANIA_NODE_BRIDGE_DIR = process.env.LANIA_NODE_BRIDGE_DIR;
+  } else if (fs.existsSync(devBridgeDir)) {
+    env.LANIA_NODE_BRIDGE_DIR = devBridgeDir;
   }
   // 动态命令由 runtime 设施执行（同一份 node-bridge + host-core）。
   execDirect(runtimeBinary, env, [command, ...args]);
@@ -425,7 +438,14 @@ function dispatch(known) {
         LANIA_RUNTIME_MODE: process.env.LANIA_RUNTIME_MODE ?? 'installed',
       };
       if (nestedEntry.needsNodeBridge) {
-        nestedEnv.LANIA_NODE_BRIDGE_DIR = path.join(nestedDir, 'lib', 'bridge');
+        // 仅当子包 payload 真实存在时才注入 LANIA_NODE_BRIDGE_DIR：
+        // 开发态 staging 只有二进制、没有 lib/bridge；注入缺失路径会让 Rust 侧
+        // 判定 bridge 不可用并静默降级到 mock transport（返回写死的假数据）。
+        // 此时留空让 Rust 走工作区 dev bridge 回退（packages/foundation/bridge-runtime/ts）。
+        const nestedBridgeDir = path.join(nestedDir, 'lib', 'bridge');
+        if (fs.existsSync(nestedBridgeDir)) {
+          nestedEnv.LANIA_NODE_BRIDGE_DIR = nestedBridgeDir;
+        }
         nestedEnv.LANIA_BRIDGE_SLICES = Array.isArray(nestedEntry.slices)
           ? nestedEntry.slices.join(',')
           : '';
@@ -437,10 +457,12 @@ function dispatch(known) {
 
   // `config` 是主包内建命令（总包二进制承载）：packages/apply 已由 launcher
   // 内建处理，其余子命令整体转发总包二进制（argv 完整保留）。
+  // 注意：总包二进制的命令树根部是 `lan`，`config` 是它的一级命令，
+  // 因此这里必须保留 `config` token（argv 原样转发，不做 slice）。
   if (command === 'config') {
     const mainBinary = resolveMainCliBinary();
     if (mainBinary) {
-      execDirect(mainBinary, {}, argv.slice(1));
+      execDirect(mainBinary, {}, argv);
       return;
     }
     console.error(
@@ -497,7 +519,11 @@ function dispatch(known) {
     LANIA_RUNTIME_MODE: process.env.LANIA_RUNTIME_MODE ?? 'installed',
   };
   if (entry.needsNodeBridge) {
-    env.LANIA_NODE_BRIDGE_DIR = path.join(cmdDir, 'lib', 'bridge');
+    // 同 nested 分支：payload 缺失时留空，避免 Rust 静默降级 mock transport。
+    const bridgeDir = path.join(cmdDir, 'lib', 'bridge');
+    if (fs.existsSync(bridgeDir)) {
+      env.LANIA_NODE_BRIDGE_DIR = bridgeDir;
+    }
     env.LANIA_BRIDGE_SLICES = Array.isArray(entry.slices) ? entry.slices.join(',') : '';
   }
 

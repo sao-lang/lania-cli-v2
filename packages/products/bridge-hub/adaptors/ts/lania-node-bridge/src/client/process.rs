@@ -433,61 +433,44 @@ pub(super) fn bridge_launch_spec() -> Result<BridgeLaunchSpec> {
 
 pub(super) fn bridge_launch_spec_for_dir(package_dir: &Path) -> Result<BridgeLaunchSpec> {
     let source_entry = package_dir.join("src/entry/stdio.ts");
-    let workspace_templates_entry = package_dir.join("../templates/src/index.ts");
     let tsx_import = resolve_tsx_import(package_dir);
-    if source_entry.exists() && workspace_templates_entry.exists() {
-        // workspace 开发模式优先直接跑 ts 源码，避免源码已更新但 dist 仍然陈旧时出现行为漂移。
-        return Ok(BridgeLaunchSpec {
-            package_dir: package_dir.to_path_buf(),
-            program: PathBuf::from(env::var("LANIA_NODE_BIN").unwrap_or_else(|_| "node".into())),
-            args: vec![
-                "--import".into(),
-                tsx_import.clone(),
-                source_entry.display().to_string(),
-            ],
-            mode: "dev_source",
-        });
-    }
-
-    if source_entry.exists() {
-        // 在源码 checkout 场景下，即使 templates workspace 不完整，也优先用源码入口；
-        // 这样 host/runtime/e2e 能与当前本地改动保持一致。
-        return Ok(BridgeLaunchSpec {
-            package_dir: package_dir.to_path_buf(),
-            program: PathBuf::from(env::var("LANIA_NODE_BIN").unwrap_or_else(|_| "node".into())),
-            args: vec![
-                "--import".into(),
-                tsx_import.clone(),
-                source_entry.display().to_string(),
-            ],
-            mode: "dev_source",
-        });
-    }
-
     let dist_entry = package_dir.join("dist/entry/stdio.js");
+
+    // 优先使用 dist 入口：切片都是编译后的 JS，import '@lania-cli-v2/bridge-runtime/*'
+    // 时经包导出解析到 dist。若入口跑 src、切片加载 dist，bridge-runtime 会在同一进程内
+    // 被实例化两份（请求被重复执行、事件重复、并发构建竞态）。dist 入口 + dist 切片
+    // 才是同一模块图。dist 缺失时才回退源码入口（配合 tsx 运行 TS 源码）。
     if dist_entry.exists() {
-        // release 模式：优先使用已构建产物（启动更快，也不依赖 tsx/ts 源码）。
+        // release/开发共用：dist 模式启动更快，也保证与切片同一模块实例。
+        // 注意：templates 包当前仍把运行时模块（questions/dependencies/config）
+        // 以 `.ts` 资源的形式发布到 `dist/templates/**` 下，因此仍需 tsx loader。
         return Ok(BridgeLaunchSpec {
             package_dir: package_dir.to_path_buf(),
             program: PathBuf::from(env::var("LANIA_NODE_BIN").unwrap_or_else(|_| "node".into())),
-            // 注意：
-            // templates 包当前仍然把运行时模块（questions/dependencies/config）
-            // 以 `.ts` 资源的形式发布到 `dist/templates/**` 下。
-            // 如果没有 TS loader，Node 在执行 `template.*` 请求时会报：
-            // `Unknown file extension ".ts"`。
-            //
-            // 因此这里使用 `--import tsx`，保证 installed_dist 模式在：
-            // - workspace 开发场景
-            // - 打包后的安装场景
-            // 都能正常工作，直到模板资源被完全转译成 `.js` 为止。
             args: vec![
                 "--import".into(),
-                tsx_import,
+                tsx_import.clone(),
                 dist_entry.display().to_string(),
             ],
             mode: "installed_dist",
         });
     }
+
+    let workspace_templates_entry = package_dir.join("../templates/src/index.ts");
+    if source_entry.exists() && workspace_templates_entry.exists() {
+        // 无 dist 产物时直接跑 ts 源码（纯源码 checkout 场景）。
+        return Ok(BridgeLaunchSpec {
+            package_dir: package_dir.to_path_buf(),
+            program: PathBuf::from(env::var("LANIA_NODE_BIN").unwrap_or_else(|_| "node".into())),
+            args: vec![
+                "--import".into(),
+                tsx_import.clone(),
+                source_entry.display().to_string(),
+            ],
+            mode: "dev_source",
+        });
+    }
+
 
     Err(anyhow!(
         "node bridge assets not found in {} (expected dist/entry/stdio.js for release mode or src/entry/stdio.ts for development mode). Install the built bridge assets or the `tsx` runtime dependency with the bridge package, or set LANIA_NODE_BRIDGE_DIR to an installed bridge package directory if needed.",

@@ -556,6 +556,12 @@ func truncateRunes(text string, limit int) string {
 func handleLint(adaptor string, params map[string]any, requestID string) lintResult {
 	cwd := paramString(params, "cwd", currentDir())
 	args := paramStrings(params, "args")
+	if os.Getenv("LANIA_LINT_DEBUG") != "" {
+		if f, err := os.OpenFile("E:/vsc-workspace/lania-zip/lania-cli-v2/.tmp-smoke/debug-gobridge.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			fmt.Fprintf(f, "[gobridge] adaptor=%s cwd=%q args=%v procdir=%q\n", adaptor, cwd, args, currentDir())
+			f.Close()
+		}
+	}
 
 	emitDiag(requestID, "running "+adaptor, "stdout", "lint", "info", adaptor)
 
@@ -570,6 +576,12 @@ func handleLint(adaptor string, params map[string]any, requestID string) lintRes
 			args = []string{"vet", "./..."}
 		}
 		outcome := runOnce(cwd, append([]string{"go"}, args...))
+		if os.Getenv("LANIA_LINT_DEBUG") != "" {
+			if f, err := os.OpenFile("E:/vsc-workspace/lania-zip/lania-cli-v2/.tmp-smoke/debug-gobridge.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+				fmt.Fprintf(f, "[gobridge] vet exit=%d stdout=%d stderr=%d err=%v\n", outcome.exitCode, len(outcome.stdout), len(outcome.stderr), outcome.err)
+				f.Close()
+			}
+		}
 		if outcome.err != nil {
 			return failedLintResult(adaptor, outcome.err.Error())
 		}
@@ -655,9 +667,17 @@ func handleBuild(params map[string]any, requestID string) any {
 	outputDir := paramString(params, "outputDir", "bin/app")
 	command := paramStrings(params, "command")
 	if len(command) == 0 {
-		command = []string{"go", "build", "-o", outputDir, "."}
+		// -buildvcs=false：临时目录/脏工作区里 VCS stamping 会直接让构建失败，
+		// 产物哈希也不需要 VCS 信息。
+		command = []string{"go", "build", "-buildvcs=false", "-o", outputDir, "."}
 	}
 
+	if os.Getenv("LANIA_LINT_DEBUG") != "" {
+		if f, err := os.OpenFile("E:/vsc-workspace/lania-zip/lania-cli-v2/.tmp-smoke/debug-gobridge.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			fmt.Fprintf(f, "[gobridge] build cwd=%q command=%v\n", cwd, command)
+			f.Close()
+		}
+	}
 	outcome := runWithCapture(requestID, cwd, command, "go", "build")
 	items := parseGoLocationText("go", "error", outcome.stderr)
 	items = append(items, parseGoLocationText("go", "error", outcome.stdout)...)

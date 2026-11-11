@@ -17,6 +17,9 @@ fn lan_git_sync_e2e() {
         "git",
         &["init", "--bare", remote.to_str().expect("remote path")],
     );
+    // Windows 上反斜杠绝对路径（E://...）会被 git 当作 `E` 远程 helper 协议，
+    // remote URL 必须统一成正斜杠。
+    let remote_url = remote.to_str().expect("remote path").replace('\\', "/");
     run_command(
         &root,
         "git",
@@ -24,7 +27,7 @@ fn lan_git_sync_e2e() {
             "remote",
             "add",
             "origin",
-            remote.to_str().expect("remote path"),
+            &remote_url,
         ],
     );
     let head_branch = Command::new("git")

@@ -153,7 +153,8 @@ export const RUNTIME_TOOLCHAINS: readonly RuntimeToolchain[] = [
     featureFiles: ['go.mod'],
     lockFiles: ['go.sum'],
     packageManagers: ['go'],
-    buildCommand: ['go', 'build', '-o', '{output}', '.'],
+    // -buildvcs=false：临时目录/脏工作区里 VCS stamping 会让构建直接失败。
+    buildCommand: ['go', 'build', '-buildvcs=false', '-o', '{output}', '.'],
     devCommand: ['go', 'run', '.'],
     lintTools: [
       { id: 'golangci-lint', binary: 'golangci-lint', args: ['run', './...'], inProcess: false },

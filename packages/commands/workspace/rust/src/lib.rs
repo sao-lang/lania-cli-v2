@@ -69,6 +69,20 @@ pub fn spec() -> lania_command::CommandSpec {
     spec::workspace_full_spec()
 }
 
+/// 子命令级 spec（独立 bin 的根）：`lan workspace dev` 在 lan-workspace.exe
+/// 里就是 `lan dev`，JSON 的 command.name 应为 "dev"（§5.3 C.4）。
+#[allow(clippy::too_many_lines)]
+pub fn subcommand_spec(name: &str) -> Option<lania_command::CommandSpec> {
+    match name {
+        "dev" => Some(spec::dev_spec()),
+        "build" => Some(spec::build_spec()),
+        "lint" => Some(spec::lint_spec()),
+        "create" => Some(spec::create_spec()),
+        "add" => Some(spec::add_spec()),
+        _ => None,
+    }
+}
+
 impl Plugin for WorkspaceCommandPlugin {
     fn meta(&self) -> PluginMeta {
         PluginMeta {

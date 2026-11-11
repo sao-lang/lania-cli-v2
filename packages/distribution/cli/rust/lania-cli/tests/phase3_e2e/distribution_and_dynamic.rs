@@ -64,8 +64,17 @@ fn lan_binary_distribution_smoke() {
     let install_root = root.join("install");
     let bin_dir = install_root.join("bin");
     fs::create_dir_all(&bin_dir).expect("bin dir created");
-    let staged_binary = bin_dir.join("lania-cli");
-    fs::copy(env!("CARGO_BIN_EXE_lania-cli"), &staged_binary).expect("binary copied");
+    // 真实安装布局：install/bin 下是各命令子包二进制，install/lib/bridge 是
+    // node bridge payload。known-commands 的分发由 npm launcher（JS）完成；
+    // 这里直接验证「staged 二进制 + staged payload」的安装态链路：
+    // lan-workspace.exe 通过 `current_exe 同目录/../lib/bridge` 候选定位 payload。
+    let workspace_binary_name = if cfg!(windows) { "lan-workspace.exe" } else { "lan-workspace" };
+    let staged_workspace = bin_dir.join(workspace_binary_name);
+    let workspace_binary = Path::new(env!("CARGO_BIN_EXE_lania-cli"))
+        .parent()
+        .expect("cli binary has a parent")
+        .join(workspace_binary_name);
+    fs::copy(&workspace_binary, &staged_workspace).expect("workspace binary copied");
     let _bridge_dir = stage_installed_bridge_package(&install_root);
 
     let project = root.join("project");
@@ -73,10 +82,16 @@ fn lan_binary_distribution_smoke() {
         project.join("lan.config.js"),
         "export default { buildTool: 'vite' };\n",
     );
-    let output = run_program(&staged_binary, &project, &["workspace", "build"], &[]);
+    let output = run_program(&staged_workspace, &project, &["build"], &[]);
     let json = parse_stdout_json(&output);
 
-    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(json["result"]["tool"], "vite");
 
     let _ = fs::remove_dir_all(root);

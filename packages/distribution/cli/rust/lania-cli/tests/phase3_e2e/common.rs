@@ -102,6 +102,58 @@ pub(crate) fn run_cli_interactive(
     run_program_interactive(&binary, cwd, forwarded, answers, extra_env)
 }
 
+/// e2e 的封闭化环境变量：go 工具链的 work dir 与语言 bridge 的编译缓存
+/// 默认落在 %TEMP% / %LOCALAPPDATA%，在受限环境（企业策略/沙箱）下会被拒绝，
+/// 导致 go vet/go build/bridge 编译全部静默失败。统一收敛到 target 内的仓库目录。
+fn hermetic_toolchain_env() -> Vec<(String, String)> {
+    let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../../target/.cargo-tmp/e2e-env");
+    let gotmp = base.join("gotmp");
+    let bridge_home = base.join("bridge-home");
+    let tmp = base.join("tmp");
+    let gocache = base.join("go-build");
+    let _ = fs::create_dir_all(&gotmp);
+    let _ = fs::create_dir_all(&bridge_home);
+    let _ = fs::create_dir_all(&tmp);
+    let _ = fs::create_dir_all(&gocache);
+    // mypy 常被 pip --user 安装到 Roaming，不在测试进程的 PATH 里；
+    // 存在时前置到 PATH，保证 py bridge 的 lint 用例不依赖用户机器的全局安装位置。
+    let tmp_str = tmp.display().to_string();
+    // TMP/TEMP 重定向覆盖 dart/python 等工具的临时目录；GOCACHE 覆盖 go 构建缓存。
+    // CI=true 关闭 dart unified_analytics 的遥测写入（%APPDATA% 的 utime 在
+    // 受限环境下被拒，会让 dart compile 直接失败）。
+    let mut env = vec![
+        ("CI".to_string(), "true".to_string()),
+        ("GOTMPDIR".to_string(), gotmp.display().to_string()),
+        ("GOCACHE".to_string(), gocache.display().to_string()),
+        ("TMP".to_string(), tmp_str.clone()),
+        ("TEMP".to_string(), tmp_str.clone()),
+        ("TMPDIR".to_string(), tmp_str),
+        ("LANIA_BRIDGE_HOME".to_string(), bridge_home.display().to_string()),
+    ];
+    // `pip install --user` 会装到 %APPDATA%/Python/Python<ver>/Scripts；
+    // 遍历所有版本目录，找到含 mypy 的就前置到 PATH。
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let python_root = Path::new(&appdata).join("Python");
+        if let Ok(entries) = fs::read_dir(&python_root) {
+            for entry in entries.flatten() {
+                let scripts = entry.path().join("Scripts");
+                let has_mypy =
+                    scripts.join("mypy.exe").is_file() || scripts.join("mypy").is_file();
+                if has_mypy {
+                    let path = std::env::var("PATH").unwrap_or_default();
+                    env.push((
+                        "PATH".to_string(),
+                        format!("{};{path}", scripts.display()),
+                    ));
+                    break;
+                }
+            }
+        }
+    }
+    env
+}
+
 pub(crate) fn run_program(
     program: &Path,
     cwd: &Path,
@@ -110,6 +162,9 @@ pub(crate) fn run_program(
 ) -> std::process::Output {
     let mut command = Command::new(program);
     command.args(args).current_dir(cwd);
+    for (key, value) in hermetic_toolchain_env() {
+        command.env(key, value);
+    }
     // Test cases mutate installed-mode routing env vars in-process. Clear them here so child
     // CLI invocations only see explicitly requested values and do not inherit cross-test state.
     command.env_remove("LANIA_PRODUCT_ROOT");
@@ -190,12 +245,18 @@ pub(crate) fn run_command(cwd: &Path, program: &str, args: &[&str]) {
     } else {
         &[]
     };
-    let status = Command::new(program)
+    let output = Command::new(program)
         .args(git_guard.iter().chain(args.iter()))
         .current_dir(cwd)
-        .status()
+        .output()
         .expect("command should run");
-    assert!(status.success(), "{program} {:?} should succeed", args);
+    assert!(
+        output.status.success(),
+        "{program} {:?} should succeed\nstdout: {}\nstderr: {}",
+        args,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 pub(crate) fn write_fake_package(root: &Path, name: &str, main_js: &str) {
@@ -208,8 +269,10 @@ pub(crate) fn write_fake_package(root: &Path, name: &str, main_js: &str) {
 }
 
 pub(crate) fn repo_root() -> PathBuf {
+    // CARGO_MANIFEST_DIR = <repo>/packages/distribution/cli/rust/lania-cli，
+    // 回到仓库根需要上溯 5 层（rust → cli → distribution → packages → repo）。
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
+        .join("../../../../..")
         .canonicalize()
         .expect("repo root resolves")
 }
@@ -231,12 +294,24 @@ pub(crate) fn ensure_node_bridge_dist() {
     let result = BUILD_RESULT.get_or_init(|| {
         let bridge_dist = node_bridge_package_dir().join("dist/entry/stdio.js");
         let templates_dist = templates_package_dir().join("dist/index.js");
+        if std::env::var_os("LANIA_E2E_DEBUG").is_some() {
+            eprintln!(
+                "[ensure] bridge_dist={} exists={} ; templates_dist={} exists={}",
+                bridge_dist.display(),
+                bridge_dist.exists(),
+                templates_dist.display(),
+                templates_dist.exists()
+            );
+        }
         if bridge_dist.exists() && templates_dist.exists() {
             return Ok(());
         }
 
         // Try to build on demand for a smoother local dev experience.
-        let output = Command::new("pnpm")
+        // Windows 上 pnpm 是 pnpm.cmd shim，Command::new("pnpm") 无法解析（os error 2），
+        // 需要显式带 .cmd 后缀。
+        let pnpm_program = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
+        let output = Command::new(pnpm_program)
             .current_dir(repo_root())
             .args(["-r", "build"])
             .output()

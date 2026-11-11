@@ -352,10 +352,10 @@ fn lan_env_config_set_roundtrip_is_isolated_from_global_preferences() {
 
 #[test]
 fn lan_env_config_rejects_unknown_keys_and_values() {
+    // 非法枚举值必须被 configSchema 校验拒绝。
     for args in [
         vec!["env", "config", "set", "shim.host", "bash"],
-        vec!["env", "config", "set", "locale", "zh"],
-        vec!["env", "config", "get", "nope.nope"],
+        vec!["env", "config", "set", "locale", "fr"],
     ] {
         let root = temp_dir("env-config-invalid");
         let home = isolated_home(&root);
@@ -371,8 +371,56 @@ fn lan_env_config_rejects_unknown_keys_and_values() {
         assert!(
             combined.contains("invalid value")
                 || combined.contains("unknown env config key"),
-            "args={args:?}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+            "args={args:?}\nstdout://n{stdout}//nstderr://n{stderr}"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    // 未知键必须被拒绝。
+    {
+        let root = temp_dir("env-config-unknown-key");
+        let home = isolated_home(&root);
+        let output = run_cli(
+            &root,
+            &["env", "config", "get", "nope.nope"],
+            &[("HOME", home.as_str())],
+        );
+        assert_ne!(output.status.code(), Some(0), "unknown key must fail");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let combined = format!("{stdout}{stderr}");
+        assert!(
+            combined.contains("unknown env config key"),
+            "stdout://n{stdout}//nstderr://n{stderr}"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    // locale 已纳入 env 的 configSchema（zh | en），合法值必须写入成功。
+    {
+        let root = temp_dir("env-config-locale-valid");
+        let home = isolated_home(&root);
+        let output = run_cli(
+            &root,
+            &["env", "config", "set", "locale", "zh"],
+            &[("HOME", home.as_str())],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "locale is a valid env config key: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let read_back = run_cli(
+            &root,
+            &["env", "config", "get", "locale"],
+            &[("HOME", home.as_str())],
+        );
+        eprintln!("READ_BACK_STDOUT: {}", String::from_utf8_lossy(&read_back.stdout));
+        eprintln!("READ_BACK_STDERR: {}", String::from_utf8_lossy(&read_back.stderr));
+        let json = parse_stdout_json(&read_back);
+        assert_eq!(json["result"]["value"], "zh", "read_back stdout: {}", String::from_utf8_lossy(&read_back.stdout));
         let _ = fs::remove_dir_all(root);
     }
 }

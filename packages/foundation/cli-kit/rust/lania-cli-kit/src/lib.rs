@@ -17,7 +17,7 @@ pub use output::{
     error_json_value, execution_json_value, render_output_value, should_suppress_output,
 };
 pub use profile::*;
-pub use single::run_single_command;
+pub use single::{run_single_command, run_subcommand_entry};
 pub use template_catalog::{
     template_highlights, template_summary, BUILTIN_TEMPLATES,
 };

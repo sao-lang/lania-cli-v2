@@ -411,9 +411,12 @@ fn lan_build_uses_the_go_bridge_e2e() {
 const RUST_RANGE_LOOP_SOURCE: &str = "fn main() {\n    let values = [1, 2, 3];\n    let mut total = 0;\n    for index in 0..values.len() {\n        total += values[index];\n    }\n    println!(\"{total}\");\n}\n";
 
 fn write_rust_project(root: &Path, source: &str) {
+    // 空的 [workspace] 表让 fixture 成为独立 workspace：e2e 的临时目录位于仓库
+    // target 内，cargo 会向上找到仓库 Cargo.toml 并报 "believes it's in a
+    // workspace when it's not"，clippy 直接失败。
     write_file(
         root.join("Cargo.toml"),
-        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n\n[workspace]\n",
     );
     write_file(root.join("src/main.rs"), source);
 }
@@ -587,6 +590,10 @@ fn lan_lint_fix_e2e() {
         root.join("lan.config.js"),
         "export default { lintTools: ['eslint', 'prettier'] };\n",
     );
+    // fixture 位于仓库 target 内，node 解析会向上找到仓库的 eslint ——
+    // 这里是「真实 eslint 在跑」而不是 fallback。给 fixture 一个显式的
+    // 空规则配置，避免 ESM/CJS 解析差异让 eslint 报 parsing error。
+    write_file(root.join("eslint.config.js"), "export default { rules: {} };\n");
     write_file(root.join("src/index.js"), "const answer = 42\n");
 
     let output = run_cli(&root, &["workspace", "lint", "fix"], &[]);

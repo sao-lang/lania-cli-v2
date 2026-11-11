@@ -6,6 +6,11 @@
  * - 二进制解析与子进程执行
  * - oxlint JSON 诊断归一化
  */
+
+import { appendFileSync as fs_append_debug_raw } from 'node:fs';
+function fs_append_debug(text: string) {
+  fs_append_debug_raw('E:/vsc-workspace/lania-zip/lania-cli-v2/.tmp-smoke/debug-lint.log', text);
+}
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { extname, join, resolve } from 'node:path';
@@ -213,6 +218,15 @@ export async function runBinary(
     });
     child.on('error', reject);
     child.on('close', (exitCode) => {
+      if (process.env.LANIA_LINT_DEBUG) {
+        try {
+          fs_append_debug(
+            `[lint-debug] runBinary ${command} ${JSON.stringify(commandArgs)} cwd=${cwd} exit=${exitCode}\nSTDOUT>>>${stdout.slice(0, 400)}<<<\nSTDERR>>>${stderr.slice(0, 400)}<<<\n`,
+          );
+        } catch {
+          // 调试日志失败不影响主流程（受限环境可能禁止写文件）
+        }
+      }
       resolvePromise({
         stdout,
         stderr,

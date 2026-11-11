@@ -79,7 +79,23 @@ async function runEslint(
     fix,
     overrideConfig: toolConfig.exists ? toolConfig.config : undefined,
   });
-  const results = await eslint.lintFiles(['.']);
+  let results;
+  try {
+    results = await eslint.lintFiles(['.']);
+  } catch (error) {
+    // 非 JS/TS 项目（go/dart/rust 固定里有 lan.config.js）或 eslint 配置缺失时，
+    // 文件枚举会抛 "All files matched by '.' are ignored"。这是「无事可做」
+    // 而不是失败：返回 fallback，让语言 bridge / 其他 adaptor 的结果继续生效。
+    const message = error instanceof Error ? error.message : String(error);
+    return createLintRunResult(
+      'eslint',
+      'fallback',
+      [{ filePath: '.', errors: 0, warnings: fix ? 0 : 1 }],
+      0,
+      fix ? 0 : 1,
+      message,
+    );
+  }
   if (fix && runtime.outputFixes) {
     await runtime.outputFixes(results);
   }

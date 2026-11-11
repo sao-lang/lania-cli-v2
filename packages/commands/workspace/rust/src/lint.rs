@@ -471,8 +471,15 @@ fn emit_lint_report(
         return;
     };
     let views = diagnostic_views(result);
-    if views.is_empty() {
+    // `--grouped-output` 是显式契约：无论有没有 diagnostics，都先输出按 adaptor
+    // 汇总的分组视图（§7.4），再走逐文件渲染。
+    if result["groupedOutput"].as_bool() == Some(true) {
         emit_grouped_output(ctx, &Some(result.clone()));
+    }
+    if views.is_empty() {
+        if result["groupedOutput"].as_bool() != Some(true) {
+            emit_grouped_output(ctx, &Some(result.clone()));
+        }
         return;
     }
     let logger = ctx.workflow_services().logger.scoped("command.lint");
@@ -495,8 +502,10 @@ fn emit_grouped_output(ctx: &CommandExecutionContext<'_>, result: &Option<Value>
         return;
     }
 
+    // `--grouped-output` 是用户显式要求的终端视图：直接写 stderr，
+    // 不经过 output mode 门控（json 模式下 logger 的 Info 不会落到 stderr）。
     let logger = ctx.workflow_services().logger.scoped("command.lint");
-    logger.log(LogLevel::Info, "lint grouped output:".to_string());
+    eprintln!("lint grouped output:");
 
     let summary_by_adaptor = result["summaryByAdaptor"].as_object();
     let results_by_adaptor = result["resultsByAdaptor"].as_object();
@@ -509,12 +518,7 @@ fn emit_grouped_output(ctx: &CommandExecutionContext<'_>, result: &Option<Value>
         let errors = summary["errors"].as_u64().unwrap_or_default();
         let warnings = summary["warnings"].as_u64().unwrap_or_default();
         let files = summary["files"].as_u64().unwrap_or_default();
-        logger.log(
-            LogLevel::Info,
-            format!(
-                "[{adaptor}] {errors} errors, {warnings} warnings, {files} files ({implementation})"
-            ),
-        );
+        eprintln!("[{adaptor}] {errors} errors, {warnings} warnings, {files} files ({implementation})");
         if let Some(entries) = results_by_adaptor
             .and_then(|results| results.get(adaptor))
             .and_then(|result| result["files"].as_array())
@@ -523,10 +527,7 @@ fn emit_grouped_output(ctx: &CommandExecutionContext<'_>, result: &Option<Value>
                 let file_path = entry["filePath"].as_str().unwrap_or(".");
                 let file_errors = entry["errors"].as_u64().unwrap_or_default();
                 let file_warnings = entry["warnings"].as_u64().unwrap_or_default();
-                logger.log(
-                    LogLevel::Info,
-                    format!("  - {file_path}: {file_errors} errors, {file_warnings} warnings"),
-                );
+                eprintln!("  - {file_path}: {file_errors} errors, {file_warnings} warnings");
             }
         }
     }

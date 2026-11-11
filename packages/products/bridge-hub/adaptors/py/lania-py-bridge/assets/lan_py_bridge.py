@@ -683,14 +683,24 @@ def worker(adaptor: str, cwd: str, args: List[str]) -> int:
     os.chdir(cwd)
     paths = [item for item in args if not item.startswith("-")]
     if adaptor == "mypy":
-        import mypy.api  # noqa: PLC0415 - 懒加载：未安装时由调用方回落 spawn
+        try:
+            import mypy.api  # noqa: PLC0415 - 懒加载：未安装时由调用方回落 spawn
+        except ImportError as error:
+            # import 失败会让解释器以 exit 1 退出，调用方（returncode < 2）会把
+            # 「API 不可用」误判成「工具正常返回 0 条诊断」。必须显式上抛退出码 2。
+            sys.stderr.write(f"mypy api unavailable: {error}\n")
+            return 2
 
         stdout, stderr, _status = mypy.api.run(args)
         sys.stdout.write(stdout)
         sys.stderr.write(stderr)
         return 0
     if adaptor == "black":
-        import black  # noqa: PLC0415
+        try:
+            import black  # noqa: PLC0415
+        except ImportError as error:
+            sys.stderr.write(f"black api unavailable: {error}\n")
+            return 2
 
         check_only = "--check" in args
         status = 0
@@ -706,7 +716,11 @@ def worker(adaptor: str, cwd: str, args: List[str]) -> int:
                         handle.write(black.format_str(source, mode=black.FileMode()))
         return status
     if adaptor == "flake8":
-        import flake8.api.legacy as legacy  # noqa: PLC0415
+        try:
+            import flake8.api.legacy as legacy  # noqa: PLC0415
+        except ImportError as error:
+            sys.stderr.write(f"flake8 api unavailable: {error}\n")
+            return 2
 
         style_guide = legacy.get_style_guide()
         report = style_guide.check_files(paths or ["."])

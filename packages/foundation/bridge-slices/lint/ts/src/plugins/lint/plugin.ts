@@ -32,6 +32,16 @@ export const lintPlugin = {
   name: 'lint',
   methods: ['lint.run'],
   async handle(method: string, params: Record<string, unknown>) {
+    if (process.env.LANIA_LINT_DEBUG) {
+      try {
+        (await import('node:fs')).appendFileSync(
+          'E:/vsc-workspace/lania-zip/lania-cli-v2/.tmp-smoke/debug-lint.log',
+          `[lint-plugin] handle ${method} cwd=${String(params.cwd)}\n`,
+        );
+      } catch {
+        // 调试日志失败不影响主流程（受限环境可能禁止写文件）
+      }
+    }
     if (method !== 'lint.run') {
       return null;
     }

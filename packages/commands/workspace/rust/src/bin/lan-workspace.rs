@@ -8,9 +8,9 @@
 use std::env;
 
 use anyhow::Result;
-use lania_cli_kit::run_single_command;
+use lania_cli_kit::run_subcommand_entry;
 use lania_host::{maybe_run_rust_bridge, configure_command_bridges, plugin::EmptyPlugin, HostRuntime};
-use lania_plugins_command_workspace::{factory, spec, COMMAND_NAME};
+use lania_plugins_command_workspace::{factory, spec, subcommand_spec, COMMAND_NAME};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -39,9 +39,24 @@ async fn main() -> Result<()> {
         .bootstrap_project_extensions_from_cwd_async(cwd.display().to_string())
         .await?;
     // 统一登记各语言桥 + 装配 Hub provider + 注入 bridge_slot。
-    configure_command_bridges(&mut host, &cwd, false).await;
+    // include_rust_bridge=true（B11）：lan-workspace 自身兼作 `lan-rs-bridge`
+    // （maybe_run_rust_bridge），rust 项目的 lint/build 才能走 clippy/cargo bridge。
+    configure_command_bridges(&mut host, &cwd, true).await;
 
-    let code = run_single_command(&mut host, spec(), forwarded).await?;
+    // 独立二进制的根 = 转发参数的首个 token（§5.3 C.4：launcher 剥掉 "workspace" 后转发）。
+    // `lan workspace dev` 在本进程里是 `lan dev`：JSON 的 command.name 应为 "dev"，
+    // 与 e2e 契约一致；未匹配到子命令时回落完整 spec（name="workspace"）。
+    let (command_spec, command_argv): (lania_command::CommandSpec, Vec<String>) =
+        match forwarded
+            .first()
+            .and_then(|token| subcommand_spec(token))
+            .map(|sub| (sub, forwarded[1..].to_vec()))
+        {
+            Some((sub_spec, argv)) => (sub_spec, argv),
+            None => (spec(), forwarded.clone()),
+        };
+
+    let code = lania_cli_kit::run_subcommand_entry(&mut host, command_spec, command_argv).await?;
     host.shutdown_async().await?;
     debug_assert_eq!(spec().name, COMMAND_NAME);
     std::process::exit(code);

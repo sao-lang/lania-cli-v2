@@ -29,6 +29,15 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    // product 是命令组（dev/build/pack/publish/inspect/doctor）：裸调用属于
+    // usage 错误，打印帮助并以非零码退出（与其他命令组的 help+0 行为区分开，
+    // 供脚本与 e2e 明确判定「缺子命令」）。
+    if forwarded.is_empty() {
+        eprintln!("缺少子命令：lan product <dev|build|pack|publish|inspect|doctor>");
+        eprintln!("运行 lan product --help 查看完整帮助。");
+        std::process::exit(2);
+    }
+
     let mut host = HostRuntime::new();
     host.register_plugin(Box::new(EmptyPlugin))?;
     host.register_plugin(factory())?;

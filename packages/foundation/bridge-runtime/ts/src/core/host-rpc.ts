@@ -38,33 +38,55 @@ type HostTransport = {
   write: (envelope: HostOutgoingEnvelope) => Promise<void>;
 };
 
-let transport: HostTransport | null = null;
-const pending = new Map<
-  string,
-  {
-    resolve: (value: HostExchange) => void;
-    reject: (error: Error) => void;
-    timeout: NodeJS.Timeout | null;
-  }
->();
+// 关键：src 与 dist 可能同时被加载（开发态 tsx 跑 src 入口，切片经包导出加载 dist），
+// 模块级单例会分裂成两份 transport/pending 状态，导致一侧永远"transport not installed"。
+// 这里把状态挂到 globalThis 上，保证同一进程内所有副本共享同一份 Host RPC 状态。
+interface HostRpcGlobalState {
+  transport: HostTransport | null;
+  pending: Map<
+    string,
+    {
+      resolve: (value: HostExchange) => void;
+      reject: (error: Error) => void;
+      timeout: NodeJS.Timeout | null;
+    }
+  >;
+  sequence: number;
+}
 
-let sequence = 0;
+const HOST_RPC_STATE_KEY = '__lania_host_rpc_state__';
+
+function hostRpcState(): HostRpcGlobalState {
+  const holder = globalThis as unknown as Record<string, HostRpcGlobalState | undefined>;
+  if (!holder[HOST_RPC_STATE_KEY]) {
+    holder[HOST_RPC_STATE_KEY] = {
+      transport: null,
+      pending: new Map(),
+      sequence: 0,
+    };
+  }
+  return holder[HOST_RPC_STATE_KEY];
+}
+
 function nextId() {
-  sequence += 1;
-  return `host-req-${Date.now().toString(16)}-${sequence}`;
+  const state = hostRpcState();
+  state.sequence += 1;
+  return `host-req-${Date.now().toString(16)}-${state.sequence}`;
 }
 
 export function installHostRpcTransport(next: HostTransport) {
-  transport = next;
+  hostRpcState().transport = next;
 }
 
 // Test helper: clears transport and pending requests.
 export function resetHostRpcTransport() {
-  transport = null;
-  pending.clear();
+  const state = hostRpcState();
+  state.transport = null;
+  state.pending.clear();
 }
 
 export function handleHostResponse(payload: HostResponsePayload) {
+  const { pending } = hostRpcState();
   const entry = pending.get(payload.id);
   if (!entry) return;
   pending.delete(payload.id);
@@ -86,12 +108,14 @@ export async function hostCall<T = unknown>(
   params: Record<string, unknown> = {},
   options?: { timeoutMs?: number },
 ): Promise<HostExchange<T>> {
+  const { transport } = hostRpcState();
   if (!transport) {
     throw new Error('host rpc transport is not installed (stdio bridge not initialized)');
   }
   const id = nextId();
   const timeoutMs = typeof options?.timeoutMs === 'number' ? options.timeoutMs : 30_000;
 
+  const { pending } = hostRpcState();
   const promise = new Promise<HostExchange<T>>((resolve, reject) => {
     const timeout =
       timeoutMs > 0
