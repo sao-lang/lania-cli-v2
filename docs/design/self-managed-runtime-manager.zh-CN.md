@@ -949,7 +949,7 @@ runex ──▶ runex-core ──▶ 第三方 crate
 
 | #   | 功能                                                                   | 现状                                                                                                                                                     | 结论                                                                                |
 | --- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 1   | 安装缓存命中标志 `InstallOutcome.from_cache` / `--json` 的 `fromCache` | 命中缓存仍返回 `false`。根因：`runex-core/src/store.rs:195` 在「缓存已存在」分支里把 `from_cache` 置为 `false`，语义写反                                 | **未通过**（字段恒为 false，仅影响展示与遥测）                                      |
+| 1   | 安装缓存命中标志 `InstallOutcome.from_cache` / `--json` 的 `fromCache` | 已修（2026-11-19）：删除「缓存已存在」分支里误置的 `from_cache = false`，命中缓存分支保持初值 `true`，仅实际下载时置 `false`；并补了意图注释             | **已修**（回归测试待补：需 provider + HTTP mock，见 §17.3 #1）                      |
 | 2   | Scala 装完即用                                                         | 只把 `shims/` 加进 PATH 时，`scala -version` 只输出 `JAVA_HOME environment variable is not set` 并退出；装了自管 JDK 也不会自动导出 `JAVA_HOME`          | **未通过**（需手工 `export JAVA_HOME=<runex>/runtimes/java/<ver>` 才能运行）        |
 | 3   | Kotlin / Scala / Elixir 开箱即用                                       | 三者只安装编译器发行包，运行分别依赖外部 JDK / Erlang；容器内无对应运行时则无法执行                                                                      | **未通过「装完即用」标准**（属既定设计，但仍是用户可见缺口）                        |
 | 4   | Windows 宿主真实安装闭环                                               | 本轮全部验收在 Linux 容器完成；Windows 侧仅有编译、单测与上游 URL 探测，没有跑完整 install→执行→remove                                                   | **未覆盖**                                                                          |
@@ -964,6 +964,6 @@ runex ──▶ runex-core ──▶ 第三方 crate
 
 ### 17.3 修复顺序建议
 
-1. 删掉 `store.rs:195` 的 `from_cache = false`，并补一条「预置缓存后 install 的 `from_cache` 为 true」的回归测试。
+1. ~~删掉 `store.rs:195` 的 `from_cache = false`~~ **已完成（2026-11-19）**；待补一条「预置缓存后 install 的 `from_cache` 为 true」的回归测试（需要 provider + HTTP mock 夹具，本轮未搭）。
 2. `use java` / 启动 TUI 时导出 `JAVA_HOME`（或让 scala / kotlin 的 shim 自行推导），使 JVM 系真正开箱即用。
 3. GitHub 系 provider 在 `403 rate limit` 时给出显式提示并复用已缓存清单，减少无 token 场景的失败面。

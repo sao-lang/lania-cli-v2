@@ -56,7 +56,42 @@ cargo test --manifest-path Cargo.toml --workspace
 
 ---
 
-## 6. 多语言运行时功能的已知边界（非缺陷）
+## 6. 2026-11-20 复核：本轮修复与结论
+
+> 用 Docker（`rust:latest`，含 gcc 14）解决本机缺 gcc 的编译阻塞后，对"测试未通过"做了系统复核。
+> 结论：一部分是**真实代码/测试 bug（已修）**，一部分是**环境性失败（非代码回归）**，另有多条历史记录**已不复现**。
+
+### 6.1 本轮已修复的真实 bug
+
+1. **`lania-command-config` 测试自死锁（阻塞 6 个测试）** — 已修
+   - 根因：`missing_or_invalid_preferences_yield_empty_overrides` 在**同一测试函数内两次调用 `HomeGuard::set`**，`std::sync::Mutex` 不可重入 → 自死锁；该测试持锁不放，连锁阻塞所有用 `HomeGuard` 的测试。
+   - 不是 Windows 专属：Docker Linux 同样复现（挂起 2 个）。
+   - 修复：拆成 `invalid_preferences_yield_empty_overrides` 与 `missing_preferences_yield_empty_overrides` 两个独立测试，各自只 set 一次。
+   - 验证：Docker `cargo test -p lania-command-config --lib` → **12 passed / 0 failed / 0 挂起**。
+
+2. **`lania-node-bridge` 的 `falls_back_to_tsx_in_development_mode` 测试过时** — 已修
+   - 表层根因：实现要求 dev_source 模式下 `package_dir/../../templates/src/index.ts` 存在（纯源码 checkout 布局），但测试只创建了 `src/entry/stdio.ts`，导致落到 "bridge assets not found"。
+   - **深层根因（复审发现并修）**：实现里的 `../templates` 路径写错了一层——开发态 `package_dir` 是 `packages/foundation/bridge-runtime/ts`，`../templates` 指向不存在的 `bridge-runtime/templates`，真实 templates 在 `packages/foundation/templates`（应为 `../../templates`）。这导致 dev_source 模式在真实 checkout 下**永远不可达**；最初的测试修复只是"按错误实现造夹具"的假绿。
+   - 修复：`process.rs` 路径改为 `../../templates/src/index.ts`，错误信息补齐双条件；测试夹具同步为 `parent/bridge-runtime/ts` + `parent/templates` 复刻真实布局，并清理 parent。
+   - 验证：本机 `cargo test -p lania-node-bridge --lib` → **20 passed / 0 failed**。
+
+### 6.2 环境性失败（非代码回归，无需改代码）
+
+- **Docker `rust:latest` 缺 Node/Python/Go/Dart**：`lania-bridge-host/stdio_endpoints` 的 node/python endpoint 用例报 `No such file or directory`；`lania-node-bridge` 的几个 transport 用例、`phase3_e2e` 的 build/lint 用例同理。本机具备全部工具链时：`stdio_endpoints` **4 passed / 1 ignored**（ignored 需本地 Go/Dart SDK）、`lania-node-bridge` **20/20**。
+- **全量 `cargo test --workspace` 无法在本机跑完**：`runex-core` 依赖的 C build script 需 gcc（本机缺，Docker 有）；而 Docker 缺 JS/其他运行时。需一套同时具备 Rust+gcc+Node+Python+Go+Dart 的 CI 环境才能全绿。
+
+### 6.3 历史记录中已不复现（本机 2026-11-20）
+
+- **§1 `product.publish` 4 例**：本机 `pnpm --filter @lania-cli-v2/bridge-slice-product test` → **14 passed / 0 failed / 1 skipped**，不再复现。原失败疑为临时 `npm pack` / 文件锁问题。
+- **§2 `create_workflow_initializes_git_repository`**：本机 `cargo test -p lania-workflows --lib create_workflow_initializes_git_repository` → **ok**（耗时约 16s，真实访问 npm registry）。属网络依赖测试，可访问 registry 时正常；原失败疑为当时 registry stub / 网络问题。
+- 这两条保留原文作为历史，状态以本节为准。
+
+### 6.4 仍待处理
+
+- ~~`runex` 的 `from_cache` 回归测试待补~~ **已补（2026-11-20）**：install() 里把 `from_cache` 从命令式累加改为由 `cache_hits` + 纯函数 `all_from_cache()` 汇总；新增 3 个纯函数测试 + 1 个端到端测试（本地 HTTP server + `RUNEX_NODE_MIRROR`，真实跑 install 两次验证下载→false / 命中缓存→true）。已 Verify RED（注入旧 bug 后测试失败）。Docker `cargo test -p runex-core --lib` 87/87 全绿。详见 overview review6/review7。
+- web dev 长任务边角（rollup watch 首轮快照语义、webpack error 文案 string 保真度）：Nit 级，不影响功能。
+
+## 7. 多语言运行时功能的已知边界（非缺陷）
 
 以下为设计内行为，记录以免误判：
 

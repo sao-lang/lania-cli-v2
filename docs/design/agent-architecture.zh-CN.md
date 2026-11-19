@@ -52,13 +52,15 @@
 
 ## 3. 模块清单
 
+> 历史方案表（早期设想）：下表是分层设计的**最初提案**，其中 `lania-agent-tools` / `lania-agent-protocol` / `lania-natives` 三个 crate **最终未创建**；实际落地结构见 §3.1（三层：`lania-agent-core` → `lania-agent` → `lania-plugins-command-pi`）。
+
 | 模块                    | 位置     | 职责                                                        | 对外面                 |
 | ----------------------- | -------- | ----------------------------------------------------------- | ---------------------- |
 | `lania-agent`           | 新 crate | 命令入口、TUI、会话、审批、压缩、子 agent 调度              | `agent` 命令           |
-| `lania-agent-tools`     | 新 crate | 13 个内置工具的 Rust 实现（含 AST/搜索/diff）               | `ToolRegistry::invoke` |
-| `lania-agent-protocol`  | 新 crate | agent 事件、工具请求/响应的序列化模型（Rust 侧）            | 供 host 与 cli 共用    |
-| `lania-natives`（可选） | 新 crate | **只在实测需要时**出现的 N-API addon                        | 不进入 v1              |
-| `@lania-cli/agent`      | 新 TS 包 | pi 循环、provider、工具 schema 适配、MCP 之外的一切“纯编排” | `runAgent`             |
+| `lania-agent-tools`     | 新 crate | 13 个内置工具的 Rust 实现（含 AST/搜索/diff）— 未创建       | `ToolRegistry::invoke` |
+| `lania-agent-protocol`  | 新 crate | agent 事件、工具请求/响应的序列化模型（Rust 侧）— 未创建    | 供 host 与 cli 共用    |
+| `lania-natives`（可选） | 新 crate | **只在实测需要时**出现的 N-API addon — 未创建               | 不进入 v1              |
+| `@lania-cli-v2/agent`   | 新 TS 包 | pi 循环、provider、工具 schema 适配、MCP 之外的一切“纯编排” | `runAgent`             |
 
 复用既有：`lania-host`（插件/命令/钩子/输出）、`lania-node-bridge`（协议与 stream）、`lania-task`（并发/取消/重试）、`lania-fs`、`lania-git`、`lania-exec`、`lania-prompt`、`lania-hooks`、`lania-logger`。
 
@@ -141,7 +143,7 @@ lania-cli ──▶ lania-plugins-command-pi ──▶ lania-agent ──▶ lan
 **待改进（§11）**：这些名字/字段目前仍手写于 Rust core / 插件层 / 宿主 / TS 多处，
 下一步用「协议单一事实源 + 代码生成」消除重复定义。
 
-当前 TS 侧的耦合问题：`packages/foundation/bridge-runtime/ts/src/core/plugin-registry.ts` 在**模块顶层静态 import** `@lania-cli-v2/agent`，且 `node-bridge` 把它写在 `dependencies`。这让「装 CLI 必须拉 pi 依赖」。本方案不强制改（agent 是 CLI 的一等功能），但**在 `lania-agent-core` 落地后应改为动态 import**，使 bridge 可独立运行。
+~~当前 TS 侧的耦合问题：`plugin-registry.ts` 顶层静态 import agent~~ **已解决（2026-11）**：agent 已改为独立 bridge slice 动态加载——`packages/foundation/bridge-runtime/ts/src/core/slices.ts` 用 `@lania-cli-v2/bridge-slice-agent` 按需加载，`plugin-registry.ts` 不再顶层静态 import agent。原先「装 CLI 必须拉 pi 依赖」的问题不复存在。保留本段作为历史背景。
 
 ### 3.3 命令形态与实现状态
 
@@ -464,13 +466,13 @@ M4 现状：skills 索引、memory 注入、自动/手动压缩（抽取式摘�
 
 拆包本身不改行为，属**纯重构**，可在功能开发过程中穿插进行。
 
-| 阶段 | 内容                                                                                               | 验收                                            | 状态 |
-| ---- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- |
-| A0   | 新建 `lania-agent-core`，把 `spec.rs` / `event.rs` / `client.rs` 写出来（先只放类型，不接 bridge） | `cargo check` 通过；无 host 依赖                | ✅   |
-| A1   | `bridge.rs` 承接现有 `create_session` / `run_prompt` 的请求构造逻辑                                | `lania-agent` 改为调用 core，`pi` 命令 e2e 全绿 | ✅   |
-| A2   | 把 `render_event` / REPL / `compact_json` 收到 `render.rs` / `repl.rs`                             | 渲染层与传输层无交叉引用                        | ✅   |
-| A3   | 加 `AgentSessionClient` 的 mock 实现 + 单测                                                        | 无 node 进程也能跑通 handler 主流程             | ✅   |
-| A4   | （配套）TS 侧 `plugin-registry.ts` 改动态 import，agent 变可选                                     | 移除 agent 依赖后 `lan build` / `lint` 仍可用   | ⏳   |
+| 阶段 | 内容                                                                                               | 验收                                            | 状态                                |
+| ---- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------- |
+| A0   | 新建 `lania-agent-core`，把 `spec.rs` / `event.rs` / `client.rs` 写出来（先只放类型，不接 bridge） | `cargo check` 通过；无 host 依赖                | ✅                                  |
+| A1   | `bridge.rs` 承接现有 `create_session` / `run_prompt` 的请求构造逻辑                                | `lania-agent` 改为调用 core，`pi` 命令 e2e 全绿 | ✅                                  |
+| A2   | 把 `render_event` / REPL / `compact_json` 收到 `render.rs` / `repl.rs`                             | 渲染层与传输层无交叉引用                        | ✅                                  |
+| A3   | 加 `AgentSessionClient` 的 mock 实现 + 单测                                                        | 无 node 进程也能跑通 handler 主流程             | ✅                                  |
+| A4   | （配套）TS 侧 agent 改为 bridge slice 动态加载，agent 变可选                                       | 移除 agent 依赖后 `lan build` / `lint` 仍可用   | ✅（见 §3.2，`slices.ts` 动态加载） |
 
 **A4 的风险**：`readyEvent().plugins` 与 `HandshakeResponse.methods` 会随 agent 是否安装而变化。
 Rust 侧目前不校验 methods（只记录），因此安全；但**必须在 A4 同 PR 补一条 e2e**：临时将

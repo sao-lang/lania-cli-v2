@@ -15,8 +15,8 @@ import {
   normalizeError,
 } from '@lania-cli-v2/bridge-runtime/core/runtime.js';
 import { createDiagEmitter, type DiagLevel } from '@lania-cli-v2/bridge-runtime/core/diag.js';
+import { failureExecution } from '../runtime-adapters/spawn.js';
 import {
-  buildResult,
   compilerAssetEvent,
   compilerDoneEvent,
   compilerIssueEvent,
@@ -24,7 +24,6 @@ import {
   compilerStartEvent,
   compilerStatusEvent,
   createCompilerResult,
-  fallbackDevResult,
   logEvent,
   resolveCompilerRuntime,
   type CompilerAdapter,
@@ -181,7 +180,8 @@ export const viteCompilerAdapter: CompilerAdapter = {
         },
       };
     } catch (error) {
-      return fallbackDevResult('vite', params.host, params.port, normalizeError(error).message);
+      // fail-fast：vite dev 工具失败不得伪造可用的 dev server（README 契约）。
+      return failureExecution('vite', 'dev', `vite dev failed: ${normalizeError(error).message}`);
     }
   },
   async handleBuild(params, context) {
@@ -270,13 +270,11 @@ export const viteCompilerAdapter: CompilerAdapter = {
         events,
       };
     } catch (error) {
-      return buildResult(
+      // fail-fast：vite build 失败不得伪造 dist/index.js 与成功状态（README 契约）。
+      return failureExecution(
         'vite',
-        params.watch,
-        params.mode,
-        params.outputDir,
-        'fallback',
-        normalizeError(error).message,
+        'build',
+        `vite build failed: ${normalizeError(error).message}`,
       );
     }
   },

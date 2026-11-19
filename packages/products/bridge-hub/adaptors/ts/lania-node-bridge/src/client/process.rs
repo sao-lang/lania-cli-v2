@@ -218,7 +218,10 @@ pub(super) fn pump_process_events(
                     // 只有长任务（dev/watch）的挂起项会在 shutdown 时结束；
                     // compiler.stop 自身也会返回 shutdown 事件，不能因此丢掉它的 response。
                     let mut store = pending.lock().expect("bridge pending store poisoned");
-                    if store.get(&request_id).is_some_and(|request| request.keep_alive) {
+                    if store
+                        .get(&request_id)
+                        .is_some_and(|request| request.keep_alive)
+                    {
                         store.remove(&request_id);
                     }
                 }
@@ -456,7 +459,11 @@ pub(super) fn bridge_launch_spec_for_dir(package_dir: &Path) -> Result<BridgeLau
         });
     }
 
-    let workspace_templates_entry = package_dir.join("../templates/src/index.ts");
+    // 开发态 package_dir 是 packages/foundation/bridge-runtime/ts（见 bridge_package_dir_unlocked），
+    // templates 包在同级 foundation 下（packages/foundation/templates），需上溯两级才是 ../../templates。
+    // 旧代码用 ../templates（指向 bridge-runtime/templates，不存在），导致纯源码 checkout 下
+    // dev_source 分支永远不可达。
+    let workspace_templates_entry = package_dir.join("../../templates/src/index.ts");
     if source_entry.exists() && workspace_templates_entry.exists() {
         // 无 dist 产物时直接跑 ts 源码（纯源码 checkout 场景）。
         return Ok(BridgeLaunchSpec {
@@ -471,9 +478,8 @@ pub(super) fn bridge_launch_spec_for_dir(package_dir: &Path) -> Result<BridgeLau
         });
     }
 
-
     Err(anyhow!(
-        "node bridge assets not found in {} (expected dist/entry/stdio.js for release mode or src/entry/stdio.ts for development mode). Install the built bridge assets or the `tsx` runtime dependency with the bridge package, or set LANIA_NODE_BRIDGE_DIR to an installed bridge package directory if needed.",
+        "node bridge assets not found in {} (expected dist/entry/stdio.js for release mode, or both src/entry/stdio.ts and ../../templates/src/index.ts for a development source checkout). Install the built bridge assets or the `tsx` runtime dependency with the bridge package, or set LANIA_NODE_BRIDGE_DIR to an installed bridge package directory if needed.",
         package_dir.display()
     ))
 }

@@ -9,6 +9,7 @@ import {
   resolveRuntimeAdapter,
   resolveSpawnCommand,
 } from './runtime-adapters/index.js';
+import { failureExecution } from './runtime-adapters/spawn.js';
 import { compilerPlugin } from '@lania-cli-v2/bridge-slice-compiler/plugins/compiler.js';
 import type {
   CompilerAdapterContext,
@@ -78,9 +79,11 @@ test('resolveSpawnCommand uses defaults, config overrides, and output placeholde
     context('go', {}),
     params('/repo', { outputDir: 'out' }),
   );
+  // toolchain slice 的 go buildCommand 默认带 -buildvcs=false（临时目录/脏工作区里
+  // VCS stamping 会让 go build 直接失败），resolveSpawnCommand 从该知识单点读取。
   assert.deepEqual(defaultGo, {
     command: 'go',
-    args: ['build', '-o', 'out', '.'],
+    args: ['build', '-buildvcs=false', '-o', 'out', '.'],
     env: { OUTPUT_DIR: 'out' },
   });
 
@@ -283,6 +286,20 @@ test('rust and dart adapters expose default commands', () => {
     [dartBuild?.command, ...(dartBuild?.args ?? [])],
     ['dart', 'compile', 'exe', 'bin/main.dart'],
   );
+});
+
+// web runtime 在 bridge worker 不可用时必须 fail-fast：返回 success=false 与 error 事件，
+// 不得伪造 server-ready / dev_url 或构建资产（README「工具链缺失不伪造成功」契约）。
+test('failureExecution fails fast for web without faking a server or build output', () => {
+  for (const action of ['dev', 'build'] as const) {
+    const execution = failureExecution('web', action, 'bridge worker unavailable');
+    assert.equal(execution.result.success, false, `${action} 必须标记失败`);
+    assert.match(String(execution.result.error), /bridge worker unavailable/);
+    const methods = (execution.events ?? []).map((event) => event.method);
+    assert.ok(!methods.includes('event.compiler_server_ready'), `${action} 不得伪造 server-ready`);
+    assert.ok(!methods.includes('event.dev_url'), `${action} 不得伪造 dev_url`);
+    assert.ok(!methods.includes('event.build_asset'), `${action} 不得伪造构建资产`);
+  }
 });
 
 test('runtime adapter registry exposes all spawn runtimes and excludes web', () => {

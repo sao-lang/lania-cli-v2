@@ -12,8 +12,8 @@ import {
   loadToolConfig,
   normalizeError,
 } from '@lania-cli-v2/bridge-runtime/core/runtime.js';
+import { failureExecution } from '../runtime-adapters/spawn.js';
 import {
-  buildResult,
   compilerAssetEvent,
   compilerDoneEvent,
   compilerIssueEvent,
@@ -70,12 +70,16 @@ export const webpackCompilerAdapter: CompilerAdapter = {
       if (process.cwd() !== originalCwd) {
         process.chdir(originalCwd);
       }
+      // fail-fast：缺少 webpack-dev-server 必须显式标记 success=false 与 error，
+      // 不能用无 success 字段的 result 让 Rust 侧 unwrap_or(true) 误判为成功。
       return {
         result: createCompilerResult('webpack', 'dev', 'fallback', {
           mode: params.mode ?? 'development',
           host: params.host,
           port: params.port,
           longRunning: false,
+          success: false,
+          error: warning,
         }),
         events: [
           compilerStartEvent('webpack', 'dev', 'fallback', false, params.mode ?? 'development', {
@@ -186,22 +190,12 @@ export const webpackCompilerAdapter: CompilerAdapter = {
       if (process.cwd() !== originalCwd) {
         process.chdir(originalCwd);
       }
-      return {
-        ...buildResult(
-          'webpack',
-          false,
-          params.mode,
-          params.outputDir,
-          'fallback',
-          normalizeError(error).message,
-        ),
-        result: createCompilerResult('webpack', 'dev', 'fallback', {
-          mode: params.mode ?? 'development',
-          host: params.host,
-          port: params.port,
-          longRunning: true,
-        }),
-      };
+      // fail-fast：webpack dev 工具失败不得伪造可用的 dev server（README 契约）。
+      return failureExecution(
+        'webpack',
+        'dev',
+        `webpack dev failed: ${normalizeError(error).message}`,
+      );
     }
   },
   async handleBuild(params, context) {
@@ -332,6 +326,9 @@ export const webpackCompilerAdapter: CompilerAdapter = {
         process.chdir(originalCwd);
       }
 
+      // fail-fast：webpack 的编译错误走 stats.errors 返回（不抛异常），必须把
+      // success=false 写进 result，否则 Rust 侧 unwrap_or(true) 会把真实编译失败判为成功。
+      const firstError = errors.length > 0 ? (errors[0] as { message?: unknown })?.message : null;
       return {
         result: createCompilerResult('webpack', 'build', 'runtime', {
           watch: params.watch,
@@ -339,6 +336,10 @@ export const webpackCompilerAdapter: CompilerAdapter = {
           outputDir,
           longRunning: params.watch,
           configPath: toolConfig.configPath,
+          success: errors.length === 0,
+          ...(errors.length > 0
+            ? { error: typeof firstError === 'string' ? firstError : 'webpack build failed' }
+            : {}),
         }),
         events,
         activeCompiler,
@@ -347,13 +348,11 @@ export const webpackCompilerAdapter: CompilerAdapter = {
       if (process.cwd() !== originalCwd) {
         process.chdir(originalCwd);
       }
-      return buildResult(
+      // fail-fast：webpack build 失败不得伪造 dist 产物与成功状态（README 契约）。
+      return failureExecution(
         'webpack',
-        params.watch,
-        params.mode,
-        params.outputDir,
-        'fallback',
-        normalizeError(error).message,
+        'build',
+        `webpack build failed: ${normalizeError(error).message}`,
       );
     }
   },

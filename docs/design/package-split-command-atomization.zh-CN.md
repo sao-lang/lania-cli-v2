@@ -1,9 +1,8 @@
 # 按包拆分与命令原子化设计方案
 
-> 状态：**方案定稿 / 代码未实施**（2026-11-06）
+> 状态：**已实施**（拆分主体完成于 2026-11；当前分支 `feat/package-split-phase1`）
 >
-> 本文只固化设计决策与施工依据，**仓库中当前不含任何 `packages/` 目录、命令子包、core 调度器或 manifest 驱动机制**。
-> 现状代码基线：`rust/crates/*` + `ts/packages/*` + `npm/*` 三套目录、单一 `lania-cli` 二进制。
+> ⚠️ **重要：本文 §0–§8 的"现状"与行号基线写于拆分前（2026-11-06），是历史快照。** 仓库现已按 `packages/` 单一容器完成拆分：**7 个命令子包**（`workspace` / `product` / `release` / `git` / `tools` / `env` / `pi`）+ 主包内建 `config`，`core` 调度器按 `known-commands.json` 分发；旧的 `rust/crates/*` + `ts/packages/*` + `npm/*` 三套目录**已不存在**（根 `rust/` 下仅剩 `target`）。读本文时：设计决策/拆分原则仍有效，但所有"当前路径/命令数/行号"需以实际 `packages/` 布局为准。已实施后的命令链路见 `../guides/command-runtime-roadmap.zh-CN.md`。
 >
 > 前置文档：
 >
@@ -252,9 +251,11 @@ packages/
     └── rs-bridge/npm/rs-bridge/         # @lania-cli-v2/rs-bridge：独立 lan-rs-bridge bin
 ```
 
-### 3.3 11 个命令包对照表（template 并入 create；config 留总包，见决策 #11）
+### 3.3 命令包对照表（设计起点 11 个；现网 7 个，见下方说明）
 
-> 「初始切片」是设计起点，施工时须按各命令实际 bridge 方法调用逐条核对（`rust/crates/lania-plugins-command-*/src/**`）。
+> 「初始切片」是设计起点，施工时须按各命令实际 bridge 方法调用逐条核对（`rust/crates/lania-plugins-command-*/src/**`，拆分后为 `packages/commands/*/rust/**`）。
+>
+> ⚠️ **现网实施结果（2026-11）**：下表是拆分设计时以 11 个扁平命令为起点的方案。实际落地时命令进一步合并——`dev/build/lint/create/add` 合并为 `workspace` 子命令、`template` 挂 `create` 之下、`product` 独立成包、`generate` 归档。现网为 **7 个命令子包 + 主包内建 config**：`workspace` / `product` / `release` / `git` / `tools` / `env` / `pi`。以 `packages/distribution/core/npm/core/lib/known-commands.json` 为当前事实源。
 
 | 包目录              | 命令名 `spec().name` | Cargo crate（lib / bin）        | npm 主包       | 平台包前缀      | Rust 仓内依赖                     | 初始 TS 切片                                       |
 | ------------------- | -------------------- | ------------------------------- | -------------- | --------------- | --------------------------------- | -------------------------------------------------- |
@@ -1928,9 +1929,12 @@ ShimHost::command_binary("lan-env", std::env::current_exe().ok())
 
 ---
 
-## 附录：引用的现存文件清单
+## 附录：引用的文件清单（拆分前历史快照）
 
-> 以下路径均为**当前仓库现状**，供施工时核对；本文不修改其中任何文件。路径相对仓库根目录。
+> ⚠️ **本附录是拆分前（2026-11-06）的历史清单，下列 `rust/crates/*`、`ts/*`、`npm/*` 路径现已全部不存在，不可作为当前现状使用。**
+> 拆分后的实际落点：根 `Cargo.toml`（workspace）+ `pnpm-workspace.yaml` + `packages/{commands,foundation,products,distribution,runtime}/`；
+> 命令子包为 `packages/commands/{workspace,product,release,git,tools,env,pi}/rust`，core 调度器在 `packages/distribution/core/npm/core/`，主入口在 `packages/distribution/cli/rust/lania-cli/src/main.rs`。
+> 保留本清单仅供追溯拆分前的基线。路径相对仓库根目录。
 
 **设计 / 架构文档**
 

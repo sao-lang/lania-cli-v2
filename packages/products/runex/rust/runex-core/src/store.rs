@@ -186,13 +186,17 @@ impl RuntimeStore {
         );
 
         let mut warnings = Vec::new();
-        let mut from_cache = true;
+        // 每个产物是否「全程来自缓存、未触发任何网络下载」。由 all_from_cache 统一汇总，
+        // 不再在循环里命令式累加 from_cache —— 历史上正是在「命中缓存」分支误置 false
+        // 导致该字段恒为假。抽成数据 + 纯函数后，这类写反在结构上无处藏身。
+        let mut cache_hits = Vec::with_capacity(artifacts.len());
         let mut downloaded = Vec::new();
         for artifact in &artifacts {
             self.home.ensure_dirs()?;
             let cached = crate::http::cache_path_for(&self.home.downloads_dir(), &artifact.url);
+            let mut artifact_from_cache = true;
             if cached.is_file() {
-                from_cache = false;
+                // 命中缓存：本产物暂记 true，仅上报一条 cached 下载事件。
                 progress(InstallEvent::Downloading {
                     url: artifact.url.clone(),
                     cached: true,
@@ -205,7 +209,8 @@ impl RuntimeStore {
             let mut verified = false;
             for attempt in 0..FETCH_ATTEMPTS {
                 if !cached.is_file() {
-                    from_cache = false;
+                    // 走到这里意味着确有一次实际下载（首次未命中，或缓存校验失败被删后重下）。
+                    artifact_from_cache = false;
                     progress(InstallEvent::Downloading {
                         url: artifact.url.clone(),
                         cached: false,
@@ -245,8 +250,10 @@ impl RuntimeStore {
                     RuntimeError::other(format!("failed to fetch {}", artifact.file_name))
                 }));
             }
+            cache_hits.push(artifact_from_cache);
             downloaded.push((artifact.clone(), cached));
         }
+        let from_cache = all_from_cache(&cache_hits);
 
         let version_dir = self.home.version_dir(language_id, &release.version);
         if version_dir.is_dir() {
@@ -947,6 +954,18 @@ fn now_rfc3339() -> String {
     )
 }
 
+/// 汇总一次安装是否「全部产物都命中缓存、未发生任何网络下载」。
+///
+/// `cache_hits[i]` 表示第 i 个产物是否全程来自缓存（既未首次下载，也未因校验失败重下）。
+/// 语义要点：**命中缓存的分支绝不能产出 false**——历史上正是把这件事写反而让
+/// `InstallOutcome.from_cache` 恒为假。把它收敛成这个纯函数后，install 循环只负责
+/// 如实地记录每个产物的缓存命中情况，最终结论由这里唯一决定，便于单测直接锁死。
+///
+/// 空列表返回 true：没有产物需要下载，等价于「全部命中」的空真值。
+fn all_from_cache(cache_hits: &[bool]) -> bool {
+    cache_hits.iter().all(|&hit| hit)
+}
+
 /// Howard Hinnant 的 `days → y/m/d` 算法（无时区、无闰秒）。
 fn civil_from_days(days: i64) -> (i64, u32, u32) {
     let z = days + 719_468;
@@ -964,6 +983,194 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── 端到端 from_cache 回归 ──────────────────────────────────────────
+    // 上面的纯函数测试锁住「汇总语义」，这里用真实 install() 锁住「循环里的记录逻辑」：
+    // 若有人把 artifact_from_cache=false 加回「命中缓存」分支，纯函数测试仍全绿，
+    // 但本测试会失败。RUNEX_NODE_MIRROR 是进程级变量，用互斥锁串行化并设置/恢复。
+
+    static NODE_MIRROR_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// 构造一个合法的 node 发行包 tar.gz：单层根目录 `node-v99.0.0-<os>-<arch>/bin/node`。
+    fn mock_node_archive(artifact_name: &str) -> Vec<u8> {
+        let root = artifact_name
+            .trim_end_matches(".tar.gz")
+            .trim_end_matches(".zip");
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        {
+            let mut builder = tar::Builder::new(&mut encoder);
+            let mut header = tar::Header::new_gnu();
+            let content = b"#!/bin/sh\necho mock-node\n";
+            header.set_size(content.len() as u64);
+            header.set_mode(0o755);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, format!("{root}/bin/node"), &content[..])
+                .expect("append node binary to mock archive");
+            builder.finish().expect("finish mock archive");
+        }
+        encoder.finish().expect("finish gzip")
+    }
+
+    /// 极简本地 HTTP 服务：按请求路径返回 node provider 需要的 index.json / SHASUMS256.txt / 产物。
+    /// 返回 (base_url, shutdown_sender)。
+    fn spawn_mock_node_mirror(
+        artifact_name: &str,
+        artifact_sha256: &str,
+        artifact_bytes: Vec<u8>,
+    ) -> (String, std::sync::mpsc::Sender<()>) {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock mirror");
+        let addr = listener.local_addr().expect("mock mirror addr");
+        let artifact_name = artifact_name.to_string();
+        let artifact_sha256 = artifact_sha256.to_string();
+        let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel::<()>();
+
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                if shutdown_rx.try_recv().is_ok() {
+                    break;
+                }
+                let Ok(mut stream) = stream else { continue };
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]);
+                let path = request.lines().next().unwrap_or("");
+                let body: Vec<u8> = if path.contains("index.json") {
+                    // 单一版本，避免 pick_best 的多版本歧义。
+                    br#"[{"version":"v99.0.0","lts":false,"date":"2026-01-01"}]"#.to_vec()
+                } else if path.contains("SHASUMS256.txt") {
+                    format!("{artifact_sha256}  {artifact_name}\n").into_bytes()
+                } else if path.contains(&artifact_name) {
+                    // 产物本体：合法 tar.gz，hash 与 SHASUMS256.txt 一致。
+                    artifact_bytes.clone()
+                } else {
+                    Vec::new()
+                };
+                let mut response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len(),
+                )
+                .into_bytes();
+                response.extend_from_slice(&body);
+                let _ = stream.write_all(&response);
+            }
+        });
+
+        (format!("http://{addr}"), shutdown_tx)
+    }
+
+    /// RAII 守卫：无论测试成功还是 panic（断言失败），都恢复进程级环境变量、
+    /// 通知 mock server 关闭并清理临时目录。避免注入 bug 做 Verify RED 时残留脏状态
+    /// 影响同进程其它测试（同 HOME/Mutex 死锁是一类教训）。
+    struct MirrorTestGuard {
+        previous_mirror: Option<std::ffi::OsString>,
+        shutdown: std::sync::mpsc::Sender<()>,
+        root: std::path::PathBuf,
+    }
+    impl Drop for MirrorTestGuard {
+        fn drop(&mut self) {
+            match &self.previous_mirror {
+                Some(value) => std::env::set_var("RUNEX_NODE_MIRROR", value),
+                None => std::env::remove_var("RUNEX_NODE_MIRROR"),
+            }
+            let _ = self.shutdown.send(());
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    /// 真实调用 install() 两次：首次下载 → from_cache=false；清掉版本目录后重装命中缓存 → from_cache=true。
+    /// 这锁住了 install 循环「命中缓存不翻转」的行为，纯函数测试锁不住这一层。
+    #[test]
+    fn install_reports_from_cache_false_on_download_and_true_on_cache_hit() {
+        let _guard = NODE_MIRROR_LOCK.lock().expect("node mirror lock");
+        // 固定 Linux/X64：归档格式恒为 tar.gz，使测试跨平台一致（install 逻辑本身与平台无关）。
+        let platform = Platform {
+            os: crate::Os::Linux,
+            arch: crate::Arch::X64,
+            libc: crate::Libc::Gnu,
+        };
+        let artifact_name = "node-v99.0.0-linux-x64.tar.gz";
+        let artifact_bytes = mock_node_archive(artifact_name);
+        let artifact_sha256 = checksum::hex_digest_sha256(&artifact_bytes);
+        let (base_url, shutdown) =
+            spawn_mock_node_mirror(artifact_name, &artifact_sha256, artifact_bytes);
+
+        let previous_mirror = std::env::var_os("RUNEX_NODE_MIRROR");
+        std::env::set_var("RUNEX_NODE_MIRROR", &base_url);
+
+        let root =
+            std::env::temp_dir().join(format!("runex-from-cache-e2e-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        // 守卫在测试结束/panic 时自动恢复环境变量、停 server、删目录。
+        let _cleanup = MirrorTestGuard {
+            previous_mirror,
+            shutdown,
+            root: root.clone(),
+        };
+
+        let mut noop_progress = |_event: InstallEvent| {};
+        let outcome1 = {
+            let store = RuntimeStore::new(RuntimeHome::at(root.join("runex")), platform);
+            store
+                .install("node", "99.0.0", &mut noop_progress)
+                .expect("first install")
+        };
+        assert!(
+            !outcome1.from_cache,
+            "首次安装走了下载，from_cache 必须为 false"
+        );
+
+        // 删掉已安装的版本目录，但保留 downloads/ 缓存 → 第二次 install 命中缓存。
+        let version_dir = outcome1.path.clone();
+        std::fs::remove_dir_all(&version_dir).unwrap();
+        let outcome2 = {
+            let store = RuntimeStore::new(RuntimeHome::at(root.join("runex")), platform);
+            store
+                .install("node", "99.0.0", &mut noop_progress)
+                .expect("second install")
+        };
+        assert!(
+            outcome2.from_cache,
+            "缓存命中时 from_cache 必须为 true（旧 bug 在此返回 false）"
+        );
+        // 清理由 _cleanup 守卫的 Drop 完成。
+    }
+
+    // ── from_cache 纯函数回归：曾因「命中缓存」分支误置 false 导致该字段恒为假 ──
+
+    /// 所有产物都命中缓存 → from_cache 必须为 true（旧 bug 恰恰在此返回 false）。
+    #[test]
+    fn all_from_cache_is_true_when_every_artifact_hits_cache() {
+        assert!(all_from_cache(&[true]), "单产物命中缓存必须判为来自缓存");
+        assert!(
+            all_from_cache(&[true, true, true]),
+            "多产物全部命中缓存必须判为来自缓存"
+        );
+    }
+
+    /// 任一产物触发了下载 → from_cache 必须为 false。
+    #[test]
+    fn all_from_cache_is_false_when_any_artifact_was_downloaded() {
+        assert!(!all_from_cache(&[false]), "单产物被下载应判为非缓存");
+        assert!(
+            !all_from_cache(&[true, false, true]),
+            "混合产物中只要有一个被下载，整体就不是来自缓存"
+        );
+        assert!(
+            !all_from_cache(&[false, false]),
+            "全部被下载显然不是来自缓存"
+        );
+    }
+
+    /// 空产物列表：没有下载发生，按空真值记为来自缓存。
+    #[test]
+    fn all_from_cache_of_empty_is_true() {
+        assert!(all_from_cache(&[]));
+    }
 
     #[test]
     fn civil_from_days_matches_known_dates() {

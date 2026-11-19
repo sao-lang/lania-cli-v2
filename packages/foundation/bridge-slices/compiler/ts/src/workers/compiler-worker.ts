@@ -14,12 +14,7 @@ import type { BridgeEvent } from '@lania-cli-v2/bridge-runtime/protocol/events.j
 import { resolveCompilerAdapter } from '../plugins/compiler-adapters/index.js';
 import { resolveRuntimeAdapter } from '../plugins/runtime-adapters/index.js';
 import { failureExecution } from '../plugins/runtime-adapters/spawn.js';
-import {
-  buildResult,
-  fallbackDevResult,
-  type ActiveCompiler,
-  type BuildTool,
-} from '../plugins/compiler-shared.js';
+import { type ActiveCompiler } from '../plugins/compiler-shared.js';
 import {
   markWorkerExecution,
   type CompilerWorkerMessage,
@@ -111,29 +106,20 @@ async function handleStop() {
   process.exit(0);
 }
 
+/**
+ * worker 在无法确定 adapter 时构造失败结果。
+ *
+ * 历史上 web runtime 会走「伪造的成功结果」（fallbackDevResult / buildResult 带
+ * server-ready 事件和 dist/index.js 资产），与 README「工具链缺失时 fail-fast、不伪造」
+ * 的契约冲突。现在所有 runtime 统一 fail-fast：返回 success=false 并附带 error 事件，
+ * 不再伪造可用的 dev server 或构建产物。
+ */
 function createFallbackExecution(message: Extract<CompilerWorkerRequest, { type: 'run' }>) {
-  if (message.context.runtime !== 'web') {
-    return failureExecution(
-      message.context.runtime,
-      message.method === 'compiler.dev' ? 'dev' : 'build',
-      'runtime adapter unavailable',
-    );
-  }
-  return message.method === 'compiler.dev'
-    ? fallbackDevResult(
-        message.context.tool,
-        message.params.host,
-        message.params.port,
-        message.context.runtimeWarning ?? undefined,
-      )
-    : buildResult(
-        message.context.tool,
-        message.params.watch,
-        message.params.mode,
-        message.params.outputDir,
-        'fallback',
-        message.context.runtimeWarning ?? undefined,
-      );
+  return failureExecution(
+    message.context.runtime,
+    message.method === 'compiler.dev' ? 'dev' : 'build',
+    'runtime adapter unavailable',
+  );
 }
 
 function stripActiveCompiler<T extends { activeCompiler?: ActiveCompiler; events: BridgeEvent[] }>(

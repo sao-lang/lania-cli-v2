@@ -926,9 +926,9 @@ handler: async (ctx) => {
 
 ### 三层配置统一管理（config 统一管理面）
 
-配置分三层：项目级 `lan.config.*`、全局偏好 `~/.lania/preferences.json`、包级偏好 `~/.lania/config/<pkg>.json`。`lan config` 是统一管理面（`config` 自身不算命令子包），`generate` 归档后共 11 个命令。
+配置分三层：项目级 `lan.config.*`、全局偏好 `~/.lania/preferences.json`、包级偏好 `~/.lania/config/<pkg>.json`。`lan config` 是统一管理面（`config` 自身不算命令子包）；`generate` 已归档，当前为 7 个命令子包 + 主包内建 `config`。
 
-10 个命令子包（`add` / `build` / `create` / `dev` / `env` / `git` / `lint` / `pi` / `release` / `tools`）全部带 `config` 二级命令：`bare` / `get` / `set` / `init` / `doctor` / `sync`，中英双语文案齐全，`get` / `set` 支持 `--global` 切到全局作用域。包级键由各包 `lania.package.json` 的 `configSchema` 声明：通用 `locale`（`zh` / `en`）、`output.mode`（`json` / `human`）、`log.timestamps`（bool），`env` 额外 `shim.host`（`lan` / `runex`）。共用实现收敛在 `packages/foundation/package-config/rust/lania-command-config`，不再每包写一遍。
+7 个命令子包（`workspace` / `product` / `release` / `git` / `tools` / `env` / `pi`）全部带 `config` 二级命令：`bare` / `get` / `set` / `init` / `doctor` / `sync`，中英双语文案齐全，`get` / `set` 支持 `--global` 切到全局作用域。包级键由各包 `lania.package.json` 的 `configSchema` 声明：通用 `locale`（`zh` / `en`）、`output.mode`（`json` / `human`）、`log.timestamps`（bool），`env` 额外 `shim.host`（`lan` / `runex`）。共用实现收敛在 `packages/foundation/package-config/rust/lania-command-config`，不再每包写一遍。
 
 ```bash
 # 读写单个子包（--package 支持短名 / npm 全名 / bin 名 / crate 名，统一归一化）

@@ -10,15 +10,14 @@ import {
   loadToolConfig,
   normalizeError,
 } from '@lania-cli-v2/bridge-runtime/core/runtime.js';
+import { failureExecution } from '../runtime-adapters/spawn.js';
 import {
-  buildResult,
   compilerAssetEvent,
   compilerDoneEvent,
   compilerIssueEvent,
   compilerStartEvent,
   compilerStatusEvent,
   createCompilerResult,
-  fallbackDevResult,
   logEvent,
   resolveCompilerRuntime,
   type CompilerAdapter,
@@ -178,7 +177,12 @@ export const rollupCompilerAdapter: CompilerAdapter = {
         },
       };
     } catch (error) {
-      return fallbackDevResult('rollup', params.host, params.port, normalizeError(error).message);
+      // fail-fast：rollup dev 工具失败不得伪造可用的 dev server（README 契约）。
+      return failureExecution(
+        'rollup',
+        'dev',
+        `rollup dev failed: ${normalizeError(error).message}`,
+      );
     }
   },
   async handleBuild(params, context) {
@@ -276,13 +280,11 @@ export const rollupCompilerAdapter: CompilerAdapter = {
         events,
       };
     } catch (error) {
-      return buildResult(
+      // fail-fast：rollup build 失败不得伪造 dist 产物与成功状态（README 契约）。
+      return failureExecution(
         'rollup',
-        params.watch,
-        params.mode,
-        params.outputDir,
-        'fallback',
-        normalizeError(error).message,
+        'build',
+        `rollup build failed: ${normalizeError(error).message}`,
       );
     }
   },

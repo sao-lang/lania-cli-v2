@@ -24,6 +24,8 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use lania_command::{ArgSpec, CommandContext, CommandSpec, Example, OptionSpec, ValueKind};
+/// 各包 `config_keys()` 的返回元素类型（免得每个包都直接依赖 `lania-package-config`）。
+pub use lania_package_config::ConfigKey;
 use lania_package_config::{
     get_value, load_package_config, package_config_path, save_package_config, set_value,
 };
@@ -32,8 +34,6 @@ use lania_preferences::{
     UserPreferences,
 };
 use serde_json::{json, Map, Value};
-/// 各包 `config_keys()` 的返回元素类型（免得每个包都直接依赖 `lania-package-config`）。
-pub use lania_package_config::ConfigKey;
 
 /// 项目配置文件的候选名（只读探测，不解析内容，避免复制总包的实现）。
 const PROJECT_CONFIG_CANDIDATES: &[&str] = &[
@@ -169,11 +169,21 @@ pub fn save_main_override(
     let Some(path) = preferences_path() else {
         return Ok(()); // 无法定位主包配置文件时静默跳过（与 load 行为一致）
     };
-    let mut root: serde_json::Map<String, serde_json::Value> =
-        std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|raw| serde_json::from_str(&raw).ok())
-            .unwrap_or_default();
+    // 区分「文件不存在」（首次写入，用空对象起步）与「文件存在但内容损坏」（fail-closed）。
+    // 旧实现用 unwrap_or_default() 把两者混为一谈：损坏的 preferences.json 会被静默重写成
+    // 空对象，连带丢掉用户已有的其他包覆盖段。
+    let mut root: serde_json::Map<String, serde_json::Value> = match std::fs::read_to_string(&path)
+    {
+        Ok(raw) => serde_json::from_str::<serde_json::Value>(&raw)
+            .map_err(|error| {
+                anyhow::anyhow!("preferences.json 内容不是合法 JSON，拒绝覆盖写入：{error}")
+            })?
+            .as_object()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("preferences.json 顶层不是对象，拒绝覆盖写入"))?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => serde_json::Map::new(),
+        Err(error) => return Err(error.into()),
+    };
     let packages = root
         .entry("packages")
         .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
@@ -190,7 +200,10 @@ pub fn save_main_override(
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&path, serde_json::to_string_pretty(&serde_json::Value::Object(root))?)?;
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&serde_json::Value::Object(root))?,
+    )?;
     Ok(())
 }
 
@@ -323,7 +336,10 @@ pub fn config_spec(pkg: &str, package_keys: &[ConfigKey]) -> CommandSpec {
             "Initialize global CLI preferences and report the project config",
             id(".init"),
         )
-        .with_options(vec![flag("force", "Overwrite an existing preferences file")]),
+        .with_options(vec![flag(
+            "force",
+            "Overwrite an existing preferences file",
+        )]),
         CommandSpec::new(
             "doctor",
             "Read-only diagnostics for global preferences and project config",
@@ -475,12 +491,7 @@ fn execute_view(pkg: &str, keys: &[ConfigKey], global: bool) -> Result<Value> {
 }
 
 /// `lan <pkg> config get [key]`：单值（省略 key 时与 bare 等价）。
-fn execute_get(
-    pkg: &str,
-    keys: &[ConfigKey],
-    cmd: &CommandContext,
-    global: bool,
-) -> Result<Value> {
+fn execute_get(pkg: &str, keys: &[ConfigKey], cmd: &CommandContext, global: bool) -> Result<Value> {
     let Some(name) = arg_string(cmd, "key") else {
         return execute_view(pkg, keys, global);
     };
@@ -516,12 +527,7 @@ fn execute_get(
 }
 
 /// `lan <pkg> config set <key> <value>`：按 `ConfigKey` 校验后写盘。
-fn execute_set(
-    pkg: &str,
-    keys: &[ConfigKey],
-    cmd: &CommandContext,
-    global: bool,
-) -> Result<Value> {
+fn execute_set(pkg: &str, keys: &[ConfigKey], cmd: &CommandContext, global: bool) -> Result<Value> {
     let name = arg_string(cmd, "key").ok_or_else(|| {
         anyhow!("{pkg} config set requires a key, e.g. `lan {pkg} config set locale zh`")
     })?;
@@ -821,7 +827,9 @@ mod tests {
         let home = isolated_home("override-wins");
         write_home_files(
             &home,
-            Some(r#"{"locale":"en","packages":{"workspace":{"locale":"zh","outputMode":"human"}}}"#),
+            Some(
+                r#"{"locale":"en","packages":{"workspace":{"locale":"zh","outputMode":"human"}}}"#,
+            ),
             Some(r#"{"locale":"en","output":{"mode":"json"}}"#),
         );
         let _guard = HomeGuard::set(&home);
@@ -922,17 +930,56 @@ mod tests {
         assert_eq!(dotted_to_camel_case("log.timestamps"), "logTimestamps");
     }
 
-    /// 主包 preferences.json 缺失 / 非法 / 无 HOME 时：覆盖段为空，不报错。
+    /// 写入覆盖段时：损坏的 preferences.json 必须 fail-closed，不能被静默重写成空对象，
+    /// 否则会连带丢掉用户已有的其他包覆盖段。
     #[test]
-    fn missing_or_invalid_preferences_yield_empty_overrides() {
+    fn save_main_override_refuses_to_overwrite_corrupt_preferences() {
+        let home = isolated_home("save-corrupt-prefs");
+        let corrupt = "{ this is not valid json";
+        write_home_files(&home, Some(corrupt), None);
+        let _guard = HomeGuard::set(&home);
+
+        let result = save_main_override("workspace", "locale", json!("zh"));
+        assert!(result.is_err(), "损坏的 preferences.json 应导致写入失败");
+
+        // 原文件内容必须原样保留，未被覆盖。
+        let raw = std::fs::read_to_string(home.join(".lania/preferences.json")).unwrap();
+        assert_eq!(raw, corrupt, "拒绝写入时不得改动原文件");
+    }
+
+    /// 首次写入（preferences.json 不存在）：允许创建，不报错。
+    #[test]
+    fn save_main_override_creates_preferences_when_absent() {
+        let home = isolated_home("save-absent-prefs");
+        write_home_files(&home, None, None);
+        let _guard = HomeGuard::set(&home);
+
+        save_main_override("workspace", "locale", json!("zh")).unwrap();
+        assert_eq!(
+            load_main_overrides("workspace").get("locale"),
+            Some(&json!("zh"))
+        );
+    }
+
+    /// 主包 preferences.json 内容非法时：覆盖段为空，不报错。
+    ///
+    /// 注意：HOME 由进程级 Mutex 守卫，一个测试函数内只能 set 一次。
+    /// 历史上本测试在一次调用里连续 set 两次（两次 HomeGuard::set），
+    /// 对不可重入的 Mutex 自死锁，并连锁阻塞所有其它用 HomeGuard 的测试。
+    #[test]
+    fn invalid_preferences_yield_empty_overrides() {
         let home = isolated_home("invalid-prefs");
         write_home_files(&home, Some("not valid json"), None);
         let _guard = HomeGuard::set(&home);
         assert!(load_main_overrides("workspace").is_empty());
+    }
 
-        let home2 = isolated_home("no-prefs-file");
-        write_home_files(&home2, None, None);
-        let _guard = HomeGuard::set(&home2);
+    /// 主包 preferences.json 文件缺失时：覆盖段为空，不报错。
+    #[test]
+    fn missing_preferences_yield_empty_overrides() {
+        let home = isolated_home("no-prefs-file");
+        write_home_files(&home, None, None);
+        let _guard = HomeGuard::set(&home);
         assert!(load_main_overrides("workspace").is_empty());
     }
 }

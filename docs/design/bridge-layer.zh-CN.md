@@ -151,7 +151,7 @@ Hub 与其它端点无需任何改动。这就是「其它语言使用的时候�
 
 ## 5. 接入方式（后续开工时）
 
-> 当前状态（2026-11-07）：本节「后续开工时」为当时计划，现已接线完成，正文示例与历史决策保留不改。统一入口 `packages/distribution/cli/rust/lania-host/src/bridge_setup.rs`（`maybe_run_rust_bridge()` / `configure_command_bridges()`）把 9 个命令 bin 与总包 `main.rs` 里重复的 B11 短路块、3 行语言桥登记收敛为 1-2 行调用；`packages/products/bridge-hub/rust/lania-bridge-host/src/provider.rs` 的 `HubBridgeProvider` 不再是空 Hub——`register_language` 真正 attach 语言端点并声明 capability，`bridge_slot` 在命令启动时注入，`call_bridge` 优先走 provider、未命中 capability 时回落既有 1:1 `NodeBridgeClient`。**该 1:1 回落是刻意保留的兼容层（行为不退化），并未删除**；TS 侧 `packages/foundation/bridge-runtime/ts/src/entry/envelope.ts` 为默认 1:1（`stdio.ts`）与 `LANIA_BRIDGE_MODE=hub`（`hub-stdio.ts`）提供唯一一份 envelope 类型与 `writeEnvelope` / `parseEnvelope` / `flushEnvelopes`，帧构造/解码仍来自 bridge-protocol 生成物。刻意不替换：`packages/products/runex/rust/runex-core/src/provider/*` 的 `RuntimeProvider`（运行时下载/安装器）、`packages/products/agent/**` 的 provider（LLM 模型供应商）、`lania-host/src/runtime/detect.rs` 的 `RuntimeKind`（项目语言判定）、`bridge-slices/compiler/**/runtime-adapters/*`（业务适配器）——它们都不是通信桥；`scripts/check-bridge-protocol.mjs` 边界扫描半径保持不变。
+> 当前状态（2026-11-07）：本节「后续开工时」为当时计划，现已接线完成，正文示例与历史决策保留不改。统一入口 `packages/distribution/cli/rust/lania-host/src/bridge_setup.rs`（`maybe_run_rust_bridge()` / `configure_command_bridges()`）把 7 个命令子包 bin 与总包 `main.rs` 里重复的 B11 短路块、3 行语言桥登记收敛为 1-2 行调用；`packages/products/bridge-hub/rust/lania-bridge-host/src/provider.rs` 的 `HubBridgeProvider` 不再是空 Hub——`register_language` 真正 attach 语言端点并声明 capability，`bridge_slot` 在命令启动时注入，`call_bridge` 优先走 provider、未命中 capability 时回落既有 1:1 `NodeBridgeClient`。**该 1:1 回落是刻意保留的兼容层（行为不退化），并未删除**；TS 侧 `packages/foundation/bridge-runtime/ts/src/entry/envelope.ts` 为默认 1:1（`stdio.ts`）与 `LANIA_BRIDGE_MODE=hub`（`hub-stdio.ts`）提供唯一一份 envelope 类型与 `writeEnvelope` / `parseEnvelope` / `flushEnvelopes`，帧构造/解码仍来自 bridge-protocol 生成物。刻意不替换：`packages/products/runex/rust/runex-core/src/provider/*` 的 `RuntimeProvider`（运行时下载/安装器）、`packages/products/agent/**` 的 provider（LLM 模型供应商）、`lania-host/src/runtime/detect.rs` 的 `RuntimeKind`（项目语言判定）、`bridge-slices/compiler/**/runtime-adapters/*`（业务适配器）——它们都不是通信桥；`scripts/check-bridge-protocol.mjs` 边界扫描半径保持不变。
 
 ```rust
 // CLI 或任意包：嵌入 Hub，注册 Rust 端点
@@ -205,7 +205,7 @@ cli.publish("event.diag", json!({"text": "..."}));
 - 环境坑（Windows）：`--check` 需按 LF 归一化；pre-commit 的 prettier 会改写
   golden JSON，生成物必须排除格式化；临时目录不能写系统 Temp。
 
-> ⚠️ 以上实现**已全部回退**，仅作为后续开工的已验证依据；不要假设仓库里存在这些代码。
+> ⚠️ 本节记录的是**暂停时点（2026-10）的代码状态**——那些实现当时确实回退过。但 2026-11-06 重新开工后已按 §9 重建并落地，**当前仓库中存在 Bridge Hub 实现**（4 个 crate + 5 语言 adaptor，落点见 §9）；不要再把本节当成"当前无实现"的依据。
 
 ---
 

@@ -21,7 +21,7 @@
 
 ## Current Capabilities
 
-- 11 built-in commands: `dev`, `build`, `lint`, `tools`, `create`, `add`, `release`, `git`, `env`, `pi`, `config` — template queries are a `create` subcommand (`lan workspace create template`)
+- 7 command subpackages: `workspace` (dev/build/lint/create/add; template queries are under `lan workspace create template`), `product`, `release`, `git`, `tools`, `env`, `pi` — plus `config` built into the main binary
 - Bridge-backed execution for compiler and lint workflows, plus mixed host/bridge tooling utilities under `tools`
 - Rust workflows for multi-runtime scaffolding, release orchestration, and Git automation
 - Project-level dynamic commands loaded from manifest files
@@ -98,7 +98,7 @@ Configuration is managed in three layers, all reachable from the `lan config` ma
 | Global preferences  | `~/.lania/preferences.json`                | `locale`, `outputMode`, `logTimestamps` for every project             |
 | Package preferences | `~/.lania/config/<pkg>.json`               | one installed command subpackage, keys declared by its `configSchema` |
 
-All 10 command subpackages (`add`, `build`, `create`, `dev`, `env`, `git`, `lint`, `pi`, `release`, `tools`) now ship a `config` subcommand — `bare` / `get` / `set` / `init` / `doctor` / `sync` — with bilingual (zh/en) messages; `get` / `set` accept `--global` to target the global scope. `config` itself is the management plane, so the CLI has 11 commands after `generate` was archived. Common keys are `locale` (`zh` / `en`), `output.mode` (`json` / `human`) and `log.timestamps` (bool); `env` additionally declares `shim.host` (`lan` / `runex`). The shared implementation is centralized in `packages/foundation/package-config/rust/lania-command-config` instead of being duplicated per package.
+All 7 command subpackages (`workspace`, `product`, `release`, `git`, `tools`, `env`, `pi`) now ship a `config` subcommand — `bare` / `get` / `set` / `init` / `doctor` / `sync` — with bilingual (zh/en) messages; `get` / `set` accept `--global` to target the global scope. `config` itself is the management plane built into the main binary (`generate` was archived). Common keys are `locale` (`zh` / `en`), `output.mode` (`json` / `human`) and `log.timestamps` (bool); `env` additionally declares `shim.host` (`lan` / `runex`). The shared implementation is centralized in `packages/foundation/package-config/rust/lania-command-config` instead of being duplicated per package.
 
 ```bash
 # read / write one subpackage (--package accepts short name, npm full name,

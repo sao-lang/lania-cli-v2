@@ -269,6 +269,53 @@ test('nest and tsc adapters fail fast when local tooling is missing', async (t) 
   }
 });
 
+// vite dev 工具抛错时必须 fail-fast（success=false），不得伪造可用的 dev server。
+// 这条直接打到 vite.ts 的 catch 分支：改动前返回 fallbackDevResult（无 success 字段），
+// 改动后返回 failureExecution（success=false + error 事件）。
+test('vite dev fails fast when the dev server throws', async (t) => {
+  const cwd = await mkdtemp(path.join(tmpdir(), 'lania-vite-dev-failfast-'));
+  t.after(async () => rm(cwd, { recursive: true, force: true }));
+
+  await writeProjectFile(
+    cwd,
+    'package.json',
+    JSON.stringify({ name: 'vite-app', dependencies: { vite: '^5.0.0' } }, null, 2),
+  );
+  await writeProjectFile(
+    cwd,
+    'lan.config.cjs',
+    `module.exports = {
+      buildTool: 'vite',
+      buildAdaptors: {
+        vite: {
+          vite: {
+            createServer: async () => { throw new Error('vite boom'); }
+          }
+        }
+      }
+    };`,
+  );
+  await writeProjectFile(cwd, 'vite.config.cjs', 'module.exports = {};');
+
+  const handled = (await compilerPlugin.handle('compiler.dev', {
+    cwd,
+    hmr: false,
+    host: '127.0.0.1',
+    mode: 'test',
+    port: 4200,
+  })) as { result?: Record<string, unknown>; events?: Array<{ method: string }> } | undefined;
+
+  assert.equal(handled?.result?.success, false);
+  // 断言错误来源钉在 vite adapter 自身的 catch 上（worker 兜底文案是
+  // "runtime adapter unavailable"，不含 "vite boom"），确保测试覆盖改动行。
+  assert.ok(
+    String(handled?.result?.error ?? '').includes('vite boom'),
+    '错误应来自 vite adapter 的 catch，而非 worker 层兜底',
+  );
+  assert.ok(!handled?.events?.some((event) => event.method === 'event.compiler_server_ready'));
+  assert.ok(!handled?.events?.some((event) => event.method === 'event.dev_url'));
+});
+
 test('findAvailablePort falls back to legacy safe range when 8089 is occupied', async (t) => {
   const occupied = net.createServer();
   // 8089 might already be taken by another local process in developer environments.
@@ -518,6 +565,51 @@ test('webpack adapter handles build runtime flow', async (t) => {
   assert.ok(events?.some((event) => event.method === 'event.compiler_asset'));
   assert.ok(events?.some((event) => event.method === 'event.compiler_done'));
   assert.ok(events?.some((event) => event.method === 'event.build_asset'));
+});
+
+// webpack 编译错误走 stats.errors 返回（不抛异常）：result 必须带 success=false，
+// 否则 Rust 侧 unwrap_or(true) 会把真实编译失败判为成功。
+test('webpack build with stats.errors fails fast', async (t) => {
+  const cwd = await mkdtemp(path.join(tmpdir(), 'lania-webpack-build-errors-'));
+  t.after(async () => rm(cwd, { recursive: true, force: true }));
+
+  await writeProjectFile(
+    cwd,
+    'package.json',
+    JSON.stringify({ name: 'webpack-app', dependencies: { webpack: '^5.0.0' } }, null, 2),
+  );
+  await writeProjectFile(
+    cwd,
+    'lan.config.cjs',
+    `module.exports = {
+      buildTool: 'webpack',
+      buildAdaptors: {
+        webpack: {
+          webpack: () => ({
+            run: (callback) => callback(null, {
+              toJson: () => ({
+                assets: [],
+                warnings: [],
+                errors: [{ message: 'TS type error: boom' }]
+              })
+            }),
+            close: (callback) => callback()
+          })
+        }
+      }
+    };`,
+  );
+  await writeProjectFile(
+    cwd,
+    'webpack.config.cjs',
+    'module.exports = { output: { path: "dist" } };',
+  );
+
+  const handled = (await compilerPlugin.handle('compiler.build', { cwd })) as
+    | { result?: Record<string, unknown>; events?: Array<{ method: string }> }
+    | undefined;
+  assert.equal(handled?.result?.success, false);
+  assert.ok(String(handled?.result?.error ?? '').includes('boom'));
 });
 
 test('rollup adapter handles watch semantics', async (t) => {

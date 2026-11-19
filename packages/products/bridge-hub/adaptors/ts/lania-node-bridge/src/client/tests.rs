@@ -49,9 +49,17 @@ fn prefers_dist_bridge_assets_for_installed_mode() {
 
 #[test]
 fn falls_back_to_tsx_in_development_mode() {
-    let root = temp_dir("tsx-launch");
+    // dev_source 模式要求 bridge-runtime/ts 源码入口与 foundation 下的 templates 源码入口都在
+    // （真实布局：packages/foundation/bridge-runtime/ts 与 packages/foundation/templates，
+    //  从 package_dir 上溯两级才是 templates）。
+    // 用 parent/bridge-runtime/ts 与 parent/templates 复刻该布局，避免污染系统 temp 根目录。
+    let parent = temp_dir("tsx-launch-parent");
+    let root = parent.join("bridge-runtime/ts");
     fs::create_dir_all(root.join("src/entry")).expect("src dir created");
     fs::write(root.join("src/entry/stdio.ts"), "console.log('bridge');").expect("entry written");
+    fs::create_dir_all(parent.join("templates/src")).expect("templates src dir created");
+    fs::write(parent.join("templates/src/index.ts"), "export {};")
+        .expect("templates entry written");
 
     let spec = bridge_launch_spec_for_dir(&root).expect("launch spec resolves");
 
@@ -66,7 +74,7 @@ fn falls_back_to_tsx_in_development_mode() {
     );
     assert_eq!(spec.mode, "dev_source");
 
-    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(parent);
 }
 
 #[test]

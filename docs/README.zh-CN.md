@@ -41,6 +41,11 @@
 
 ### `design/`
 
+- `design/agent-architecture.zh-CN.md` — `lan pi` 编码 Agent 的分层与会话模型
+- `design/bridge-layer.zh-CN.md` — 语言中立 Bridge Hub（第一阶段已实施，见 §9）
+- `design/multi-runtime-bridge.zh-CN.md` — 多运行时 bridge 与 dev/build/create/add/lint 重构
+- `design/package-split-command-atomization.zh-CN.md` — 按包拆分与命令原子化（§1 为拆分前历史基线）
+- `design/self-managed-runtime-manager.zh-CN.md` — 自管版本管理器 runex
 - `design/专题设计与对账.zh-CN.md`
   - 专题级设计决策与实现对账
 

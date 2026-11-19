@@ -4,12 +4,10 @@
  * 主要导出：compilerPlugin。
  */
 import {
-  buildResult,
   compilerDoneEvent,
   compilerStatusEvent,
   detectBuildTool,
   detectRuntime,
-  fallbackDevResult,
   findAvailablePort,
   resolveRuntimeWarning,
   type ActiveCompiler,
@@ -77,14 +75,11 @@ async function handleDev(
     if (execution) {
       return execution;
     }
-    return runtime === 'web'
-      ? fallbackDevResult(tool, host, port, runtimeWarning ?? undefined)
-      : failureExecution(runtime, 'dev', 'runtime adapter unavailable');
+    // fail-fast：worker 未产出执行结果时一律报错，不为 web 伪造可用的 dev server。
+    return failureExecution(runtime, 'dev', 'runtime adapter unavailable');
   } catch {
-    // web 保持既有兜底；非 web 必须 fail-fast，不能伪造可用的 dev server。
-    return runtime === 'web'
-      ? fallbackDevResult('vite', host, requestedPort, 'bridge worker unavailable')
-      : failureExecution(runtime, 'dev', 'bridge worker unavailable');
+    // 所有 runtime 统一 fail-fast：bridge worker 不可用时返回失败，不伪造 dev server。
+    return failureExecution(runtime, 'dev', 'bridge worker unavailable');
   }
 }
 
@@ -116,13 +111,11 @@ async function handleBuild(
     if (execution) {
       return execution;
     }
-    return runtime === 'web'
-      ? buildResult(tool, watch, mode, outputDir, 'fallback', runtimeWarning ?? undefined)
-      : failureExecution(runtime, 'build', 'runtime adapter unavailable');
+    // fail-fast：worker 未产出执行结果时一律报错，不为 web 伪造构建产物（dist/index.js）。
+    return failureExecution(runtime, 'build', 'runtime adapter unavailable');
   } catch {
-    return runtime === 'web'
-      ? buildResult('vite', false, null, null, 'fallback', 'bridge worker unavailable')
-      : failureExecution(runtime, 'build', 'bridge worker unavailable');
+    // 所有 runtime 统一 fail-fast：bridge worker 不可用时返回失败，不伪造构建成功。
+    return failureExecution(runtime, 'build', 'bridge worker unavailable');
   }
 }
 
