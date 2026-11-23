@@ -31,22 +31,24 @@ pub fn maybe_run_rust_bridge() -> Result<bool> {
 }
 
 /// 统一装配命令二进制的桥接层：
-/// 1. best-effort 登记各语言 1:1 桥（不启动进程，保留既有回落链路）；
-/// 2. `load_bridge_provider()` 装配 Hub provider，并 `register_language` 让 Hub
-///    不再是空的（声明 capability 后 `call_sync` 可路由）；
-/// 3. `host.attach_bridge(provider)` 注入 `bridge_slot`，使其不再是 `None`。
+/// 1. best-effort 登记各语言 bridge 描述符（只记程序路径，不启动进程）；
+///    现仅作为「该语言是否可用」的能力标记（`has_bridge`）与 request 构造器来源，
+///    实际执行已全部走 Hub provider。
+/// 2. `load_bridge_provider()` 装配 Hub provider（真实 Node/Python 端点 + Go/Dart/Rust
+///    惰性端点），并 `register_language` 让 Hub 不再是空的；
+/// 3. `host.attach_bridge(provider)` 注入 `bridge_slot`。
 ///
-/// `include_rust_bridge`：总包入口历史上还登记 `lan-rs-bridge`，命令子包历史上
-/// 不登记；保留这处差异，避免改变 Rust 项目 `lint` / `build` 的回落行为。
+/// `include_rust_bridge`：总包入口还登记 Rust bridge，命令子包不登记；保留该差异。
 ///
-/// 任何一步失败都降级为「纯 1:1 回落」：语言桥是「装了更好、不装也能用」，
-/// Hub provider 注入失败也不应阻断命令本身（保证 `smoke-pi` 等行为不退化）。
+/// Hub provider 装配失败会向上返回 Err（由各 bin 的 `?` 传播），不再静默降级：
+/// Hub 是本框架唯一执行路径，装配失败必须让命令失败，不存在 1:1 回落。
 pub async fn configure_command_bridges(
     host: &mut HostRuntime,
     cwd: &Path,
     include_rust_bridge: bool,
-) {
-    // 1) 1:1 兼容层：保持原有 best-effort 登记（懒加载，不启动子进程）。
+) -> Result<()> {
+    // 1) 语言 bridge 描述符 best-effort 登记（懒加载，不启动子进程）。
+    //    只用于能力可用性判断（has_bridge）与 request 构造；执行走 Hub provider。
     let _ = host.register_python_bridge(cwd);
     let _ = host.register_go_bridge(cwd);
     let _ = host.register_dart_bridge(cwd);
@@ -54,20 +56,26 @@ pub async fn configure_command_bridges(
         let _ = host.register_rust_bridge(cwd);
     }
 
-    // 2)+3) 新总线 provider：装配 → 声明语言能力 → 注入 bridge_slot。
-    if let Ok(provider) = lania_bridge_host::load_bridge_provider() {
-        for id in command_language_ids(include_rust_bridge) {
-            let _ = provider.register_language(
-                id,
-                BridgeLaunchSpec {
-                    program: (*id).to_string(),
-                    args: Vec::new(),
-                    dir: None,
-                },
-            );
-        }
-        host.attach_bridge(provider).await;
+    // 2)+3) Hub provider：装配真实 Node 端点（new() 内完成 announce 等待）→ 注入 bridge_slot。
+    // 失败不再静默吞掉：Hub 是本框架唯一桥接路径，装配失败必须让命令失败，
+    // 而不是回落 1:1（用户硬要求：不做兼容、不打补丁、不兜底）。
+    // 注入宿主 RPC handler：Node 经 Hub 反向调用 fs/git/exec 时复用 1:1 同一份实现。
+    let host_rpc_handler = host.host_rpc_handler();
+    let provider = lania_bridge_host::load_bridge_provider(host_rpc_handler).map_err(|err| {
+        anyhow::anyhow!("failed to initialize hub bridge provider: {err}")
+    })?;
+    for id in command_language_ids(include_rust_bridge) {
+        let _ = provider.register_language(
+            id,
+            BridgeLaunchSpec {
+                program: (*id).to_string(),
+                args: Vec::new(),
+                dir: None,
+            },
+        );
     }
+    host.attach_bridge(provider).await;
+    Ok(())
 }
 
 /// 与 `configure_command_bridges` 登记顺序一致的语言 id（opaque 字符串）。
@@ -89,7 +97,7 @@ mod tests {
         let mut host = HostRuntime::new();
         assert!(host.bridge_provider().is_none(), "默认未注入");
 
-        configure_command_bridges(&mut host, &cwd, false).await;
+        configure_command_bridges(&mut host, &cwd, false).await.expect("configure bridges");
 
         assert!(
             host.bridge_provider().is_some(),
@@ -104,7 +112,7 @@ mod tests {
     async fn include_rust_bridge_flag_matches_total_package_behavior() {
         let cwd = std::env::temp_dir();
         let mut host = HostRuntime::new();
-        configure_command_bridges(&mut host, &cwd, true).await;
+        configure_command_bridges(&mut host, &cwd, true).await.expect("configure bridges");
         assert!(host.bridge_provider().is_some());
         // 总包历史上额外登记 lan-rs-bridge；命令子包不登记，保持回落差异。
         assert!(host.has_runtime_bridge(crate::RuntimeKind::Rust));

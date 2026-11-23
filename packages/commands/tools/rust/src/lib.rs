@@ -14,7 +14,7 @@ use lania_host::{
     execution::{CommandExecution, CommandExecutionContext, CommandHandler},
     plugin::{register_builtin_command, Plugin, PluginKind, PluginMeta, PluginSetupContext},
 };
-use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
+use lania_node_bridge::{BridgeRequest, RequestFactory};
 
 /// `tools` 根命令处理器标识。
 pub const HANDLER_ID: &str = "command.tools";
@@ -61,7 +61,7 @@ impl ToolsCommandPlugin {
     }
 
     /// 基于解析后的命令上下文构造 `system.listCommands` bridge 请求。
-    pub fn build_request(context: &CommandContext, bridge: &NodeBridgeClient) -> BridgeRequest {
+    pub fn build_request(context: &CommandContext, bridge: &RequestFactory) -> BridgeRequest {
         list::build_request(context, bridge)
     }
 }
@@ -170,7 +170,7 @@ mod tests {
         HookBusImpl,
     };
 
-    use super::{ToolsCommandPlugin, HANDLER_ID, RUN_HANDLER_ID, VIEW_HANDLER_ID};
+    use super::{ToolsCommandPlugin, HANDLER_ID, LIST_HANDLER_ID, RUN_HANDLER_ID, VIEW_HANDLER_ID};
 
     #[test]
     fn registers_tools_command_spec() {
@@ -192,9 +192,13 @@ mod tests {
         let spec = &commands.commands()[0];
         assert_eq!(spec.name, "tools");
         assert_eq!(spec.handler_id, HANDLER_ID);
-        assert_eq!(spec.subcommands.len(), 3);
+        // b7ce386 起所有命令包统一挂载 config 子命令（list/run/view/config 共 4 个）。
+        assert_eq!(spec.subcommands.len(), 4);
+        assert_eq!(spec.subcommands[0].handler_id, LIST_HANDLER_ID);
         assert_eq!(spec.subcommands[1].handler_id, RUN_HANDLER_ID);
         assert_eq!(spec.subcommands[2].handler_id, VIEW_HANDLER_ID);
+        assert_eq!(spec.subcommands[3].name, "config");
+        assert_eq!(spec.subcommands[3].handler_id, "command.tools.config");
         assert!(handlers.get(HANDLER_ID).is_some());
     }
 }

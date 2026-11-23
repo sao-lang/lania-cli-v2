@@ -53,6 +53,28 @@ pub struct BridgeRequest {
     pub params: serde_json::Value,
 }
 
+/// 进程内单调递增的请求 id 计数器。
+///
+/// request 构造是纯数据操作：不需要 NodeBridgeClient / 进程 / 连接状态。
+/// Hub 单轨后所有命令只用它生成 `BridgeRequest`（再用 provider.call 执行），
+/// 因此计数器放在协议层全局共享，id 格式（`req-N`）与历史保持一致。
+static REQUEST_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+impl BridgeRequest {
+    /// 构造一条请求：id 进程内单调递增，格式 `req-N`。
+    pub fn new(method: impl Into<String>, params: serde_json::Value) -> Self {
+        let id = format!(
+            "req-{}",
+            REQUEST_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+        );
+        Self {
+            id,
+            method: method.into(),
+            params,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeResponse {
     pub id: String,
@@ -386,4 +408,227 @@ pub struct HostResponse {
     pub error: Option<BridgeError>,
     #[serde(default)]
     pub events: Vec<BridgeEvent>,
+}
+
+/// 纯请求构造器：只生成 BridgeRequest，不持有连接/进程状态。
+///
+/// 命令层用它在发请求前构造 BridgeRequest（执行走 Hub provider），
+/// NodeBridgeClient 通过 Deref 复用同一套方法，保证协议知识只有一份。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RequestFactory;
+
+impl RequestFactory {
+    pub fn request(&self, method: impl Into<String>, params: serde_json::Value) -> BridgeRequest {
+        BridgeRequest::new(method, params)
+    }
+
+    pub fn ping_request(&self) -> BridgeRequest {
+        BridgeRequest::new("bridge.ping", serde_json::json!({}))
+    }
+
+    pub fn load_lan_config_request(&self, cwd: impl Into<String>) -> BridgeRequest {
+        BridgeRequest::new("config.loadLan", serde_json::json!({ "cwd": cwd.into() }))
+    }
+
+    pub fn load_tool_config_request(
+        &self,
+        cwd: impl Into<String>,
+        tool: impl Into<String>,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "config.loadTool",
+            serde_json::json!({
+                "cwd": cwd.into(),
+                "tool": tool.into(),
+            }),
+        )
+    }
+
+    pub fn compiler_dev_request(&self, cwd: impl Into<String>, port: Option<u16>) -> BridgeRequest {
+        BridgeRequest::new(
+            "compiler.dev",
+            serde_json::json!({
+                "cwd": cwd.into(),
+                "port": port,
+            }),
+        )
+    }
+
+    pub fn compiler_build_with_options_request(
+        &self,
+        cwd: impl Into<String>,
+        watch: bool,
+        mode: Option<String>,
+        output_dir: Option<String>,
+    ) -> BridgeRequest {
+        // 比起只暴露一个“最小 build request”，这里保留带 options 的版本，
+        // 是为了让上层调用点明确表达“我要不要 watch / mode / outputDir”，
+        // 而不是到处手写 JSON object。
+        BridgeRequest::new(
+            "compiler.build",
+            serde_json::json!({
+                "cwd": cwd.into(),
+                "watch": watch,
+                "mode": mode,
+                "outputDir": output_dir,
+            }),
+        )
+    }
+
+    pub fn compiler_build_request(&self, cwd: impl Into<String>, watch: bool) -> BridgeRequest {
+        self.compiler_build_with_options_request(cwd, watch, None, None)
+    }
+
+    pub fn compiler_stop_request(&self) -> BridgeRequest {
+        BridgeRequest::new("compiler.stop", serde_json::json!({}))
+    }
+
+    pub fn lint_run_request(
+        &self,
+        cwd: impl Into<String>,
+        fix: bool,
+        concurrency: Option<usize>,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "lint.run",
+            serde_json::json!({
+                "cwd": cwd.into(),
+                "fix": fix,
+                "concurrency": concurrency,
+            }),
+        )
+    }
+
+    pub fn system_list_commands_request(
+        &self,
+        cwd: impl Into<String>,
+        filter: Option<String>,
+        limit: Option<usize>,
+        all_matches: bool,
+        include_shell: bool,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "system.listCommands",
+            serde_json::json!({
+                "cwd": cwd.into(),
+                "filter": filter,
+                "limit": limit,
+                "allMatches": all_matches,
+                "includeShell": include_shell,
+            }),
+        )
+    }
+
+    pub fn template_list_request(&self, cwd: impl Into<String>) -> BridgeRequest {
+        BridgeRequest::new("template.list", serde_json::json!({ "cwd": cwd.into() }))
+    }
+
+    pub fn template_questions_request(
+        &self,
+        template: impl Into<String>,
+        options: serde_json::Value,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "template.getQuestions",
+            serde_json::json!({ "template": template.into(), "options": options }),
+        )
+    }
+
+    pub fn template_dependencies_request(
+        &self,
+        template: impl Into<String>,
+        options: serde_json::Value,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "template.getDependencies",
+            serde_json::json!({ "template": template.into(), "options": options }),
+        )
+    }
+
+    pub fn template_output_tasks_request(
+        &self,
+        template: impl Into<String>,
+        options: serde_json::Value,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "template.getOutputTasks",
+            serde_json::json!({ "template": template.into(), "options": options }),
+        )
+    }
+
+    pub fn template_render_request(
+        &self,
+        template: impl Into<String>,
+        context: serde_json::Value,
+        options: serde_json::Value,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "template.render",
+            serde_json::json!({
+                "template": template.into(),
+                "context": context,
+                "options": options,
+            }),
+        )
+    }
+
+    pub fn add_template_render_request(
+        &self,
+        template: impl Into<String>,
+        context: serde_json::Value,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "addTemplate.render",
+            serde_json::json!({
+                "template": template.into(),
+                "context": context,
+            }),
+        )
+    }
+
+    pub fn commitizen_run_request(
+        &self,
+        cwd: impl Into<String>,
+        kind: impl Into<String>,
+        scope: Option<String>,
+        subject: impl Into<String>,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "commitizen.run",
+            serde_json::json!({
+                "cwd": cwd.into(),
+                "kind": kind.into(),
+                "scope": scope,
+                "subject": subject.into(),
+            }),
+        )
+    }
+
+    pub fn commitlint_run_request(
+        &self,
+        cwd: impl Into<String>,
+        message: impl Into<String>,
+    ) -> BridgeRequest {
+        BridgeRequest::new(
+            "commitlint.run",
+            serde_json::json!({
+                "cwd": cwd.into(),
+                "message": message.into(),
+            }),
+        )
+    }
+
+    pub fn shutdown_request(&self) -> BridgeRequest {
+        BridgeRequest::new("bridge.shutdown", serde_json::json!({}))
+    }
+
+    pub fn metrics_request(&self, cwd: Option<String>) -> BridgeRequest {
+        BridgeRequest::new("bridge.metrics", serde_json::json!({ "cwd": cwd }))
+    }
+
+    pub fn subscribe_request(&self, cwd: Option<String>) -> BridgeRequest {
+        // 订阅类请求也走普通 request 工厂，说明在协议层它和其它 RPC 没有本质区别：
+        // 差别主要体现在“返回的 events 会更多、更持续”。
+        BridgeRequest::new("bridge.subscribe", serde_json::json!({ "cwd": cwd }))
+    }
 }

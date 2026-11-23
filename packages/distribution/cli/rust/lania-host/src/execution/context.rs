@@ -233,6 +233,13 @@ impl<'a> CommandExecutionContext<'a> {
         self.node_bridge
     }
 
+    /// 纯请求构造器：命令层用它生成 BridgeRequest（method/params/id），
+    /// 执行走 `call_bridge` / `call_runtime_bridge` 的 Hub 单轨。
+    /// 不暴露 NodeBridgeClient 的连接/进程能力。
+    pub fn request_factory(&self) -> &lania_bridge_host::node_bridge::RequestFactory {
+        self.node_bridge
+    }
+
     /// 已注入的新总线 provider（未注入时为 `None`，即纯 1:1 回落）。
     pub fn bridge_provider(&self) -> Option<&Arc<dyn BridgeProvider>> {
         self.bridge_provider.as_ref()

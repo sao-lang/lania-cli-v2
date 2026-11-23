@@ -16,7 +16,6 @@ use lania_host::{
     approval::{ApprovalBroker, ApprovalRequest as HostRequest},
     execution::{CommandExecution, CommandExecutionContext, CommandHandler},
 };
-use lania_node_bridge::NodeBridgeClient;
 
 use crate::bridge::bridge_client;
 use crate::options::CliArgs;
@@ -80,7 +79,11 @@ impl CommandHandler for PiCommandHandler {
             }))
         });
 
-        let client = bridge_client(NodeBridgeClient::clone(ctx.node_bridge()));
+        let provider = ctx
+            .bridge_provider()
+            .ok_or_else(|| anyhow::anyhow!("hub bridge provider is not attached (no 1:1 fallback)"))?
+            .clone();
+        let client = bridge_client(provider, ctx.request_factory().clone());
         let outcome = run(options, client, approvals).await;
 
         match outcome {

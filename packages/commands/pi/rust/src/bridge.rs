@@ -1,11 +1,11 @@
-//! 传输实现：把宿主的 `NodeBridgeClient` 包成产品层认识的 `AgentSessionClient`。
+//! 传输实现：把 Hub `BridgeProvider` 包成产品层认识的 `AgentSessionClient`。
 //!
 //! 放在适配层而不是产品层，是因为「跟谁通信」是集成决策，
 //! 产品只认 trait。独立二进制可以换一份传输而不动产品代码。
 
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 
@@ -16,35 +16,30 @@ use lania_agent_core::client::{
 use lania_agent_core::{
     AgentEvent, PromptOutcome, PromptRequest, SessionInfo, SessionSpec, SessionState,
 };
-use lania_node_bridge::{BridgeEventMethod, BridgeExchange, NodeBridgeClient};
+use lania_host::{BridgeProvider, BridgeProviderEvent};
+use lania_node_bridge::{BridgeEventMethod, RequestFactory};
 
-/// 基于宿主 bridge 的会话客户端。
+/// 基于 Hub provider 的会话客户端（单轨，无 1:1 NodeBridgeClient）。
 ///
-/// `NodeBridgeClient` 内部是 `Arc`，clone 出去仍指向同一个 bridge 子进程，
-/// 因此这里直接持有一份 clone（而不是借用），运行时才能满足 `'static`。
+/// `Arc<dyn BridgeProvider>` clone 共享同一个 Hub；`RequestFactory` 零大小，
+/// 只负责生成 BridgeRequest（method + params），执行统一经 provider.call[_stream]。
 #[derive(Clone)]
 pub struct BridgeAgentSessionClient {
-    client: NodeBridgeClient,
+    provider: Arc<dyn BridgeProvider>,
+    factory: RequestFactory,
 }
 
 impl BridgeAgentSessionClient {
-    pub fn new(client: NodeBridgeClient) -> Self {
-        Self { client }
-    }
-
-    fn ok_result(exchange: BridgeExchange) -> Result<Value> {
-        if let Some(error) = exchange.response.error.as_ref() {
-            return Err(anyhow!("{}: {}", error.code, error.message));
-        }
-        Ok(exchange.response.result.unwrap_or(Value::Null))
+    pub fn new(provider: Arc<dyn BridgeProvider>, factory: RequestFactory) -> Self {
+        Self { provider, factory }
     }
 }
 
 #[async_trait]
 impl AgentSessionClient for BridgeAgentSessionClient {
     async fn create(&self, spec: &SessionSpec) -> Result<SessionInfo> {
-        let request = self.client.request("agent.session.create", spec.create_params());
-        let result = Self::ok_result(self.client.call_async(request).await?)?;
+        let request = self.factory.request("agent.session.create", spec.create_params());
+        let result = self.call(&request.method, request.params).await?;
         Ok(SessionInfo::from_result(&spec.session_id, &result))
     }
 
@@ -53,34 +48,29 @@ impl AgentSessionClient for BridgeAgentSessionClient {
         request: PromptRequest,
         on_event: &mut EventSink<'_>,
     ) -> Result<PromptOutcome> {
-        let bridge_request = self.client.request("agent.prompt", request.params());
-
-        let mut call = self.client.open_call(bridge_request)?;
-        // 事件通道在 response 到达时关闭，此时再 `collect_exchange` 取最终结果。
-        while let Some(event) = call.next_event().await {
-            let method = method_name(&event.method);
-            if let Some(parsed) = AgentEvent::from_method(&method, &event.params) {
-                on_event(parsed);
-            }
-        }
-        let result = Self::ok_result(call.collect_exchange().await?)?;
+        let bridge_request = self.factory.request("agent.prompt", request.params());
+        // Hub 流式调用：事件到达即回调（逐 token 渲染），不等 response。
+        let result = self
+            .provider
+            .call_stream(&bridge_request.method, bridge_request.params, &mut |event: BridgeProviderEvent| {
+                if let Some(parsed) = AgentEvent::from_method(&event.method, &event.params) {
+                    on_event(parsed);
+                }
+            })
+            .await?;
         Ok(prompt_outcome_from_result(&result))
     }
 
     async fn interrupt(&self, session_id: &str) -> Result<()> {
-        let request = self.client.request(
-            "agent.interrupt",
-            serde_json::json!({ "sessionId": session_id }),
-        );
-        Self::ok_result(self.client.call_async(request).await?)?;
+        self.call("agent.interrupt", serde_json::json!({ "sessionId": session_id }))
+            .await?;
         Ok(())
     }
 
     async fn state(&self, session_id: &str) -> Result<SessionState> {
-        let request = self
-            .client
-            .request("agent.state", serde_json::json!({ "sessionId": session_id }));
-        let result = Self::ok_result(self.client.call_async(request).await?)?;
+        let result = self
+            .call("agent.state", serde_json::json!({ "sessionId": session_id }))
+            .await?;
         Ok(SessionState {
             is_streaming: result
                 .get("isStreaming")
@@ -95,49 +85,55 @@ impl AgentSessionClient for BridgeAgentSessionClient {
     }
 
     async fn models(&self, provider: Option<&str>) -> Result<Vec<ModelInfo>> {
-        let request = self.client.request(
-            "agent.models.list",
-            serde_json::json!({ "provider": provider }),
-        );
-        let result = Self::ok_result(self.client.call_async(request).await?)?;
+        let result = self
+            .call(
+                "agent.models.list",
+                serde_json::json!({ "provider": provider }),
+            )
+            .await?;
         Ok(models_from_result(&result))
     }
 
     async fn close(&self, session_id: &str) -> Result<()> {
-        let request = self.client.request(
-            "agent.session.dispose",
-            serde_json::json!({ "sessionId": session_id }),
-        );
         // 关闭失败不该阻塞退出流程。
-        let _ = self.client.call_async(request).await;
+        let _ = self
+            .call("agent.session.dispose", serde_json::json!({ "sessionId": session_id }))
+            .await;
         Ok(())
     }
 
     fn interruptor(&self) -> Option<Arc<dyn SessionInterrupt>> {
         Some(Arc::new(BridgeInterrupt {
-            client: self.client.clone(),
+            provider: Arc::clone(&self.provider),
+            factory: self.factory.clone(),
         }))
     }
 }
 
-/// 轻量中断句柄：只带一份 bridge clone，可以在任意任务里用。
+impl BridgeAgentSessionClient {
+    async fn call(&self, method: &str, params: Value) -> Result<Value> {
+        let exchange = self.provider.call(method, params).await?;
+        Ok(exchange.result)
+    }
+}
+
+/// 轻量中断句柄：只带 provider clone，可以在任意任务里用。
 struct BridgeInterrupt {
-    client: NodeBridgeClient,
+    provider: Arc<dyn BridgeProvider>,
+    factory: RequestFactory,
 }
 
 #[async_trait]
 impl SessionInterrupt for BridgeInterrupt {
     async fn interrupt(&self, session_id: &str) -> Result<()> {
-        let request = self.client.request(
-            "agent.interrupt",
-            serde_json::json!({ "sessionId": session_id }),
-        );
-        let _ = self.client.call_async(request).await;
+        let request = self
+            .factory
+            .request("agent.interrupt", serde_json::json!({ "sessionId": session_id }));
+        let _ = self.provider.call(&request.method, request.params).await;
         Ok(())
     }
 }
 
-/// 协议枚举 → 线上方法名（core 只认字符串，不认协议类型）。
 fn method_name(method: &BridgeEventMethod) -> String {
     serde_json::to_value(method)
         .ok()
@@ -145,8 +141,11 @@ fn method_name(method: &BridgeEventMethod) -> String {
         .unwrap_or_default()
 }
 
-/// 便于测试/替换的构造入口。
-pub fn bridge_client(client: NodeBridgeClient) -> Box<dyn AgentSessionClient + Send> {
-    Box::new(BridgeAgentSessionClient::new(client))
+/// 便于测试/替换的构造入口（Hub 单轨：不再接受 NodeBridgeClient）。
+pub fn bridge_client(
+    provider: Arc<dyn BridgeProvider>,
+    factory: RequestFactory,
+) -> Box<dyn AgentSessionClient + Send> {
+    Box::new(BridgeAgentSessionClient::new(provider, factory))
 }
 

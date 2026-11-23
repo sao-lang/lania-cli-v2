@@ -24,12 +24,38 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use crate::protocol::RequestFactory;
 use async_trait::async_trait;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 mod capabilities;
 mod process;
 mod transport;
+
+/// 构造一个以 Hub endpoint 模式运行的真实 Node bridge 子进程命令。
+///
+/// 与 1:1 客户端的差异只在 `LANIA_BRIDGE_MODE=hub`：`entry/stdio.ts` 在启动时
+/// 检测到该变量后转交 `runHubEndpoint()`，此后进程说 BusFrame 协议、以
+/// `announce` 声明完整 method 能力，经 Hub 路由而非 1:1 envelope 直连。
+///
+/// 供 `lania-bridge-host` 通过 `BridgeHost::attach_command` 接入 Hub 使用；
+/// 这里复用 node-bridge 既有的目录定位与 dist/源码入口选择逻辑，避免两处重复。
+pub fn hub_mode_command(endpoint_id: &str) -> Result<std::process::Command> {
+    let spec = process::bridge_launch_spec()?;
+    let mut command = std::process::Command::new(&spec.program);
+    command
+        .args(&spec.args)
+        .current_dir(&spec.package_dir)
+        .env("LANIA_BRIDGE_MODE", "hub")
+        // endpointId 必须与 BridgeHost::attach_command 使用的 id 完全一致：
+        // Hub 的 route_frame 会校验 announce.endpointId == 来源端点 id，
+        // 不一致即计为 bad_frame 并丢弃（hub.rs:227-230）。
+        .env("LANIA_ENDPOINT_ID", endpoint_id)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit());
+    Ok(command)
+}
 
 #[cfg(test)]
 mod tests;
@@ -82,8 +108,6 @@ impl Default for BridgeClientConfig {
 #[derive(Debug)]
 pub struct NodeBridgeClient {
     config: BridgeClientConfig,
-    // `sequence` 用原子计数器生成 request id，避免多线程/多任务并发发请求时冲突。
-    sequence: Arc<AtomicU64>,
     // `state` 用 `Arc<Mutex<_>>`，原因和前面几个服务类似：
     // - NodeBridgeClient 会被 clone 到很多 workflow / capability / runtime 对象里；
     // - 这些 clone 应共享同一个 bridge 子进程和同一份 metrics；
@@ -298,11 +322,22 @@ pub trait CommitBridgeCapability {
     async fn run_commitlint(&self, cwd: String, message: String) -> Result<BridgeExchange>;
 }
 
+/// 语义化请求构造通过 Deref 复用 `RequestFactory` 的纯实现：
+/// `client.lint_run_request(..)` 与 `RequestFactory.lint_run_request(..)` 是同一份代码，
+/// 协议知识只有一处；命令层无需持有 NodeBridgeClient 即可构造请求。
+impl std::ops::Deref for NodeBridgeClient {
+    type Target = RequestFactory;
+
+    fn deref(&self) -> &Self::Target {
+        const FACTORY: &RequestFactory = &RequestFactory;
+        FACTORY
+    }
+}
+
 impl Clone for NodeBridgeClient {
     fn clone(&self) -> Self {
         Self {
             config: self.config.clone(),
-            sequence: Arc::clone(&self.sequence),
             state: Arc::clone(&self.state),
         }
     }

@@ -6,7 +6,7 @@ use lania_host::{
     capability::CapabilityName,
     execution::{CommandExecution, CommandExecutionContext},
 };
-use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
+use lania_node_bridge::{BridgeRequest, RequestFactory};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -94,7 +94,7 @@ pub(super) fn spec() -> CommandSpec {
         .with_options(options())
 }
 
-pub(super) fn build_request(context: &CommandContext, bridge: &NodeBridgeClient) -> BridgeRequest {
+pub(super) fn build_request(context: &CommandContext, bridge: &RequestFactory) -> BridgeRequest {
     let filter = context
         .argv
         .options
@@ -131,7 +131,7 @@ pub(super) fn build_request(context: &CommandContext, bridge: &NodeBridgeClient)
 
 pub(super) async fn execute(ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
     ctx.require_capability(CapabilityName::NodeBridge)?;
-    let request = ToolsCommandPlugin::build_request(ctx.command(), ctx.node_bridge());
+    let request = ToolsCommandPlugin::build_request(ctx.command(), ctx.request_factory());
     let run = ctx.call_bridge(request).await?;
     let mut result = run
         .exchange
@@ -402,7 +402,7 @@ fn ordered_group_keys_with_titles() -> [(&'static str, &'static str); 4] {
 
 #[cfg(test)]
 mod tests {
-    use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
+    use lania_node_bridge::RequestFactory;
     use serde_json::{json, Value};
 
     use super::transform_result;
@@ -428,7 +428,7 @@ mod tests {
             handler_id: HANDLER_ID.into(),
             trace_id: "trace-tools".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = ToolsCommandPlugin::build_request(&context, &bridge);
 
         assert_eq!(request.method, "system.listCommands");

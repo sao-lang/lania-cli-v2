@@ -69,7 +69,30 @@ int _nextSeq() => ++_seq;
 /// 因此写 + flush 串成 FIFO 队列：顺序不变，且每次写完都真正落盘（§10 行缓冲风险）。
 Future<void> _outbox = Future<void>.value();
 
+// hubMode=true 时以 Hub 端点身份运行（BusFrame），否则保持 1:1 envelope。
+// 业务函数（_handleLint/_handleBuild）两者共用，零改动。
+final bool _hubMode = Platform.environment['LANIA_BRIDGE_MODE'] == 'hub';
+
 void _emit(Map<String, Object?> envelope) {
+  if (_hubMode) {
+    // event envelope -> BusFrame publish；response/handshake 忽略。
+    if (envelope['type'] != 'event') {
+      return;
+    }
+    final Object? payload = envelope['payload'];
+    if (payload is! Map) {
+      return;
+    }
+    final Object? method = payload['method'];
+    if (method is! String || method.isEmpty) {
+      return;
+    }
+    envelope = <String, Object?>{
+      'kind': 'publish',
+      'topic': method,
+      'payload': payload['params'],
+    };
+  }
   final String line = jsonEncode(envelope);
   _outbox = _outbox.then((_) async {
     try {
@@ -77,6 +100,19 @@ void _emit(Map<String, Object?> envelope) {
       await stdout.flush();
     } catch (error) {
       _log('failed to write envelope: $error');
+    }
+  });
+}
+
+/// 直接写一个 BusFrame（announce/response 用；_emit 在 hubMode 下只转 event）。
+void _writeFrame(Map<String, Object?> frame) {
+  final String line = jsonEncode(frame);
+  _outbox = _outbox.then((_) async {
+    try {
+      stdout.writeln(line);
+      await stdout.flush();
+    } catch (error) {
+      _log('failed to write frame: $error');
     }
   });
 }
@@ -698,6 +734,9 @@ Map<String, Object?> _handshakeResponse(Map<String, Object?> request) {
 }
 
 Future<int> _serve() async {
+  if (_hubMode) {
+    return _serveHub();
+  }
   _emitEvent(
       'event.ready',
       <String, Object?>{
@@ -748,6 +787,92 @@ Future<int> _serve() async {
       continue;
     }
     _log('unsupported envelope type: $type');
+  }
+  return 0;
+}
+
+/// 以 Hub 端点身份接入：announce 真实能力，读 BusFrame request，转 1:1 envelope
+/// 交给既有 _handleRequest，再用 BusFrame response 回写（事件由 _emit 转 publish）。
+Future<int> _serveHub() async {
+  String endpointId = Platform.environment['LANIA_ENDPOINT_ID'] ?? 'dart-bridge-$pid';
+  _writeFrame(<String, Object?>{
+    'kind': 'announce',
+    'endpointId': endpointId,
+    'provides': _methods,
+    'subscribes': <String>['event.*'],
+  });
+  await for (final String line
+      in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
+    final String trimmed = line.trim();
+    if (trimmed.isEmpty) {
+      continue;
+    }
+    Map<String, Object?> frame;
+    try {
+      final Object? decoded = jsonDecode(trimmed);
+      if (decoded is! Map) {
+        continue;
+      }
+      frame = decoded.cast<String, Object?>();
+    } on FormatException catch (error) {
+      _log('failed to parse bus frame: $error');
+      continue;
+    }
+    final Object? kind = frame['kind'];
+    if (kind != 'request') {
+      continue;
+    }
+    final String id = frame['id'] as String? ?? '';
+    final String method = frame['capability'] as String? ?? '';
+    final Map<String, Object?> params = frame['params'] is Map
+        ? (frame['params'] as Map).cast<String, Object?>()
+        : <String, Object?>{};
+    Object? result;
+    Map<String, Object?>? failure;
+    if (method == 'bridge.ping') {
+      result = <String, Object?>{'ok': true, 'bridgeName': _bridgeName, 'version': _version};
+    } else if (method == 'bridge.heartbeat') {
+      result = <String, Object?>{'ok': true, 'ts': DateTime.now().millisecondsSinceEpoch};
+    } else if (method == 'bridge.shutdown') {
+      result = <String, Object?>{'ok': true};
+    } else if (method.startsWith('lint.')) {
+      final String adaptor = method.substring('lint.'.length);
+      _emitEvent('event.lint_start',
+          <String, Object?>{'adaptors': <String>[adaptor]}, id);
+      try {
+        final Map<String, Object?> resolved =
+            await _handleLint(adaptor, params, id);
+        _emitEvent('event.lint_result', <String, Object?>{
+          'adaptor': adaptor,
+          'errors': resolved['errors'],
+          'warnings': resolved['warnings'],
+          'implementation': resolved['implementation'],
+        }, id);
+        result = resolved;
+      } catch (error) {
+        _log('lint.$adaptor failed: $error');
+        failure = _errorPayload('E_LINT_FAILED', error.toString());
+      }
+    } else if (method == 'build.dart') {
+      try {
+        result = await _handleBuild(params, id);
+      } catch (error) {
+        _log('build.dart failed: $error');
+        failure = _errorPayload('E_BUILD_FAILED', error.toString());
+      }
+    } else {
+      failure = <String, Object?>{'code': 'E_UNSUPPORTED', 'message': 'unsupported capability: $method'};
+    }
+    final Map<String, Object?> response = <String, Object?>{
+      'kind': 'response', 'id': id, 'result': result,
+    };
+    if (failure != null) {
+      response['error'] = failure;
+    }
+    _writeFrame(response);
+    if (method == 'bridge.shutdown') {
+      return 0;
+    }
   }
   return 0;
 }

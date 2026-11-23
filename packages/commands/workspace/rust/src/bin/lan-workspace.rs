@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     // 统一登记各语言桥 + 装配 Hub provider + 注入 bridge_slot。
     // include_rust_bridge=true（B11）：lan-workspace 自身兼作 `lan-rs-bridge`
     // （maybe_run_rust_bridge），rust 项目的 lint/build 才能走 clippy/cargo bridge。
-    configure_command_bridges(&mut host, &cwd, true).await;
+    configure_command_bridges(&mut host, &cwd, true).await?;
 
     // 独立二进制的根 = 转发参数的首个 token（§5.3 C.4：launcher 剥掉 "workspace" 后转发）。
     // `lan workspace dev` 在本进程里是 `lan dev`：JSON 的 command.name 应为 "dev"，

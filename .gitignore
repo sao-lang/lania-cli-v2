@@ -74,3 +74,12 @@ __pycache__/
 
 # bridge-protocol 的协议生成物（构建时由 scripts/copy-gen.mjs 同步）
 packages/products/bridge-hub/protocol/npm/bridge-protocol/src/
+
+# conductor 产物（会话记录与契约跟踪入版本库，运行痕迹忽略）
+.conductor/session.json
+.conductor/ledgers/
+.conductor/baselines/
+.conductor/archive/
+
+# conductor 本地状态（运行痕迹，不进版本库）
+.conductor/execution-state.json

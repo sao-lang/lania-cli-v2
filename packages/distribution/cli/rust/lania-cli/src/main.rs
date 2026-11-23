@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
     // 登记语言 bridge（§5.3：装了就更好，不装也能用）+ 装配 Hub provider +
     // 注入 bridge_slot。与命令子包共用同一入口；总包额外登记 `lan-rs-bridge`。
     // 必须在 `execute_command` 之前 —— 注册表是懒加载的，登记本身不启动进程。
-    configure_command_bridges(&mut host, std::path::Path::new(&cwd), true).await;
+    configure_command_bridges(&mut host, std::path::Path::new(&cwd), true).await?;
     let renderer: Arc<dyn LogRenderer> = Arc::new(
         AutoStyledLogRenderer::default()
             .with_locale(locale.clone())

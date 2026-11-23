@@ -121,6 +121,11 @@ impl HostRuntime {
             .ok();
         self.services.node_bridge.shutdown_async().await?;
         self.services.bridges.borrow().shutdown();
+        // Hub 单轨化后，bridge_slot 内持有真实 Node 子进程；process::exit 会跳过
+        // provider 的 Drop，必须在这里显式 shutdown，避免孤儿进程残留。
+        if let Some(provider) = self.bridge_provider() {
+            provider.shutdown();
+        }
         self.state.phase_history.push(LifecyclePhase::Shutdown);
         Ok(())
     }

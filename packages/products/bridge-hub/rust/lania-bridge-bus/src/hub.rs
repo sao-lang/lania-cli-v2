@@ -149,6 +149,27 @@ impl BridgeHub {
             .unwrap_or_default()
     }
 
+    /// 指定端点是否已完成 announce。
+    ///
+    /// 供宿主等待真实语言端点就绪：不受其它端点（如宿主 host.* 反向能力端点）
+    /// 的 announce 干扰，比 has_any_provider 更精确。
+    pub fn is_announced(&self, endpoint_id: &str) -> bool {
+        self.endpoints
+            .get(endpoint_id)
+            .map(|slot| slot.announced)
+            .unwrap_or(false)
+    }
+
+    /// 是否已有任意端点声明了能力。
+    ///
+    /// 供宿主等待真实语言端点完成 announce 使用：不同命令加载的切片不同
+    /// （workspace 有 compiler/lint、pi 有 agent），不能写死某个具体 method。
+    pub fn has_any_provider(&self) -> bool {
+        self.capability_index
+            .values()
+            .any(|providers| !providers.is_empty())
+    }
+
     pub fn subscribers_of(&self, topic: &str) -> Vec<String> {
         let mut result = BTreeSet::new();
         for (pattern, subscribers) in &self.topic_index {
@@ -345,6 +366,19 @@ impl BridgeHub {
             .into_iter()
             .filter(|provider| self.endpoints.contains_key(provider))
             .collect();
+        let providers = if providers.is_empty() {
+            // 精确能力未命中时，回退到声明了通配 capability（如 `host.*`）的端点。
+            // 这是宿主反向能力（fs/git/exec）的寻址方式：method 数量开放，
+            // 无法逐一 announce，用一个通配前缀统一声明。
+            self.capability_index
+                .iter()
+                .filter(|(pattern, _)| pattern.ends_with('*') && capability_matches(pattern, &capability))
+                .flat_map(|(_, providers)| providers.iter().cloned())
+                .filter(|provider| self.endpoints.contains_key(provider))
+                .collect()
+        } else {
+            providers
+        };
 
         if providers.is_empty() {
             let frame = BusFrame::Response {
@@ -400,9 +434,15 @@ impl BridgeHub {
 }
 
 fn topic_matches(pattern: &str, topic: &str) -> bool {
+    capability_matches(pattern, topic)
+}
+
+/// capability 通配匹配：以 `*` 结尾的模式按前缀匹配。
+/// 与 topic_matches 同语义，供宿主 `host.*` 反向能力寻址复用。
+fn capability_matches(pattern: &str, capability: &str) -> bool {
     match pattern.strip_suffix('*') {
-        Some(prefix) => topic.starts_with(prefix),
-        None => pattern == topic,
+        Some(prefix) => capability.starts_with(prefix),
+        None => pattern == capability,
     }
 }
 
@@ -428,6 +468,26 @@ fn remove_topic(index: &mut TopicIndex, topic: &str, id: &str) {
 mod tests {
     use super::*;
 
+    /// B1 回归：has_any_provider 不能依赖任何具体 method 名——
+    /// 不同命令加载不同切片（workspace=compiler、pi=agent），写死某个 method
+    /// 会让缺少该切片的命令空转满 announce 超时。
+    #[test]
+    fn has_any_provider_is_method_agnostic() {
+        let mut hub = BridgeHub::new();
+        assert!(!hub.has_any_provider(), "空 Hub 应无能力");
+        let mut endpoint = hub.attach("agent-only");
+        endpoint.announce_str(&["agent.prompt"], &[]);
+        hub.pump_until_idle(10);
+        assert!(
+            hub.has_any_provider(),
+            "仅声明 agent.prompt（无 system.listCommands）也应被识别为已就绪"
+        );
+        assert!(
+            hub.providers_of("system.listCommands").is_empty(),
+            "反向证据：system method 未被声明"
+        );
+    }
+
     #[test]
     fn wildcard_only_matches_prefix() {
         assert!(topic_matches("event.agent_*", "event.agent_start"));
@@ -435,5 +495,27 @@ mod tests {
         assert!(!topic_matches("event.agent_*", "event.diag"));
         assert!(topic_matches("event.diag", "event.diag"));
         assert!(!topic_matches("event.diag", "event.diag.extra"));
+    }
+
+    /// 宿主反向能力（host.*）用通配声明：request host.fs.read 应路由到
+    /// 声明了 host.* 的端点；精确能力优先于通配。
+    #[test]
+    fn wildcard_capability_routes_host_rpc() {
+        let mut hub = BridgeHub::new();
+        let mut host_provider = hub.attach("host-handler");
+        host_provider.announce_str(&["host.*"], &[]);
+        let mut cli = hub.attach("cli");
+        hub.pump_until_idle(10);
+
+        let id = cli.request("host.fs.read", serde_json::json!({"path": "x"}));
+        hub.pump_until_idle(10);
+        // host-handler 应收到 request 帧（capability 原样透传）。
+        match host_provider.try_recv() {
+            Some(BusFrame::Request { id: rid, capability, .. }) => {
+                assert_eq!(rid, id);
+                assert_eq!(capability, "host.fs.read");
+            }
+            other => panic!("expected routed request, got {other:?}"),
+        }
     }
 }

@@ -151,6 +151,12 @@ impl HostRuntime {
         &self.services.node_bridge
     }
 
+    /// Hub provider 复用的 host RPC handler：Node 经 Hub 反向调用宿主 fs/git/exec 时
+    /// 走同一份实现，与 1:1 链路语义一致。
+    pub fn host_rpc_handler(&self) -> Option<lania_bridge_host::node_bridge::HostRpcHandlerRef> {
+        self.services.node_bridge.host_rpc_handler()
+    }
+
     /// 按运行时取 1:1 bridge 客户端（§5.3 回落链路）。
     ///
     /// JS 簇（node / bun / deno）永远返回共享的 node bridge；

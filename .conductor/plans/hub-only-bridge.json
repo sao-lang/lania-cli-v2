@@ -1,0 +1,302 @@
+{
+  "version": "1.1",
+  "goal": "移除 1:1 兜底，让 Bridge Hub 100% 承接所有运行时桥接",
+  "source": "user_request",
+  "mode": "conductor",
+  "template": "conductor.6",
+  "confidence": 0.9,
+  "assumptions": ["用户已拍板：扩展协议承载事件、全部语言端点、删干净旧链路"],
+  "clarifications": ["U-1 go/dart 真机验证环境缺失，S5 收尾确认是否阻塞"],
+  "tasks": [
+    {
+      "id": "T1",
+      "goal": "核对 S2 规格契约产物"
+    }
+  ],
+  "nodes": [
+    {
+      "kind": "gate",
+      "action": "硬门禁：契约未生成或 contract_check 非 0 不进 S3",
+      "command": "确认 contract_check rc=0 且 Acceptance 已入台账",
+      "command_type": "gate_check",
+      "exit_criteria": "契约检查通过且台账已接 Acceptance",
+      "exit_check": {
+        "kind": "exit_code",
+        "expect": "0",
+        "evidence": "contract_check rc=0 + commitment_ledger init rc=0"
+      },
+      "on_fail": "abort",
+      "atomic": true,
+      "id": "n_brainstorm-S2-contract-gate",
+      "label": "规格固化与覆盖门禁复核 · S2-contract-gate",
+      "serves_task": "T1",
+      "ref": "brainstorm",
+      "route_ref": "brainstorm/S2-contract-gate",
+      "expanded_from": "n_brainstorm",
+      "next": "n_impact-SCAN"
+    },
+    {
+      "kind": "tool",
+      "action": "跑影响面扫描：符号/文件/diff → 直接引用者",
+      "command": "python ../../scripts/impact_analysis.py --symbols <符号> --files <文件> --diff",
+      "command_type": "command",
+      "exit_criteria": "拿到直接引用者清单（含文件:行号）",
+      "exit_check": {
+        "kind": "file_content",
+        "expect": "引用者清单非空或显式'无引用'",
+        "evidence": "impact_analysis 输出"
+      },
+      "on_fail": "ask",
+      "when": "跨模块 或 full 或 契约 Delta 含公共契约/接口变更",
+      "atomic": true,
+      "id": "n_impact-SCAN",
+      "label": "跨模块影响面核实 · SCAN",
+      "serves_task": "T1",
+      "ref": "impact",
+      "route_ref": "impact/SCAN",
+      "expanded_from": "n_impact",
+      "next": "n_tdd-RED"
+    },
+    {
+      "kind": "tool",
+      "action": "写最小失败测试并跑出红；确认失败原因是缺该行为，不是环境/拼写",
+      "command": "python ../../scripts/verify.py <范围>",
+      "command_type": "command",
+      "exit_criteria": "verify 输出失败且失败原因=目标行为缺失",
+      "exit_check": {
+        "kind": "exit_code",
+        "expect": "非 0 且原因匹配目标行为",
+        "evidence": "verify.py 输出片段"
+      },
+      "on_fail": "retry",
+      "on_fail_next": "tdd/RED",
+      "atomic": true,
+      "id": "n_tdd-RED",
+      "label": "TDD 实现单轨桥接 · RED",
+      "serves_task": "T1",
+      "ref": "tdd",
+      "route_ref": "tdd/RED",
+      "expanded_from": "n_tdd",
+      "next": "n_verify"
+    },
+    {
+      "kind": "skill",
+      "action": "派全新上下文子代理做独立 review：七维 + 接线四问 + 功能遗漏/断点，红队视角找反例",
+      "command": "派新子代理，brief 自包含 diff + 规格 + 完成标准",
+      "command_type": "judgment",
+      "exit_criteria": "收到新子代理报告（非复用旧报告），含 Blocker 分级",
+      "exit_check": {
+        "kind": "file_content",
+        "expect": "报告含 Blocker/Should/Nit 与 文件:行号",
+        "evidence": "overview 独立 review 章节"
+      },
+      "on_fail": "retry",
+      "on_fail_next": "review/DISPATCH",
+      "when": "standard 或 full 档",
+      "atomic": true,
+      "id": "n_review-DISPATCH",
+      "label": "独立评审与门禁 · DISPATCH",
+      "serves_task": "T1",
+      "ref": "review",
+      "route_ref": "review/DISPATCH",
+      "expanded_from": "n_review",
+      "next": "n_ledger"
+    },
+    {
+      "kind": "tool",
+      "action": "S5 沉淀：从 overview 抽有后续影响的条目，补成触发→动作；默认 dry-run，人工确认后 --apply",
+      "command": "python ../conductor-memory/scripts/learn_capture.py --dry-run <overview>",
+      "command_type": "command",
+      "exit_criteria": "草稿产出且经人工确认；无经验则写'本次无新增经验'",
+      "exit_check": {
+        "kind": "user_confirm",
+        "expect": "人工确认草稿或无新增说明",
+        "evidence": "learn_capture 输出 + overview 留痕"
+      },
+      "on_fail": "abort",
+      "when": "standard 或 full 档且 review gate 已过",
+      "atomic": true,
+      "id": "n_memory-DISTILL",
+      "label": "沉淀经验回写 · DISTILL",
+      "serves_task": "T1",
+      "ref": "memory",
+      "route_ref": "memory/DISTILL",
+      "expanded_from": "n_memory",
+      "next": "n_end"
+    },
+    {
+      "id": "n_start",
+      "kind": "research",
+      "label": "核对 S2 规格与契约产物",
+      "action": "读 spec/coverage/contract 三份产物确认一致",
+      "atomic": true,
+      "command": "cat .conductor/overviews/2026-11-23/5860885b-移除兜底_Hub百分百承接桥接.spec.md",
+      "command_type": "file_read",
+      "exit_criteria": "三份 S2 产物齐全且校验通过",
+      "exit_check": {
+        "kind": "exit_code",
+        "expect": "0",
+        "evidence": "coverage_check rc=0 + contract_check rc=0"
+      },
+      "serves_task": "T1",
+      "next": "n_brainstorm-S2-contract-gate",
+      "on_fail": "abort"
+    },
+    {
+      "id": "n_verify",
+      "kind": "gate",
+      "label": "verify 全绿门禁",
+      "action": "跑 cargo test + check-bridge-protocol",
+      "atomic": true,
+      "command": "python scripts/verify.py --project-root . --lang rust && node scripts/check-bridge-protocol.mjs",
+      "command_type": "command",
+      "exit_criteria": "测试全绿",
+      "exit_check": {
+        "kind": "exit_code",
+        "expect": "0",
+        "evidence": "verify rc=0 + check-bridge-protocol rc=0"
+      },
+      "next": "n_purity",
+      "on_fail": "ask"
+    },
+    {
+      "id": "n_purity",
+      "kind": "gate",
+      "label": "源码纯净门禁",
+      "action": "跑 source_purity --strict",
+      "atomic": true,
+      "command": "python organs/conductor-review/scripts/source_purity.py check --strict --project-root .",
+      "command_type": "command",
+      "exit_criteria": "无 fake/占位",
+      "exit_check": {
+        "kind": "exit_code",
+        "expect": "0",
+        "evidence": "source_purity rc=0"
+      },
+      "next": "n_review-DISPATCH",
+      "on_fail": "ask"
+    },
+    {
+      "id": "n_ledger",
+      "kind": "gate",
+      "label": "台账零未勾销",
+      "action": "commitment_ledger check --strict",
+      "atomic": true,
+      "command": "python scripts/commitment_ledger.py check --strict --project-root .",
+      "command_type": "command",
+      "exit_criteria": "台账零未勾销",
+      "exit_check": {
+        "kind": "exit_code",
+        "expect": "0",
+        "evidence": "commitment_ledger rc=0"
+      },
+      "next": "n_memory-DISTILL",
+      "on_fail": "ask"
+    },
+    {
+      "id": "n_end",
+      "kind": "gate",
+      "label": "收尾：路线走完",
+      "action": "确认所有节点完成",
+      "atomic": true,
+      "command": "echo route-complete",
+      "command_type": "gate_check",
+      "exit_criteria": "所有节点非 pending",
+      "exit_check": {
+        "kind": "exit_code",
+        "expect": "0",
+        "evidence": "next 返回路线已走完"
+      },
+      "next": "",
+      "on_fail": "abort"
+    }
+  ],
+  "edges": [
+    {
+      "from": "n_start",
+      "to": "n_brainstorm-S2-contract-gate",
+      "type": "seq",
+      "label": "S2产物确认"
+    },
+    {
+      "from": "n_brainstorm-S2-contract-gate",
+      "to": "n_impact-SCAN",
+      "type": "seq",
+      "label": "规格锁定"
+    },
+    {
+      "from": "n_impact-SCAN",
+      "to": "n_tdd-RED",
+      "type": "seq",
+      "label": "影响面清楚"
+    },
+    {
+      "from": "n_tdd-RED",
+      "to": "n_verify",
+      "type": "seq",
+      "label": "实现完成"
+    },
+    {
+      "from": "n_verify",
+      "to": "n_purity",
+      "type": "seq",
+      "label": "测试全绿"
+    },
+    {
+      "from": "n_purity",
+      "to": "n_review-DISPATCH",
+      "type": "seq",
+      "label": "源码纯净"
+    },
+    {
+      "from": "n_review-DISPATCH",
+      "to": "n_ledger",
+      "type": "seq",
+      "label": "Blocker=0"
+    },
+    {
+      "from": "n_ledger",
+      "to": "n_memory-DISTILL",
+      "type": "seq",
+      "label": "台账清零"
+    },
+    {
+      "from": "n_memory-DISTILL",
+      "to": "n_end",
+      "type": "seq",
+      "label": "沉淀完成"
+    }
+  ],
+  "paths": [
+    {
+      "id": "P1",
+      "label": "核对 S2 规格与契约产物 / 规格固化与覆盖门禁复核 / 跨模块影响面核实 / TDD 实现单轨桥接",
+      "guard": "核对 S2 规格与契约产物: S2产物确认 且 规格固化与覆盖门禁复核: 规格锁定 且 跨模块影响面核实: 影响面清楚 且 TDD 实现单轨桥接: 实现完成 且 verify 全绿门禁: 测试全绿 且 源码纯净门禁: 源码纯净 且 独立评审与门禁: Blocker=0 且 台账零未勾销: 台账清零 且 沉淀经验回写: 沉淀完成",
+      "steps": [
+        "n_start",
+        "n_brainstorm-S2-contract-gate",
+        "n_impact-SCAN",
+        "n_tdd-RED",
+        "n_verify",
+        "n_purity",
+        "n_review-DISPATCH",
+        "n_ledger",
+        "n_memory-DISTILL",
+        "n_end"
+      ],
+      "terminal": "n_end",
+      "is_happy": true
+    }
+  ],
+  "budget": {
+    "max_steps": 40,
+    "max_retries": 3,
+    "noop_limit": 2
+  },
+  "meta": {
+    "created": "2026-11-23",
+    "context_refs": [".conductor/overviews/2026-11-23/5860885b-移除兜底_Hub百分百承接桥接.spec.md"],
+    "habit_refs": [],
+    "expanded": true
+  }
+}

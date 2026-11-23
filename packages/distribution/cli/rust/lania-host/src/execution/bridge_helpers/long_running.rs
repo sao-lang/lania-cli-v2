@@ -4,10 +4,13 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use lania_logger::LogLevel;
-use lania_bridge_host::node_bridge::{BridgeActiveCall, BridgeExchange, BridgeRequest};
+use lania_bridge_host::node_bridge::{
+    BridgeActiveCall, BridgeEvent, BridgeExchange, BridgeRequest, BridgeResponse,
+};
 use tokio_util::sync::CancellationToken;
 
 use super::super::context::CommandExecutionContext;
+use super::requests::BridgeDispatchResult;
 
 impl<'a> CommandExecutionContext<'a> {
     pub(in crate::execution) async fn maybe_wait_for_shutdown(
@@ -41,6 +44,12 @@ impl<'a> CommandExecutionContext<'a> {
         });
 
         // 长任务运行期日志：Ctrl-C 与事件流并行消费，边到边打印。
+        //
+        // 两条链路都能承载运行期事件：
+        // - 1:1 回落：active 句柄的 next_event()（逐事件 awaited）
+        // - Hub 单轨：active=None，改由 provider.drain_events() 周期性泵出
+        //   Hub 侧到达的 Event 帧（与 1:1 的 next_event 语义等价）。
+        let hub_provider = self.bridge_provider();
         if let Some(call) = active.as_mut() {
             loop {
                 tokio::select! {
@@ -51,6 +60,25 @@ impl<'a> CommandExecutionContext<'a> {
                             None => {
                                 cancellation.cancelled().await;
                                 break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else if let Some(provider) = hub_provider {
+            // Hub 路径：每 25ms 泵一次事件，Ctrl-C 随时可中断。
+            loop {
+                tokio::select! {
+                    _ = cancellation.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_millis(25)) => {
+                        for provider_event in provider.drain_events() {
+                            if let Ok(event) = serde_json::from_value::<BridgeEvent>(
+                                serde_json::json!({
+                                    "method": provider_event.method,
+                                    "params": provider_event.params,
+                                }),
+                            ) {
+                                self.apply_bridge_event(request, &event);
                             }
                         }
                     }
@@ -77,9 +105,39 @@ impl<'a> CommandExecutionContext<'a> {
         );
 
         // 目前长任务统一走 compiler.stop 作为“温和停止”信号。
-        let shutdown = self
-            .dispatch_bridge_request(&self.node_bridge.compiler_stop_request())
-            .await?;
+        // Hub 单轨下必须经同一个 Hub provider 发 stop，才能停掉真正的 dev 端点；
+        // 若误用 1:1 node_bridge 会 spawn 全新进程（activeCompiler=null），停不掉。
+        let provider = self
+            .bridge_provider()
+            .ok_or_else(|| anyhow!("hub bridge provider is not attached; cannot stop long task"))?;
+        let stop = self.node_bridge.compiler_stop_request();
+        // provider.call 失败经 Err 直接上抛（Hub 单轨不掩盖错误）；
+        // 成功时 error 恒 None，与 1:1 的 response 语义一致。
+        let exchange = provider
+            .call(&stop.method, stop.params)
+            .await
+            .map_err(|err| anyhow!("compiler.stop via hub failed: {err}"))?;
+        let shutdown = BridgeDispatchResult {
+            exchange: BridgeExchange {
+                response: BridgeResponse {
+                    id: stop.id,
+                    result: Some(exchange.result),
+                    error: None,
+                },
+                events: exchange
+                    .events
+                    .into_iter()
+                    .filter_map(|e| {
+                        serde_json::from_value::<BridgeEvent>(serde_json::json!({
+                            "method": e.method,
+                            "params": e.params,
+                        }))
+                        .ok()
+                    })
+                    .collect(),
+            },
+            active: None,
+        };
         // stop 之后把剩余事件排空，确保最后的编译/退出日志可见。
         if let Some(call) = active.as_mut() {
             let timeout = tokio::time::sleep(Duration::from_secs(2));

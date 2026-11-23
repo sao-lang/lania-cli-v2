@@ -13,7 +13,7 @@ use lania_host::{
     capability::CapabilityName,
     execution::{CommandExecution, CommandExecutionContext, CommandHandler},
 };
-use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
+use lania_node_bridge::{BridgeRequest, RequestFactory};
 use std::path::Path;
 
 
@@ -53,7 +53,7 @@ impl CommandHandler for DevCommandHandler {
         ctx.log_runtime_decision(cli_runtime);
         // 应用日志默认开启（否则用户看不到服务端接口日志），`--quiet-app` 才关掉。
         ctx.set_quiet_app_logs(ctx.bool_option("quiet-app"));
-        let request = build_request(ctx.command(), ctx.node_bridge());
+        let request = build_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         let exit_code = resolve_dev_exit_code(run.exchange.response.result.as_ref());
         Ok(ctx.complete_bridge(run, exit_code))
@@ -69,7 +69,7 @@ impl CommandHandler for DevCommandHandler {
 
 pub(crate) fn build_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
 ) -> BridgeRequest {
     // 兼容字段：`config` / `path` 属于历史遗留参数。
     // 即使 bridge 侧的某些 workflow 已经不需要，也保留透传，避免老调用点/老 bridge 行为变化。
@@ -154,7 +154,7 @@ pub(crate) fn build_request(
 mod tests {
     use super::{build_request, resolve_dev_exit_code};
     use lania_command::CommandContext;
-    use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
+    use lania_node_bridge::RequestFactory;
     use serde_json::json;
 
     fn joined_cwd(path: &str) -> String {
@@ -183,7 +183,7 @@ mod tests {
             handler_id: "command.dev".into(),
             trace_id: "trace-1".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_request(&context, &bridge);
 
         assert_eq!(request.method, "compiler.dev");
@@ -205,7 +205,7 @@ mod tests {
             handler_id: "command.dev".into(),
             trace_id: "trace-runtime".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_request(&context, &bridge);
 
         assert_eq!(request.params["runtime"], json!("go"));

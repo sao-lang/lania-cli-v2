@@ -385,8 +385,34 @@ fn now_ms() -> u64 {
         .unwrap_or_default()
 }
 
+/// hub 模式：本 bridge 以 Hub 端点身份运行（BusFrame 协议），否则 1:1 envelope。
+/// 业务函数（handle_lint/handle_build）两者共用，零改动。
+fn hub_mode() -> bool {
+    std::env::var("LANIA_BRIDGE_MODE").as_deref() == Ok("hub")
+}
+
 /// 一行协议输出（stdout）。所有日志必须走 stderr（§3.1 约定 1）。
 fn emit(value: &Value) {
+    if hub_mode() {
+        // event envelope -> BusFrame publish；response/handshake 忽略（由 hooks 返回值承载）。
+        if value["type"].as_str() != Some("event") {
+            return;
+        }
+        let method = value["payload"]["method"].as_str().unwrap_or("");
+        if method.is_empty() {
+            return;
+        }
+        write_frame(&json!({
+            "kind": "publish",
+            "topic": method,
+            "payload": value["payload"]["params"],
+        }));
+        return;
+    }
+    write_frame(value);
+}
+
+fn write_frame(value: &Value) {
     let mut stdout = std::io::stdout().lock();
     if writeln!(stdout, "{value}").is_err() {
         return;
@@ -735,6 +761,9 @@ fn handle_request(envelope: &Value) -> bool {
 
 /// bridge 主循环：逐行读 stdin，EOF（父进程消失）即退出（§3.1 约定 4）。
 pub fn run_stdio_bridge() -> Result<i32> {
+    if hub_mode() {
+        return run_hub_bridge();
+    }
     emit_event(
         "event.ready",
         json!({
@@ -783,6 +812,91 @@ pub fn run_stdio_bridge() -> Result<i32> {
             // 本 bridge 不发起 host RPC；收到响应说明上游版本不匹配，忽略。
             Some("host_response") => {}
             other => eprintln!("unsupported envelope type: {other:?}"),
+        }
+    }
+}
+
+
+/// 以 Hub 端点身份接入：announce 真实能力，逐行读 BusFrame request，
+/// 复用 1:1 的 handle_lint/handle_build 分发，回 BusFrame response。
+/// event 由 emit() 在 hub_mode 下转 publish。
+fn run_hub_bridge() -> Result<i32> {
+    let endpoint_id = std::env::var("LANIA_ENDPOINT_ID")
+        .unwrap_or_else(|_| format!("rs-bridge-{}", std::process::id()));
+    write_frame(&json!({
+        "kind": "announce",
+        "endpointId": endpoint_id,
+        "provides": METHODS,
+        "subscribes": ["event.*"],
+    }));
+
+    let stdin = std::io::stdin();
+    let mut reader = stdin.lock();
+    let mut buffer = String::new();
+    loop {
+        buffer.clear();
+        if reader.read_line(&mut buffer)? == 0 {
+            return Ok(0);
+        }
+        let line = buffer.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Ok(frame) = serde_json::from_str::<Value>(line) else {
+            eprintln!("failed to parse bus frame: {line}");
+            continue;
+        };
+        if frame["kind"].as_str() != Some("request") {
+            continue;
+        }
+        let id = frame["id"].as_str().unwrap_or("").to_string();
+        let method = frame["capability"].as_str().unwrap_or("").to_string();
+        let params = if frame["params"].is_object() {
+            frame["params"].clone()
+        } else {
+            json!({})
+        };
+
+        let mut result = Value::Null;
+        let mut error: Option<Value> = None;
+        let mut shutdown = false;
+        match method.as_str() {
+            "bridge.ping" => {
+                result = json!({ "ok": true, "bridgeName": BRIDGE_NAME, "version": env!("CARGO_PKG_VERSION") });
+            }
+            "bridge.heartbeat" => {
+                result = json!({ "ok": true, "ts": now_ms() });
+            }
+            "bridge.shutdown" => {
+                result = json!({ "ok": true });
+                shutdown = true;
+            }
+            m if m.starts_with("lint.") => {
+                let adaptor = &m["lint.".len()..];
+                emit_event("event.lint_start", json!({ "adaptors": [adaptor] }), &id);
+                let lint = handle_lint(adaptor, &params, &id);
+                emit_event("event.lint_result", json!({
+                    "adaptor": lint["adaptor"],
+                    "errors": lint["errors"],
+                    "warnings": lint["warnings"],
+                    "implementation": lint["implementation"],
+                }), &id);
+                result = lint;
+            }
+            "build.rust" => {
+                result = handle_build(&params, &id);
+            }
+            other => {
+                error = Some(error_payload("E_UNSUPPORTED", &format!("unsupported capability: {other}")));
+            }
+        }
+        let mut response = json!({ "kind": "response", "id": id, "result": result });
+        if let Some(err) = error {
+            response["error"] = err;
+        }
+        write_frame(&response);
+        if shutdown {
+            return Ok(0);
         }
     }
 }

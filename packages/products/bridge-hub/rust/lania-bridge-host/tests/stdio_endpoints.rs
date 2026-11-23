@@ -149,6 +149,43 @@ fn node_endpoint_answers_request_and_acks_events() {
     }
 }
 
+/// 真实 Node bridge 以 Hub endpoint 模式接入：必须 announce 完整 method 名
+/// （如 `system.listCommands`，非 `system` 前缀），并经 Hub 精确路由响应请求。
+/// 这是 Hub 承接真实业务的前提（第 2 批 FR-3）。
+#[test]
+fn real_node_bridge_announces_full_methods_and_routes() {
+    let mut host = host_for("real-node-hub");
+    let command = lania_bridge_host::node_bridge::hub_mode_command("node-hub")
+        .expect("locate real node bridge hub-mode command");
+    host.attach_command("node-hub", command)
+        .expect("spawn real node bridge in hub mode");
+
+    // 端点应 announce 完整 method（含点号），而非命名空间前缀。
+    assert!(
+        wait_for(
+            &mut host,
+            |hub| hub.providers_of("system.listCommands").iter().any(|id| id == "node-hub"),
+            Duration::from_secs(30),
+        ),
+        "real node bridge did not announce full method system.listCommands"
+    );
+    // 反向证据：不应声明裸前缀（Hub 精确匹配，前缀无意义且会误导）。
+    assert!(
+        host.hub().providers_of("system").is_empty(),
+        "端点不应声明命名空间前缀 system"
+    );
+
+    let mut cli = host.attach("cli");
+    let id = cli.request("system.listCommands", json!({}));
+    match wait_frame(&mut host, &cli, Duration::from_secs(20)) {
+        BusFrame::Response { id: response_id, error, .. } => {
+            assert_eq!(response_id, id);
+            assert!(error.is_none(), "unexpected error: {error:?}");
+        }
+        other => panic!("expected response from real node bridge, got {other:?}"),
+    }
+}
+
 /// Go / Dart 端点需要本机安装对应 SDK，默认不进 CI；用
 /// `cargo test -p lania-bridge-host -- --ignored` 显式验证。
 #[test]

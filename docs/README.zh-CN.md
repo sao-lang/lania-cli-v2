@@ -2,6 +2,16 @@
 
 这份索引用于收敛 `docs/` 目录。当前文档按“阅读入口、稳定架构、专题设计、工程运营、参考资料、历史归档”六类组织。
 
+## Bridge Hub 深度精讲（逐行代码链路）
+
+想深入看「多运行时通信」和「命令从终端到结束的主链路」时，读这一组（每模块一篇、逐行精讲）：
+
+- `architecture/hub-deep-dive/00-总览与学习推荐.zh-CN.md` — 5 个最值得学的点 + 文档索引
+- `architecture/hub-deep-dive/01-终端命令主链路.zh-CN.md` — `lan lint` 从 argv 到退出码的完整轨迹
+- `architecture/hub-deep-dive/02-多运行时通信机制.zh-CN.md` — BusFrame 协议、三张路由表、host 反向 RPC、事件流
+- `architecture/hub-deep-dive/03-多语言接入与惰性attach.zh-CN.md` — 五种语言的接入差异与成本设计
+- `architecture/hub-deep-dive/04-请求构造与流式调用.zh-CN.md` — RequestFactory 解耦与 agent 逐 token 流式渲染
+
 ## 建议阅读顺序
 
 1. `guides/learning-map.zh-CN.md`
@@ -34,6 +44,7 @@
 
 ### `architecture/`
 
+- `architecture/hub-deep-dive/` — Bridge Hub 逐行精讲（5 篇，见上方索引）
 - `architecture/模块设计与通信总览.zh-CN.md`
   - 各模块职责、上下游依赖、插件系统、Node Bridge、Rust runtime 与通信边界
 - `architecture/框架化与产品化总览.zh-CN.md`

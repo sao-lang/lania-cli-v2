@@ -18,7 +18,7 @@ use lania_host::{
     RuntimeKind,
 };
 use lania_logger::LogLevel;
-use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
+use lania_node_bridge::{BridgeRequest, RequestFactory};
 use std::path::PathBuf;
 
 pub(crate) struct BuildCommandHandler;
@@ -61,7 +61,7 @@ impl CommandHandler for BuildCommandHandler {
         if let Some(execution) = run_runtime_build(ctx).await? {
             return Ok(execution);
         }
-        let request = build_request(ctx.command(), ctx.node_bridge());
+        let request = build_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         let exit_code = resolve_build_exit_code(run.exchange.response.result.as_ref());
         Ok(ctx.complete_bridge(run, exit_code))
@@ -181,7 +181,7 @@ fn resolve_cwd_from_path_option(base_cwd: &str, raw_path: Option<&str>) -> Strin
     }
 }
 
-pub(crate) fn build_request(context: &CommandContext, bridge: &NodeBridgeClient) -> BridgeRequest {
+pub(crate) fn build_request(context: &CommandContext, bridge: &RequestFactory) -> BridgeRequest {
     // Legacy 兼容字段：
     // - `config` / `path` 可能被某些旧 bridge 使用（或仅作为 hint），即使新实现忽略也需要保留。
     let config_path = string_option_value(context, "config");
@@ -221,7 +221,7 @@ fn bool_option_value(context: &CommandContext, key: &str, default: bool) -> bool
 mod tests {
     use super::{bool_option_value, build_request, resolve_build_exit_code};
     use lania_command::CommandContext;
-    use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
+    use lania_node_bridge::RequestFactory;
     use serde_json::json;
 
     fn joined_cwd(path: &str) -> String {
@@ -250,7 +250,7 @@ mod tests {
             handler_id: "command.build".into(),
             trace_id: "trace-2".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_request(&context, &bridge);
 
         assert_eq!(request.method, "compiler.build");
@@ -272,7 +272,7 @@ mod tests {
             handler_id: "command.build".into(),
             trace_id: "trace-runtime".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_request(&context, &bridge);
 
         assert_eq!(request.params["runtime"], json!("rust"));

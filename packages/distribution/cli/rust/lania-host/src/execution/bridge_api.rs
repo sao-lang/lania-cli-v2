@@ -12,8 +12,9 @@ use anyhow::Result;
 use lania_hooks::hook_keys;
 use lania_logger::LogLevel;
 use lania_bridge_host::node_bridge::{
-    BridgeExchange, BridgeRequest, BridgeResponse, NodeBridgeClient,
+    BridgeEvent, BridgeExchange, BridgeRequest, BridgeResponse, NodeBridgeClient,
 };
+use lania_host_core::BridgeProviderEvent;
 use lania_workflows::WorkflowExecution;
 use serde_json::json;
 
@@ -84,40 +85,80 @@ impl<'a> CommandExecutionContext<'a> {
             request.params = params;
         }
 
-        // 真正发起 bridge 调用（§5.5 E.1 接线）：
-        // bridge_slot 已注入时优先走新总线 BridgeProvider；provider 未声明该
-        // capability（Hub 回 E_METHOD_NOT_FOUND）或超时/出错时，回落到既有
-        // 1:1 客户端 dispatch_bridge_request —— 兼容层，保证行为不退化。
-        // 命中 provider 时构造一个只有 response、没有 events 的 exchange，
-        // 之后仍统一经过 after-hook / 错误映射 / 长任务收尾，保持调用生命周期一致。
-        let provider_dispatch = match self.bridge_provider() {
-            Some(provider) => {
-                let attempt = tokio::time::timeout(
-                    std::time::Duration::from_millis(self.policy.timeout_ms),
-                    provider.call(&request.method, request.params.clone()),
-                )
-                .await;
-                match attempt {
-                    Ok(Ok(value)) => Some(BridgeDispatchResult {
-                        exchange: BridgeExchange {
-                            response: BridgeResponse {
-                                id: request.id.clone(),
-                                result: Some(value),
-                                error: None,
-                            },
-                            events: Vec::new(),
-                        },
-                        active: None,
-                    }),
-                    _ => None,
+        // 真正发起 bridge 调用（§5.5 E.1）：Hub 是唯一桥接路径，无 1:1 回落。
+        // provider 未注入、调用失败或超时都直接报错；成功时把响应值与事件流组装成
+        // exchange，统一经过 after-hook / 错误映射 / 长任务收尾。
+        let provider = self.bridge_provider().ok_or_else(|| ExecutionError {
+            exit_code: EXIT_RUNTIME_ERROR,
+            message: format!(
+                "hub bridge provider is not attached; cannot execute {} (no 1:1 fallback)",
+                request.method
+            ),
+        })?;
+        let attempt = tokio::time::timeout(
+            std::time::Duration::from_millis(self.policy.timeout_ms),
+            provider.call(&request.method, request.params.clone()),
+        )
+        .await;
+        let provider_exchange = match attempt {
+            Ok(Ok(exchange)) => exchange,
+            Ok(Err(err)) => {
+                return Err(ExecutionError {
+                    exit_code: EXIT_RUNTIME_ERROR,
+                    message: format!(
+                        "hub bridge call {} failed: {err} (no 1:1 fallback)",
+                        request.method
+                    ),
                 }
+                .into());
             }
-            None => None,
+            Err(_) => {
+                return Err(ExecutionError {
+                    exit_code: EXIT_RUNTIME_ERROR,
+                    message: format!(
+                        "hub bridge call {} timed out after {}ms (no 1:1 fallback)",
+                        request.method, self.policy.timeout_ms
+                    ),
+                }
+                .into());
+            }
         };
-        let BridgeDispatchResult { exchange, active } = match provider_dispatch {
-            Some(dispatch) => dispatch,
-            // 回落：包含 timeout/retry/流式 events 的处理，见 bridge_helpers.rs。
-            None => self.dispatch_bridge_request(&request).await?,
+        // Hub 单轨：把端点事件流转换回 node-bridge 的 BridgeEvent，
+        // 复用现有 apply_bridge_events 渲染链，保证进度/日志不退化。
+        let events = provider_exchange
+            .events
+            .into_iter()
+            .filter_map(|event: BridgeProviderEvent| {
+                match serde_json::from_value::<BridgeEvent>(json!({
+                    "method": event.method,
+                    "params": event.params,
+                })) {
+                    Ok(event) => Some(event),
+                    Err(_) => {
+                        self.log(
+                            LogLevel::Warn,
+                            "command_execute",
+                            Some(request.method.clone()),
+                            format!("drop undecodable hub event: {}", event.method),
+                        );
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+        // 事件副作用必须在 response 错误上抛前消费（与 1:1 链路一致）。
+        let exchange = BridgeExchange {
+            response: BridgeResponse {
+                id: request.id.clone(),
+                result: Some(provider_exchange.result),
+                error: None,
+            },
+            events,
+        };
+        self.apply_bridge_events(&request, &exchange);
+        let BridgeDispatchResult { exchange, active } = BridgeDispatchResult {
+            exchange,
+            active: None,
         };
         if let Some(error) = exchange.response.error.as_ref() {
             // after hook 使用 parallel：不影响主流程（仅用于观测/上报）。
@@ -185,54 +226,80 @@ impl<'a> CommandExecutionContext<'a> {
         })
     }
 
-    /// 独立运行时 bridge 调用（§5.3 首选路径）。
+    /// 独立运行时 bridge 调用（§5.3 首选路径，Hub 单轨）。
     ///
-    /// 与 `call_bridge` 的区别：这里的目标客户端由调用方指定（`lan-py-bridge` 等），
-    /// 不走 `host_state.node_bridge`，也不做长任务/事件订阅（各语言 bridge 的
-    /// lint/build 都是「请求 → 响应」，不需要常驻订阅）。
-    /// 返回 `Err` 表示 bridge 不可用 —— 调用方据此回落到 Rust 侧 CLI spawn。
+    /// 各语言 bridge（Python/Go/Dart/Rust）的真实 endpoint 已以 Hub 端点身份接入，
+    /// 声明各自 lint.*/build.* 能力。这里经 Hub provider 按 method 精确路由，
+    /// 与 call_bridge 走同一条单轨 —— 不再直接 spawn 1:1 NodeBridgeClient。
+    /// `client` 参数仅保留给调用方构造 BridgeRequest（method + params），不参与执行。
+    /// 返回 `Err` 表示对应能力不可用 —— 调用方据此回落到 Rust 侧 CLI spawn。
     pub async fn call_runtime_bridge(
         &self,
-        client: &NodeBridgeClient,
+        _client: &NodeBridgeClient,
         request: BridgeRequest,
     ) -> Result<BridgeExchange> {
         self.log(
             LogLevel::Debug,
             "command_execute",
             Some(request.method.clone()),
-            format!("dispatch runtime bridge request {}", request.method),
+            format!("dispatch runtime bridge request {} via hub", request.method),
         );
-        let start = client.open_call(request.clone());
-        let exchange = match start {
-            Ok(mut call) => tokio::time::timeout(
-                std::time::Duration::from_millis(self.policy.timeout_ms),
-                call.collect_until_response(|event| self.apply_bridge_event(&request, event)),
-            )
-            .await
-            .map_err(|_| ExecutionError {
-                exit_code: EXIT_RUNTIME_ERROR,
-                message: format!("runtime bridge request {} timed out", request.method),
-            })??,
-            Err(_) => tokio::time::timeout(
-                std::time::Duration::from_millis(self.policy.timeout_ms),
-                client.call_async(request.clone()),
-            )
-            .await
-            .map_err(|_| ExecutionError {
-                exit_code: EXIT_RUNTIME_ERROR,
-                message: format!("runtime bridge request {} timed out", request.method),
-            })??,
-        };
-        if let Some(error) = exchange.response.error.as_ref() {
-            return Err(ExecutionError {
-                exit_code: EXIT_RUNTIME_ERROR,
-                message: format!(
-                    "runtime bridge error for {}: [{}] {}",
-                    request.method, error.code, error.message
-                ),
+        let provider = self.bridge_provider().ok_or_else(|| ExecutionError {
+            exit_code: EXIT_RUNTIME_ERROR,
+            message: format!(
+                "hub bridge provider is not attached; cannot execute {} (no 1:1 fallback)",
+                request.method
+            ),
+        })?;
+        let attempt = tokio::time::timeout(
+            std::time::Duration::from_millis(self.policy.timeout_ms),
+            provider.call(&request.method, request.params.clone()),
+        )
+        .await;
+        let provider_exchange = match attempt {
+            Ok(Ok(exchange)) => exchange,
+            Ok(Err(err)) => {
+                return Err(ExecutionError {
+                    exit_code: EXIT_RUNTIME_ERROR,
+                    message: format!("hub runtime bridge call {} failed: {err}", request.method),
+                }
+                .into());
             }
-            .into());
-        }
+            Err(_) => {
+                return Err(ExecutionError {
+                    exit_code: EXIT_RUNTIME_ERROR,
+                    message: format!(
+                        "hub runtime bridge call {} timed out after {}ms",
+                        request.method, self.policy.timeout_ms
+                    ),
+                }
+                .into());
+            }
+        };
+        let events = provider_exchange
+            .events
+            .into_iter()
+            .filter_map(|event: BridgeProviderEvent| {
+                match serde_json::from_value::<BridgeEvent>(json!({
+                    "method": event.method,
+                    "params": event.params,
+                })) {
+                    Ok(event) => Some(event),
+                    Err(_) => None,
+                }
+            })
+            .collect::<Vec<_>>();
+        let exchange = BridgeExchange {
+            response: BridgeResponse {
+                id: request.id.clone(),
+                result: Some(provider_exchange.result),
+                error: None,
+            },
+            events,
+        };
+        // Hub 单轨：边到边渲染 lint/build 的工具日志与进度（event.diag/lint_start/…）。
+        // 与 call_bridge 一致；不调用会让这些事件静默丢弃。
+        self.apply_bridge_events(&request, &exchange);
         Ok(exchange)
     }
 
@@ -306,16 +373,17 @@ impl<'a> CommandExecutionContext<'a> {
     /// 只做一次请求、不做进程内缓存：`build` / `lint` 每条命令最多问一次，
     /// 而缓存会让「改了 toolchain.ts 但没重启 CLI」的场景读到旧值。
     async fn toolchain_command(&self, kind: RuntimeKind, action: &str) -> Option<Vec<String>> {
-        let client = self.node_bridge();
-        let request = client.request("toolchain.describe", serde_json::json!({}));
+        // Hub 单轨：toolchain.describe 由 Node 端点实现并 announce，经 Hub 精确路由。
+        // 不再直接 spawn 1:1 NodeBridgeClient。
+        let provider = self.bridge_provider()?;
         let exchange = tokio::time::timeout(
             std::time::Duration::from_millis(self.policy.timeout_ms),
-            client.call_async(request),
+            provider.call("toolchain.describe", serde_json::json!({})),
         )
         .await
         .ok()?
         .ok()?;
-        let result = exchange.response.result?;
+        let result = exchange.result;
         let runtimes = result.get("runtimes")?.as_array()?;
         let entry = runtimes
             .iter()

@@ -19,7 +19,7 @@ use lania_host::{
     capability::CapabilityName,
     execution::{CommandExecution, CommandExecutionContext, CommandHandler},
 };
-use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
+use lania_node_bridge::{BridgeRequest, RequestFactory};
 use serde_json::{Map, Value};
 use std::path::PathBuf;
 
@@ -39,7 +39,7 @@ impl CommandHandler for ProductBuildCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         // `lan product build` -> `product.build`（TS 侧实现）。
         ctx.require_capability(CapabilityName::NodeBridge)?;
-        let request = build_product_request(ctx.command(), ctx.node_bridge());
+        let request = build_product_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
     }
@@ -50,7 +50,7 @@ impl CommandHandler for PackProductCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         // `lan product pack` -> `product.pack`。
         ctx.require_capability(CapabilityName::NodeBridge)?;
-        let request = pack_product_request(ctx.command(), ctx.node_bridge());
+        let request = pack_product_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
     }
@@ -61,7 +61,7 @@ impl CommandHandler for PublishProductCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         // `lan product publish` -> `product.publish`。
         ctx.require_capability(CapabilityName::NodeBridge)?;
-        let request = publish_product_request(ctx.command(), ctx.node_bridge());
+        let request = publish_product_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
     }
@@ -71,7 +71,7 @@ impl CommandHandler for PublishProductCommandHandler {
 impl CommandHandler for InspectProductCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         ctx.require_capability(CapabilityName::NodeBridge)?;
-        let request = inspect_product_request(ctx.command(), ctx.node_bridge());
+        let request = inspect_product_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
     }
@@ -81,7 +81,7 @@ impl CommandHandler for InspectProductCommandHandler {
 impl CommandHandler for DoctorProductCommandHandler {
     async fn execute(&self, ctx: &CommandExecutionContext<'_>) -> Result<CommandExecution> {
         ctx.require_capability(CapabilityName::NodeBridge)?;
-        let request = doctor_product_request(ctx.command(), ctx.node_bridge());
+        let request = doctor_product_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         Ok(ctx.complete_bridge(run, lania_host::EXIT_SUCCESS))
     }
@@ -98,7 +98,7 @@ impl CommandHandler for DoctorProductCommandHandler {
 
 pub(crate) fn build_product_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
 ) -> BridgeRequest {
     product_distribution_request(
         bridge,
@@ -116,7 +116,7 @@ pub(crate) fn build_product_request(
 
 pub(crate) fn pack_product_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
 ) -> BridgeRequest {
     product_distribution_request(
         bridge,
@@ -143,7 +143,7 @@ pub(crate) fn pack_product_request(
 
 pub(crate) fn publish_product_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
 ) -> BridgeRequest {
     // publish 的 params 相对复杂：它既包含“产物目录参数”，也包含“执行策略参数”。
     // 注意：这里的 key 必须和 TS 侧 `product.publish` 处理器约定一致（例如 `npmBin`）。
@@ -210,21 +210,21 @@ pub(crate) fn publish_product_request(
 
 pub(crate) fn inspect_product_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
 ) -> BridgeRequest {
     inspect_like_product_request(context, bridge, false)
 }
 
 pub(crate) fn doctor_product_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
 ) -> BridgeRequest {
     inspect_like_product_request(context, bridge, true)
 }
 
 fn inspect_like_product_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
     doctor: bool,
 ) -> BridgeRequest {
     let mut extra = vec![(
@@ -260,7 +260,7 @@ fn bool_option_value(context: &CommandContext, key: &str, default: bool) -> bool
 }
 
 fn product_distribution_request(
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
     method: &str,
     context: &CommandContext,
     extra: Vec<(&str, Value)>,
@@ -308,7 +308,7 @@ mod tests {
         pack_product_request, publish_product_request,
     };
     use lania_command::CommandContext;
-    use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
+    use lania_node_bridge::RequestFactory;
     use serde_json::json;
 
     fn joined_cwd(path: &str) -> String {
@@ -336,7 +336,7 @@ mod tests {
             handler_id: "command.build.product".into(),
             trace_id: "trace-3".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.build");
@@ -367,7 +367,7 @@ mod tests {
             handler_id: "command.pack.product".into(),
             trace_id: "trace-4".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = pack_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.pack");
@@ -422,7 +422,7 @@ mod tests {
             handler_id: "command.publish.product".into(),
             trace_id: "trace-5".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = publish_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.publish");
@@ -475,7 +475,7 @@ mod tests {
             handler_id: "command.inspect.product".into(),
             trace_id: "trace-6".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = inspect_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.inspect");
@@ -499,7 +499,7 @@ mod tests {
             handler_id: "command.doctor.product".into(),
             trace_id: "trace-7".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = doctor_product_request(&context, &bridge);
 
         assert_eq!(request.method, "product.inspect");

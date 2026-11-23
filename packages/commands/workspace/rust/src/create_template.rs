@@ -13,7 +13,6 @@ use lania_host::{
     execution::{CommandExecution, CommandExecutionContext, CommandHandler, ExecutionError},
     EXIT_RUNTIME_ERROR, EXIT_SUCCESS,
 };
-use lania_node_bridge::TemplateBridgeCapability;
 use lania_prompt::{
     PromptFallbackStrategy, PromptFlow, PromptRunOptions, PromptStep, PromptStepKind,
 };
@@ -227,11 +226,12 @@ impl CommandHandler for TemplateCommandHandler {
             }
             .into());
         }
-        let exchange = ctx
-            .node_bridge()
-            .list_templates(ctx.command().cwd.clone())
-            .await?;
-        let result = exchange.response.result.clone().ok_or_else(|| {
+        // Hub 单轨：构造 request 后经 call_bridge 路由（不再直接 1:1 call_async）。
+        let request = ctx
+            .request_factory()
+            .template_list_request(ctx.command().cwd.clone());
+        let run = ctx.call_bridge(request).await?;
+        let result = run.exchange.response.result.clone().ok_or_else(|| {
             anyhow!(
                 "{}",
                 TemplateCommandSpec::localized(

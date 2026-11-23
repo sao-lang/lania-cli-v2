@@ -6,13 +6,14 @@ use anyhow::Result;
 use std::sync::Arc;
 
 pub use client::{
-    AddTemplateBridgeCapability, BridgeActiveCall, BridgeClientConfig, BridgeLaunchSpec,
+    hub_mode_command, AddTemplateBridgeCapability, BridgeActiveCall, BridgeClientConfig, BridgeLaunchSpec,
     CommitBridgeCapability, CompilerBridgeCapability, ConfigBridgeCapability,
     LintBridgeCapability, NodeBridgeClient, TemplateBridgeCapability,
 };
 pub use protocol::{
     normalize_diagnostics, parse_diag_line, BridgeError, BridgeEvent, BridgeEventMethod,
     BridgeExchange, BridgeFailureStrategy, BridgeMetricsSnapshot, BridgeRequest, BridgeResponse,
+    RequestFactory,
     DiagChannel, DiagCounts, DiagLine, DiagSource, Diagnostic, DiagnosticFix, DiagnosticPosition,
     DiagnosticRange, DiagnosticSeverity, HandshakeRequest, HandshakeResponse, HostRequest,
     HostResponse, LogLevelName,

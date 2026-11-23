@@ -22,7 +22,7 @@ impl crate::CommandHandler for BridgeCommandHandler {
         // - cwd/workspaceRoot/productRoot 描述本次运行所在的宿主环境
         // - handlerId/traceId/argv 还原当前命令调用现场
         // - target 携带动态命令在解析阶段得到的完整目标描述
-        let request = ctx.node_bridge().request(
+        let request = ctx.request_factory().request(
             self.method.clone(),
             {
                 let runtime_mode = std::env::var("LANIA_RUNTIME_MODE")

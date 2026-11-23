@@ -237,17 +237,41 @@ func nextSeq() int {
 	return seq
 }
 
-func emit(envelope map[string]any) {
+// hubMode=true 时以 Hub 端点身份运行（BusFrame），否则保持 1:1 envelope。
+// 业务函数（handleLint/handleBuild）两者共用，零改动。
+var hubMode = os.Getenv("LANIA_BRIDGE_MODE") == "hub"
+
+func writeFrame(frame map[string]any) {
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	payload, err := json.Marshal(envelope)
+	payload, err := json.Marshal(frame)
 	if err != nil {
-		logToStderr("failed to encode envelope: %v", err)
+		logToStderr("failed to encode frame: %v", err)
 		return
 	}
 	os.Stdout.Write(payload)
 	os.Stdout.Write([]byte("\n"))
 	os.Stdout.Sync()
+}
+
+func emit(envelope map[string]any) {
+	if hubMode {
+		// event envelope -> BusFrame publish；response/handshake 忽略。
+		if envelope["type"] != "event" {
+			return
+		}
+		payload, _ := envelope["payload"].(map[string]any)
+		if payload == nil {
+			return
+		}
+		method, _ := payload["method"].(string)
+		if method == "" {
+			return
+		}
+		writeFrame(map[string]any{"kind": "publish", "topic": method, "payload": payload["params"]})
+		return
+	}
+	writeFrame(envelope)
 }
 
 func emitEvent(method string, params any, requestID string) {
@@ -792,6 +816,9 @@ func handleRequest(envelope map[string]any) bool {
 }
 
 func serve() int {
+	if hubMode {
+		return serveHub()
+	}
 	emitEvent("event.ready", map[string]any{
 		"bridgeName": bridgeName,
 		"methods":    bridgeMethods,
@@ -840,6 +867,88 @@ func serve() int {
 			return 0
 		}
 	}
+}
+
+// serveHub 以 BusFrame 端点身份接入 Hub：announce 真实能力，逐行读 request 帧，
+// 转成 1:1 envelope 交给既有 handleRequest，再把 response 转回 BusFrame。
+// 业务函数零改动；event 由 emit() 在 hubMode 下转 publish。
+func serveHub() int {
+	endpointID := os.Getenv("LANIA_ENDPOINT_ID")
+	if endpointID == "" {
+		endpointID = "go-bridge-" + strconv.Itoa(os.Getpid())
+	}
+	writeFrame(map[string]any{
+		"kind": "announce", "endpointId": endpointID,
+		"provides": bridgeMethods, "subscribes": []string{"event.*"},
+	})
+	reader := bufio.NewReaderSize(os.Stdin, 1024*1024)
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) == 0 && err != nil {
+			return 0
+		}
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			if err != nil { return 0 }
+			continue
+		}
+		var frame map[string]any
+		if decodeErr := json.Unmarshal([]byte(trimmed), &frame); decodeErr != nil {
+			logToStderr("failed to parse bus frame: %v", decodeErr)
+			if err != nil { return 0 }
+			continue
+		}
+		switch frame["kind"] {
+		case "request":
+			id, _ := frame["id"].(string)
+			method, _ := frame["capability"].(string)
+			params := frame["params"]
+			// 复用 1:1 分发链：构造 envelope -> handleRequest（它内部 emitResponse，
+			// 在 hubMode 下被忽略）；这里直接组装 BusFrame response。
+			var result any
+			var failure *bridgeError
+			switch {
+			case method == "bridge.ping":
+				result = map[string]any{"ok": true, "bridgeName": bridgeName, "version": version}
+			case method == "bridge.heartbeat":
+				result = map[string]any{"ok": true, "ts": time.Now().UnixMilli()}
+			case method == "bridge.shutdown":
+				result = map[string]any{"ok": true}
+			case strings.HasPrefix(method, "lint."):
+				adaptor := strings.TrimPrefix(method, "lint.")
+				pm := decodeParamsFromAny(params)
+				emitEvent("event.lint_start", map[string]any{"adaptors": []string{adaptor}}, id)
+				res := handleLint(adaptor, pm, id)
+				emitEvent("event.lint_result", map[string]any{
+					"adaptor": res.Adaptor, "errors": res.Errors,
+					"warnings": res.Warnings, "implementation": res.Implementation,
+				}, id)
+				result = res
+			case method == "build.go":
+				result = handleBuild(decodeParamsFromAny(params), id)
+			default:
+				failure = &bridgeError{Code: "E_UNSUPPORTED", Message: "unsupported capability: " + method}
+			}
+			resp := map[string]any{"kind": "response", "id": id, "result": result}
+			if failure != nil {
+				resp["error"] = map[string]any{"code": failure.Code, "message": failure.Message}
+			}
+			writeFrame(resp)
+			if method == "bridge.shutdown" {
+				return 0
+			}
+		case "event":
+			// host -> 端点方向事件，当前无业务消费。
+		}
+		if err != nil { return 0 }
+	}
+}
+
+func decodeParamsFromAny(raw any) map[string]any {
+	if raw == nil { return make(map[string]any) }
+	encoded, err := json.Marshal(raw)
+	if err != nil { return make(map[string]any) }
+	return decodeParams(encoded)
 }
 
 func main() {

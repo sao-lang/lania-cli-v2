@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
         .bootstrap_project_extensions_from_cwd_async(cwd.display().to_string())
         .await?;
     // 统一登记各语言桥 + 装配 Hub provider + 注入 bridge_slot。
-    configure_command_bridges(&mut host, &cwd, false).await;
+    configure_command_bridges(&mut host, &cwd, false).await?;
 
     let code = run_single_command(&mut host, spec(), forwarded).await?;
     host.shutdown_async().await?;

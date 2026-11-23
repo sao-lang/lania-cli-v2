@@ -17,7 +17,7 @@ use lania_host::{
     RuntimeKind,
 };
 use lania_logger::LogLevel;
-use lania_node_bridge::{BridgeRequest, NodeBridgeClient};
+use lania_node_bridge::{BridgeRequest, RequestFactory};
 use serde_json::Value;
 
 /// 「lint adaptor → 独立语言 bridge」的唯一映射。
@@ -99,7 +99,7 @@ impl CommandHandler for LintCommandHandler {
             return Ok(execution);
         }
 
-        let request = build_request(ctx.command(), ctx.node_bridge());
+        let request = build_request(ctx.command(), ctx.request_factory());
         let run = ctx.call_bridge(request).await?;
         emit_lint_report(ctx, &run.exchange.response.result, started.elapsed());
         let exit_code = run
@@ -116,7 +116,7 @@ impl CommandHandler for LintCommandHandler {
 /// JS 簇 lint 的 CLI -> bridge request 映射（原 lint 包 `build_request`）。
 pub(crate) fn build_request(
     context: &CommandContext,
-    bridge: &NodeBridgeClient,
+    bridge: &RequestFactory,
 ) -> BridgeRequest {
     let requested_fix = context
         .argv
@@ -536,7 +536,7 @@ fn emit_grouped_output(ctx: &CommandExecutionContext<'_>, result: &Option<Value>
 #[cfg(test)]
 mod tests {
     use lania_command::CommandContext;
-    use lania_node_bridge::{BridgeClientConfig, NodeBridgeClient};
+    use lania_node_bridge::RequestFactory;
     use serde_json::json;
 
     use super::{build_request, runtime_lint_tools};
@@ -713,7 +713,7 @@ mod tests {
             handler_id: "command.lint".into(),
             trace_id: "trace-3".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_request(&context, &bridge);
 
         assert_eq!(request.method, "lint.run");
@@ -743,7 +743,7 @@ mod tests {
             handler_id: "command.lint".into(),
             trace_id: "trace-lang".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_request(&context, &bridge);
 
         assert_eq!(
@@ -766,7 +766,7 @@ mod tests {
             handler_id: "command.lint".into(),
             trace_id: "trace-deno".into(),
         };
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         let request = build_request(&context, &bridge);
 
         // `bun` 是 build 诊断的 tool 名，不是 lint adaptor，必须被过滤掉。
@@ -778,7 +778,7 @@ mod tests {
 
     #[test]
     fn maps_lint_subcommand_modes() {
-        let bridge = NodeBridgeClient::new(BridgeClientConfig::default());
+        let bridge = RequestFactory::default();
         for (handler_id, expected_mode, expected_fix) in [
             (LINT_HANDLER_ID, "check", false),
             (LINT_CHECK_HANDLER_ID, "check", false),
